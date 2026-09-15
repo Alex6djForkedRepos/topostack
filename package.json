@@ -17,7 +17,7 @@
     "test:coverage": "npm run coverage -w @topostack/core && npm run coverage -w @topostack/generator && npm run coverage -w @topostack/map-api",
     "test:e2e": "playwright test",
     "test:e2e:live": "playwright test --config playwright.live.config.ts",
-    "typecheck": "npm run typecheck -w @topostack/core && npm run typecheck -w @topostack/generator && npm run typecheck -w @topostack/map-api",
+    "typecheck": "tsc --project tsconfig.json && npm run typecheck -w @topostack/core && npm run typecheck -w @topostack/generator && npm run typecheck -w @topostack/map-api",
     "lint": "eslint . --max-warnings=0",
     "budget:web": "node scripts/check-web-budget.mjs",
     "data:provision": "node scripts/provision-vector-data.mjs",

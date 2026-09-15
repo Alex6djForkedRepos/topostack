@@ -41,7 +41,7 @@ for (const device of devices) {
 
     // Resize the same project both ways; a reload would miss stale canvas sizes
     // and scroll containment left behind when crossing layout breakpoints.
-    for (const [width, height] of [[device.width, device.height], [device.height, device.width], [device.width, device.height]]) {
+    for (const [width, height] of [[device.width, device.height], [device.height, device.width], [device.width, device.height]] as const) {
       await page.setViewportSize({ width, height });
       await page.getByRole("button", { name: "Expand all", exact: true }).click();
       await expectWithinWidth(page);

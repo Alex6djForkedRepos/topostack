@@ -19,7 +19,8 @@ test("homepage explains the product without JavaScript", async ({ browser, baseU
 
 test("homepage stays lightweight and opens the studio under the built CSP", async ({ page, baseURL }) => {
   const headers = readFileSync("apps/generator/dist/_headers", "utf8");
-  const policy = headers.match(/Content-Security-Policy: (.+)/)![1].replace("; upgrade-insecure-requests", "");
+  const policy = headers.match(/Content-Security-Policy: (.+)/)?.[1]?.replace("; upgrade-insecure-requests", "");
+  if (!policy) throw new Error("Missing production Content-Security-Policy header");
   const errors: string[] = [];
   const workers: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));

@@ -8,7 +8,7 @@ for (const output of ["Layered relief", "Flat engraving"]) {
     const headers = await readFile("apps/generator/dist/_headers", "utf8");
     // The local preview uses HTTP; WebKit otherwise upgrades loopback assets
     // to HTTPS. Keep all script, worker, and connection restrictions intact.
-    const policy = headers.match(/Content-Security-Policy: (.+)/)?.[1].replace(/; upgrade-insecure-requests/, "");
+    const policy = headers.match(/Content-Security-Policy: (.+)/)?.[1]?.replace(/; upgrade-insecure-requests/, "");
     expect(policy).toBeTruthy();
     await page.route("http://127.0.0.1:4173/studio", async (route) => {
       const response = await route.fetch();

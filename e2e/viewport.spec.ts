@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { DEFAULT_PROJECT } from "../packages/core/src/types";
 
 for (const outputMode of ["stack", "engraving"] as const) {
-for (const [widthMm, heightMm] of [[100, 200], [400, 100]]) {
+for (const [widthMm, heightMm] of [[100, 200], [400, 100]] as const) {
   test(`fits and navigates a ${widthMm} × ${heightMm} ${outputMode} preview`, async ({ page }) => {
     await page.route("https://static-res.makextool.com/**", (route) => route.abort());
     await page.route("https://tiles.openfreemap.org/styles/**", (route) => route.fulfill({ json: { version: 8, sources: {}, layers: [] } }));
