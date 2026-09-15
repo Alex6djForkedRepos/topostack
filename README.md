@@ -4,7 +4,7 @@ Turn a place you love into something you can make. TopoStack is a browser-based 
 
 [Visit the website](https://topostack.echofoxtrot.works) · [Open the studio](https://topostack.echofoxtrot.works/studio) · [Report a bug or share an idea](https://github.com/Echo-Foxtrot-Works/topostack/issues)
 
-![Illustration of stacked topographic terrain layers](atomm/assets/topostack-cover.png)
+![Two TopoStack workflows: stacked contour sheets for layered relief, and contour lines on one surface for flat engraving](docs/images/workflows.svg)
 
 ## What you can make
 
@@ -16,6 +16,12 @@ Turn a place you love into something you can make. TopoStack is a browser-based 
 Both workflows support rectangular and circular crops; roads, trails, transportation labels, water outlines and fill patterns; state/province boundaries; latitude/longitude grids; elevation labels; a compass; and a scale bar. Add custom coordinate-based markers, trails, and boundaries to make a map your own.
 
 Layered projects also support modeled lake depth, alignment guides, and material reuse. Sheet count is calculated from terrain relief, map scale, vertical exaggeration, and material thickness. Preview a project on the map, as 2D cut layers, as an engraving, or as a stacked/exploded 3D model, depending on the output type.
+
+### Inside the studio
+
+![TopoStack studio showing the Crater Lake sample as a 3D terrain stack, with project controls and the layer and exploded-view sliders](docs/images/studio-crater-lake.png)
+
+*The bundled Crater Lake preview in the studio's 3D stack view. Generate fresh terrain before exporting fabrication files.*
 
 ### Get started
 
