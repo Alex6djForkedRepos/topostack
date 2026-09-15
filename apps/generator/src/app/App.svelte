@@ -7,6 +7,7 @@
   import { sourceRequirements, buildProjectPackage, createSyntheticSource, DEFAULT_PROJECT, displayElevation, displayLength, elevationUnit, generateGeometry, labelPathData, lengthUnit, markerSymbolPaths, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, MAX_WATER_DEPTH_EXAGGERATION, millimetersFromDisplay, MIN_VERTICAL_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, northArrowMarkings, planTerrainStack, validateProject, type CustomLineFeatureV1, type CustomLineKind, type GeoBounds, type GeoPoint, type GeometryIRV1, type LineStyleV1, type MapMarkerV1, type MarkerSymbol, type NorthArrowAnchor, type NorthArrowStyle, type OperationPath, type Point2D, type ProjectConfigV1, type RoadCap, type RoadStyle, type SourceBundleV1, type TextFont, type TrailPattern, type WaterFillPattern } from "@topostack/core";
   import { boundsForProject, combineWaterAreas, loadLakeAreas, loadTerrain, loadVectorMarkings, type PlaceResult } from "../data-provider";
   import { theme } from "../lib/theme";
+  import { trackUsage } from "../lib/usage";
   import { MAP_DATA_ATTRIBUTION } from "../map-attribution";
   import { createSamplePreviewSource } from "../sample-preview";
   import { exportBlockReason } from "../export-policy";
@@ -454,7 +455,11 @@
     }
     menuStateReady = true;
     embeddedInPlatform = window.parent !== window;
-    const disconnectAtomm = connectAtomm(() => ({ geometry, project }), () => atommReady = true, handleExportUpdate);
+    const disconnectAtomm = connectAtomm(() => ({ geometry, project }), () => atommReady = true, (update) => {
+      handleExportUpdate(update);
+      if (update.phase === "ready") trackUsage("export_prepared", project.outputMode, "atomm");
+      if (update.phase === "error") trackUsage("export_failed", project.outputMode, "atomm");
+    });
     void loadProject().then((saved) => {
       if (cancelled) return;
       if (saved) { const source = createSyntheticSource(saved); project = saved; sourceProject = saved; activeSource = source; geometry = previewFor(saved, source); selectedLayer = featuredLayerIndex(geometry); status = "Local project restored · generate to refresh terrain"; }
@@ -720,23 +725,26 @@
     const controller = new AbortController(); generationAbort = controller;
     const generationProject: ProjectConfigV1 = { ...project, location: { ...project.location, bounds: boundsForProject(project) } };
     generationState = "loading"; status = "Fetching elevation tiles…";
+    trackUsage("generation_started", generationProject.outputMode);
     const progressToast = showToast({ type: "info", message: "Building terrain layers…", duration: 0 });
     try {
       const loaded = await loadTerrain(generationProject, controller.signal); status = "Tracing and repairing contours…";
       const next = await runGeometryWorker(generationProject, loaded.source);
       if (loaded.fallback) next.warnings.push({ code: "DATA_FALLBACK", message: "The map service was unavailable, so this preview uses deterministic sample terrain." });
-      if (controller.signal.aborted || revision !== operationRevision) return;
+      if (controller.signal.aborted || revision !== operationRevision) { trackUsage("generation_cancelled", generationProject.outputMode); return; }
       // Cosmetic edits deliberately do not cancel expensive terrain work. Merge
       // their latest values instead of replacing them with the request snapshot.
       const completedProject = { ...generationProject, name: project.name, explodedPreview: project.explodedPreview };
       const completedGeometry = { ...next, projectName: completedProject.name };
       geometry = completedGeometry; project = completedProject; activeSource = loaded.source; sourceProject = completedProject; selectedLayer = featuredLayerIndex(completedGeometry); mode = completedProject.outputMode === "engraving" ? "engraving" : threeUnavailable ? "2d" : "3d"; generationState = "ready";
+      trackUsage(exportBlockReason(completedGeometry, completedProject) ? "generation_failed" : "generation_succeeded", completedProject.outputMode);
       const vectorUnavailable = next.vectorStatus !== "available" && (generationProject.showRoads || generationProject.showTrails || generationProject.showWater || generationProject.showBoundaries || (generationProject.outputMode === "stack" && generationProject.showWaterDepth));
       const lakeUnavailable = generationProject.outputMode === "stack" && generationProject.showWaterDepth && next.lakeDataStatus !== "available";
       status = loaded.fallback ? "Sample terrain generated · connect the map API for real elevation" : vectorUnavailable ? "Terrain ready · map detail data incomplete" : lakeUnavailable ? "Terrain ready · lake depth data unavailable" : generationProject.outputMode === "engraving" ? `Engraving ready · ${generationProject.engravingContourCount} contours · one SVG` : `Real terrain ready · ${next.layers.length} layers · ${next.layers.length - next.fabricationNests.length} cut panels`;
       void showToast({ type: loaded.fallback || vectorUnavailable || lakeUnavailable ? "warning" : "success", message: loaded.fallback ? "Preview generated with sample terrain" : vectorUnavailable ? "Terrain generated with incomplete map details" : lakeUnavailable ? "Terrain generated without lake depth data" : generationProject.outputMode === "engraving" ? "Engraving artwork ready" : "Terrain project ready" });
     } catch (error) {
-      if (revision !== operationRevision) return;
+      if (revision !== operationRevision) { trackUsage("generation_cancelled", generationProject.outputMode); return; }
+      trackUsage(controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError") ? "generation_cancelled" : "generation_failed", generationProject.outputMode);
       if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) { generationState = "idle"; status = "Generation canceled"; }
       else { generationState = "error"; status = error instanceof Error ? error.message : "Generation failed. Check the location and try again."; void showToast({ type: "error", message: "Could not generate terrain" }); }
     } finally {
@@ -756,6 +764,7 @@
     const reason = option === "project" ? undefined : exportBlockReason(geometry, project);
     if (reason) {
       handleExportUpdate({ phase: "error", intent: "download", message: reason });
+      trackUsage("export_failed", project.outputMode, "browser");
       return;
     }
     handleExportUpdate({ phase: "preparing", intent: "download" });
@@ -765,8 +774,10 @@
         ? prepareProjectSettings(project)
         : await prepareSelectedDownload(buildProjectPackage(geometry, project), option);
       startBrowserDownload(download);
+      if (option !== "project" && option !== "assembly") trackUsage("export_prepared", project.outputMode, "browser");
       handleExportUpdate({ phase: "ready", intent: "download", fileCount: download.fileCount });
     } catch (error) {
+      if (option !== "project" && option !== "assembly") trackUsage("export_failed", project.outputMode, "browser");
       const message = error instanceof Error ? error.message : "TopoStack could not prepare this download.";
       handleExportUpdate({ phase: "error", intent: "download", message });
     }

@@ -44,7 +44,7 @@ export default defineConfig({
     // in data-provider.ts requires both VITE_E2E=1 and a non-production mode.
     command: "npm run build:e2e -w @topostack/generator && npm run preview -w @topostack/generator -- --host 127.0.0.1 --port 4173",
     url: "http://127.0.0.1:4173",
-    env: { VITE_E2E: "1" },
+    env: { VITE_E2E: "1", VITE_SITE_ENV: "production" },
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },

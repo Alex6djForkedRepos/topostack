@@ -5,7 +5,8 @@ const dist = new URL("../apps/generator/dist/", import.meta.url);
 // Budget the lightweight homepage separately from the editor and its default
 // 3D preview. Moving the editor must not hide its cost behind a smaller entry page.
 const budgets = {
-  landingJavaScriptGzip: 50_000,
+  // Search metadata and fixed-category usage attribution add ~2 kB gzip.
+  landingJavaScriptGzip: 52_000,
   landingHtmlGzip: 10_000,
   initialJavaScriptGzip: 180_000,
   startupJavaScriptGzip: 400_000,
@@ -71,7 +72,7 @@ function includeModule(key) {
   for (const dependency of entry.imports ?? []) includeModule(dependency);
 }
 for (const [key, entry] of Object.entries(manifest)) {
-  if (entry.isEntry || /ThreePreview\.svelte$/.test(key)) includeModule(key);
+  if (entry.isEntry || /(?:ThreePreview|App)\.svelte$/.test(key)) includeModule(key);
 }
 // Vite emits workers as independent assets, outside the client manifest graph.
 for (const file of files.filter((file) => /geometry\.worker[^/]*\.js$/.test(file.pathname))) startupFiles.add(file.href);

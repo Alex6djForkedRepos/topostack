@@ -1,3 +1,5 @@
+import { verifyHttpSeo } from "./verify-seo-http.mjs";
+
 const deploymentTarget = process.env.WORKER_URL;
 const publicAppUrl = process.env.PUBLIC_APP_URL ?? deploymentTarget;
 const expectedEnvironment = process.env.EXPECTED_WORKER_ENVIRONMENT;
@@ -108,5 +110,7 @@ if (readiness?.dependencies?.lakeData?.status === "available") {
 
 const manifest = await fetchJson(publicBase, "/v1/manifest");
 if (manifest?.schemaVersion !== 1 || manifest?.coverage?.vectorMaxZoom !== 12 || typeof manifest?.datasetVersion !== "string" || !Array.isArray(manifest?.sources)) throw new Error("The deployed Worker returned an invalid data manifest.");
+
+await verifyHttpSeo(publicBase.origin, expectedEnvironment);
 
 console.log(`Verified ${expectedEnvironment} TopoStack app and API at ${publicBase.origin} (deployment ${deploymentTarget})`);

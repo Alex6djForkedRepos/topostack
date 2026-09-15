@@ -93,6 +93,7 @@ Set `GEOCODER_API_KEY` in that local file. The geocoder key is not required to f
 | `TOPOSTACK_WEB_PORT` | Frontend port; defaults to `5273` |
 | `VITE_MAP_API_PORT` | Local API port; defaults to `8787` |
 | `VITE_MAP_API_URL` | Explicit API origin; overrides the local API URL. Use a reachable deployment that permits your frontend origin. |
+| `VITE_SITE_ENV` | Set in the shell/CI build environment: `production` for the production custom domain; `development` (default) or `atomm` exclude the build from indexing. |
 | `VITE_DONATION_URL` | Optional donation destination; defaults to the TopoStack PayPal page |
 | `GEOCODER_API_KEY` | Worker-only Geoapify credential; keep it in `.dev.vars` locally or a deployment secret |
 
@@ -195,6 +196,10 @@ This produces `apps/generator/topostack-atomm.zip`, its `.zip.sha256` checksum, 
 
 After a successful production deployment and smoke test, CI uploads the ZIP, checksum, receipt, cover image, and [listing](atomm/listing.md) as a `topostack-atomm-<commit>` artifact retained for 30 days. Publish from a clean commit and keep the release evidence with the data-provisioning receipts.
 
+## Search and discoverability
+
+The homepage, workflow guides, and Crater Lake example are prerendered for search and sharing. Production builds include canonical URLs, structured data, a sitemap and robots.txt. The editor and non-production builds are excluded from indexing. See [SEO operations](docs/seo-operations.md) for build checks, Search Console setup and the first-party generation/export metrics.
+
 ## Data sources and provisioning
 
 - **Elevation:** Mapzen Terrarium tiles, cached in R2 with imagery-source attribution.
@@ -213,6 +218,7 @@ Terrain and map data are decorative source material, not survey, navigation, or 
 
 ## Further reading
 
+- [SEO and discoverability operations](docs/seo-operations.md)
 - [Flat engraving workflow and SVG contract](docs/flat-engraving.md)
 - [Architecture and geometry conventions](docs/architecture.md)
 - [Map API setup and operations](workers/map-api/README.md)
@@ -220,6 +226,6 @@ Terrain and map data are decorative source material, not survey, navigation, or 
 - [Roadmap](docs/roadmap.md)
 - [Launch-readiness remediation history](docs/launch-readiness-remediation-2026-09-12.md)
 
-## License status
+## License
 
-A project `LICENSE` file has not been added to this repository yet. Dependency and map-data licenses are documented separately in their packages and the source credits.
+TopoStack software is available under the [MIT License](LICENSE). Dependency and map-data licenses remain separate; retain the source attribution included with exports.

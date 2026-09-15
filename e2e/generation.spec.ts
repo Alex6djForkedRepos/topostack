@@ -8,6 +8,11 @@ test("generates deterministic real terrain and downloads the complete fabricatio
   await page.route("**/v1/**", (route) => route.abort("internetdisconnected"));
   await page.route("https://static-res.makextool.com/**", (route) => route.abort("internetdisconnected"));
 
+  const usage: Record<string, unknown>[] = [];
+  await page.route("**/v1/events", async (route) => {
+    usage.push(route.request().postDataJSON());
+    await route.fulfill({ status: 204 });
+  });
   await page.goto("/studio");
   await expect(page.getByRole("heading", { name: "Build the landscape." })).toBeVisible();
   await page.getByRole("button", { name: "Expand all" }).click();
@@ -74,6 +79,8 @@ test("generates deterministic real terrain and downloads the complete fabricatio
   expect(svg).toContain("Crater Lake — master layout");
   expect(browserErrors).toEqual([]);
   await expect(page.locator(".export-feedback")).toContainText("Download ready");
+  await expect.poll(() => usage.map((event) => event.event)).toEqual(["studio_open", "generation_started", "generation_succeeded", "export_prepared"]);
+  expect(usage.at(-1)).toMatchObject({ output: "stack", delivery: "browser" });
 });
 
 test("persists the selected color scheme across reloads", async ({ page }) => {
