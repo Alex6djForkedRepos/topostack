@@ -44,6 +44,38 @@ describe("TopoStack Svelte shell", () => {
   });
   afterEach(async () => { if (component) await unmount(component); component = undefined; loadTerrainMock.mockReset(); loadVectorMarkingsMock.mockReset(); loadLakeAreasMock.mockReset(); theme.preference = "system"; localStorage.removeItem("topostack-theme"); localStorage.removeItem("topostack-menu-sections-v1"); delete window.atomm; });
 
+  it("dismisses preview warnings without clearing export restrictions and restores warnings for fresh terrain", async () => {
+    loadTerrainMock.mockResolvedValue({ source: createSyntheticSource(DEFAULT_PROJECT, 32), fallback: true });
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await tick();
+    const dismissAll = async (): Promise<void> => {
+      for (let count = 0; count < 20; count++) {
+        const button = target.querySelector<HTMLButtonElement>(".warning-dismiss");
+        if (!button) break;
+        button.click();
+        await tick();
+      }
+      expect(target.querySelector(".warning-stack")).toBeNull();
+    };
+    expect(target.querySelector(".warning-stack")).not.toBeNull();
+    await dismissAll();
+    const name = target.querySelector<HTMLInputElement>('input[aria-label="Project name"]')!;
+    name.value = "Quiet preview";
+    name.dispatchEvent(new Event("input", { bubbles: true }));
+    await tick();
+    expect(target.querySelector(".warning-stack")).toBeNull();
+    expect(target.querySelector(".context-export-status")?.textContent).toContain("Generate before export");
+    for (let generation = 1; generation <= 2; generation++) {
+      target.querySelector<HTMLButtonElement>(".generate-button")!.click();
+      await vi.waitFor(() => expect(loadTerrainMock).toHaveBeenCalledTimes(generation));
+      await vi.waitFor(() => expect(target.querySelector(".status-line")?.textContent).toContain("Sample terrain generated"));
+      expect(target.querySelector(".warning-stack")).not.toBeNull();
+      await dismissAll();
+      expect(target.querySelector(".context-export-status")?.textContent).toContain("Generate before export");
+    }
+  });
+
   it("edits and undoes the project name and switches preview modes", async () => {
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
