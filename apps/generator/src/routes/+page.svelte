@@ -8,7 +8,7 @@
   import TerrainIllustration from "../app/TerrainIllustration.svelte";
 
   const studioUrl = `${base}/studio`;
-  const repositoryUrl = "https://github.com/loidolt/topostack";
+  const repositoryUrl = "https://github.com/Echo-Foxtrot-Works/topostack";
 </script>
 
 <svelte:head>
