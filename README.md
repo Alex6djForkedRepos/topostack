@@ -31,10 +31,12 @@ Both variables also apply to `npm run dev:api` and `npm run dev:web` run separat
 
 The development Worker accepts any `http://localhost`, `http://127.0.0.1`, or `http://[::1]` origin regardless of port so a relocated dev server still passes CORS. Deployed environments keep the exact `ALLOWED_ORIGINS` list in `workers/map-api/wrangler.jsonc`.
 
-Open the Vite URL directly, or use Atomm's local preview URL:
+The root URL opens the getting-started homepage. Open `/studio` to go directly to the terrain editor; saved project settings remain in the same browser storage. `/about` redirects to the homepage.
+
+Use Atomm's local preview URL to open the editor directly:
 
 ```text
-https://www.atomm.com/creativetools/community/generator/topographic-map-generator?local=http://localhost:5273/
+https://www.atomm.com/creativetools/community/generator/topographic-map-generator?local=http://localhost:5273/studio
 ```
 
 The initial Crater Lake preview is a deterministic, bundled snapshot of real Mapzen elevation and Protomaps/OpenStreetMap major-road, local-road, trail, and water data. Roads default to clean continuous centerlines; major roads can instead use a configurable double-line outline, and road widths, spacing, and endpoint shape are shared by previews and fabrication SVGs. Trails use a configurable solid, dashed, or dotted pattern, while optional names and route references are placed as collision-safe vector labels. Latitude/longitude grid lines are generated locally from the selected bounds with area-sensitive 1/2/5-degree spacing, so they do not require another data download. The preview remains preview-only, so generate fresh terrain before fabrication export. The Export dialog offers the complete ZIP, individual master SVG, cut-panel and engraving-panel bundles, an assembly guide, and an importable project-settings JSON backup. Settings can be saved before terrain generation; fabrication choices require current real terrain. The dialog links to the TopoStack PayPal donation page by default. Set `VITE_DONATION_URL` in `apps/generator/.env` to override the destination; donations never gate exports. Fabrication SVGs separate red cuts, blue scores, and black engravings into operation layers and include registered engraving-only panel companions. If the map-data Worker is unavailable during generation, the app falls back to synthetic terrain so geometry development can continue. Copy `workers/map-api/.dev.vars.example` to `workers/map-api/.dev.vars` and provide a Geoapify key when local place search is needed; terrain generation does not require that secret.
@@ -72,7 +74,7 @@ The Cloudflare credentials authenticate CI but are not exposed to Worker code. O
 
 Production uses the `topostack` Worker at `https://topostack.echofoxtrot.works`. Development uses the separate `topostack-dev` Worker at `https://dev-topostack.echofoxtrot.works` from the `dev` branch. Each deployment serves the generated frontend as static assets and the map API at `/v1/*`.
 
-The `Production Monitor` workflow runs an hourly canary against the frontend security policy, `/health`, `/ready`, terrain and geocoder serving paths (which may use cached data), the data manifest, and both available PMTiles archives. A separate daily `Production Browser Monitor` generates a real project in Chromium, downloads the fabrication ZIP, and inspects its master SVG, covering the deployed browser-to-Worker integration that the deterministic local E2E fixture intentionally does not exercise. Failed scheduled runs surface through normal GitHub Actions notifications. CI also enforces gzip budgets for entry-preload, default-preview startup, and total JavaScript, the largest JavaScript chunk, CSS, and the entry HTML via `npm run budget:web`; adjust a limit only alongside an intentional performance review.
+The `Production Monitor` workflow runs an hourly canary against the frontend security policy, `/health`, `/ready`, terrain and geocoder serving paths (which may use cached data), the data manifest, and both available PMTiles archives. A separate daily `Production Browser Monitor` generates a real project in Chromium, downloads the fabrication ZIP, and inspects its master SVG, covering the deployed browser-to-Worker integration that the deterministic local E2E fixture intentionally does not exercise. Failed scheduled runs surface through normal GitHub Actions notifications. CI also enforces separate homepage and editor entry-preload budgets, plus budgets for default-preview startup, total JavaScript, the largest JavaScript chunk, CSS, compressed homepage HTML, and editor entry HTML via `npm run budget:web`; adjust a limit only alongside an intentional performance review.
 
 ## Data setup
 

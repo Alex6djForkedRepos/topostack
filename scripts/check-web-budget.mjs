@@ -2,16 +2,18 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { gzipSync } from "node:zlib";
 
 const dist = new URL("../apps/generator/dist/", import.meta.url);
-// Measure entry preloads separately from the default 3D preview and startup
-// worker. Both are fetched on a cold visit and need an explicit budget.
+// Budget the lightweight homepage separately from the editor and its default
+// 3D preview. Moving the editor must not hide its cost behind a smaller entry page.
 const budgets = {
+  landingJavaScriptGzip: 50_000,
+  landingHtmlGzip: 10_000,
   initialJavaScriptGzip: 180_000,
   startupJavaScriptGzip: 400_000,
   // Includes the MapLibre 6 worker (~144 kB gzip), fetched only in Map mode.
   totalJavaScriptGzip: 800_000,
   largestJavaScriptGzip: 300_000,
   totalCssGzip: 30_000,
-  indexHtmlBytes: 10_000,
+  studioHtmlBytes: 10_000,
 };
 
 async function filesBelow(directory) {
@@ -34,19 +36,27 @@ const largestJavaScript = javascript.toSorted((left, right) => right.gzip - left
 const totalCssGzip = css.reduce((total, entry) => total + entry.gzip, 0);
 const indexHtml = new URL("index.html", dist);
 const indexHtmlBody = await readFile(indexHtml, "utf8");
-const initialJavaScriptFiles = [...indexHtmlBody.matchAll(/<link\b[^>]*>/gi)]
-  .map(([tag]) => ({
-    href: tag.match(/\bhref=["']([^"']+)["']/i)?.[1],
-    rel: tag.match(/\brel=["']([^"']+)["']/i)?.[1],
-  }))
-  .filter(({ href, rel }) => href && rel?.split(/\s+/).includes("modulepreload"))
-  .map(({ href }) => new URL(href, dist))
-  .filter((file) => file.protocol === "file:" && file.pathname.startsWith(dist.pathname));
-const initialJavaScriptGzip = (await Promise.all(
-  [...new Set(initialJavaScriptFiles.map((file) => file.href))].map(async (href) =>
+const studioHtml = new URL("studio.html", dist);
+const studioHtmlBody = await readFile(studioHtml, "utf8");
+function preloads(html, page) {
+  return [...html.matchAll(/<link\b[^>]*>/gi)]
+    .map(([tag]) => ({
+      href: tag.match(/\bhref=["']([^"']+)["']/i)?.[1],
+      rel: tag.match(/\brel=["']([^"']+)["']/i)?.[1],
+    }))
+    .filter(({ href, rel }) => href && rel?.split(/\s+/).includes("modulepreload"))
+    .map(({ href }) => new URL(href, page))
+    .filter((file) => file.protocol === "file:" && file.pathname.startsWith(dist.pathname));
+}
+async function gzipTotal(files) {
+  return (await Promise.all([...new Set(files.map((file) => file.href))].map(async (href) =>
     gzipSync(await readFile(new URL(href))).byteLength
-  ),
-)).reduce((total, size) => total + size, 0);
+  ))).reduce((total, size) => total + size, 0);
+}
+const initialJavaScriptFiles = preloads(studioHtmlBody, studioHtml);
+const initialJavaScriptGzip = await gzipTotal(initialJavaScriptFiles);
+const landingJavaScriptGzip = await gzipTotal(preloads(indexHtmlBody, indexHtml));
+const landingHtmlGzip = gzipSync(indexHtmlBody).byteLength;
 const manifest = JSON.parse(await readFile(new URL("../apps/generator/.svelte-kit/output/client/.vite/manifest.json", import.meta.url), "utf8"));
 const startupFiles = new Set(initialJavaScriptFiles.map((file) => file.href));
 const visited = new Set();
@@ -59,30 +69,34 @@ function includeModule(key) {
   for (const dependency of entry.imports ?? []) includeModule(dependency);
 }
 for (const [key, entry] of Object.entries(manifest)) {
-  if (entry.isEntry || /ThreePreview\.svelte$/.test(key) || /nodes\/2\.js$/.test(key)) includeModule(key);
+  if (entry.isEntry || /ThreePreview\.svelte$/.test(key)) includeModule(key);
 }
 // Vite emits workers as independent assets, outside the client manifest graph.
 for (const file of files.filter((file) => /geometry\.worker[^/]*\.js$/.test(file.pathname))) startupFiles.add(file.href);
 const startupJavaScriptGzip = (await Promise.all([...startupFiles].map(async (href) => gzipSync(await readFile(new URL(href))).byteLength))).reduce((total, size) => total + size, 0);
-const indexHtmlBytes = (await stat(indexHtml)).size;
+const studioHtmlBytes = (await stat(studioHtml)).size;
 
 const report = {
+  landingJavaScriptGzip,
+  landingHtmlGzip,
   initialJavaScriptGzip,
   startupJavaScriptGzip,
   totalJavaScriptGzip,
   largestJavaScriptGzip: largestJavaScript?.gzip ?? 0,
   largestJavaScriptFile: largestJavaScript?.file ?? "none",
   totalCssGzip,
-  indexHtmlBytes,
+  studioHtmlBytes,
 };
 console.log(JSON.stringify({ budgets, measured: report }, null, 2));
 
 const failures = [
+  [report.landingJavaScriptGzip, budgets.landingJavaScriptGzip, "Homepage JavaScript gzip size"],
+  [report.landingHtmlGzip, budgets.landingHtmlGzip, "Homepage HTML gzip size"],
   [report.initialJavaScriptGzip, budgets.initialJavaScriptGzip, "Initial JavaScript gzip size"],
   [report.startupJavaScriptGzip, budgets.startupJavaScriptGzip, "Default-preview startup JavaScript gzip size"],
   [report.totalJavaScriptGzip, budgets.totalJavaScriptGzip, "Total JavaScript gzip size"],
   [report.largestJavaScriptGzip, budgets.largestJavaScriptGzip, "Largest JavaScript chunk gzip size"],
   [report.totalCssGzip, budgets.totalCssGzip, "Total CSS gzip size"],
-  [report.indexHtmlBytes, budgets.indexHtmlBytes, "index.html size"],
+  [report.studioHtmlBytes, budgets.studioHtmlBytes, "studio.html size"],
 ].filter(([actual, maximum]) => actual > maximum);
 if (failures.length) throw new Error(failures.map(([actual, maximum, label]) => `${label} is ${actual} bytes; budget is ${maximum} bytes.`).join("\n"));

@@ -1,9 +1,7 @@
-@import "@loidolt/theme-svelte/styles.css";
-@import "@loidolt/theme-styles/dark";
 @import "maplibre-gl/dist/maplibre-gl.css";
 
-html,
-body {
+html:has(.app-shell),
+body:has(.app-shell) {
   height: 100%;
   min-height: 100%;
   width: 100%;
@@ -1976,8 +1974,8 @@ body {
     min-height: 44px;
   }
 
-  html,
-  body {
+  html:has(.app-shell),
+  body:has(.app-shell) {
     height: auto;
     overflow-y: auto;
   }
@@ -2140,8 +2138,8 @@ body {
 }
 
 @media (max-height: 500px) and (pointer: coarse) {
-  html,
-  body {
+  html:has(.app-shell),
+  body:has(.app-shell) {
     height: auto;
     overflow-y: auto;
   }
@@ -2229,4 +2227,19 @@ body {
   .export-dialog .ldt-dialog__header, .export-dialog-body { padding: 18px; }
   .export-dialog .ldt-dialog__title { font-size: 22px; }
   .export-cards { grid-template-columns: minmax(0, 1fr); }
+}
+
+.about-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  min-height: var(--loidolt-size-control);
+  color: var(--loidolt-text-muted);
+  border-radius: var(--loidolt-border-radius);
+}
+.about-link:hover { color: var(--loidolt-text); background: var(--loidolt-surface); }
+.about-link:focus-visible { outline: 2px solid var(--loidolt-accent); outline-offset: 3px; }
+@media (max-width: 760px) {
+  .about-link { min-width: 32px; min-height: 44px; }
 }

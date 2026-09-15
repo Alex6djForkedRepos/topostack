@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
+  import { base } from "$app/paths";
+  import { House } from "@lucide/svelte";
   import { Box, ChevronDown, Circle, Compass, Download, Grid3X3, Layers3, Map as MapIcon, MapPin, Minus, Mountain, PenTool, Plus, Route, Search, Sparkles, Square, Trash2, Undo2, Redo2, Upload, Waves, X } from "@lucide/svelte";
   import { AppShell, Brand, Button, ContextBar, Field, IconButton, Input, NumberField, Section, Sidebar, Switch, ThemeToggle, Topbar, Workspace } from "@loidolt/theme-svelte";
   import { sourceRequirements, buildProjectPackage, createSyntheticSource, DEFAULT_PROJECT, displayElevation, displayLength, elevationUnit, generateGeometry, labelPathData, lengthUnit, markerSymbolPaths, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, MAX_WATER_DEPTH_EXAGGERATION, millimetersFromDisplay, MIN_VERTICAL_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, northArrowMarkings, planTerrainStack, validateProject, type CustomLineFeatureV1, type CustomLineKind, type GeoBounds, type GeoPoint, type GeometryIRV1, type LineStyleV1, type MapMarkerV1, type MarkerSymbol, type NorthArrowAnchor, type NorthArrowStyle, type OperationPath, type Point2D, type ProjectConfigV1, type RoadCap, type RoadStyle, type SourceBundleV1, type TextFont, type TrailPattern, type WaterFillPattern } from "@topostack/core";
@@ -798,8 +800,9 @@
         {/snippet}
         {#snippet actions()}
           <div class="bar-meta">{#if project.outputMode === "engraving"}<span>{project.engravingContourCount} contours</span><span>1 engrave SVG</span><span>No cut paths</span>{:else}<span>{geometry.layers.length} layers</span><span>{fabricationPanelCount} cut panels</span><span>{shownLength(totalHeight)} {shownLengthUnit} tall</span>{/if}</div>
-          <Button class="export-trigger" aria-haspopup="dialog" onclick={() => exportOpen = true}><Download size={15} /> Export</Button>
+          <Button class="export-trigger" aria-haspopup="dialog" onclick={(event: MouseEvent) => { if (event.currentTarget instanceof HTMLElement) event.currentTarget.focus(); exportOpen = true; }}><Download size={15} /> Export</Button>
           <ThemeToggle {theme} class="theme-toggle" />
+          <a class="about-link" href={`${base}/`} target="_blank" rel="noopener noreferrer" aria-label="TopoStack home and getting started (opens in a new tab)" title="TopoStack home and getting started (opens in a new tab)"><House size={18} aria-hidden="true" /></a>
         {/snippet}
       </Topbar>
       <ContextBar class="terrain-contextbar" section="Terrain" title={project.location.label.split(",")[0]} detail={project.location.label.split(",").slice(1).join(",") || "Selected coordinates"}>

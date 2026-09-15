@@ -8,9 +8,11 @@ const skipEndpointScan = process.argv.includes("--skip-endpoint-scan");
 
 const indexPath = new URL("../apps/generator/dist/index.html", import.meta.url);
 const index = await readFile(indexPath, "utf8");
+const studio = await readFile(new URL("../apps/generator/dist/studio.html", import.meta.url), "utf8");
 const headers = await readFile(new URL("../apps/generator/dist/_headers", import.meta.url), "utf8");
 if (headers.includes("__TOPOSTACK_SCRIPT_HASHES__") || /script-src[^;]*unsafe-inline/.test(headers) || !/script-src[^;]*sha256-/.test(headers)) throw new Error("Production security headers do not contain finalized inline-script hashes.");
-if (!index.includes("https://static-res.makextool.com/scripts/js/generator-sdk/platform-sdk.js")) throw new Error("Atomm SDK is missing from the production entry page.");
+if (!studio.includes("https://static-res.makextool.com/scripts/js/generator-sdk/platform-sdk.js")) throw new Error("Atomm SDK is missing from the terrain studio.");
+if (!/href=["'][^"']*studio["']/.test(index)) throw new Error("The homepage does not link to the terrain studio.");
 const distDirectory = new URL("../apps/generator/dist/", import.meta.url);
 async function filesBelow(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -22,7 +24,7 @@ async function filesBelow(directory) {
 const distFiles = await filesBelow(distDirectory);
 const scripts = distFiles.filter((file) => file.pathname.endsWith(".js"));
 if (!scripts.length) throw new Error("Production artifact contains no JavaScript application files.");
-const searchable = [index, ...await Promise.all(scripts.map((file) => readFile(file, "utf8")))].join("\n");
+const searchable = [index, studio, ...await Promise.all(scripts.map((file) => readFile(file, "utf8")))].join("\n");
 
 // Keep the forbidden-host families in sync with scripts/validate-submission-env.mjs.
 function isForbiddenApiHost(hostname) {
@@ -40,6 +42,6 @@ if (!skipEndpointScan) {
   if (forbidden.length) throw new Error(`Production artifact contains development or placeholder API endpoints: ${[...new Set(forbidden)].join(", ")}`);
 }
 
-if (/\b(?:src|href)=["']\/(?!\/)/.test(index)) throw new Error("Production entry page contains root-relative assets that may fail in Atomm.");
+if (/\b(?:src|href)=["']\/(?!\/)/.test(index + studio)) throw new Error("Production pages contain root-relative assets that may fail in Atomm.");
 const size = (await stat(indexPath)).size;
 if (size <= 0) throw new Error("Production entry page is empty.");

@@ -41,7 +41,7 @@ for (let y = Math.floor(northY / TILE_SIZE); y <= Math.floor((southY - 1e-6) / T
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage();
-await page.goto(API_BASE, { waitUntil: "domcontentloaded" });
+await page.goto(`${API_BASE}/studio`, { waitUntil: "domcontentloaded" });
 const elevation = await page.evaluate(async ({ apiBase, tiles, westX, eastX, northY, southY, tileSize }) => {
   const decoded = await Promise.all(tiles.map(async (tile) => {
     const response = await fetch(`${apiBase}/v1/terrain/${tile.z}/${tile.x}/${tile.y}.png`);

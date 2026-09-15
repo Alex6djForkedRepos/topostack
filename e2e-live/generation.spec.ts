@@ -4,7 +4,7 @@ import { unzipSync } from "fflate";
 test("production generates export-ready real terrain", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await page.goto("/studio", { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("heading", { name: "Build the landscape." })).toBeVisible();
   await page.getByRole("button", { name: /Generate terrain/ }).click();
   await expect(page.locator(".status-line")).toContainText("Real terrain ready", { timeout: 120_000 });
