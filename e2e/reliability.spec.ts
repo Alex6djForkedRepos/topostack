@@ -35,7 +35,8 @@ test("keeps generation and location controls usable when WebGL is unavailable", 
   await expect(page.getByRole("dialog", { name: "Choose anywhere" })).toBeVisible();
   await expect(page.getByLabel("Search places")).toBeFocused();
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("button", { name: "Download files" })).toBeEnabled();
+  await page.getByRole("button", { name: "Export", exact: true }).click();
+  await expect(page.getByRole("button", { name: /Complete project/ })).toBeEnabled();
   expect(errors).toEqual([]);
 });
 

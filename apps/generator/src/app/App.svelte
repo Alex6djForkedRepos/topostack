@@ -10,7 +10,8 @@
   import { exportBlockReason } from "../export-policy";
   import { loadProject, parseProject, saveProject } from "../storage";
   import { connectAtomm, type ExportUpdate } from "./atomm-bridge";
-  import { prepareProjectDownload, startBrowserDownload } from "./native-export";
+  import { prepareProjectSettings, prepareSelectedDownload, startBrowserDownload, type DownloadOption } from "./native-export";
+  import ExportDialog from "./ExportDialog.svelte";
 
   let { initialPreview }: { initialPreview?: GeometryIRV1 } = $props();
 
@@ -128,6 +129,7 @@
   });
   let atommReady = $state(false);
   let embeddedInPlatform = $state(false);
+  let exportOpen = $state(false);
   let exportPhase = $state<ExportPhase>("idle");
   let exportTitle = $state("");
   let exportDetail = $state("");
@@ -207,7 +209,6 @@
   const exportBlockedBy = $derived(exportBlockReason(geometry, project));
   const exportReady = $derived(!exportBlockedBy);
   const platformExportAvailable = $derived(atommReady && embeddedInPlatform);
-  const expectedExportFileCount = $derived(project.outputMode === "engraving" ? 4 : fabricationPanelCount * 2 + 5);
   const visibleWarnings = $derived(geometry.warnings.slice(0, 2));
   const layerTicks = $derived(geometry.layers.map((layer) => Math.round(displayElevation(layer.elevationM, project.units))));
   const shownLengthUnit = $derived(lengthUnit(project.units));
@@ -417,7 +418,7 @@
       exportTitle = update.intent === "openInStudio" ? "Preparing Studio artwork" : "Building your download";
       exportDetail = update.intent === "openInStudio"
         ? "Creating one editable master SVG…"
-        : `Packaging ${expectedExportFileCount} project files into one download…`;
+        : "Preparing your selected files…";
       status = exportTitle;
       return;
     }
@@ -748,8 +749,9 @@
     return window.atomm.ui.toast(options).catch(() => undefined);
   }
 
-  async function downloadProject(): Promise<void> {
-    const reason = exportBlockReason(geometry, project);
+  async function downloadProject(option: DownloadOption): Promise<void> {
+    if (exportPhase === "preparing") return;
+    const reason = option === "project" ? undefined : exportBlockReason(geometry, project);
     if (reason) {
       handleExportUpdate({ phase: "error", intent: "download", message: reason });
       return;
@@ -757,7 +759,9 @@
     handleExportUpdate({ phase: "preparing", intent: "download" });
     await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
     try {
-      const download = await prepareProjectDownload(buildProjectPackage(geometry, project));
+      const download = option === "project"
+        ? prepareProjectSettings(project)
+        : await prepareSelectedDownload(buildProjectPackage(geometry, project), option);
       startBrowserDownload(download);
       handleExportUpdate({ phase: "ready", intent: "download", fileCount: download.fileCount });
     } catch (error) {
@@ -794,20 +798,7 @@
         {/snippet}
         {#snippet actions()}
           <div class="bar-meta">{#if project.outputMode === "engraving"}<span>{project.engravingContourCount} contours</span><span>1 engrave SVG</span><span>No cut paths</span>{:else}<span>{geometry.layers.length} layers</span><span>{fabricationPanelCount} cut panels</span><span>{shownLength(totalHeight)} {shownLengthUnit} tall</span>{/if}</div>
-          <div class="export-control">
-            <div class="export-slot">
-              <div data-atomm-export-button class:atomm-export-pending={!platformExportAvailable}></div>
-              {#if !platformExportAvailable}
-                <Button class="fallback-export" disabled={!exportReady || exportPhase === "preparing"} onclick={() => void downloadProject()}><Download size={15} /> {exportPhase === "preparing" ? "Preparing…" : "Download files"}</Button>
-              {/if}
-            </div>
-            {#if exportPhase !== "idle"}
-              <div class={`export-feedback export-feedback--${exportPhase}`} role="status" aria-live="polite">
-                <span class="export-feedback-indicator" aria-hidden="true"></span>
-                <span class="export-feedback-copy"><strong>{exportTitle}</strong><small>{exportDetail}</small></span>
-              </div>
-            {/if}
-          </div>
+          <Button class="export-trigger" aria-haspopup="dialog" onclick={() => exportOpen = true}><Download size={15} /> Export</Button>
           <ThemeToggle {theme} class="theme-toggle" />
         {/snippet}
       </Topbar>
@@ -1296,5 +1287,6 @@
       {#if project.outputMode === "stack"}<div class="layer-dock"><div class="layer-heading"><span><Layers3 size={16} /><b>Layer {selectedLayer + 1}</b> of {geometry.layers.length}</span><strong>{layerTicks[selectedLayer]?.toLocaleString()} {shownElevationUnit}</strong></div><input class="layer-range" type="range" min="0" max={Math.max(0, geometry.layers.length - 1)} value={selectedLayer} oninput={(event) => { selectedLayer = Number(event.currentTarget.value); if (mode === "3d") mode = "2d"; }} /><div class="layer-scale"><span>{layerTicks[0]?.toLocaleString()} {shownElevationUnit}</span><span>{layerTicks[Math.floor(layerTicks.length / 2)]?.toLocaleString()} {shownElevationUnit}</span><span>{layerTicks.at(-1)?.toLocaleString()} {shownElevationUnit}</span></div>{#if mode === "3d"}<label class="explode-control"><span>Stack</span><input type="range" min="0" max="1" step="0.05" value={project.explodedPreview} oninput={(event) => updateProject({ explodedPreview: Number(event.currentTarget.value) })} /><span>Exploded</span></label>{/if}</div>{/if}
     </section>
   </Workspace>
+  <ExportDialog open={exportOpen} {project} blockedReason={exportBlockedBy} preparing={exportPhase === "preparing"} platformAvailable={platformExportAvailable} phase={exportPhase} title={exportTitle} detail={exportDetail} onDownload={(option) => void downloadProject(option)} onClose={() => exportOpen = false} />
   {#if searchOpen}{#if LocationDialog}<LocationDialog {project} presets={PRESETS} onChoose={choosePlace} onCoordinates={(lat, lon) => updateLocation({ lat, lon, label: "Custom coordinates" })} onClose={closeLocationDialog} />{/if}{/if}
 </AppShell>

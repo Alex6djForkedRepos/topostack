@@ -7,7 +7,8 @@ const dist = new URL("../apps/generator/dist/", import.meta.url);
 const budgets = {
   initialJavaScriptGzip: 180_000,
   startupJavaScriptGzip: 400_000,
-  totalJavaScriptGzip: 700_000,
+  // Includes the MapLibre 6 worker (~144 kB gzip), fetched only in Map mode.
+  totalJavaScriptGzip: 800_000,
   largestJavaScriptGzip: 300_000,
   totalCssGzip: 30_000,
   indexHtmlBytes: 10_000,

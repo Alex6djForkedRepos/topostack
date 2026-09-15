@@ -1,5 +1,7 @@
 import { zip, type AsyncZippable } from "fflate";
-import type { FabricationPackageV1 } from "@topostack/core";
+import type { FabricationPackageV1, ProjectConfigV1 } from "@topostack/core";
+
+export type DownloadOption = "all" | "master" | "panels" | "engravings" | "assembly" | "project";
 
 export interface PreparedDownload {
   blob: Blob;
@@ -7,11 +9,11 @@ export interface PreparedDownload {
   fileCount: number;
 }
 
-function archiveFilename(masterFilename: string): string {
+function archiveFilename(masterFilename: string, suffix = "project-files"): string {
   const base = masterFilename
     .replace(/-(?:master|engraving)\.svg$/i, "")
     .replace(/\.[^.]+$/, "");
-  return `${base || "topostack-project"}-project-files.zip`;
+  return `${base || "topostack-project"}-${suffix}.zip`;
 }
 
 /** Build one browser download containing every fabrication file. */
@@ -47,4 +49,32 @@ export function startBrowserDownload(download: PreparedDownload): void {
   anchor.click();
   anchor.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+}
+
+/** Settings can be saved before terrain has been generated, then imported later. */
+export function prepareProjectSettings(project: ProjectConfigV1): PreparedDownload {
+  const base = project.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "topostack";
+  return {
+    filename: `${base}-project.json`,
+    blob: new Blob([JSON.stringify({ schemaVersion: 1, project }, null, 2)], { type: "application/json" }),
+    fileCount: 1,
+  };
+}
+
+export async function prepareSelectedDownload(output: FabricationPackageV1, option: Exclude<DownloadOption, "project">): Promise<PreparedDownload> {
+  if (option === "all") return prepareProjectDownload(output);
+  if (option === "master") return { ...output.master, fileCount: 1 };
+  const files = output.files.filter((file) => {
+    if (option === "assembly") return file.filename.endsWith("-assembly-guide.svg");
+    // Match only the generated suffix so project names cannot affect selection.
+    return option === "engravings"
+      ? /-(?:layer-\d+|panel-\d+-layers-[\d-]+)-engrave\.svg$/.test(file.filename)
+      : /-(?:layer-\d+|panel-\d+-layers-[\d-]+)\.svg$/.test(file.filename);
+  });
+  if (!files.length) throw new Error("This export is not available for the current output type.");
+  if (option === "assembly") return { ...files[0], fileCount: 1 };
+  // Keep fabrication instructions and source credits with panel bundles.
+  files.push(...output.files.filter((file) => file.filename === "README.txt" || file.filename === "ATTRIBUTION.txt"));
+  const download = await prepareProjectDownload({ ...output, files });
+  return { ...download, filename: download.blob.type === "application/zip" ? archiveFilename(output.master.filename, option === "panels" ? "cut-panels" : "engraving-panels") : download.filename };
 }
