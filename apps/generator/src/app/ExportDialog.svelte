@@ -17,7 +17,7 @@
     onClose: () => void;
   } = $props();
   let dialog: HTMLDialogElement;
-  const donationUrl = import.meta.env.VITE_DONATION_URL?.trim() || "https://www.paypal.com/donate/?hosted_button_id=QXCUQVC3XAEZA";
+  import { donationUrl } from "../lib/support";
   const cards = $derived([
     { id: "all", label: "Complete project", format: "ZIP", icon: Archive, description: "All artwork, project data, instructions, and source credits in one download.", featured: true },
     { id: "master", label: project.outputMode === "engraving" ? "Engraving SVG" : "Master SVG", format: "SVG", icon: FileType, description: project.outputMode === "engraving" ? "One editable map with engraving paths only." : "The full layout with separate cut, score, and engrave operations." },

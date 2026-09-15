@@ -12,7 +12,7 @@ test("keeps generation and location controls usable when WebGL is unavailable", 
       return original.apply(this, args);
     } as typeof original;
   });
-  await page.goto("/");
+  await page.goto("/studio");
   await expect(page.getByRole("radio", { name: /Cut layers/ })).toHaveAttribute("aria-checked", "true");
   await expect(page.locator('svg[aria-label^="Cut preview for layer"]')).toBeVisible();
   await expect(page.locator(".preview-notice")).toContainText("3D is unavailable");
@@ -44,7 +44,7 @@ for (const cropShape of ["rectangle", "circle"] as const) {
 test(`keeps saved ${cropShape} bounds aligned after opening and resizing Map`, async ({ page }) => {
   await page.route("https://static-res.makextool.com/**", (route) => route.abort());
   await page.route("https://tiles.openfreemap.org/styles/**", (route) => route.fulfill({ json: { version: 8, sources: {}, layers: [] } }));
-  await page.goto("/");
+  await page.goto("/studio");
   const bounds = { west: -122.3, east: -122.0, north: 43.05, south: 42.85 };
   const project = { ...DEFAULT_PROJECT, cropShape, location: { ...DEFAULT_PROJECT.location, bounds }, markers: [
     { id: "north-west", symbol: "circle", lat: bounds.north, lon: bounds.west },

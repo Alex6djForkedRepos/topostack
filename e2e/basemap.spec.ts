@@ -10,7 +10,7 @@ for (const output of ["Layered relief", "Flat engraving"]) {
     // to HTTPS. Keep all script, worker, and connection restrictions intact.
     const policy = headers.match(/Content-Security-Policy: (.+)/)?.[1].replace(/; upgrade-insecure-requests/, "");
     expect(policy).toBeTruthy();
-    await page.route("http://127.0.0.1:4173/", async (route) => {
+    await page.route("http://127.0.0.1:4173/studio", async (route) => {
       const response = await route.fetch();
       await route.fulfill({ response, headers: { ...response.headers(), "content-security-policy": policy! } });
     });
@@ -34,7 +34,7 @@ for (const output of ["Layered relief", "Flat engraving"]) {
     } }));
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
-    await page.goto("/");
+    await page.goto("/studio");
     await page.getByRole("radio", { name: output, exact: true }).click();
     await page.getByRole("radio", { name: "Map", exact: true }).click();
     const canvas = page.locator(".maplibregl-canvas");

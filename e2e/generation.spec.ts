@@ -8,7 +8,7 @@ test("generates deterministic real terrain and downloads the complete fabricatio
   await page.route("**/v1/**", (route) => route.abort("internetdisconnected"));
   await page.route("https://static-res.makextool.com/**", (route) => route.abort("internetdisconnected"));
 
-  await page.goto("/");
+  await page.goto("/studio");
   await expect(page.getByRole("heading", { name: "Build the landscape." })).toBeVisible();
   await page.getByRole("button", { name: "Expand all" }).click();
   // The bundled real-data preview must never be exportable: fail closed until
@@ -78,7 +78,7 @@ test("generates deterministic real terrain and downloads the complete fabricatio
 
 test("persists the selected color scheme across reloads", async ({ page }) => {
   await page.route("https://static-res.makextool.com/**", (route) => route.abort("internetdisconnected"));
-  await page.goto("/");
+  await page.goto("/studio");
   await page.getByRole("button", { name: "Colour scheme: System" }).click();
   await page.getByRole("button", { name: "Colour scheme: Light" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
@@ -91,7 +91,7 @@ test("persists the selected color scheme across reloads", async ({ page }) => {
 
 test("location dialog traps focus and restores it on Escape", async ({ page }) => {
   await page.route("https://static-res.makextool.com/**", (route) => route.abort("internetdisconnected"));
-  await page.goto("/");
+  await page.goto("/studio");
   const trigger = page.locator(".location-card");
   await trigger.click();
   const dialog = page.getByRole("dialog", { name: "Choose anywhere" });
@@ -105,7 +105,7 @@ test("location dialog traps focus and restores it on Escape", async ({ page }) =
 test("compact layouts keep the preview and controls reachable", async ({ page }) => {
   await page.route("https://static-res.makextool.com/**", (route) => route.abort("internetdisconnected"));
   await page.setViewportSize({ width: 720, height: 900 });
-  await page.goto("/");
+  await page.goto("/studio");
 
   await expect(page.locator(".project-name > span")).toHaveText("Project name");
   await expect(page.locator(".terrain-contextbar").getByRole("radiogroup", { name: "Output type" })).toBeVisible();
@@ -153,7 +153,7 @@ test("compact layouts keep the preview and controls reachable", async ({ page })
 
 test("export dialog supports keyboard dismissal, project backups, and compact layouts", async ({ page }) => {
   await page.route("https://static-res.makextool.com/**", (route) => route.abort());
-  await page.goto("/");
+  await page.goto("/studio");
   const trigger = page.getByRole("button", { name: "Export", exact: true });
   await trigger.click();
   const dialog = page.getByRole("dialog", { name: "Export your project" });

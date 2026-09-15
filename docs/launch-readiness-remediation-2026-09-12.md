@@ -78,7 +78,7 @@ Production client telemetry beyond the browser canary remains an operational int
 
 ## CI follow-up
 
-[The first CI run](https://github.com/loidolt/topostack/actions/runs/34716728384) passed audit, lint, type checks, build, size budgets, all 79 core tests, and all 57 frontend-helper tests. It exposed a component-test timeout under coverage and four Firefox failures that local Chromium/WebKit validation did not reveal.
+[The first CI run](https://github.com/Echo-Foxtrot-Works/topostack/actions/runs/34716728384) passed audit, lint, type checks, build, size budgets, all 79 core tests, and all 57 frontend-helper tests. It exposed a component-test timeout under coverage and four Firefox failures that local Chromium/WebKit validation did not reveal.
 
 - Preview failures now have a separate notice, preserving generation status. Failed 3D initialization is remembered during automatic view changes; explicit user selection can retry it.
 - Map initialization catches unavailable WebGL2 and returns to the appropriate 2D view. Search/coordinate entry and export remain usable. The browser regression now exercises generation, a 3D retry, map failure in both output modes, and location-dialog access with WebGL disabled.
@@ -88,4 +88,4 @@ Production client telemetry beyond the browser canary remains an operational int
 
 Local validation passed lint/type checks, all 14 Chromium/WebKit scenarios, all seven Firefox scenarios in Linux, and the component suite with coverage; the split resize scenario adds one component case.
 
-[The follow-up CI run](https://github.com/loidolt/topostack/actions/runs/34722570241) passed all 190 unit/component/Worker tests, all 21 browser scenarios, and all quality/build checks. Development deployment succeeded, then its smoke test exposed Wrangler's decorated custom-domain output (`hostname (custom domain)`). The verifier now normalizes that exact display form to an HTTPS origin before applying its existing strict URL validation. This preserves support for ordinary deployment URLs and the public monitor's explicit HTTPS configuration.
+[The follow-up CI run](https://github.com/Echo-Foxtrot-Works/topostack/actions/runs/34722570241) passed all 190 unit/component/Worker tests, all 21 browser scenarios, and all quality/build checks. Development deployment succeeded, then its smoke test exposed Wrangler's decorated custom-domain output (`hostname (custom domain)`). The verifier now normalizes that exact display form to an HTTPS origin before applying its existing strict URL validation. This preserves support for ordinary deployment URLs and the public monitor's explicit HTTPS configuration.

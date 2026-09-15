@@ -1,85 +1,207 @@
 # TopoStack
 
-TopoStack is an Atomm-first generator for turning real-world terrain into either stacked, laser-cut topographic projects or single-surface topographic engravings. Layered relief derives its sheet count from terrain relief, map scale, vertical exaggeration, and material thickness. Flat engraving uses an independent contour-density system and produces one physical-size, engrave-only SVG with optional roads, trails, transportation labels, water outlines with optional vector fill patterns, state/province boundaries, latitude/longitude grid lines, elevation labels, compass, scale bar, and border. Both workflows preserve millimeter fabrication coordinates internally, include project metadata and source attribution, and keep geographic map bounds independent from physical output dimensions.
+Turn a place you love into something you can make. TopoStack is a browser-based terrain studio for creating layered, laser-cut reliefs and flat topographic engravings from real elevation and map data.
 
-See [Flat engraving](docs/flat-engraving.md) for the workflow and SVG contract.
+[Visit the website](https://topostack.echofoxtrot.works) · [Open the studio](https://topostack.echofoxtrot.works/studio) · [Report a bug or share an idea](https://github.com/Echo-Foxtrot-Works/topostack/issues)
 
-## Workspace
+![Illustration of stacked topographic terrain layers](atomm/assets/topostack-cover.png)
 
-- `apps/generator` — static Svelte 5/SvelteKit generator served by the Worker and loaded by Atomm.
-- `packages/core` — platform-independent terrain-to-fabrication geometry engine.
-- `workers/map-api` — Cloudflare Worker data gateway backed by R2.
+## What you can make
+
+| Workflow | Controls | Output |
+| --- | --- | --- |
+| **Layered relief** | Physical size, material thickness, vertical exaggeration, map details, and fabrication settings | Master SVG, cut panels, matching engraving panels, and an assembly guide |
+| **Flat engraving** | Physical size, contour density, index contours, linework, map details, and border | One SVG at physical size, containing engraving paths only |
+
+Both workflows support rectangular and circular crops; roads, trails, transportation labels, water outlines and fill patterns; state/province boundaries; latitude/longitude grids; elevation labels; a compass; and a scale bar. Add custom coordinate-based markers, trails, and boundaries to make a map your own.
+
+Layered projects also support modeled lake depth, alignment guides, and material reuse. Sheet count is calculated from terrain relief, map scale, vertical exaggeration, and material thickness. Preview a project on the map, as 2D cut layers, as an engraving, or as a stacked/exploded 3D model, depending on the output type.
+
+### Get started
+
+1. Open the [studio](https://topostack.echofoxtrot.works/studio) and explore the bundled Crater Lake preview.
+2. Choose a place, frame the map area, and select **Layered** or **Flat** output.
+3. Set the physical dimensions and details, then **Generate terrain** and inspect the result.
+4. Open **Export** to download the complete project, individual artwork, or project settings.
+
+The initial preview uses a bundled snapshot of real terrain and map data. Generate fresh terrain before fabrication export. SVGs use physical millimeter coordinates; layered artwork separates red cuts, blue scores, and black engravings. Exports include project metadata and source attribution. Review the artwork and machine settings in your laser software before making a piece.
+
+Project settings are saved in your browser's IndexedDB. Export a project-settings JSON backup to keep a copy or move to another device; import it using the studio's import control. Restored or imported projects need fresh terrain generation before fabrication export. Settings backups are available even when fabrication export is blocked.
+
+The homepage lives at `/`, the editor at `/studio`, and the former `/about` URL redirects to `/`. TopoStack also supports the Atomm export lifecycle and **Open in Studio** integration.
+
+## Built in the open, with AI
+
+TopoStack is a solo developer's spare-time project under [Echo Foxtrot Works](https://github.com/Echo-Foxtrot-Works), unashamedly built with help from AI. That collaboration helps turn ideas into working software and make the most of the time available.
+
+Explore the code, ask questions, suggest improvements, or contribute through [GitHub](https://github.com/Echo-Foxtrot-Works/topostack). For bugs, include the output type, selected location, reproduction steps, and browser details; a project-settings JSON file can help reproduce geometry problems. For code changes, explain the behavior you changed and how you verified it. Pull requests normally target `dev`; releases are promoted to `main`.
+
+[Donations](https://www.paypal.com/donate/?hosted_button_id=QXCUQVC3XAEZA) help support development and are always optional. Every export is available without donating.
 
 ## Local development
 
-```bash
-npm install
+### Install
+
+Use the Node version in [`.nvmrc`](.nvmrc), currently **22.22.2**, to match CI. The supported runtime ranges are declared in [`package.json`](package.json).
+
+```sh
+git clone https://github.com/Echo-Foxtrot-Works/topostack.git
+cd topostack
+nvm install
+nvm use
+npm ci
+```
+
+If you use another Node version manager, select the version from `.nvmrc` before installing dependencies. Run the following commands from the repository root.
+
+### Frontend and bundled preview
+
+```sh
+npm run dev:web
+```
+
+Open the URL printed by Vite, normally [localhost:5273](http://localhost:5273). This is enough to work on the homepage, studio UI, and bundled preview without Cloudflare credentials. Live place search and generation require a reachable map API. If terrain loading fails, the studio can display synthetic fallback terrain, but fabrication export remains blocked.
+
+### Frontend and local map API
+
+```sh
 npm run dev
 ```
 
-The root development command starts the Cloudflare map API first, waits for its health check, and then starts Vite on port 5273. It uses a local terrain cache and the provisioned remote development PMTiles bucket. Run `npm run dev:web` or `npm run dev:api` only when working on one side in isolation.
+This starts the API, waits for `/health`, then starts Vite. The default ports are **8787** for the API and **5273** for the frontend. The launcher tries the next available ports when a default is busy and connects the frontend to the chosen API port.
 
-The map API listens on 8787 and the generator on 5273 — Vite's own 5173 and Wrangler's 8787 collide with nearly every other local project, so only the API keeps its conventional default. `npm run dev` probes both ports before starting anything and, when one is taken, falls forward to the next free port (scanning 20 above the default) and prints the choice. The app is always pointed at whichever API port was picked.
+The local Worker simulates terrain-cache storage but reads the provisioned vector and lake archives from the remote development R2 bucket. Full data access therefore requires Wrangler authentication and access to those Cloudflare resources. For your own deployment, follow the [map API setup guide](workers/map-api/README.md) and [data setup](#data-sources-and-provisioning) below.
 
-Pin either port with `VITE_MAP_API_PORT` and `TOPOSTACK_WEB_PORT`. A pinned port that is busy is reported as an error rather than moved, so scripted setups fail loudly:
+Place search additionally needs a Geoapify key:
 
-```bash
+```sh
+cp workers/map-api/.dev.vars.example workers/map-api/.dev.vars
+```
+
+Set `GEOCODER_API_KEY` in that local file. The geocoder key is not required to fetch elevation for known coordinates. `.dev.vars` is ignored by Git.
+
+### Configuration
+
+| Variable | Purpose |
+| --- | --- |
+| `TOPOSTACK_WEB_PORT` | Frontend port; defaults to `5273` |
+| `VITE_MAP_API_PORT` | Local API port; defaults to `8787` |
+| `VITE_MAP_API_URL` | Explicit API origin; overrides the local API URL. Use a reachable deployment that permits your frontend origin. |
+| `VITE_DONATION_URL` | Optional donation destination; defaults to the TopoStack PayPal page |
+| `GEOCODER_API_KEY` | Worker-only Geoapify credential; keep it in `.dev.vars` locally or a deployment secret |
+
+Pass port overrides in the shell:
+
+```sh
 VITE_MAP_API_PORT=8799 TOPOSTACK_WEB_PORT=5299 npm run dev
 ```
 
-Both variables also apply to `npm run dev:api` and `npm run dev:web` run separately, minus the automatic fallback. `VITE_MAP_API_PORT` carries the Vite prefix because the browser bundle reads it too; set `VITE_MAP_API_URL` instead to point the local app at an already-running or deployed Worker, which overrides the port variable.
+Explicitly selected busy ports cause an error. The individual `dev:web` and `dev:api` commands honor their port variables but do not search for a free port. Set frontend API/donation overrides in `apps/generator/.env` or the shell; `VITE_` values are included in the browser build and must not contain secrets.
 
-The development Worker accepts any `http://localhost`, `http://127.0.0.1`, or `http://[::1]` origin regardless of port so a relocated dev server still passes CORS. Deployed environments keep the exact `ALLOWED_ORIGINS` list in `workers/map-api/wrangler.jsonc`.
+## Repository layout
 
-Open the Vite URL directly, or use Atomm's local preview URL:
+| Path | Responsibility |
+| --- | --- |
+| [`apps/generator`](apps/generator) | Svelte 5/SvelteKit homepage and studio, previews, browser storage, downloads, and Atomm integration |
+| [`packages/core`](packages/core) | Portable TypeScript geometry engine, fabrication planning, and SVG generation |
+| [`workers/map-api`](workers/map-api) | Cloudflare Worker for terrain, map archives, geocoding, caching, and readiness checks |
+| [`e2e`](e2e) | Deterministic Playwright tests for navigation, previews, generation, and exports |
+| [`e2e-live`](e2e-live) | Browser canary that generates and exports against a deployed API |
+| [`scripts`](scripts) | Development launcher, data provisioning, build budgets, and release verification |
+| [`atomm`](atomm) | Platform listing and cover artwork |
+| [`docs`](docs) | Architecture, fabrication details, and operational runbooks |
 
-```text
-https://www.atomm.com/creativetools/community/generator/topographic-map-generator?local=http://localhost:5273/
-```
+Terrain geometry is calculated in the browser, with expensive work delegated to a Web Worker. The API streams and caches source data. MapLibre supplies the interactive reference map, and Three.js renders the 3D preview. See [architecture](docs/architecture.md) for the geometry pipeline and coordinate conventions.
 
-The initial Crater Lake preview is a deterministic, bundled snapshot of real Mapzen elevation and Protomaps/OpenStreetMap major-road, local-road, trail, and water data. Roads default to clean continuous centerlines; major roads can instead use a configurable double-line outline, and road widths, spacing, and endpoint shape are shared by previews and fabrication SVGs. Trails use a configurable solid, dashed, or dotted pattern, while optional names and route references are placed as collision-safe vector labels. Latitude/longitude grid lines are generated locally from the selected bounds with area-sensitive 1/2/5-degree spacing, so they do not require another data download. The preview remains preview-only, so generate fresh terrain before fabrication export. The Export dialog offers the complete ZIP, individual master SVG, cut-panel and engraving-panel bundles, an assembly guide, and an importable project-settings JSON backup. Settings can be saved before terrain generation; fabrication choices require current real terrain. The dialog links to the TopoStack PayPal donation page by default. Set `VITE_DONATION_URL` in `apps/generator/.env` to override the destination; donations never gate exports. Fabrication SVGs separate red cuts, blue scores, and black engravings into operation layers and include registered engraving-only panel companions. If the map-data Worker is unavailable during generation, the app falls back to synthetic terrain so geometry development can continue. Copy `workers/map-api/.dev.vars.example` to `workers/map-api/.dev.vars` and provide a Geoapify key when local place search is needed; terrain generation does not require that secret.
+## Validation
 
-## Validation and packaging
-
-```bash
+```sh
+npm run lint
 npm run typecheck
 npm test
 npm run build
-VITE_MAP_API_URL="$DEPLOYED_WORKER_URL" npm run package:atomm
+npm run budget:web
 ```
 
-The Atomm-ready artifact is written to `apps/generator/topostack-atomm.zip`.
-Packaging fails closed when the Worker URL is missing, non-HTTPS, local, on a reserved test/placeholder domain (`.invalid`, `.test`, `.local`, `.localhost`, `example.*`), or a `*.workers.dev` preview URL; the built artifact is scanned for the same endpoint families. Deploy the production Worker and set its `GEOCODER_API_KEY` secret before creating a submission artifact.
+`npm run build` builds all workspaces, including a dry run of the Worker deployment; it does not publish the app. The generated frontend is in `apps/generator/dist`. `npm run budget:web` checks that built output against separate homepage/editor JavaScript budgets, startup costs, total assets, and HTML limits.
 
-After every successful production deployment and readiness smoke test, CI packages the production URL, generates a SHA-256 checksum, and uploads a 30-day `topostack-atomm-<commit>` workflow artifact containing the generator ZIP, checksum, cover image, and listing copy. Run `VITE_MAP_API_URL=https://topostack.echofoxtrot.works npm run release:atomm` to reproduce the same release files locally.
+Install browsers before running the end-to-end suite:
 
-## CI and deployment environments
+```sh
+npx playwright install chromium firefox webkit
+npm run test:e2e
+```
 
-GitHub Actions validates pull requests targeting `dev` or `main`. A successful push to `dev` deploys the `development` Cloudflare Worker; a successful push to `main` deploys `production`. Pull-request jobs never reference a GitHub environment and therefore cannot read deployment secrets.
+The browser suite builds its own deterministic test version and covers Chromium, Firefox, and WebKit. `npm run test:coverage` runs the unit/component/Worker suites with the thresholds used in CI. Run the live browser canary against a deployed environment with:
 
-Create two GitHub environments with selected-branch deployment rules:
+```sh
+PUBLIC_APP_URL=https://dev-topostack.echofoxtrot.works npm run test:e2e:live
+```
 
-- `development` — allow only the `dev` branch.
-- `production` — allow only the `main` branch and require a reviewer before deployment when the repository plan supports it.
+If local lint reports files under `.wrangler/tmp`, exclude those generated files with `npx eslint . --max-warnings=0 --ignore-pattern '**/.wrangler/**'`. CI uses a clean checkout.
 
-Store these secrets separately in both environments, using environment-appropriate values:
+## Deployment and releases
 
-- `CLOUDFLARE_API_TOKEN` — a token restricted to the deployment account with Workers Scripts edit, Account Settings read, and Workers R2 Storage edit permissions, plus Workers Routes edit for the `echofoxtrot.works` zone.
-- `CLOUDFLARE_ACCOUNT_ID` — the target Cloudflare account ID.
-- `GEOCODER_API_KEY` — the Geoapify credential synchronized to the selected Worker as an encrypted runtime secret.
+[GitHub Actions](.github/workflows/ci.yml) validates pull requests targeting `dev` or `main`. Successful pushes to those branches, or manual runs on them, deploy the matching environment after quality, build, and browser checks pass.
 
-The Cloudflare credentials authenticate CI but are not exposed to Worker code. Only `GEOCODER_API_KEY` is uploaded as a Worker binding. The workflow is defined in `.github/workflows/ci.yml`.
+| Branch | GitHub environment | Worker | Website |
+| --- | --- | --- | --- |
+| `dev` | `development` | `topostack-dev` | [Development](https://dev-topostack.echofoxtrot.works) |
+| `main` | `production` | `topostack` | [Production](https://topostack.echofoxtrot.works) |
 
-Production uses the `topostack` Worker at `https://topostack.echofoxtrot.works`. Development uses the separate `topostack-dev` Worker at `https://dev-topostack.echofoxtrot.works` from the `dev` branch. Each deployment serves the generated frontend as static assets and the map API at `/v1/*`.
+Each Worker serves the static frontend and `/v1/*` API, with `/health` for liveness and `/ready` for data/geocoder readiness. Configure these secrets separately in **both** GitHub environments:
 
-The `Production Monitor` workflow runs an hourly canary against the frontend security policy, `/health`, `/ready`, terrain and geocoder serving paths (which may use cached data), the data manifest, and both available PMTiles archives. A separate daily `Production Browser Monitor` generates a real project in Chromium, downloads the fabrication ZIP, and inspects its master SVG, covering the deployed browser-to-Worker integration that the deterministic local E2E fixture intentionally does not exercise. Failed scheduled runs surface through normal GitHub Actions notifications. CI also enforces gzip budgets for entry-preload, default-preview startup, and total JavaScript, the largest JavaScript chunk, CSS, and the entry HTML via `npm run budget:web`; adjust a limit only alongside an intentional performance review.
+- `CLOUDFLARE_ACCOUNT_ID`
+- `CLOUDFLARE_API_TOKEN`
+- `GEOCODER_API_KEY`
 
-## Data setup
+Restrict `development` deployments to `dev` and `production` to `main`. Configure any production reviewer gate to work with your maintainer team. Pull-request validation does not reference deployment environments; only the deployment job receives their secrets. See the [Worker guide](workers/map-api/README.md) for resource configuration and token permissions.
 
-The Worker proxies Mapzen Terrarium elevation tiles, preserves their imagery-source metadata, and caches them in the `topostack-map-cache` R2 bucket under dataset-versioned keys. Roads, water, and first-level administrative boundaries come from the pinned Protomaps/OpenStreetMap PMTiles release stored as `osm/current.pmtiles` in the `topostack-vector-data` bucket, served with a short revalidating cache policy because that key is overwritten on dataset updates. The `/ready` endpoint reports whether both the vector and lake archives and the geocoder configuration are present. Generated geometry records vector and lake-data availability separately; requested data that is unavailable or truncated blocks export instead of silently producing incomplete fabrication files. Place search is proxied to Geoapify with a Worker secret. Provisioning (`scripts/provision-vector-data.mjs`) verifies a pinned SHA-256 digest, writes the development bucket by default, and touches production only with an explicit `--prod` flag. See `workers/map-api/README.md` for provisioning and deployment details.
+The [hourly production monitor](.github/workflows/production-monitor.yml) checks the frontend, API, and data-serving paths. The [daily browser monitor](.github/workflows/production-browser-monitor.yml) generates real terrain and inspects a downloaded fabrication package. Use the [release acceptance and rollback runbook](docs/release-acceptance.md) for platform, physical fabrication, and recovery checks.
 
-Terrain and map data are decorative source material, not survey, navigation, or engineering data.
+### Atomm
 
-The launch-readiness fixes and remaining acceptance evidence are recorded in [the remediation notes](docs/launch-readiness-remediation-2026-09-12.md). Follow [the release acceptance and rollback runbook](docs/release-acceptance.md) before publishing. Atomm releases now include `topostack-atomm.release.json` with the ZIP digest, source revision/dirty-state flag, API origin, dataset version, and both archive identities. Keep this receipt alongside the ZIP and the data provisioning receipts.
+To preview the local studio in Atomm, use the running frontend URL as its `local` parameter. With the default port:
 
-Use `nvm use` with the checked-in `.nvmrc` for the CI runtime (Node 22.22.2). The Worker test pool currently pins an older Wrangler internally; its Miniflare dependency has a scoped override to the patched 5.20260911.0-alpha release. Remove that override once the test pool ships the patched dependency itself.
+```text
+https://www.atomm.com/creativetools/community/generator/topographic-map-generator?local=http://localhost:5273/studio
+```
+
+Build a release against the deployed production API:
+
+```sh
+VITE_MAP_API_URL=https://topostack.echofoxtrot.works npm run release:atomm
+```
+
+This produces `apps/generator/topostack-atomm.zip`, its `.zip.sha256` checksum, and `topostack-atomm.release.json` with the source revision, API origin, dataset/archive identities, and dirty-tree flag. Packaging requires a real HTTPS API origin and rejects local, placeholder, and `*.workers.dev` URLs. Use `npm run package:atomm` with the same API variable for the ZIP and validation without the checksum/receipt step.
+
+After a successful production deployment and smoke test, CI uploads the ZIP, checksum, receipt, cover image, and [listing](atomm/listing.md) as a `topostack-atomm-<commit>` artifact retained for 30 days. Publish from a clean commit and keep the release evidence with the data-provisioning receipts.
+
+## Data sources and provisioning
+
+- **Elevation:** Mapzen Terrarium tiles, cached in R2 with imagery-source attribution.
+- **Roads, trails, water, and boundaries:** the pinned Protomaps/OpenStreetMap PMTiles archive at `osm/current.pmtiles`.
+- **Lake depth:** HydroLAKES and GLOBathy data at `lakes/current.pmtiles`; lake basins are modeled, with per-lake depth overrides in the studio.
+- **Place search:** Geoapify, proxied through the Worker.
+- **Reference map:** OpenFreeMap; reference-map imagery is not included in fabrication exports.
+
+Archive provisioning is separate from application deployment. Use [`provision-vector-data.mjs`](scripts/provision-vector-data.mjs) for the map archive, and [`build-lake-data.mjs`](scripts/build-lake-data.mjs) plus [`provision-lake-data.mjs`](scripts/provision-lake-data.mjs) for lake data. The lake build requires Tippecanoe; archive verification requires the PMTiles CLI. The provisioning scripts require an archive path, `--provision`, Cloudflare credentials, and a pinned SHA-256 digest. A development-only `--skip-digest-check` option supports establishing a new archive pin.
+
+Provisioning writes development by default. **`--prod` writes both development and production**, requires a pinned digest, and overwrites the configured archive keys. Retain the original archives and emitted provisioning receipts for rollback. The [Worker guide](workers/map-api/README.md) documents the map archive and resource setup.
+
+`/ready` requires both archives and the geocoder configuration. Fabrication export requires current real terrain and any requested map/lake data; missing or truncated requested data blocks export. The bundled preview and synthetic fallback are for previewing and development.
+
+Terrain and map data are decorative source material, not survey, navigation, or engineering data. Exported projects include attribution; see [data and fabrication notes](docs/data-and-fabrication.md) and the maintained [source-credit list](apps/generator/src/map-attribution.ts).
+
+## Further reading
+
+- [Flat engraving workflow and SVG contract](docs/flat-engraving.md)
+- [Architecture and geometry conventions](docs/architecture.md)
+- [Map API setup and operations](workers/map-api/README.md)
+- [Release acceptance and rollback](docs/release-acceptance.md)
+- [Roadmap](docs/roadmap.md)
+- [Launch-readiness remediation history](docs/launch-readiness-remediation-2026-09-12.md)
+
+## License status
+
+A project `LICENSE` file has not been added to this repository yet. Dependency and map-data licenses are documented separately in their packages and the source credits.

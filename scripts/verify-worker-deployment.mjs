@@ -52,19 +52,21 @@ async function fetchJson(base, path) {
 const deploymentHealth = await fetchJson(deploymentBase, "/health");
 if (deploymentHealth?.service !== "topostack-map-api" || deploymentHealth?.status !== "ok" || deploymentHealth?.environment !== expectedEnvironment) throw new Error(`Unexpected deployment-target health response: ${JSON.stringify(deploymentHealth)}`);
 
-const appResponse = await fetchWithRetry(publicBase, "/", { headers: { accept: "text/html" } });
-const contentType = appResponse.headers.get("content-type") ?? "";
-const appHtml = await appResponse.text();
-// Structural markers from apps/generator/src/app.html rather than marketing
-// copy: the SvelteKit body attribute and the Atomm platform SDK script survive
-// copy edits, and the built entry page has no <title> element to match on.
-if (!contentType.includes("text/html") || !appHtml.includes("data-sveltekit-preload-data") || !appHtml.includes("static-res.makextool.com/scripts/js/generator-sdk/platform-sdk.js")) {
-  throw new Error("The public deployment did not return the TopoStack frontend.");
-}
-if (!appResponse.headers.get("content-security-policy")?.includes("default-src 'self'")
-  || appResponse.headers.get("x-content-type-options") !== "nosniff"
-  || !appResponse.headers.get("strict-transport-security")?.includes("max-age=31536000")) {
-  throw new Error("The public frontend is missing required browser security headers.");
+// Verify both public entry points so a healthy homepage cannot hide a missing editor.
+for (const path of ["/", "/studio"]) {
+  const appResponse = await fetchWithRetry(publicBase, path, { headers: { accept: "text/html" } });
+  const contentType = appResponse.headers.get("content-type") ?? "";
+  const appHtml = await appResponse.text();
+  if (!contentType.includes("text/html") || !appHtml.includes("data-sveltekit-preload-data")
+    || (path === "/studio" && !appHtml.includes("static-res.makextool.com/scripts/js/generator-sdk/platform-sdk.js"))
+    || (path === "/" && !/href=["'][^"']*studio["']/.test(appHtml))) {
+    throw new Error(`The public deployment did not return the TopoStack frontend at ${path}.`);
+  }
+  if (!appResponse.headers.get("content-security-policy")?.includes("default-src 'self'")
+    || appResponse.headers.get("x-content-type-options") !== "nosniff"
+    || !appResponse.headers.get("strict-transport-security")?.includes("max-age=31536000")) {
+    throw new Error(`The public frontend at ${path} is missing required browser security headers.`);
+  }
 }
 
 const health = await fetchJson(publicBase, "/health");
