@@ -3,6 +3,10 @@ import { DEFAULT_PROJECT, generateGeometry } from "@topostack/core";
 import { boundsForProject } from "./data-provider";
 import { createSamplePreviewSource } from "./sample-preview";
 
+// Full bundled geometry includes contouring and label placement; coverage on
+// shared CI runners can exceed Vitest's default five-second test timeout.
+const GEOMETRY_TEST_TIMEOUT_MS = 20_000;
+
 describe("Crater Lake bundled preview", () => {
   it("contains real elevation, classified transportation, and water data for the default crop", () => {
     const source = createSamplePreviewSource();
@@ -20,7 +24,7 @@ describe("Crater Lake bundled preview", () => {
     expect(source.attribution.some((item) => item.name === "OpenStreetMap contributors")).toBe(true);
   });
 
-  it("produces visible fabrication markings for every default map detail", () => {
+  it("produces visible fabrication markings for every default map detail", { timeout: GEOMETRY_TEST_TIMEOUT_MS }, () => {
     const geometry = generateGeometry(DEFAULT_PROJECT, createSamplePreviewSource());
     const markings = geometry.layers.flatMap((layer) => layer.markings);
     expect(markings.some((marking) => marking.kind === "road")).toBe(true);
@@ -43,7 +47,7 @@ describe("Crater Lake bundled preview", () => {
     expect(suspiciousClosures).toEqual([]);
   });
 
-  it("shows named roads when transportation labels are enabled", () => {
+  it("shows named roads when transportation labels are enabled", { timeout: GEOMETRY_TEST_TIMEOUT_MS }, () => {
     const geometry = generateGeometry({ ...DEFAULT_PROJECT, showTransportationLabels: true }, createSamplePreviewSource());
     const labels = geometry.layers.flatMap((layer) => layer.markings).filter((marking) => marking.id.startsWith("transport-label-"));
     expect(labels.length).toBeGreaterThan(0);

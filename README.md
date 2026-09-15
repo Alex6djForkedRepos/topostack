@@ -132,6 +132,18 @@ npx playwright install chromium firefox webkit
 npm run test:e2e
 ```
 
+To run Firefox alone:
+
+```sh
+npm run test:e2e -- --project=firefox
+```
+
+On macOS, the Playwright configuration stores Firefox startup metadata in
+`node_modules/.cache/topostack/firefox-app-data`. This avoids the
+[macOS 27 profile-launch issue](https://bugzilla.mozilla.org/show_bug.cgi?id=2060476)
+while keeping test data separate from your personal Firefox data. Playwright still
+creates a fresh browser profile for each launch.
+
 The browser suite builds its own deterministic test version and covers Chromium, Firefox, and WebKit. `npm run test:coverage` runs the unit/component/Worker suites with the thresholds used in CI. Run the live browser canary against a deployed environment with:
 
 ```sh

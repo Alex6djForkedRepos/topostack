@@ -19,7 +19,7 @@
     renderer: THREE.WebGLRenderer; camera: THREE.PerspectiveCamera; controls: OrbitControls;
     rig: THREE.Group; content: THREE.Group; resizeObserver: ResizeObserver; frame: number;
     environmentTarget: THREE.WebGLRenderTarget; texture: THREE.CanvasTexture; fitSignature?: string;
-    keyLight: THREE.DirectionalLight; detachContextHandlers: () => void;
+    keyLight: THREE.DirectionalLight; detachContextHandlers: () => void; requestRender: () => void;
   }
 
   interface StackedObject { layerIndex: number; baseZ: number }
@@ -120,17 +120,37 @@
     const controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.dampingFactor = 0.065; controls.maxPolarAngle = Math.PI * 0.95; controls.minDistance = 120; controls.maxDistance = 1800; controls.target.set(0, 0, 10); camera.position.set(15, -165, 270); controls.update();
     if (savedCamera) { camera.position.set(...savedCamera.position); controls.target.set(...savedCamera.target); controls.update(); }
     const texture = makeWoodTexture();
-    const resizeObserver = new ResizeObserver(([entry]) => { const width = entry?.contentRect.width ?? 0; const height = entry?.contentRect.height ?? 0; if (width <= 0 || height <= 0) return; camera.aspect = width / height; camera.updateProjectionMatrix(); renderer.setSize(width, height, false); }); resizeObserver.observe(container);
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)"); let start = performance.now();
-    const animate = (time: number) => { if (!reducedMotion.matches) { const elapsed = (time - start) / 1000; rig.position.y = Math.sin(elapsed * 0.37) * 1.2; rig.rotation.z = Math.sin(elapsed * 0.23) * 0.006; } else { rig.position.y = 0; rig.rotation.z = 0; start = time; } controls.update(); renderer.render(scene, camera); if (runtime) runtime.frame = requestAnimationFrame(animate); };
-    // A GPU reset otherwise leaves a dead black canvas: swallow the loss and
-    // restart the loop once the driver hands the context back.
-    const onContextLost = (event: Event) => { event.preventDefault(); if (runtime) cancelAnimationFrame(runtime.frame); };
-    const onContextRestored = () => { if (runtime) runtime.frame = requestAnimationFrame(animate); };
+    let contextLost = false;
+    const requestRender = () => {
+      if (!runtime || runtime.frame || contextLost || document.hidden) return;
+      runtime.frame = requestAnimationFrame(render);
+    };
+    const render = () => {
+      if (!runtime) return;
+      runtime.frame = 0;
+      if (contextLost || document.hidden) return;
+      // OrbitControls emits change while damping settles, requesting the next
+      // frame. Once the camera stops moving there is no ongoing render loop.
+      controls.update();
+      renderer.render(scene, camera);
+    };
+    controls.addEventListener("change", requestRender);
+    const resizeObserver = new ResizeObserver(([entry]) => { const width = entry?.contentRect.width ?? 0; const height = entry?.contentRect.height ?? 0; if (width <= 0 || height <= 0) return; camera.aspect = width / height; camera.updateProjectionMatrix(); renderer.setSize(width, height, false); requestRender(); }); resizeObserver.observe(container);
+    const stopFrame = () => { if (runtime) { cancelAnimationFrame(runtime.frame); runtime.frame = 0; } };
+    const onVisibilityChange = () => { if (document.hidden) stopFrame(); else requestRender(); };
+    const onContextLost = (event: Event) => { event.preventDefault(); contextLost = true; stopFrame(); };
+    const onContextRestored = () => { contextLost = false; requestRender(); };
     renderer.domElement.addEventListener("webglcontextlost", onContextLost);
     renderer.domElement.addEventListener("webglcontextrestored", onContextRestored);
-    const detachContextHandlers = () => { renderer.domElement.removeEventListener("webglcontextlost", onContextLost); renderer.domElement.removeEventListener("webglcontextrestored", onContextRestored); };
-    runtime = { renderer, camera, controls, rig, content, resizeObserver, frame: requestAnimationFrame(animate), environmentTarget, texture, keyLight, detachContextHandlers };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    const detachContextHandlers = () => {
+      renderer.domElement.removeEventListener("webglcontextlost", onContextLost);
+      renderer.domElement.removeEventListener("webglcontextrestored", onContextRestored);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      controls.removeEventListener("change", requestRender);
+    };
+    runtime = { renderer, camera, controls, rig, content, resizeObserver, frame: 0, environmentTarget, texture, keyLight, detachContextHandlers, requestRender };
+    requestRender();
     return () => {
       if (!runtime) return;
       const { position } = runtime.camera; const { target } = runtime.controls;
@@ -245,6 +265,7 @@
         runtime.fitSignature = fitSignature;
       }
       runtime.controls.update();
+      runtime.requestRender();
     }, 160);
     return () => window.clearTimeout(timeout);
   });
@@ -252,7 +273,7 @@
   // Exploded-slider changes only reposition existing meshes.
   $effect(() => {
     const activeExploded = exploded;
-    if (runtime) applyExploded(runtime.content, activeExploded);
+    if (runtime) { applyExploded(runtime.content, activeExploded); runtime.requestRender(); }
   });
 
   function handleKeyDown(event: KeyboardEvent): void {
