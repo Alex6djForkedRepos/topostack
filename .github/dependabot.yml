@@ -5,6 +5,11 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    # TypeScript 7 is outside the supported peer ranges of SvelteKit,
+    # svelte-check, and typescript-eslint. Revisit when those tools support it.
+    ignore:
+      - dependency-name: typescript
+        versions: [">=7.0.0 <8.0.0"]
     groups:
       npm-minor-and-patch:
         update-types:
