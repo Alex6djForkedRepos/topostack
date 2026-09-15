@@ -10,7 +10,9 @@ const budgets = {
   initialJavaScriptGzip: 180_000,
   startupJavaScriptGzip: 400_000,
   // Includes the MapLibre 6 worker (~144 kB gzip), fetched only in Map mode.
-  totalJavaScriptGzip: 800_000,
+  // Three.js r186 and the updated UI/toolchain bring the full asset set to
+  // ~804 kB gzip. Keep the homepage and editor startup limits unchanged.
+  totalJavaScriptGzip: 820_000,
   largestJavaScriptGzip: 300_000,
   totalCssGzip: 30_000,
   studioHtmlBytes: 10_000,
