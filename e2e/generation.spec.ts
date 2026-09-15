@@ -79,6 +79,8 @@ test("generates deterministic real terrain and downloads the complete fabricatio
 test("persists the selected color scheme across reloads", async ({ page }) => {
   await page.route("https://static-res.makextool.com/**", (route) => route.abort("internetdisconnected"));
   await page.goto("/studio");
+  const themeColor = page.locator('meta[name="theme-color"]');
+  await expect(themeColor).toHaveCount(1);
   await page.getByRole("button", { name: "Colour scheme: System" }).click();
   await page.getByRole("button", { name: "Colour scheme: Light" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
@@ -86,7 +88,8 @@ test("persists the selected color scheme across reloads", async ({ page }) => {
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await expect(page.getByRole("button", { name: "Colour scheme: Dark" })).toBeVisible();
-  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute("content", "#161814");
+  await expect(themeColor).toHaveCount(1);
+  await expect(themeColor).toHaveAttribute("content", "#161814");
 });
 
 test("location dialog traps focus and restores it on Escape", async ({ page }) => {
