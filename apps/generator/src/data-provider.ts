@@ -5,6 +5,8 @@ import { classifyRings, VectorTile } from "@mapbox/vector-tile";
 import { PbfReader } from "pbf";
 import polygonClipping, { type MultiPolygon, type Pair } from "polygon-clipping";
 import { MAP_DATA_ATTRIBUTION } from "./map-attribution";
+import { decodeTerrainPng } from "./terrain-png";
+import { repairElevationSpikes } from "./elevation-cleanup";
 
 export interface PlaceResult { id: string; label: string; lat: number; lon: number; type?: string }
 
@@ -401,41 +403,37 @@ export function stitchTransportationMarkings(markings: MarkingFeature[]): Markin
   return [...stitched, ...other];
 }
 
-// Terrarium tiles must be decoded to elevations at native resolution before any
-// resampling. Scaling the PNGs with drawImage interpolates the R/G/B channels
-// independently (the R channel alone is worth 256 m per step) and antialiases
-// each tile's edge against the empty canvas, which decodes to -32768 m — that
-// combination produced false contour walls along every tile seam.
-async function loadElevation(window: TileWindow, signal?: AbortSignal): Promise<{ elevation: SourceBundleV1["elevation"]; imagerySources: string[]; datasetVersion: string }> {
+// Decode numeric PNG channels directly, then interpolate elevations at native
+// pixel centers. Browser image/canvas APIs can alter the encoded heights.
+async function loadElevation(window: TileWindow, signal?: AbortSignal): Promise<{ elevation: SourceBundleV1["elevation"]; elevationRepairCount: number; imagerySources: string[]; datasetVersion: string }> {
   const responses = await Promise.all(window.tiles.map(async (tile) => {
     const response = await fetch(`${apiBase}/v1/terrain/${tile.z}/${tile.x}/${tile.y}.png`, { signal: networkSignal(signal) });
     if (!response.ok) throw new Error(`Terrain service returned ${response.status}.`);
-    return { tile, response, bitmap: await createImageBitmap(await response.blob()) };
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    signal?.throwIfAborted();
+    return { tile, response, values: decodeTerrainPng(bytes) };
   }));
   const minTileX = Math.min(...window.tiles.map((tile) => tile.worldX));
   const minTileY = Math.min(...window.tiles.map((tile) => tile.y));
   const mosaicWidth = (Math.max(...window.tiles.map((tile) => tile.worldX)) - minTileX + 1) * TILE_SIZE;
   const mosaicHeight = (Math.max(...window.tiles.map((tile) => tile.y)) - minTileY + 1) * TILE_SIZE;
-  const canvas = new OffscreenCanvas(mosaicWidth, mosaicHeight);
-  const context = canvas.getContext("2d", { willReadFrequently: true });
-  if (!context) throw new Error("This browser cannot decode elevation tiles.");
-  context.imageSmoothingEnabled = false;
+  const mosaic = new Float32Array(mosaicWidth * mosaicHeight);
   const imagerySources = new Set<string>();
   const datasetVersions = new Set<string>();
-  for (const { tile, response, bitmap } of responses) {
+  for (const { tile, response, values } of responses) {
     const datasetVersion = response.headers.get("x-topostack-dataset");
     if (datasetVersion) datasetVersions.add(datasetVersion);
     response.headers.get("x-topostack-imagery-sources")?.split(",").map((value) => value.trim()).filter(Boolean).forEach((value) => imagerySources.add(value));
-    context.drawImage(bitmap, (tile.worldX - minTileX) * TILE_SIZE, (tile.y - minTileY) * TILE_SIZE);
-    bitmap.close();
+    const left = (tile.worldX - minTileX) * TILE_SIZE;
+    const top = (tile.y - minTileY) * TILE_SIZE;
+    for (let row = 0; row < TILE_SIZE; row += 1) {
+      mosaic.set(values.subarray(row * TILE_SIZE, (row + 1) * TILE_SIZE), (top + row) * mosaicWidth + left);
+    }
   }
   if (datasetVersions.size > 1) throw new Error("Terrain tiles came from inconsistent dataset versions. Try again shortly.");
-  const pixels = context.getImageData(0, 0, mosaicWidth, mosaicHeight).data;
-  const mosaic = new Float32Array(mosaicWidth * mosaicHeight);
-  for (let index = 0; index < mosaic.length; index += 1) {
-    const pixel = index * 4;
-    mosaic[index] = (pixels[pixel] ?? 0) * 256 + (pixels[pixel + 1] ?? 0) + (pixels[pixel + 2] ?? 0) / 256 - 32768;
-  }
+
+  // Use the stitched native raster so tile boundaries are ordinary neighbors.
+  const elevationRepairCount = repairElevationSpikes(mosaic, mosaicWidth, mosaicHeight);
 
   // Output samples i in 0..width-1 span [westX, eastX] edge to edge, matching
   // the contourToMm/sampleElevation convention in core (grid.width - 1 spans
@@ -470,7 +468,7 @@ async function loadElevation(window: TileWindow, signal?: AbortSignal): Promise<
       max = Math.max(max, elevation);
     }
   }
-  return { elevation: { width: outputWidth, height: outputHeight, values, min, max }, imagerySources: [...imagerySources].sort(), datasetVersion: [...datasetVersions][0] ?? "mapzen-terrarium+protomaps-20260905-z12-v1" };
+  return { elevation: { width: outputWidth, height: outputHeight, values, min, max }, elevationRepairCount, imagerySources: [...imagerySources].sort(), datasetVersion: [...datasetVersions][0] ?? "mapzen-terrarium+protomaps-20260905-z12-v1" };
 }
 
 export interface VectorData {
@@ -774,7 +772,7 @@ export async function loadTerrain(config: ProjectConfigV1, signal?: AbortSignal)
     // so depth modeling needs vectors even when shoreline scoring is hidden.
     const { lakes: usesWaterDepth } = sourceRequirements(config);
     const vectorRequested = sourceRequirements(config).vectors;
-    const [{ elevation, imagerySources, datasetVersion }, vector, lakes] = await Promise.all([
+    const [{ elevation, elevationRepairCount, imagerySources, datasetVersion }, vector, lakes] = await Promise.all([
       loadElevation(window, signal),
       vectorRequested
         ? loadVectorMarkings(bounds, zoom, config, signal)
@@ -794,7 +792,7 @@ export async function loadTerrain(config: ProjectConfigV1, signal?: AbortSignal)
         : Promise.resolve({ areas: [] as WaterAreaV1[], status: "not-requested" as const }),
     ]);
     const waterAreas = combineWaterAreas(lakes.areas, vector.ocean, config.minimumFeatureMm);
-    return { fallback: false, source: { schemaVersion: 1, elevation, markings: vector.markings, waterAreas, waterPatternAreas: [...vector.ocean, ...vector.inland], vectorStatus: vector.status, lakeDataStatus: lakes.status, datasetVersion, sourceKind: "real", bounds, imagerySources, resolutionM: groundWidthM(bounds) / elevation.width, attribution: MAP_DATA_ATTRIBUTION } };
+    return { fallback: false, source: { schemaVersion: 1, elevation, elevationRepairCount, markings: vector.markings, waterAreas, waterPatternAreas: [...vector.ocean, ...vector.inland], vectorStatus: vector.status, lakeDataStatus: lakes.status, datasetVersion, sourceKind: "real", bounds, imagerySources, resolutionM: groundWidthM(bounds) / elevation.width, attribution: MAP_DATA_ATTRIBUTION } };
   } catch (error) {
     if (signal?.aborted) throw error;
     const source = createSyntheticSource({ ...config, location: { ...config.location, bounds } });

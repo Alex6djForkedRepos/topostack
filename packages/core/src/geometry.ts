@@ -651,6 +651,10 @@ export function generateGeometry(config: ProjectConfigV1, source: SourceBundleV1
   assertGeographicBounds(source.bounds, "Source");
 
   const warnings: GeometryIRV1["warnings"] = [];
+  if ((source.elevationRepairCount ?? 0) > 0) warnings.push({
+    code: "ELEVATION_REPAIRED",
+    message: "Isolated depth spikes in the elevation data were replaced with estimates from nearby terrain. Review the terrain before cutting.",
+  });
   const flatEngraving = config.outputMode === "engraving";
   const usesWaterDepth = !flatEngraving && config.showWaterDepth;
   if (source.vectorStatus === "partial" && (config.showRoads || config.showTrails || config.showWater || config.showBoundaries || usesWaterDepth)) warnings.push({

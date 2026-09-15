@@ -83,3 +83,47 @@ test(`keeps saved ${cropShape} bounds aligned after opening and resizing Map`, a
   await expect(page.getByText("Ready to export")).toBeVisible();
 });
 }
+
+test("3D rendering settles when idle and resumes for preview changes", async ({ page }) => {
+  await page.route("https://static-res.makextool.com/**", (route) => route.abort());
+  await page.addInitScript(() => {
+    const counter = { draws: 0 };
+    Object.assign(window, { previewDrawCounter: counter });
+    for (const method of ["drawArrays", "drawElements"] as const) {
+      const original = WebGL2RenderingContext.prototype[method];
+      WebGL2RenderingContext.prototype[method] = function (...args: number[]) {
+        counter.draws += 1;
+        Reflect.apply(original, this, args);
+      };
+    }
+  });
+  await page.goto("/studio");
+  const preview = page.getByRole("button", { name: /Interactive 3D preview/ });
+  await expect(preview.locator("canvas")).toBeVisible();
+  const draws = () => page.evaluate(() => (window as unknown as { previewDrawCounter: { draws: number } }).previewDrawCounter.draws);
+  await expect.poll(draws).toBeGreaterThan(0);
+  async function expectIdle(): Promise<number> {
+    // Camera damping is allowed to finish; a continuous render loop never settles.
+    let previous = -1;
+    await expect.poll(async () => {
+      const current = await draws();
+      const settled = previous === current;
+      previous = current;
+      return settled;
+    }, { intervals: [500], timeout: 10_000 }).toBe(true);
+    const settled = await draws();
+    await page.waitForTimeout(600);
+    expect(await draws()).toBe(settled);
+    return settled;
+  }
+  const initial = await expectIdle();
+  await preview.press("ArrowLeft");
+  await expect.poll(draws).toBeGreaterThan(initial);
+  const afterOrbit = await expectIdle();
+  await page.locator(".explode-control input").fill("0.8");
+  await expect.poll(draws).toBeGreaterThan(afterOrbit);
+  const afterExplode = await expectIdle();
+  await page.setViewportSize({ width: 1000, height: 750 });
+  await expect.poll(draws).toBeGreaterThan(afterExplode);
+  await expectIdle();
+});

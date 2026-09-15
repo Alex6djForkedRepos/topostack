@@ -297,6 +297,8 @@ export interface WaterSurfaceIR {
 export interface SourceBundleV1 {
   schemaVersion: 1;
   elevation: ElevationGrid;
+  /** Native DEM samples estimated from neighbors after detecting isolated downward spikes. */
+  elevationRepairCount?: number;
   markings: MarkingFeature[];
   waterAreas?: WaterAreaV1[];
   /** OSM water polygons retained independently of depth-modeling metadata. */
@@ -368,7 +370,7 @@ export interface FabricationNest {
 }
 
 export interface GeometryWarning {
-  code: "LOW_RELIEF" | "EMPTY_LAYER" | "SMALL_FEATURES" | "DATA_FALLBACK" | "VECTOR_DATA_PARTIAL" | "VECTOR_DATA_UNAVAILABLE" | "LAKE_DATA_UNAVAILABLE" | "LABEL_OMITTED" | "WATER_DEPTH_CLAMPED";
+  code: "ELEVATION_REPAIRED" | "LOW_RELIEF" | "EMPTY_LAYER" | "SMALL_FEATURES" | "DATA_FALLBACK" | "VECTOR_DATA_PARTIAL" | "VECTOR_DATA_UNAVAILABLE" | "LAKE_DATA_UNAVAILABLE" | "LABEL_OMITTED" | "WATER_DEPTH_CLAMPED";
   message: string;
 }
 

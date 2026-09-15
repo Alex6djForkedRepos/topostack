@@ -1,4 +1,12 @@
 import { defineConfig, devices } from "@playwright/test";
+import { mkdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+// macOS 27 protects Firefox's normal app-data directory even when Playwright
+// supplies a fresh -profile. Keep test startup metadata in this checkout.
+// https://bugzilla.mozilla.org/show_bug.cgi?id=2060476
+const firefoxAppData = fileURLToPath(new URL("./node_modules/.cache/topostack/firefox-app-data/", import.meta.url));
+if (process.platform === "darwin") mkdirSync(firefoxAppData, { recursive: true });
 
 export default defineConfig({
   testDir: "./e2e",
@@ -23,7 +31,10 @@ export default defineConfig({
         // Linux CI provides an Xvfb display and Mesa software rendering.
         // Use the display for Firefox so map tests exercise WebGL2 rendering.
         headless: !(process.env.CI && process.platform === "linux"),
-        launchOptions: { firefoxUserPrefs: { "webgl.force-enabled": true } },
+        launchOptions: {
+          firefoxUserPrefs: { "webgl.force-enabled": true },
+          ...(process.platform === "darwin" ? { env: { ...process.env, MOZ_APP_DATA: firefoxAppData } } : {}),
+        },
       },
     },
     { name: "webkit", use: { ...devices["Desktop Safari"] } },
