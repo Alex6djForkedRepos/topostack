@@ -567,7 +567,7 @@
 
   function sameMapArea(left: ProjectConfigV1, right: ProjectConfigV1): boolean {
     return left.location.lat === right.location.lat && left.location.lon === right.location.lon && left.location.zoom === right.location.zoom &&
-      JSON.stringify(left.location.bounds) === JSON.stringify(right.location.bounds);
+      JSON.stringify(boundsForProject(left)) === JSON.stringify(boundsForProject(right));
   }
 
   function projectForPreview(config: ProjectConfigV1): ProjectConfigV1 {
@@ -873,7 +873,7 @@
           </div>
           <p class:pending={terrainDataStale} class="terrain-data-note" aria-live="polite">
             {#if terrainDataStale}<strong>Terrain data is from the previous map area.</strong> Generate it before export.{:else}Changing the location or map area requires terrain regeneration.{/if}
-            <span>Size, map details, and linework update automatically. Vertical exaggeration requires regenerating the layer geometry.</span>
+            <span>Map details and linework update automatically. Changing the cut aspect ratio changes the map area and requires terrain regeneration. Vertical exaggeration also requires regeneration.</span>
           </p>
           </div>
         </Section>

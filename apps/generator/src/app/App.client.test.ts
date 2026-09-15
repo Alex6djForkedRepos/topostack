@@ -82,7 +82,7 @@ describe("TopoStack Svelte shell", () => {
     await vi.waitFor(() => expect(target.querySelector('[data-water-pattern="ripples"]')).not.toBeNull());
     expect(target.querySelector(".layer-dock")).toBeNull();
     expect(target.querySelector(".bar-meta")?.textContent).toContain("No cut paths");
-    const viewport = target.querySelector<HTMLElement>("[data-engraving-viewport]")!;
+    const viewport = target.querySelector<HTMLElement>("[data-svg-viewport]")!;
     const artwork = target.querySelector<SVGSVGElement>('svg[aria-label="Flat engraving preview"]')!;
     const initialViewBox = artwork.getAttribute("viewBox");
     expect(viewport.dataset.zoom).toBe("1.00");
@@ -94,7 +94,7 @@ describe("TopoStack Svelte shell", () => {
     expect(viewport.dataset.renderZoom).toBe("1.50");
     expect(artwork.getAttribute("viewBox")).not.toBe(initialViewBox);
     expect(Number(artwork.getAttribute("viewBox")!.split(" ")[2])).toBeLessThan(Number(initialViewBox!.split(" ")[2]));
-    expect(target.querySelector(".engraving-zoom-value")?.textContent).toBe("150%");
+    expect(target.querySelector(".svg-zoom-value")?.textContent).toBe("150%");
     target.querySelector<HTMLButtonElement>('button[aria-label="Reset engraving view"]')!.click();
     await vi.waitFor(() => expect(viewport.dataset.zoom).toBe("1.00"));
     expect(artwork.getAttribute("viewBox")).toBe(initialViewBox);
@@ -103,11 +103,11 @@ describe("TopoStack Svelte shell", () => {
     expect(viewport.dataset.rendering).toBe("preview");
     expect(viewport.dataset.renderZoom).toBe("1.00");
     expect(artwork.getAttribute("viewBox")).toBe(initialViewBox);
-    expect(target.querySelector<HTMLElement>(".engraving-canvas")?.style.transform).toMatch(/scale\(1\./);
+    expect(target.querySelector<HTMLElement>(".svg-canvas")?.style.transform).toMatch(/scale\(1\./);
     await vi.waitFor(() => expect(viewport.dataset.rendering).toBe("sharp"));
     expect(viewport.dataset.renderZoom).toBe(viewport.dataset.zoom);
     expect(artwork.getAttribute("viewBox")).not.toBe(initialViewBox);
-    expect(target.querySelector<HTMLElement>(".engraving-canvas")?.style.transform).toContain("scale(1)");
+    expect(target.querySelector<HTMLElement>(".svg-canvas")?.style.transform).toContain("scale(1)");
     const settledViewBox = artwork.getAttribute("viewBox");
     viewport.setPointerCapture = vi.fn();
     viewport.hasPointerCapture = vi.fn(() => true);
@@ -119,7 +119,7 @@ describe("TopoStack Svelte shell", () => {
     };
     viewport.dispatchEvent(pointerEvent("pointerdown", 100, 100));
     viewport.dispatchEvent(pointerEvent("pointermove", 150, 125));
-    const panLayer = target.querySelector<HTMLElement>(".engraving-pan-layer")!;
+    const panLayer = target.querySelector<HTMLElement>(".svg-pan-layer")!;
     await vi.waitFor(() => expect(panLayer.style.transform).toContain("50px, 25px"));
     expect(artwork.getAttribute("viewBox")).toBe(settledViewBox);
     viewport.dispatchEvent(pointerEvent("pointerup", 150, 125));
@@ -271,14 +271,14 @@ describe("TopoStack Svelte shell", () => {
     const note = target.querySelector<HTMLElement>(".terrain-data-note")!;
     expect(badge.textContent).toBe("Requires regeneration");
     expect(note.textContent).toContain("Changing the location or map area requires terrain regeneration.");
-    expect(note.textContent).toContain("Size, map details, and linework update automatically.");
-    expect(note.textContent).toContain("Vertical exaggeration requires regenerating the layer geometry.");
+    expect(note.textContent).toContain("Changing the cut aspect ratio changes the map area and requires terrain regeneration.");
+    expect(note.textContent).toContain("Vertical exaggeration also requires regeneration.");
 
     const width = target.querySelector<HTMLInputElement>('input[aria-label="Width"]')!;
     width.value = "250";
     width.dispatchEvent(new Event("input", { bubbles: true }));
     await vi.waitFor(() => expect(width.value).toBe("250"));
-    expect(badge.textContent).toBe("Requires regeneration");
+    expect(badge.textContent).toBe("Regeneration pending");
 
     [...target.querySelectorAll<HTMLButtonElement>(".preset-row button")].find((button) => button.textContent === "Grand Teton and Jenny Lake")!.click();
     await tick();
@@ -306,7 +306,7 @@ describe("TopoStack Svelte shell", () => {
     expect(document.head.querySelector<HTMLMetaElement>('meta[name="theme-color"]')).not.toBeNull();
   });
 
-  it("resizes cut geometry without changing or refetching the map area", async () => {
+  it("requires regeneration after changing the cut aspect ratio", async () => {
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
     await tick();
@@ -314,14 +314,14 @@ describe("TopoStack Svelte shell", () => {
     expect(width.max).toBe("10000");
     width.value = "1200";
     width.dispatchEvent(new Event("input", { bubbles: true }));
-    await vi.waitFor(() => expect(target.querySelector(".status-line")?.textContent).toMatch(/updated/i));
+    await vi.waitFor(() => expect(target.querySelector(".status-line")?.textContent).toMatch(/Map area changed/i));
     expect(target.querySelector(".preview-readout")?.textContent).toContain("1200 × 200 mm");
     expect(loadTerrainMock).not.toHaveBeenCalled();
     expect(loadVectorMarkingsMock).not.toHaveBeenCalled();
     expect(loadLakeAreasMock).not.toHaveBeenCalled();
   });
 
-  it("converts and resizes physical dimensions across unit systems without refetching map data", async () => {
+  it("converts units and flags aspect-ratio edits for regeneration", async () => {
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
     await tick();
@@ -333,7 +333,7 @@ describe("TopoStack Svelte shell", () => {
     expect(target.querySelector(".layer-heading")?.textContent).toContain("ft");
     width.value = "10";
     width.dispatchEvent(new Event("input", { bubbles: true }));
-    await vi.waitFor(() => expect(target.querySelector(".status-line")?.textContent).toMatch(/updated/i));
+    await vi.waitFor(() => expect(target.querySelector(".status-line")?.textContent).toMatch(/Map area changed/i));
     expect(target.querySelector(".preview-readout")?.textContent).toContain("10 × 7.874 in");
     [...target.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes("Metric"))!.click();
     await vi.waitFor(() => expect(target.querySelector(".preview-readout")?.textContent).toContain("254 × 200 mm"));

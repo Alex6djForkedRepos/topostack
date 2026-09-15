@@ -1,3 +1,4 @@
+import { fitCutBounds } from "./selection-bounds";
 import { createFeatureBudget, yieldForCancellation } from "./feature-budget";
 import { sourceRequirements, createSyntheticSource, type GeoBounds, type MarkingFeature, type Point2D, type Polygon2D, type ProjectConfigV1, type SourceBundleV1, type TransportationClass, type WaterAreaV1 } from "@topostack/core";
 import { createArchive, networkSignal } from "./archive";
@@ -47,7 +48,7 @@ function worldYToLat(y: number, zoom: number): number {
 }
 
 export function boundsForProject(config: ProjectConfigV1): GeoBounds {
-  if (config.location.bounds) return config.location.bounds;
+  if (config.location.bounds) return fitCutBounds(config.location.bounds, config.widthMm, config.heightMm);
   const zoom = Math.max(0, Math.min(15, Math.round(config.location.zoom)));
   const size = worldSize(zoom);
   const centerX = lonToWorldX(config.location.lon, zoom);
@@ -55,7 +56,7 @@ export function boundsForProject(config: ProjectConfigV1): GeoBounds {
   const widthPx = Math.min(420, size);
   const heightPx = Math.min(280, size);
   const northY = Math.max(0, Math.min(size - heightPx, centerY - heightPx / 2));
-  return { west: worldXToLon(centerX - widthPx / 2, zoom), east: worldXToLon(centerX + widthPx / 2, zoom), north: worldYToLat(northY, zoom), south: worldYToLat(northY + heightPx, zoom) };
+  return fitCutBounds({ west: worldXToLon(centerX - widthPx / 2, zoom), east: worldXToLon(centerX + widthPx / 2, zoom), north: worldYToLat(northY, zoom), south: worldYToLat(northY + heightPx, zoom) }, config.widthMm, config.heightMm);
 }
 
 interface DataTile { x: number; worldX: number; y: number; z: number }
