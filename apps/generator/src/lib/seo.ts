@@ -1,0 +1,34 @@
+export const SITE_ORIGIN = "https://topostack.echofoxtrot.works";
+export const REPOSITORY_URL = "https://github.com/Echo-Foxtrot-Works/topostack";
+export const PUBLIC_PAGES: Record<string, { title: string; description: string; label: string }> = {
+  "/": {
+    title: "Free Topographic Map Generator for Laser Cutting | TopoStack",
+    description: "Create layered terrain maps and flat topographic engravings from real elevation data. Customize your design and export SVG files free in your browser.",
+    label: "Home",
+  },
+  "/guides/laser-cut-topographic-map": {
+    title: "How to Make a Laser-Cut Topographic Map | TopoStack",
+    description: "Make a layered terrain map from real elevation data. Choose material thickness, preview your stack, and export SVG cut panels with an assembly guide.",
+    label: "Layered map guide",
+  },
+  "/guides/topographic-map-engraving": {
+    title: "Create a Topographic Map SVG for Laser Engraving | TopoStack",
+    description: "Create a flat contour map for laser engraving. Set contour density, add roads and water, and export a single SVG at your chosen physical size.",
+    label: "Engraving guide",
+  },
+  "/examples/crater-lake": {
+    title: "Crater Lake Topographic Map: A Terrain Project | TopoStack",
+    description: "Explore the Crater Lake terrain preview in TopoStack, follow the project setup, and learn how to generate fresh terrain for layered or engraved SVG exports.",
+    label: "Crater Lake example",
+  },
+  "/privacy": {
+    title: "Privacy and Browser Storage | TopoStack",
+    description: "How TopoStack stores project settings, requests map data, and measures visits and successful exports.",
+    label: "Privacy",
+  },
+};
+export const STUDIO_META = {
+  title: "Terrain Studio: Create Your Topographic Map | TopoStack",
+  description: "Choose a place, customize layered relief or flat engraving, and generate SVG artwork in the free TopoStack terrain studio.",
+  label: "Terrain studio",
+};

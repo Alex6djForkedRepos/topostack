@@ -8,6 +8,11 @@ test("generates deterministic real terrain and downloads the complete fabricatio
   await page.route("**/v1/**", (route) => route.abort("internetdisconnected"));
   await page.route("https://static-res.makextool.com/**", (route) => route.abort("internetdisconnected"));
 
+  const usage: Record<string, unknown>[] = [];
+  await page.route("**/v1/events", async (route) => {
+    usage.push(route.request().postDataJSON());
+    await route.fulfill({ status: 204 });
+  });
   await page.goto("/studio");
   await expect(page.getByRole("heading", { name: "Build the landscape." })).toBeVisible();
   await page.getByRole("button", { name: "Expand all" }).click();
@@ -39,7 +44,7 @@ test("generates deterministic real terrain and downloads the complete fabricatio
     await expect.poll(async () => Number(await preview.getAttribute(attribute)), { timeout: 15_000 }).toBeGreaterThan(0);
   }
   await page.getByRole("spinbutton", { name: "Width", exact: true }).fill("1200");
-  await expect(page.locator(".status-line")).toContainText("updated", { timeout: 30_000 });
+  await expect(page.locator(".status-line")).toContainText("Map area changed", { timeout: 30_000 });
   await expect(page.locator(".preview-readout")).toContainText("1200 × 200 mm");
   await expect(page.getByRole("button", { name: /Fabrication settings/ })).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByRole("switch", { name: "Material-saving nests" })).toBeChecked();
@@ -61,7 +66,9 @@ test("generates deterministic real terrain and downloads the complete fabricatio
   for await (const chunk of stream) chunks.push(Buffer.from(chunk));
   const files = unzipSync(Buffer.concat(chunks));
   expect(Object.keys(files)).toContain("README.txt");
-  const svg = Buffer.from(files["crater-lake-master.svg"]).toString("utf8");
+  const masterSvg = files["crater-lake-master.svg"];
+  expect(masterSvg).toBeDefined();
+  const svg = Buffer.from(masterSvg!).toString("utf8");
   expect(svg).toContain('<svg xmlns="http://www.w3.org/2000/svg"');
   expect(svg).toContain('data-operation="CUT"');
   // Layer count is derived, and this 1200 mm cut resolves into thin bands, so
@@ -74,6 +81,8 @@ test("generates deterministic real terrain and downloads the complete fabricatio
   expect(svg).toContain("Crater Lake — master layout");
   expect(browserErrors).toEqual([]);
   await expect(page.locator(".export-feedback")).toContainText("Download ready");
+  await expect.poll(() => usage.map((event) => event.event)).toEqual(["studio_open", "generation_started", "generation_succeeded", "export_prepared"]);
+  expect(usage.at(-1)).toMatchObject({ output: "stack", delivery: "browser" });
 });
 
 test("persists the selected color scheme across reloads", async ({ page }) => {
@@ -123,7 +132,20 @@ test("compact layouts keep the preview and controls reachable", async ({ page })
   await page.setViewportSize({ width: 320, height: 700 });
   const topbarBox = await page.locator(".topbar").boundingBox();
   expect(topbarBox).not.toBeNull();
-  expect(topbarBox!.height).toBeLessThanOrEqual(70);
+  // Mobile uses two rows so the project name and history remain available.
+  const exportButton = page.getByRole("button", { name: "Export", exact: true });
+  const projectName = page.getByRole("textbox", { name: "Project name", exact: true });
+  const historyActions = page.locator(".history-actions");
+  await expect(exportButton).toBeInViewport({ ratio: 1 });
+  await expect(projectName).toBeInViewport({ ratio: 1 });
+  await expect(historyActions).toBeInViewport({ ratio: 1 });
+  const exportBox = (await exportButton.boundingBox())!;
+  const projectBox = (await projectName.boundingBox())!;
+  const historyBox = (await historyActions.boundingBox())!;
+  expect(projectBox.y).toBeGreaterThanOrEqual(exportBox.y + exportBox.height);
+  expect(projectBox.x + projectBox.width).toBeLessThanOrEqual(historyBox.x);
+  expect(Math.max(projectBox.y + projectBox.height, historyBox.y + historyBox.height)).toBeLessThanOrEqual(topbarBox!.y + topbarBox!.height);
+  await expect(page.locator(".preview-toolbar")).toBeInViewport({ ratio: 1 });
   await expect(page.getByRole("radiogroup", { name: "Output type" })).toBeVisible();
 
   await page.getByRole("button", { name: "Expand all" }).click();

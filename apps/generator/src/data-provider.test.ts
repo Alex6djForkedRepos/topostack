@@ -203,12 +203,22 @@ describe("geographic crop bounds", () => {
     expect(bounds.north).toBeGreaterThan(0);
   });
 
-  it("keeps the selected map area independent of fabrication dimensions", () => {
+  it("fits the map area to the cut aspect ratio while proportional resizing keeps the area", () => {
     const original = boundsForProject(DEFAULT_PROJECT);
-    const wide = boundsForProject({ ...DEFAULT_PROJECT, widthMm: 400, heightMm: 100 });
-    const tall = boundsForProject({ ...DEFAULT_PROJECT, widthMm: 100, heightMm: 400 });
-    expect(wide).toEqual(original);
-    expect(tall).toEqual(original);
+    expect(boundsForProject({ ...DEFAULT_PROJECT, widthMm: DEFAULT_PROJECT.widthMm * 2, heightMm: DEFAULT_PROJECT.heightMm * 2 })).toEqual(original);
+    for (const [widthMm, heightMm] of [[400, 100], [100, 400], [200, 200]]) {
+      for (const location of [DEFAULT_PROJECT.location, { ...DEFAULT_PROJECT.location, bounds: original }]) {
+        const bounds = boundsForProject({ ...DEFAULT_PROJECT, location, widthMm, heightMm });
+        const radians = Math.PI / 180;
+        const mapAspect = (bounds.east - bounds.west) * radians / (Math.asinh(Math.tan(bounds.north * radians)) - Math.asinh(Math.tan(bounds.south * radians)));
+        expect(mapAspect).toBeCloseTo(widthMm / heightMm, 7);
+        expect(bounds.west).toBeGreaterThanOrEqual(original.west - 1e-9);
+        expect(bounds.east).toBeLessThanOrEqual(original.east + 1e-9);
+        expect(bounds.north).toBeLessThanOrEqual(original.north + 1e-9);
+        expect(bounds.south).toBeGreaterThanOrEqual(original.south - 1e-9);
+        expect(boundsForProject({ ...DEFAULT_PROJECT, location: { ...location, bounds }, widthMm, heightMm })).toEqual(bounds);
+      }
+    }
   });
 });
 

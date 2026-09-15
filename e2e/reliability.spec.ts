@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { fitCutBounds } from "../apps/generator/src/selection-bounds";
 import { DEFAULT_PROJECT } from "../packages/core/src/types";
 
 test("keeps generation and location controls usable when WebGL is unavailable", async ({ page }) => {
@@ -45,7 +46,7 @@ test(`keeps saved ${cropShape} bounds aligned after opening and resizing Map`, a
   await page.route("https://static-res.makextool.com/**", (route) => route.abort());
   await page.route("https://tiles.openfreemap.org/styles/**", (route) => route.fulfill({ json: { version: 8, sources: {}, layers: [] } }));
   await page.goto("/studio");
-  const bounds = { west: -122.3, east: -122.0, north: 43.05, south: 42.85 };
+  const bounds = fitCutBounds({ west: -122.3, east: -122.0, north: 43.05, south: 42.85 }, DEFAULT_PROJECT.widthMm, DEFAULT_PROJECT.heightMm);
   const project = { ...DEFAULT_PROJECT, cropShape, location: { ...DEFAULT_PROJECT.location, bounds }, markers: [
     { id: "north-west", symbol: "circle", lat: bounds.north, lon: bounds.west },
     { id: "south-east", symbol: "circle", lat: bounds.south, lon: bounds.east },

@@ -1,3 +1,5 @@
+import { collectUsage } from "./usage-events";
+
 const MAX_TERRAIN_BYTES = 2_000_000;
 const MAX_GEOCODER_BYTES = 256_000;
 const MAX_ARCHIVE_RANGE_BYTES = 16 * 1024 * 1024;
@@ -81,7 +83,7 @@ function isAllowedOrigin(origin: string | null, env: OriginPolicyEnv): boolean {
 function corsHeaders(request: Request, env: Env): Headers {
   const origin = request.headers.get("origin");
   const headers = new Headers({
-    "access-control-allow-methods": "GET,HEAD,OPTIONS",
+    "access-control-allow-methods": new URL(request.url).pathname === "/v1/events" ? "POST,OPTIONS" : "GET,HEAD,OPTIONS",
     "access-control-allow-headers": "range,content-type",
     "access-control-expose-headers": "content-length,content-range,etag,x-topostack-dataset,x-topostack-cache,x-topostack-imagery-sources",
     "access-control-max-age": "86400",
@@ -364,6 +366,12 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
   const url = new URL(request.url);
   if (!isAllowedOrigin(request.headers.get("origin"), env)) return json({ error: "Origin is not allowed." }, { status: 403 });
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(request, env) });
+  if (url.pathname === "/v1/events") {
+    if (request.method !== "POST") return json({ error: "Method not allowed." }, { status: 405, headers: { allow: "POST,OPTIONS" } });
+    const { success } = await env.REQUEST_LIMITER.limit({ key: `${clientKey(request)}:events` });
+    if (!success) return json({ error: "Rate limit exceeded." }, { status: 429, headers: { "retry-after": "60", "cache-control": "no-store" } });
+    return collectUsage(request, env.ENVIRONMENT);
+  }
   if (!(["GET", "HEAD"] as string[]).includes(request.method)) return json({ error: "Method not allowed." }, { status: 405, headers: { allow: "GET,HEAD,OPTIONS" } });
 
   const { success } = await env.REQUEST_LIMITER.limit({ key: `${clientKey(request)}:${url.pathname.split("/")[2] ?? "root"}` });

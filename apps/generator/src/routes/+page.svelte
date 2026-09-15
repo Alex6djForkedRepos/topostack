@@ -11,11 +11,6 @@
   const repositoryUrl = "https://github.com/Echo-Foxtrot-Works/topostack";
 </script>
 
-<svelte:head>
-  <title>TopoStack — Turn real places into laser projects</title>
-  <meta name="description" content="Turn the places you love into layered laser-cut reliefs and flat topographic engravings. Explore the process, then start creating in the TopoStack terrain studio." />
-</svelte:head>
-
 <div class="landing-page">
   <a class="skip-link" href="#landing-content">Skip to content</a>
   <Topbar class="landing-topbar">
@@ -31,13 +26,13 @@
     <section class="hero" aria-labelledby="landing-title">
       <div class="hero-copy">
         <p class="eyebrow">Real terrain. Ready to make.</p>
-        <h1 id="landing-title">A place you love.<br /><span>A thing you make.</span></h1>
-        <p class="intro">Turn real-world terrain into something you can hold. TopoStack brings the contours of mountains, lakes, and familiar places to your next laser project.</p>
+        <h1 id="landing-title">Turn real terrain into <span>laser-cut topographic maps.</span></h1>
+        <p class="intro">A place you love. A thing you make. Create layered terrain reliefs and flat topographic engravings from real elevation data, then export SVG files for your laser software.</p>
         <div class="hero-actions">
           <a class="primary-link" href={studioUrl}>Start creating <ArrowRight size={18} aria-hidden="true" /></a>
           <a class="secondary-link" href="#how-it-works">See how it works</a>
         </div>
-        <p class="cta-note">Opens in your browser · Start with a real terrain preview</p>
+        <p class="cta-note">Free to use · No account required · SVG exports</p>
       </div>
       <figure class="terrain-art">
         <TerrainIllustration variant="hero" />
@@ -54,6 +49,7 @@
           <p>Build terrain one sheet at a time. Elevation becomes a stack of contours, sized for your material thickness and the relief you want to show.</p>
           <p class="card-detail">Cut panels, engraving companions, and an assembly guide help take your project from preview to finished piece.</p>
           <span class="format">Cut · Score · Engrave</span>
+          <a class="secondary-link" href={`${base}/guides/laser-cut-topographic-map`}>How to make a layered topographic map</a>
         </article>
         <article class="workflow-card">
           <div class="workflow-art"><TerrainIllustration variant="engraving" /></div>
@@ -61,6 +57,7 @@
           <p>Let the contours do the drawing. Create a topographic map on a single surface, with control over contour density and the details you include.</p>
           <p class="card-detail">Export one SVG at your chosen physical size, with optional roads, trails, water, labels, a compass, and a scale bar.</p>
           <span class="format">One surface · Engrave-only SVG</span>
+          <a class="secondary-link" href={`${base}/guides/topographic-map-engraving`}>Create a contour map for engraving</a>
         </article>
       </div>
     </section>
@@ -75,6 +72,12 @@
       </ol>
       <a class="primary-link process-cta" href={studioUrl}>Try the terrain studio <ArrowRight size={18} aria-hidden="true" /></a>
       </div>
+    </section>
+
+    <section class="section" aria-labelledby="example-title">
+      <div class="section-heading"><p class="eyebrow">Inside the studio</p><h2 id="example-title">Explore the Crater Lake terrain preview</h2><p>See how real elevation becomes a stack of contours. Follow the example, then generate fresh terrain to create your own fabrication files.</p></div>
+      <figure class="studio-example"><img src={`${base}/images/studio-crater-lake.png`} width="1280" height="900" loading="lazy" decoding="async" alt="TopoStack studio with the Crater Lake terrain preview, layer controls and an exploded 3D stack." /><figcaption>Bundled terrain preview. Generate fresh data before exporting.</figcaption></figure>
+      <a class="secondary-link" href={`${base}/examples/crater-lake`}>Follow the Crater Lake project <ArrowRight size={16} aria-hidden="true" /></a>
     </section>
 
     <section class="section details-section" aria-labelledby="details-title">
@@ -117,13 +120,21 @@
       <a class="primary-link" href={studioUrl}>Start creating <ArrowRight size={18} aria-hidden="true" /></a>
     </section>
 
+    <section class="section" aria-labelledby="questions-title">
+      <div class="section-heading"><h2 id="questions-title">Before your first map</h2></div>
+      <details><summary>Is TopoStack free, and do I need an account?</summary><p>TopoStack is free to use with no account required. Donations are optional, and every export is available without donating.</p></details>
+      <details><summary>What files can I export?</summary><p>Layered projects include SVG cut panels, engraving companions and an assembly guide. Flat engraving produces one SVG at your chosen physical size. Both workflows support a project-settings JSON backup.</p></details>
+      <details><summary>Can I cut the initial Crater Lake preview?</summary><p>Generate fresh terrain first. The bundled preview lets you explore the controls; fabrication export requires current real terrain and all requested map data.</p></details>
+      <details><summary>Where is my project saved?</summary><p>Settings are saved in this browser. Export a settings backup before clearing browser storage or moving devices. Imported and restored settings need fresh generation before fabrication export.</p></details>
+    </section>
+
     <section class="support" aria-labelledby="support-title">
       <div><p class="eyebrow">Keep the contours coming</p><h2 id="support-title">Support TopoStack</h2><p>If TopoStack helps you make something meaningful, consider supporting its development. Donations are optional; every export is available without donating.</p></div>
       <a class="support-link" href={donationUrl} target="_blank" rel="noopener noreferrer"><Heart size={17} aria-hidden="true" /> Make a donation <ArrowUpRight size={16} aria-hidden="true" /><span class="ldt-visually-hidden"> (opens in a new tab)</span></a>
     </section>
   </main>
 
-  <footer><span>TopoStack <span class="footer-note">/ Terrain studio</span></span><a href={studioUrl}>Open terrain studio <ArrowUpRight size={14} aria-hidden="true" /></a></footer>
+  <footer><span>TopoStack <span class="footer-note">/ Terrain studio</span></span><a href={`${base}/privacy`}>Privacy</a><a href={studioUrl}>Open terrain studio <ArrowUpRight size={14} aria-hidden="true" /></a></footer>
 </div>
 
 <style>
@@ -152,6 +163,8 @@
   h1, h2, h3, p { margin-top: 0; }
   h1 { font-size: clamp(36px, 4.5vw, 58px); line-height: 1.09; letter-spacing: -0.045em; margin-bottom: 25px; font-weight: 600; }
   h1 span { color: var(--loidolt-text-muted); }
+  .studio-example { margin: 24px 0; }
+  .studio-example img { display: block; width: 100%; height: auto; border: 1px solid var(--loidolt-border); border-radius: var(--loidolt-border-radius); }
   p { font-size: 15px; line-height: 1.75; color: var(--loidolt-text-muted); }
   .intro { max-width: 480px; font-size: 17px; margin-bottom: 30px; }
   .primary-link { background: var(--loidolt-accent); color: var(--loidolt-on-accent); min-height: 50px; padding: 15px 24px; border-radius: var(--loidolt-border-radius); font-size: 15px; font-weight: 600; }

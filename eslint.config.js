@@ -22,7 +22,7 @@ export default tseslint.config(
     files: ["**/*.ts"],
     languageOptions: {
       parserOptions: {
-        projectService: { allowDefaultProject: ["*.config.ts", "apps/generator/vitest.client.config.ts", "e2e/*.ts", "e2e-live/*.ts"] },
+        projectService: { allowDefaultProject: ["apps/generator/vitest.client.config.ts"] },
         tsconfigRootDir: import.meta.dirname,
       },
     },

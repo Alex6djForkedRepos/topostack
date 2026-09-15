@@ -46,10 +46,7 @@
   function fitSelection(): void {
     if (!map || !guide) return;
     const bounds = boundsForProject(project);
-    const radians = Math.PI / 180;
-    const northY = Math.asinh(Math.tan(bounds.north * radians));
-    const southY = Math.asinh(Math.tan(bounds.south * radians));
-    const aspect = ((bounds.east - bounds.west) * radians) / (northY - southY);
+    const aspect = project.widthMm / project.heightMm;
     const width = Math.min(container.clientWidth * 0.54, 630, container.clientHeight * 0.7 * aspect);
     const height = width / aspect;
     if (!(width > 0 && height > 0)) return;

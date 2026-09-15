@@ -10,7 +10,7 @@ body:has(.app-shell) {
 
 .app-shell {
   height: 100dvh;
-  min-height: 650px;
+  min-height: 0;
   overflow: hidden;
   grid-template-rows: auto minmax(0, 1fr);
 }
@@ -33,7 +33,8 @@ body:has(.app-shell) {
 }
 
 .project-name {
-  min-width: 210px;
+  width: 210px;
+  min-width: 0;
   border-left: var(--loidolt-border-width) solid var(--loidolt-border);
   padding-left: 18px;
   display: flex;
@@ -205,6 +206,7 @@ body:has(.app-shell) {
 }
 
 .config-panel {
+  container: project-controls / inline-size;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -465,6 +467,7 @@ body:has(.app-shell) {
   gap: var(--panel-space-1);
 }
 
+.detail-column + .detail-column,
 .detail-group + .detail-group {
   margin-top: var(--panel-space-3);
 }
@@ -541,10 +544,14 @@ body:has(.app-shell) {
   letter-spacing: var(--loidolt-font-tracking-utility);
 }
 
-.linework-controls {
+.linework-controls,
+.linework-group {
   display: flex;
   flex-direction: column;
   gap: 9px;
+}
+
+.linework-controls {
   padding-top: 12px;
 }
 
@@ -1250,15 +1257,19 @@ body:has(.app-shell) {
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: 48px minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  container: terrain-preview / inline-size;
   background: var(--loidolt-surface-sunken);
 }
 
 .preview-panel.engraving-preview-panel {
-  grid-template-rows: 48px minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 .preview-toolbar {
+  min-height: 48px;
+  gap: 12px;
+  flex-wrap: wrap;
   background: var(--loidolt-surface-alt);
   display: flex;
   align-items: center;
@@ -1407,18 +1418,12 @@ body:has(.app-shell) {
 }
 
 .two-d-stage {
-  display: grid;
-  place-items: center;
-  padding: 45px;
+  --svg-canvas-width: calc(100% - 64px);
+  --svg-canvas-height: calc(100% - 64px);
+  overflow: hidden;
   background-color: #292d27;
   background-image: linear-gradient(#ffffff08 1px, transparent 1px), linear-gradient(90deg, #ffffff08 1px, transparent 1px);
   background-size: 20px 20px;
-}
-
-.two-d-stage svg {
-  width: min(90%, 880px);
-  height: min(88%, 700px);
-  overflow: visible;
 }
 
 .engraving-stage {
@@ -1429,77 +1434,6 @@ body:has(.app-shell) {
   grid-template-rows: minmax(0, 1fr) auto;
   align-items: center;
   gap: 14px;
-}
-
-.engraving-viewport {
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  position: relative;
-  overflow: hidden;
-  cursor: grab;
-  touch-action: none;
-  user-select: none;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  text-align: initial;
-}
-
-.engraving-viewport:focus-visible {
-  outline: 2px solid var(--loidolt-accent);
-  outline-offset: -2px;
-}
-
-.engraving-pan-layer {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  transform: translate3d(0, 0, 0);
-  will-change: transform;
-  contain: layout paint;
-}
-
-.engraving-canvas {
-  width: min(90%, 1040px);
-  height: min(100%, 760px);
-  margin: auto;
-  display: flex;
-  transform-origin: center;
-  will-change: transform;
-  backface-visibility: hidden;
-}
-
-.engraving-canvas svg {
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  overflow: visible;
-  pointer-events: none;
-}
-
-.engraving-zoom-controls {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  z-index: 3;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 3px;
-  background: color-mix(in srgb, var(--loidolt-surface) 90%, transparent);
-  border: var(--loidolt-border-width) solid var(--loidolt-border);
-  box-shadow: var(--loidolt-shadow-popover);
-}
-
-.engraving-zoom-value {
-  min-width: 48px;
-  height: 28px;
-  color: var(--loidolt-text-muted);
-  font: 9px var(--loidolt-font-utility);
-  display: grid;
-  place-items: center;
 }
 
 .engraving-surface {
@@ -1598,21 +1532,22 @@ body:has(.app-shell) {
   flex-direction: column;
   gap: 6px;
   z-index: 2;
-  max-width: 390px;
+  max-width: min(390px, calc(100% - 28px));
 }
 
-.warning-stack div {
+.preview-warning {
   background: color-mix(in srgb, var(--loidolt-warning) 12%, var(--loidolt-surface));
   color: var(--loidolt-text-warning);
   border-left: 2px solid var(--loidolt-warning);
-  padding: 7px 9px;
-  font: 9px var(--loidolt-font-utility);
-  display: flex;
-  align-items: flex-start;
+  padding-left: 9px;
+  font: 9px/1.4 var(--loidolt-font-utility);
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  align-items: center;
   gap: 7px;
 }
 
-.warning-stack span {
+.warning-icon {
   width: 14px;
   height: 14px;
   background: var(--loidolt-warning);
@@ -1620,6 +1555,42 @@ body:has(.app-shell) {
   display: grid;
   place-items: center;
   flex: none;
+}
+
+.preview-warning p {
+  min-width: 0;
+  margin: 0;
+  padding-block: 7px;
+  overflow-wrap: anywhere;
+}
+
+.warning-dismiss {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  min-height: 28px;
+  align-self: stretch;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.warning-dismiss:hover {
+  background: color-mix(in srgb, var(--loidolt-warning) 18%, transparent);
+}
+
+.warning-dismiss:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -3px;
+}
+
+@media (pointer: coarse), (max-width: 760px) {
+  .warning-dismiss {
+    width: 44px;
+    min-height: 44px;
+  }
 }
 
 .generation-overlay {
@@ -1934,14 +1905,14 @@ body:has(.app-shell) {
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
   .ldt-brand__meta,
   .bar-meta {
     display: none;
   }
 
   .project-name {
-    min-width: 140px;
+    width: 160px;
   }
 
   .workspace {
@@ -1953,27 +1924,9 @@ body:has(.app-shell) {
   }
 }
 
-@media (max-width: 760px) {
-  .topbar {
-    flex-wrap: nowrap;
-    gap: var(--loidolt-space-2);
-    padding-block: var(--loidolt-space-2);
-  }
-
-  .topbar .ldt-topbar__actions {
-    width: auto;
-    margin-left: auto;
-    overflow: visible;
-  }
-
-  .context-export-status {
-    display: none;
-  }
-
-  .output-mode-switch .ldt-toggle-group__item {
-    min-height: 44px;
-  }
-
+/* Stack the workspace when the preview would become a narrow strip, including
+   large portrait tablets. Landscape tablets retain the two-pane workspace. */
+@media (max-width: 1000px), (max-width: 1100px) and (orientation: portrait) {
   html:has(.app-shell),
   body:has(.app-shell) {
     height: auto;
@@ -1982,23 +1935,8 @@ body:has(.app-shell) {
 
   .app-shell {
     height: auto;
-    min-height: 100vh;
+    min-height: 100dvh;
     overflow: visible;
-  }
-
-  .project-name {
-    padding-left: 10px;
-    min-width: 100px;
-  }
-
-  .history-actions {
-    display: none;
-  }
-
-  .export-trigger {
-    min-width: 44px;
-    font-size: 0;
-    padding: 8px;
   }
 
   .workspace {
@@ -2013,19 +1951,208 @@ body:has(.app-shell) {
   }
 
   .preview-panel {
-    height: 62vh;
-    min-height: 430px;
+    height: clamp(360px, 58svh, 720px);
   }
 
   .config-panel {
     border-right: 0;
     border-top: var(--loidolt-border-width) solid var(--loidolt-border);
-  }
-
-  .panel-scroll {
     overflow: visible;
   }
 
+  /* Keep accordion sections in one vertical sequence as their heights change. */
+  .panel-scroll {
+    flex: none;
+    overflow: visible;
+  }
+
+  .generate-dock {
+    flex: none;
+  }
+}
+
+/* Sections remain one accordion. Only related controls inside an open section
+   share columns when the panel itself has enough room. */
+@container project-controls (min-width: 640px) {
+  .panel-intro {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 240px;
+    column-gap: 24px;
+  }
+
+  .panel-intro > .section-tools {
+    grid-column: 2;
+    grid-row: 1 / 4;
+    align-self: center;
+  }
+
+  .section-content > *,
+  .linework-group,
+  .field-stack > * {
+    min-width: 0;
+  }
+
+  #section-setup:not([hidden]),
+  #section-size:not([hidden]),
+  #section-terrain:not([hidden]),
+  #section-details:not([hidden]),
+  #section-custom-data:not([hidden]),
+  .linework-controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 20px 24px;
+  }
+
+  #section-setup > .terrain-data-note {
+    margin: 0;
+    font-size: var(--panel-font-caption);
+    line-height: 1.6;
+  }
+
+  .preset-row {
+    flex-wrap: wrap;
+  }
+
+  .field-stack {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+    gap: 12px 20px;
+  }
+
+  #section-size > .field-stack,
+  #section-terrain > .relief-summary,
+  .custom-data-intro,
+  .linework-group--fields,
+  .linework-note {
+    grid-column: 1 / -1;
+  }
+
+  #section-size > .field-stack {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #section-size > .unit-switch,
+  #section-size > .field-stack,
+  #section-terrain > .range-field,
+  #section-terrain > .field-stack,
+  #section-terrain > .relief-summary,
+  #section-details .detail-group,
+  #section-details > .detail-column,
+  .linework-group > .field-stack {
+    margin: 0;
+  }
+
+  #section-details > .detail-column {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  #section-details .detail-group {
+    padding: 14px;
+    border: 1px solid var(--loidolt-border-soft);
+  }
+
+  .field-stack--offsets {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+    gap: 12px;
+  }
+
+  .marker-coordinate-fields {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 190px), 1fr));
+  }
+
+  .line-presets,
+  .linework-customize {
+    max-width: 440px;
+  }
+
+  .advanced-fields > .toggle-stack {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 24px;
+  }
+
+  .generate-dock {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+    align-items: center;
+    gap: 20px;
+  }
+
+  .generate-dock > .status-line {
+    margin: 0;
+    white-space: normal;
+  }
+}
+
+@media (max-width: 760px) {
+  .topbar {
+    flex-wrap: wrap;
+    gap: var(--loidolt-space-2);
+    padding: var(--loidolt-space-2) 12px;
+  }
+
+  .topbar .ldt-topbar__actions {
+    width: auto;
+    margin-left: auto;
+    overflow: visible;
+  }
+
+  .topbar .ldt-topbar__nav {
+    order: 1;
+    flex: 1 0 100%;
+    align-items: center;
+    justify-content: space-between;
+    overflow: visible;
+  }
+
+  .project-name {
+    flex: 1;
+    width: auto;
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .project-name input {
+    width: 100%;
+  }
+
+  .history-actions {
+    flex: none;
+  }
+
+  .context-export-status {
+    display: none;
+  }
+
+  .output-mode-switch .ldt-toggle-group__item {
+    min-height: 44px;
+  }
+
+  .mode-switch {
+    width: 100%;
+  }
+
+  .preview-toolbar {
+    padding: 4px 10px;
+  }
+
+  .engraving-stage {
+    padding: 14px 14px 34px;
+  }
+
+  .preview-attribution {
+    right: 6px;
+    bottom: 6px;
+    padding: 5px 7px;
+    font-size: 9px;
+  }
+}
+
+/* Custom controls need the same touch targets as the shared theme controls,
+   including on tablets whose width exceeds the phone breakpoint. */
+@media (pointer: coarse), (max-width: 760px) {
   .section-tools button,
   .preset-row button,
   .subgroup-heading--action button,
@@ -2036,7 +2163,8 @@ body:has(.app-shell) {
   .custom-point-add,
   .linework-customize,
   .toggle-stack .ldt-switch,
-  .generate-button {
+  .generate-button,
+  .mode-switch .ldt-toggle-group__item {
     min-height: 44px;
   }
 
@@ -2061,44 +2189,41 @@ body:has(.app-shell) {
     width: 44px;
     height: 44px;
   }
+}
 
-  .mode-switch {
-    width: 100%;
-  }
-
-  .preview-toolbar {
-    padding: 0 10px;
-  }
-
-  .engraving-stage {
-    padding: 14px 14px 34px;
-  }
-
-  .engraving-zoom-controls {
-    top: 8px;
-    right: 8px;
-  }
-
-  .engraving-preview-panel .warning-stack {
-    top: 68px;
+/* Measure the preview itself: a landscape tablet also has a narrow canvas
+   once the sidebar is accounted for. Keep notices below its zoom controls. */
+@container terrain-preview (max-width: 760px) {
+  .preview-stage:has(.two-d-stage, .engraving-stage) .warning-stack {
+    top: 78px;
     right: 14px;
     max-width: none;
   }
 
-  .preview-attribution {
-    right: 6px;
-    bottom: 6px;
-    padding: 5px 7px;
-    font-size: 9px;
+  .preview-stage:has(.engraving-stage) .warning-stack {
+    top: 94px;
   }
 }
 
 @media (max-width: 480px) {
+  .export-trigger {
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    padding: 0;
+    gap: 0;
+  }
+
+  .export-trigger-label {
+    display: none;
+  }
+
   .terrain-contextbar {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: var(--loidolt-space-2);
-    padding-block: var(--loidolt-space-2);
+    padding: var(--loidolt-space-2) 12px;
   }
 
   .terrain-contextbar .ldt-contextbar__location {
@@ -2116,20 +2241,12 @@ body:has(.app-shell) {
     min-width: 0;
   }
 
-  .topbar .ldt-topbar__nav {
-    display: none;
-  }
-
-  .project-name {
-    display: none;
-  }
-
   .preset-grid {
     grid-template-columns: 1fr;
   }
 
   .coordinate-row {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .coordinate-row > button {
@@ -2137,7 +2254,9 @@ body:has(.app-shell) {
   }
 }
 
-@media (max-height: 500px) and (pointer: coarse) {
+/* Very short windows can scroll instead of clipping the generation dock.
+   This covers landscape phones, split-screen windows, and browser zoom. */
+@media (min-width: 1001px) and (max-height: 600px) {
   html:has(.app-shell),
   body:has(.app-shell) {
     height: auto;
@@ -2145,7 +2264,7 @@ body:has(.app-shell) {
   }
 
   .app-shell {
-    height: 650px;
+    height: 600px;
     overflow: visible;
   }
 }
@@ -2153,16 +2272,27 @@ body:has(.app-shell) {
 /* Export dialog */
 .export-dialog:not([open]) { display: none; }
 .export-dialog {
-  width: min(780px, calc(100vw - 32px));
+  --export-dialog-gap: 16px;
+  --export-dialog-top: max(var(--export-dialog-gap), env(safe-area-inset-top));
+  --export-dialog-bottom: max(var(--export-dialog-gap), env(safe-area-inset-bottom));
+  /* Native dialog centering avoids translating a tall panel above the viewport
+     when the available height changes on mobile. Only the body scrolls. */
+  inset: var(--export-dialog-top) 0 var(--export-dialog-bottom);
+  margin: auto;
+  transform: none;
+  padding: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(780px, calc(100% - 2 * var(--export-dialog-gap)));
+  height: fit-content;
   max-width: none;
-  max-height: calc(100dvh - 32px);
-  overflow-y: auto;
+  max-height: calc(100dvh - var(--export-dialog-top) - var(--export-dialog-bottom));
+  overflow: hidden;
 }
 .export-dialog .ldt-dialog__header { align-items: flex-start; gap: 16px; }
 .export-dialog .section-kicker { display: block; margin-bottom: 8px; color: var(--loidolt-text-muted); font-size: 9px; }
 .export-dialog .ldt-dialog__title { font-size: 26px; }
 .export-dialog .ldt-dialog__description { overflow-wrap: anywhere; }
-.export-dialog-body { display: grid; gap: 20px; }
+.export-dialog-body { display: grid; min-height: 0; gap: 20px; overflow-y: auto; overscroll-behavior: contain; }
 .export-blocked { margin: 0; padding: 12px 14px; border-left: 3px solid var(--loidolt-accent); background: var(--loidolt-surface-alt); color: var(--loidolt-text-muted); font-size: 12px; line-height: 1.6; }
 .export-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .export-card { display: flex; flex-direction: column; align-items: stretch; gap: 10px; min-width: 0; padding: 18px; text-align: left; color: var(--loidolt-text); background: var(--loidolt-surface); border: 1px solid var(--loidolt-border); border-radius: var(--loidolt-border-radius); cursor: pointer; transition: border-color 120ms, background 120ms; }
@@ -2219,11 +2349,11 @@ body:has(.app-shell) {
 @media (max-width: 650px) {
   .export-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .export-card { padding: 14px; }
-  .export-support { flex-wrap: wrap; }
-  .export-donate { margin-left: 36px; }
+  .export-support { display: grid; grid-template-columns: 22px minmax(0, 1fr); }
+  .export-donate { grid-column: 2; justify-self: start; }
 }
 @media (max-width: 420px) {
-  .export-dialog { width: calc(100vw - 20px); max-height: calc(100dvh - 20px); }
+  .export-dialog { --export-dialog-gap: 10px; }
   .export-dialog .ldt-dialog__header, .export-dialog-body { padding: 18px; }
   .export-dialog .ldt-dialog__title { font-size: 22px; }
   .export-cards { grid-template-columns: minmax(0, 1fr); }
@@ -2240,6 +2370,6 @@ body:has(.app-shell) {
 }
 .about-link:hover { color: var(--loidolt-text); background: var(--loidolt-surface); }
 .about-link:focus-visible { outline: 2px solid var(--loidolt-accent); outline-offset: 3px; }
-@media (max-width: 760px) {
-  .about-link { min-width: 32px; min-height: 44px; }
+@media (pointer: coarse), (max-width: 760px) {
+  .about-link { min-width: 44px; min-height: 44px; }
 }

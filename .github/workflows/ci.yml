@@ -77,6 +77,11 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          VITE_SITE_ENV: production
+
+      - name: Verify production search metadata
+        run: node scripts/verify-seo.mjs --environment production
 
       - name: Enforce web performance budgets
         run: npm run budget:web
@@ -86,6 +91,13 @@ jobs:
       # runs always execute the full endpoint scan.
       - name: Verify Atomm static artifact
         run: node scripts/verify-atomm-dist.mjs --skip-endpoint-scan
+
+      - name: Verify development indexing exclusion
+        run: |
+          npm run build -w @topostack/generator
+          node scripts/verify-seo.mjs --environment development
+        env:
+          VITE_SITE_ENV: development
 
   browser-e2e:
     name: Browser E2E
@@ -151,6 +163,11 @@ jobs:
 
       - name: Build frontend for same-origin deployment
         run: npm run build -w @topostack/generator
+        env:
+          VITE_SITE_ENV: ${{ github.ref_name == 'main' && 'production' || 'development' }}
+
+      - name: Verify search indexing policy
+        run: node scripts/verify-seo.mjs --environment ${{ github.ref_name == 'main' && 'production' || 'development' }}
 
       - name: Deploy app, map API, and synchronize Worker secrets
         id: deploy
@@ -200,6 +217,7 @@ jobs:
         run: npm run release:atomm
         env:
           VITE_MAP_API_URL: ${{ env.PRODUCTION_URL }}
+          VITE_SITE_ENV: atomm
 
       - name: Upload production Atomm release
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

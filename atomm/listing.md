@@ -1,8 +1,8 @@
 # Atomm listing
 
 - **Immutable generator slug:** `topographic-map-generator`
-- **Card title:** TopoStack — Layered Terrain
-- **Short description:** Turn anywhere in the world into layered, laser-ready topographic cut and engraving files.
+- **Card title:** TopoStack — Topographic Maps
+- **Short description:** Create layered terrain reliefs and flat topographic engravings from real elevation data. Customize a place and export SVG files free.
 - **Primary category:** Laser cutting
 - **Secondary categories:** Engraving, 3D, Relief
 

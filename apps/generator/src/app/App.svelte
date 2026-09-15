@@ -7,6 +7,7 @@
   import { sourceRequirements, buildProjectPackage, createSyntheticSource, DEFAULT_PROJECT, displayElevation, displayLength, elevationUnit, generateGeometry, labelPathData, lengthUnit, markerSymbolPaths, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, MAX_WATER_DEPTH_EXAGGERATION, millimetersFromDisplay, MIN_VERTICAL_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, northArrowMarkings, planTerrainStack, validateProject, type CustomLineFeatureV1, type CustomLineKind, type GeoBounds, type GeoPoint, type GeometryIRV1, type LineStyleV1, type MapMarkerV1, type MarkerSymbol, type NorthArrowAnchor, type NorthArrowStyle, type OperationPath, type Point2D, type ProjectConfigV1, type RoadCap, type RoadStyle, type SourceBundleV1, type TextFont, type TrailPattern, type WaterFillPattern } from "@topostack/core";
   import { boundsForProject, combineWaterAreas, loadLakeAreas, loadTerrain, loadVectorMarkings, type PlaceResult } from "../data-provider";
   import { theme } from "../lib/theme";
+  import { trackUsage } from "../lib/usage";
   import { MAP_DATA_ATTRIBUTION } from "../map-attribution";
   import { createSamplePreviewSource } from "../sample-preview";
   import { exportBlockReason } from "../export-policy";
@@ -112,6 +113,7 @@
   let mode = $state<PreviewMode>("3d");
   let threeUnavailable = $state(false);
   let previewNotice = $state("");
+  let dismissedWarnings = $state<string[]>([]);
   let generationState = $state<GenerateState>("ready");
   let status = $state("Real-data sample preview ready");
   let detailsUpdating = $state(false);
@@ -211,7 +213,20 @@
   const exportBlockedBy = $derived(exportBlockReason(geometry, project));
   const exportReady = $derived(!exportBlockedBy);
   const platformExportAvailable = $derived(atommReady && embeddedInPlatform);
-  const visibleWarnings = $derived(geometry.warnings.slice(0, 2));
+  const visibleWarnings = $derived(geometry.warnings
+    .filter((warning) => !dismissedWarnings.includes(`${warning.code}-${warning.message}`))
+    .slice(0, 2));
+
+  function dismissPreviewWarning(event: MouseEvent, warningKey?: string): void {
+    const button = event.currentTarget as HTMLButtonElement;
+    // Keep keyboard focus in the preview after removing the focused control.
+    const next = [...(button.closest(".warning-stack")?.querySelectorAll<HTMLButtonElement>("button") ?? [])]
+      .find((candidate) => candidate !== button);
+    (next ?? document.querySelector<HTMLButtonElement>('.mode-switch [aria-checked="true"]'))?.focus({ preventScroll: true });
+    if (warningKey) dismissedWarnings = [...dismissedWarnings, warningKey];
+    else previewNotice = "";
+  }
+
   const layerTicks = $derived(geometry.layers.map((layer) => Math.round(displayElevation(layer.elevationM, project.units))));
   const shownLengthUnit = $derived(lengthUnit(project.units));
   const shownElevationUnit = $derived(elevationUnit(project.units));
@@ -454,7 +469,11 @@
     }
     menuStateReady = true;
     embeddedInPlatform = window.parent !== window;
-    const disconnectAtomm = connectAtomm(() => ({ geometry, project }), () => atommReady = true, handleExportUpdate);
+    const disconnectAtomm = connectAtomm(() => ({ geometry, project }), () => atommReady = true, (update) => {
+      handleExportUpdate(update);
+      if (update.phase === "ready") trackUsage("export_prepared", project.outputMode, "atomm");
+      if (update.phase === "error") trackUsage("export_failed", project.outputMode, "atomm");
+    });
     void loadProject().then((saved) => {
       if (cancelled) return;
       if (saved) { const source = createSyntheticSource(saved); project = saved; sourceProject = saved; activeSource = source; geometry = previewFor(saved, source); selectedLayer = featuredLayerIndex(geometry); status = "Local project restored · generate to refresh terrain"; }
@@ -562,7 +581,7 @@
 
   function sameMapArea(left: ProjectConfigV1, right: ProjectConfigV1): boolean {
     return left.location.lat === right.location.lat && left.location.lon === right.location.lon && left.location.zoom === right.location.zoom &&
-      JSON.stringify(left.location.bounds) === JSON.stringify(right.location.bounds);
+      JSON.stringify(boundsForProject(left)) === JSON.stringify(boundsForProject(right));
   }
 
   function projectForPreview(config: ProjectConfigV1): ProjectConfigV1 {
@@ -720,23 +739,27 @@
     const controller = new AbortController(); generationAbort = controller;
     const generationProject: ProjectConfigV1 = { ...project, location: { ...project.location, bounds: boundsForProject(project) } };
     generationState = "loading"; status = "Fetching elevation tiles…";
+    trackUsage("generation_started", generationProject.outputMode);
     const progressToast = showToast({ type: "info", message: "Building terrain layers…", duration: 0 });
     try {
       const loaded = await loadTerrain(generationProject, controller.signal); status = "Tracing and repairing contours…";
       const next = await runGeometryWorker(generationProject, loaded.source);
       if (loaded.fallback) next.warnings.push({ code: "DATA_FALLBACK", message: "The map service was unavailable, so this preview uses deterministic sample terrain." });
-      if (controller.signal.aborted || revision !== operationRevision) return;
+      if (controller.signal.aborted || revision !== operationRevision) { trackUsage("generation_cancelled", generationProject.outputMode); return; }
       // Cosmetic edits deliberately do not cancel expensive terrain work. Merge
       // their latest values instead of replacing them with the request snapshot.
       const completedProject = { ...generationProject, name: project.name, explodedPreview: project.explodedPreview };
       const completedGeometry = { ...next, projectName: completedProject.name };
+      dismissedWarnings = [];
       geometry = completedGeometry; project = completedProject; activeSource = loaded.source; sourceProject = completedProject; selectedLayer = featuredLayerIndex(completedGeometry); mode = completedProject.outputMode === "engraving" ? "engraving" : threeUnavailable ? "2d" : "3d"; generationState = "ready";
+      trackUsage(exportBlockReason(completedGeometry, completedProject) ? "generation_failed" : "generation_succeeded", completedProject.outputMode);
       const vectorUnavailable = next.vectorStatus !== "available" && (generationProject.showRoads || generationProject.showTrails || generationProject.showWater || generationProject.showBoundaries || (generationProject.outputMode === "stack" && generationProject.showWaterDepth));
       const lakeUnavailable = generationProject.outputMode === "stack" && generationProject.showWaterDepth && next.lakeDataStatus !== "available";
       status = loaded.fallback ? "Sample terrain generated · connect the map API for real elevation" : vectorUnavailable ? "Terrain ready · map detail data incomplete" : lakeUnavailable ? "Terrain ready · lake depth data unavailable" : generationProject.outputMode === "engraving" ? `Engraving ready · ${generationProject.engravingContourCount} contours · one SVG` : `Real terrain ready · ${next.layers.length} layers · ${next.layers.length - next.fabricationNests.length} cut panels`;
       void showToast({ type: loaded.fallback || vectorUnavailable || lakeUnavailable ? "warning" : "success", message: loaded.fallback ? "Preview generated with sample terrain" : vectorUnavailable ? "Terrain generated with incomplete map details" : lakeUnavailable ? "Terrain generated without lake depth data" : generationProject.outputMode === "engraving" ? "Engraving artwork ready" : "Terrain project ready" });
     } catch (error) {
-      if (revision !== operationRevision) return;
+      if (revision !== operationRevision) { trackUsage("generation_cancelled", generationProject.outputMode); return; }
+      trackUsage(controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError") ? "generation_cancelled" : "generation_failed", generationProject.outputMode);
       if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) { generationState = "idle"; status = "Generation canceled"; }
       else { generationState = "error"; status = error instanceof Error ? error.message : "Generation failed. Check the location and try again."; void showToast({ type: "error", message: "Could not generate terrain" }); }
     } finally {
@@ -756,6 +779,7 @@
     const reason = option === "project" ? undefined : exportBlockReason(geometry, project);
     if (reason) {
       handleExportUpdate({ phase: "error", intent: "download", message: reason });
+      trackUsage("export_failed", project.outputMode, "browser");
       return;
     }
     handleExportUpdate({ phase: "preparing", intent: "download" });
@@ -765,8 +789,10 @@
         ? prepareProjectSettings(project)
         : await prepareSelectedDownload(buildProjectPackage(geometry, project), option);
       startBrowserDownload(download);
+      if (option !== "project" && option !== "assembly") trackUsage("export_prepared", project.outputMode, "browser");
       handleExportUpdate({ phase: "ready", intent: "download", fileCount: download.fileCount });
     } catch (error) {
+      if (option !== "project" && option !== "assembly") trackUsage("export_failed", project.outputMode, "browser");
       const message = error instanceof Error ? error.message : "TopoStack could not prepare this download.";
       handleExportUpdate({ phase: "error", intent: "download", message });
     }
@@ -774,7 +800,7 @@
   async function importProject(file: File | undefined): Promise<void> {
     if (!file) return;
     if (file.size > MAX_PROJECT_FILE_BYTES) { status = "Project file must be 2 MB or smaller."; generationState = "error"; if (importInput) importInput.value = ""; return; }
-    try { const parsed: unknown = JSON.parse(await file.text()); const candidate = parsed && typeof parsed === "object" && "project" in parsed ? (parsed as { project: unknown }).project : parsed; const imported = parseProject(candidate); const source = createSyntheticSource(imported); invalidatePendingPreview(); pushHistoryEntry(); project = imported; sourceProject = imported; activeSource = source; geometry = previewFor(imported, source); selectedLayer = featuredLayerIndex(geometry); generationState = "ready"; status = "Project imported · generate to refresh its terrain"; }
+    try { const parsed: unknown = JSON.parse(await file.text()); const candidate = parsed && typeof parsed === "object" && "project" in parsed ? (parsed as { project: unknown }).project : parsed; const imported = parseProject(candidate); const source = createSyntheticSource(imported); invalidatePendingPreview(); pushHistoryEntry(); project = imported; dismissedWarnings = []; sourceProject = imported; activeSource = source; geometry = previewFor(imported, source); selectedLayer = featuredLayerIndex(geometry); generationState = "ready"; status = "Project imported · generate to refresh its terrain"; }
     catch (error) { status = error instanceof Error ? error.message : "Could not import this project."; generationState = "error"; }
     finally { if (importInput) importInput.value = ""; }
   }
@@ -800,7 +826,7 @@
         {/snippet}
         {#snippet actions()}
           <div class="bar-meta">{#if project.outputMode === "engraving"}<span>{project.engravingContourCount} contours</span><span>1 engrave SVG</span><span>No cut paths</span>{:else}<span>{geometry.layers.length} layers</span><span>{fabricationPanelCount} cut panels</span><span>{shownLength(totalHeight)} {shownLengthUnit} tall</span>{/if}</div>
-          <Button class="export-trigger" aria-haspopup="dialog" onclick={(event: MouseEvent) => { if (event.currentTarget instanceof HTMLElement) event.currentTarget.focus(); exportOpen = true; }}><Download size={15} /> Export</Button>
+          <Button class="export-trigger" aria-label="Export" title="Export" aria-haspopup="dialog" onclick={(event: MouseEvent) => { if (event.currentTarget instanceof HTMLElement) event.currentTarget.focus(); exportOpen = true; }}><Download size={18} aria-hidden="true" /><span class="export-trigger-label">Export</span></Button>
           <ThemeToggle {theme} class="theme-toggle" />
           <a class="about-link" href={`${base}/`} target="_blank" rel="noopener noreferrer" aria-label="TopoStack home and getting started (opens in a new tab)" title="TopoStack home and getting started (opens in a new tab)"><House size={18} aria-hidden="true" /></a>
         {/snippet}
@@ -843,6 +869,7 @@
             <ChevronDown size={16} class={openSections.setup ? "kicker-chevron kicker-chevron--open" : "kicker-chevron"} />
           </button>
           <div id="section-setup" class="section-content" hidden={!openSections.setup}>
+          <div class="setup-location">
             <div class="subsection-label-row">
               <div class="subsection-label">Location</div>
               <span class:pending={terrainDataStale} class="terrain-data-badge">{terrainDataStale ? "Regeneration pending" : "Requires regeneration"}</span>
@@ -860,9 +887,10 @@
               <button onclick={() => choosePlace(preset)}>{preset.label.split(",")[0].replace("Mount ", "Mt. ")}</button>
             {/each}
           </div>
+          </div>
           <p class:pending={terrainDataStale} class="terrain-data-note" aria-live="polite">
             {#if terrainDataStale}<strong>Terrain data is from the previous map area.</strong> Generate it before export.{:else}Changing the location or map area requires terrain regeneration.{/if}
-            <span>Size, map details, and linework update automatically. Vertical exaggeration requires regenerating the layer geometry.</span>
+            <span>Map details and linework update automatically. Changing the cut aspect ratio changes the map area and requires terrain regeneration. Vertical exaggeration also requires regeneration.</span>
           </p>
           </div>
         </Section>
@@ -948,6 +976,7 @@
           </button>
           <div id="section-details" class="section-content" hidden={!openSections.details}>
 
+          <div class="detail-column">
           <div class="detail-group">
             <p class="subgroup-heading">Terrain features</p>
             <div class="toggle-stack">
@@ -1007,6 +1036,15 @@
             </div>
           </div>
 
+          {#if project.outputMode === "stack"}<div class="detail-group">
+            <p class="subgroup-heading">Assembly</p>
+            <div class="toggle-stack">
+              <Switch checked={project.showAlignmentGuides} onCheckedChange={(showAlignmentGuides) => void updateMapDetails({ showAlignmentGuides })} aria-label="Assembly guides"><span class="toggle-label"><Layers3 size={16} />Assembly guides</span></Switch>
+            </div>
+          </div>{/if}
+
+          </div>
+          <div class="detail-column">
           <div class="detail-group">
             <p class="subgroup-heading">Annotations</p>
             <div class="toggle-stack">
@@ -1015,7 +1053,7 @@
                 {#if project.showElevationLabels}
                   <div class="toggle-settings">
                     <p class="subgroup-heading">Preferred position</p>
-                    <div class="field-stack">
+                    <div class="field-stack field-stack--offsets">
                       <Field label="Label X" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label="Label X" value={Math.round(project.elevationLabelPosition.x * 100)} min={-90} max={90} oninput={(event) => event.currentTarget.value !== "" && void updateFabrication({ elevationLabelPosition: { ...project.elevationLabelPosition, x: event.currentTarget.valueAsNumber / 100 } })} onValueChange={(x) => x !== Math.round(project.elevationLabelPosition.x * 100) && void updateFabrication({ elevationLabelPosition: { ...project.elevationLabelPosition, x: x / 100 } })} /><em>%</em></span>{/snippet}</Field>
                       <Field label="Label Y" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label="Label Y" value={Math.round(project.elevationLabelPosition.y * 100)} min={-90} max={90} oninput={(event) => event.currentTarget.value !== "" && void updateFabrication({ elevationLabelPosition: { ...project.elevationLabelPosition, y: event.currentTarget.valueAsNumber / 100 } })} onValueChange={(y) => y !== Math.round(project.elevationLabelPosition.y * 100) && void updateFabrication({ elevationLabelPosition: { ...project.elevationLabelPosition, y: y / 100 } })} /><em>%</em></span>{/snippet}</Field>
                     </div>
@@ -1053,7 +1091,7 @@
                         <button type="button" role="radio" aria-label={option.label} title={option.label} aria-checked={project.northArrowPlacement.anchor === option.value} data-state={project.northArrowPlacement.anchor === option.value ? "on" : "off"} tabindex={project.northArrowPlacement.anchor === option.value ? 0 : -1} onclick={() => void updateFabrication({ northArrowPlacement: { anchor: option.value, offset: { x: 0, y: 0 } } })} onkeydown={navigateChoice}><span></span></button>
                       {/each}
                     </div>
-                    <div class="field-stack">
+                    <div class="field-stack field-stack--offsets">
                       <Field label="Offset X" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label="North arrow offset X" value={Math.round(project.northArrowPlacement.offset.x * 100)} min={-100} max={100} oninput={(event) => event.currentTarget.value !== "" && void updateFabrication({ northArrowPlacement: { ...project.northArrowPlacement, offset: { ...project.northArrowPlacement.offset, x: event.currentTarget.valueAsNumber / 100 } } })} onValueChange={(x) => x !== Math.round(project.northArrowPlacement.offset.x * 100) && void updateFabrication({ northArrowPlacement: { ...project.northArrowPlacement, offset: { ...project.northArrowPlacement.offset, x: x / 100 } } })} /><em>%</em></span>{/snippet}</Field>
                       <Field label="Offset Y" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label="North arrow offset Y" value={Math.round(project.northArrowPlacement.offset.y * 100)} min={-100} max={100} oninput={(event) => event.currentTarget.value !== "" && void updateFabrication({ northArrowPlacement: { ...project.northArrowPlacement, offset: { ...project.northArrowPlacement.offset, y: event.currentTarget.valueAsNumber / 100 } } })} onValueChange={(y) => y !== Math.round(project.northArrowPlacement.offset.y * 100) && void updateFabrication({ northArrowPlacement: { ...project.northArrowPlacement, offset: { ...project.northArrowPlacement.offset, y: y / 100 } } })} /><em>%</em></span>{/snippet}</Field>
                     </div>
@@ -1064,13 +1102,6 @@
               <Switch checked={project.showScaleBar} onCheckedChange={(showScaleBar) => void updateMapDetails({ showScaleBar })} aria-label="Scale bar"><span class="toggle-label"><Minus size={16} />Scale bar</span></Switch>
             </div>
           </div>
-
-          {#if project.outputMode === "stack"}<div class="detail-group">
-            <p class="subgroup-heading">Assembly</p>
-            <div class="toggle-stack">
-              <Switch checked={project.showAlignmentGuides} onCheckedChange={(showAlignmentGuides) => void updateMapDetails({ showAlignmentGuides })} aria-label="Assembly guides"><span class="toggle-label"><Layers3 size={16} />Assembly guides</span></Switch>
-            </div>
-          </div>{/if}
 
           <div class="detail-group">
             <p class="subgroup-heading">Text engraving</p>
@@ -1090,6 +1121,7 @@
               </div>
               <small><span>{shownTextSize(2)} {shownLengthUnit}</span><span>{shownTextSize(10)} {shownLengthUnit}</span></small>
             </div>
+          </div>
           </div>
           </div>
         </Section>
@@ -1208,12 +1240,15 @@
           {#if lineworkOpen}
             <div class="linework-controls">
               {#if project.outputMode === "engraving"}
+                <div class="linework-group linework-group--fields">
                 <p class="subgroup-heading">Topography</p>
                 <div class="field-stack">
                   <Field label="Minor contours" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label="Minor contour width" value={shownLineWidth(project.lineStyle.contourMm)} min={displayLength(0.05, project.units)} max={displayLength(1.5, project.units)} step={project.units === "imperial" ? 0.001 : 0.01} onValueChange={(value) => void setLineWidth("contourMm", value)} /><em>{shownLengthUnit}</em></span>{/snippet}</Field>
                   <Field label="Index contours" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label="Index contour width" value={shownLineWidth(project.lineStyle.indexContourMm)} min={displayLength(0.05, project.units)} max={displayLength(1.5, project.units)} step={project.units === "imperial" ? 0.001 : 0.01} onValueChange={(value) => void setLineWidth("indexContourMm", value)} /><em>{shownLengthUnit}</em></span>{/snippet}</Field>
                 </div>
+                </div>
               {/if}
+              <div class="linework-group linework-group--fields">
               <p class="subgroup-heading">Map features</p>
               <div class="field-stack">
                 <Field label="Major roads" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label="Major road width" value={shownLineWidth(project.lineStyle.majorRoadMm)} min={displayLength(0.05, project.units)} max={displayLength(1.5, project.units)} step={project.units === "imperial" ? 0.001 : 0.01} onValueChange={(value) => void setLineWidth("majorRoadMm", value)} /><em>{shownLengthUnit}</em></span>{/snippet}</Field>
@@ -1223,6 +1258,8 @@
                 <Field label="Boundaries" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label="Boundary line width" value={shownLineWidth(project.lineStyle.boundaryMm)} min={displayLength(0.05, project.units)} max={displayLength(1.5, project.units)} step={project.units === "imperial" ? 0.001 : 0.01} onValueChange={(value) => void setLineWidth("boundaryMm", value)} /><em>{shownLengthUnit}</em></span>{/snippet}</Field>
                 <Field label="Lat / long grid" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label="Coordinate grid line width" value={shownLineWidth(project.lineStyle.coordinateGridMm)} min={displayLength(0.05, project.units)} max={displayLength(1.5, project.units)} step={project.units === "imperial" ? 0.001 : 0.01} onValueChange={(value) => void setLineWidth("coordinateGridMm", value)} /><em>{shownLengthUnit}</em></span>{/snippet}</Field>
               </div>
+              </div>
+              <div class="linework-group">
               <p class="subgroup-heading">Road appearance</p>
               <div class="ldt-toggle-group trail-pattern-options" role="radiogroup" aria-label="Major road style">
                 {#each ROAD_STYLES as option}
@@ -1239,16 +1276,21 @@
                   <button type="button" class="ldt-toggle-group__item" role="radio" aria-checked={project.lineStyle.roadCap === option.value} data-state={project.lineStyle.roadCap === option.value ? "on" : "off"} tabindex={project.lineStyle.roadCap === option.value ? 0 : -1} onclick={() => void updateFabrication({ lineStyle: { ...project.lineStyle, roadCap: option.value } })} onkeydown={navigateChoice}>{option.label}</button>
                 {/each}
               </div>
+              </div>
+              <div class="linework-group">
               <p class="subgroup-heading">Trail pattern</p>
               <div class="ldt-toggle-group trail-pattern-options" role="radiogroup" aria-label="Trail pattern">
                 {#each TRAIL_PATTERNS as option}
                   <button type="button" class="ldt-toggle-group__item" role="radio" aria-checked={project.lineStyle.trailPattern === option.value} data-state={project.lineStyle.trailPattern === option.value ? "on" : "off"} tabindex={project.lineStyle.trailPattern === option.value ? 0 : -1} onclick={() => void updateFabrication({ lineStyle: { ...project.lineStyle, trailPattern: option.value } })} onkeydown={navigateChoice}>{option.label}</button>
                 {/each}
               </div>
+              </div>
+              <div class="linework-group linework-group--fields">
               <p class="subgroup-heading">Finishing</p>
               <div class="field-stack">
                 <Field label="Labels & guides" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label="Annotation width" value={shownLineWidth(project.lineStyle.annotationMm)} min={displayLength(0.05, project.units)} max={displayLength(1.5, project.units)} step={project.units === "imperial" ? 0.001 : 0.01} onValueChange={(value) => void setLineWidth("annotationMm", value)} /><em>{shownLengthUnit}</em></span>{/snippet}</Field>
                 {#if project.outputMode === "engraving"}<Field label="Border" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label="Border width" value={shownLineWidth(project.lineStyle.borderMm)} min={displayLength(0.05, project.units)} max={displayLength(1.5, project.units)} step={project.units === "imperial" ? 0.001 : 0.01} onValueChange={(value) => void setLineWidth("borderMm", value)} /><em>{shownLengthUnit}</em></span>{/snippet}</Field>{/if}
+              </div>
               </div>
               <small class="linework-note">Stroke widths are physical SVG values. Final engraved width also depends on focus, power, speed, material, and whether your laser software treats strokes as centerlines or filled shapes.</small>
             </div>
@@ -1286,7 +1328,24 @@
 
     <section class="preview-panel" class:engraving-preview-panel={project.outputMode === "engraving"}>
       <div class="preview-toolbar"><div class="ldt-toggle-group mode-switch" role="radiogroup" aria-label="Preview mode">{#each previewModeOptions as option}<button type="button" class="ldt-toggle-group__item" role="radio" aria-checked={mode === option.value} data-state={mode === option.value ? "on" : "off"} tabindex={mode === option.value ? 0 : -1} onclick={() => { if (option.value === "2d" && selectedLayer === 0) selectedLayer = featuredLayerIndex(geometry); previewNotice = ""; if (option.value === "3d") threeUnavailable = false; mode = option.value as PreviewMode; }} onkeydown={navigateChoice}>{#if option.value === "map"}<MapIcon size={15} />{:else if option.value === "engraving"}<PenTool size={15} />{:else if option.value === "2d"}<Layers3 size={15} />{:else}<Box size={15} />{/if}{option.label}</button>{/each}</div><div class="preview-readout"><span>{shownLength(project.widthMm)} × {shownLength(project.heightMm)} {shownLengthUnit}</span><span>{Math.round(displayElevation(geometry.minElevationM, project.units)).toLocaleString()}–{Math.round(displayElevation(geometry.maxElevationM, project.units)).toLocaleString()} {shownElevationUnit}</span></div></div>
-      <div class="preview-stage" aria-busy={previewBusy} data-road-markings={detailCounts.road} data-trail-markings={detailCounts.trail} data-transportation-label-markings={detailCounts.transportationLabel} data-water-markings={detailCounts.water} data-contour-markings={detailCounts.contour} data-alignment-markings={detailCounts.alignment} data-elevation-markings={detailCounts.elevation} data-north-markings={detailCounts.north} data-scale-markings={detailCounts.scale} data-marker-markings={detailCounts.marker} data-custom-line-markings={detailCounts.customLine}>{#if mode === "map"}{#if MapCanvas}<MapCanvas {project} onUnavailable={() => { mode = project.outputMode === "engraving" ? "engraving" : "2d"; previewNotice = "Map is unavailable in this browser · choose a location using search or coordinates"; }} onLocationChange={(lat: number, lon: number, zoom: number, bounds: GeoBounds) => updateLocation({ lat, lon, zoom, bounds, label: `${lat.toFixed(4)}, ${lon.toFixed(4)}` })} />{:else}<div class="preview-loading">Loading map…</div>{/if}{:else if mode === "engraving"}{#if EngravingPreview}<EngravingPreview {geometry} {project} />{:else}<div class="preview-loading">Loading engraving…</div>{/if}{:else if mode === "2d"}{#if TwoDPreview}<TwoDPreview {geometry} {selectedLayer} />{:else}<div class="preview-loading">Loading cut preview…</div>{/if}{:else if ThreePreview}<ThreePreview {geometry} exploded={project.explodedPreview} onUnavailable={() => { threeUnavailable = true; mode = "2d"; previewNotice = "3D is unavailable in this browser · showing cut layers"; }} />{:else}<div class="preview-loading">Loading 3D preview…</div>{/if}{#if mode !== "map"}<div class="preview-attribution">Map data © <a href={OSM_ATTRIBUTION.url} target="_blank" rel="noreferrer">{OSM_ATTRIBUTION.name}</a></div>{/if}{#if previewBusy}<div class:preview-update-overlay={detailsUpdating && generationState !== "loading"} class="generation-overlay" role="status" aria-live="polite" style:pointer-events={detailsUpdating && generationState !== "loading" ? "none" : undefined}><div class="contour-loader"><span></span><span></span><span></span></div><strong>{previewBusyLabel}</strong><small>{status}</small></div>{/if}{#if visibleWarnings.length || previewNotice}<div class="warning-stack">{#if previewNotice}<div class="preview-notice" role="status"><span>!</span>{previewNotice}</div>{/if}{#each visibleWarnings as warning (`${warning.code}-${warning.message}`)}<div><span>!</span>{warning.message}</div>{/each}</div>{/if}</div>
+      <div class="preview-stage" aria-busy={previewBusy} data-road-markings={detailCounts.road} data-trail-markings={detailCounts.trail} data-transportation-label-markings={detailCounts.transportationLabel} data-water-markings={detailCounts.water} data-contour-markings={detailCounts.contour} data-alignment-markings={detailCounts.alignment} data-elevation-markings={detailCounts.elevation} data-north-markings={detailCounts.north} data-scale-markings={detailCounts.scale} data-marker-markings={detailCounts.marker} data-custom-line-markings={detailCounts.customLine}>{#if mode === "map"}{#if MapCanvas}<MapCanvas {project} onUnavailable={() => { mode = project.outputMode === "engraving" ? "engraving" : "2d"; previewNotice = "Map is unavailable in this browser · choose a location using search or coordinates"; }} onLocationChange={(lat: number, lon: number, zoom: number, bounds: GeoBounds) => updateLocation({ lat, lon, zoom, bounds, label: `${lat.toFixed(4)}, ${lon.toFixed(4)}` })} />{:else}<div class="preview-loading">Loading map…</div>{/if}{:else if mode === "engraving"}{#if EngravingPreview}<EngravingPreview {geometry} {project} />{:else}<div class="preview-loading">Loading engraving…</div>{/if}{:else if mode === "2d"}{#if TwoDPreview}<TwoDPreview {geometry} {selectedLayer} />{:else}<div class="preview-loading">Loading cut preview…</div>{/if}{:else if ThreePreview}<ThreePreview {geometry} exploded={project.explodedPreview} onUnavailable={() => { threeUnavailable = true; mode = "2d"; previewNotice = "3D is unavailable in this browser · showing cut layers"; }} />{:else}<div class="preview-loading">Loading 3D preview…</div>{/if}{#if mode !== "map"}<div class="preview-attribution">Map data © <a href={OSM_ATTRIBUTION.url} target="_blank" rel="noreferrer">{OSM_ATTRIBUTION.name}</a></div>{/if}{#if previewBusy}<div class:preview-update-overlay={detailsUpdating && generationState !== "loading"} class="generation-overlay" role="status" aria-live="polite" style:pointer-events={detailsUpdating && generationState !== "loading" ? "none" : undefined}><div class="contour-loader"><span></span><span></span><span></span></div><strong>{previewBusyLabel}</strong><small>{status}</small></div>{/if}{#if visibleWarnings.length || previewNotice}
+          <div class="warning-stack">
+            {#if previewNotice}
+              <div class="preview-warning preview-notice" role="status">
+                <span class="warning-icon" aria-hidden="true">!</span>
+                <p>{previewNotice}</p>
+                <button type="button" class="warning-dismiss" aria-label={`Dismiss notice: ${previewNotice}`} title="Dismiss notice" onclick={(event) => dismissPreviewWarning(event)}><X size={14} aria-hidden="true" /></button>
+              </div>
+            {/if}
+            {#each visibleWarnings as warning (`${warning.code}-${warning.message}`)}
+              <div class="preview-warning">
+                <span class="warning-icon" aria-hidden="true">!</span>
+                <p>{warning.message}</p>
+                <button type="button" class="warning-dismiss" aria-label={`Dismiss warning: ${warning.message}`} title="Dismiss warning" onclick={(event) => dismissPreviewWarning(event, `${warning.code}-${warning.message}`)}><X size={14} aria-hidden="true" /></button>
+              </div>
+            {/each}
+          </div>
+        {/if}</div>
       {#if project.outputMode === "stack"}<div class="layer-dock"><div class="layer-heading"><span><Layers3 size={16} /><b>Layer {selectedLayer + 1}</b> of {geometry.layers.length}</span><strong>{layerTicks[selectedLayer]?.toLocaleString()} {shownElevationUnit}</strong></div><input class="layer-range" type="range" min="0" max={Math.max(0, geometry.layers.length - 1)} value={selectedLayer} oninput={(event) => { selectedLayer = Number(event.currentTarget.value); if (mode === "3d") mode = "2d"; }} /><div class="layer-scale"><span>{layerTicks[0]?.toLocaleString()} {shownElevationUnit}</span><span>{layerTicks[Math.floor(layerTicks.length / 2)]?.toLocaleString()} {shownElevationUnit}</span><span>{layerTicks.at(-1)?.toLocaleString()} {shownElevationUnit}</span></div>{#if mode === "3d"}<label class="explode-control"><span>Stack</span><input type="range" min="0" max="1" step="0.05" value={project.explodedPreview} oninput={(event) => updateProject({ explodedPreview: Number(event.currentTarget.value) })} /><span>Exploded</span></label>{/if}</div>{/if}
     </section>
   </Workspace>
