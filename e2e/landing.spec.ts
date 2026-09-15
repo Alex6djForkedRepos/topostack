@@ -8,7 +8,9 @@ test("homepage explains the product without JavaScript", async ({ browser, baseU
   await expect(page.getByRole("heading", { level: 1 })).toContainText("A place you love.");
   await expect(page.getByRole("link", { name: "Start creating", exact: true })).toHaveCount(3);
   for (const link of await page.getByRole("link", { name: "Start creating", exact: true }).all()) {
-    await expect(link).toHaveJSProperty("href", `${baseURL}/studio`);
+    // Inspect the HTML attribute so this works with JavaScript disabled in Firefox.
+    const href = await link.getAttribute("href");
+    expect(new URL(href ?? "", baseURL).href).toBe(`${baseURL}/studio`);
   }
   await page.getByText("View data sources and credits").click();
   await expect(page.getByRole("link", { name: "OpenStreetMap contributors" })).toBeVisible();
