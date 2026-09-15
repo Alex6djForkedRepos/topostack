@@ -14,7 +14,10 @@ test("generates deterministic real terrain and downloads the complete fabricatio
   // The bundled real-data preview must never be exportable: fail closed until
   // the user generates fresh terrain.
   await expect(page.getByText("Generate before export")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Download files" })).toBeDisabled();
+  await page.getByRole("button", { name: "Export", exact: true }).click();
+  await expect(page.getByRole("button", { name: /Complete project/ })).toBeDisabled();
+  await expect(page.getByRole("button", { name: /Project settings/ })).toBeEnabled();
+  await page.keyboard.press("Escape");
   await page.getByRole("radio", { name: /Cut layers/ }).click();
   await expect(page.locator(".layer-heading")).toContainText(/Layer \d+.*of 13/);
   await expect(page.locator('[data-marking-kind="road"]')).not.toHaveCount(0);
@@ -45,7 +48,8 @@ test("generates deterministic real terrain and downloads the complete fabricatio
 
   await expect(page.locator(".status-line")).toContainText("Real terrain ready", { timeout: 30_000 });
   await expect(page.getByText("Ready to export")).toBeVisible();
-  const downloadButton = page.getByRole("button", { name: "Download files" });
+  await page.getByRole("button", { name: "Export", exact: true }).click();
+  const downloadButton = page.getByRole("button", { name: /Complete project/ });
   await expect(downloadButton).toBeEnabled();
 
   const downloadPromise = page.waitForEvent("download");
@@ -144,4 +148,38 @@ test("compact layouts keep the preview and controls reachable", async ({ page })
   expect(presetBox!.height).toBeGreaterThanOrEqual(44 - 0.01);
 
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+});
+
+
+test("export dialog supports keyboard dismissal, project backups, and compact layouts", async ({ page }) => {
+  await page.route("https://static-res.makextool.com/**", (route) => route.abort());
+  await page.goto("/");
+  const trigger = page.getByRole("button", { name: "Export", exact: true });
+  await trigger.click();
+  const dialog = page.getByRole("dialog", { name: "Export your project" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("button", { name: /Master SVG/ })).toBeDisabled();
+  await expect(dialog.getByText("Donations are optional.", { exact: false })).toBeVisible();
+  const downloadReady = page.waitForEvent("download");
+  await dialog.getByRole("button", { name: /Project settings/ }).click();
+  const download = await downloadReady;
+  expect(download.suggestedFilename()).toBe("crater-lake-project.json");
+  const stream = await download.createReadStream();
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+  expect(JSON.parse(Buffer.concat(chunks).toString()).project.name).toBe("Crater Lake");
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(trigger).toBeFocused();
+  await page.getByRole("radio", { name: "Flat engraving", exact: true }).click();
+  await trigger.click();
+  await expect(dialog.getByRole("button", { name: /Engraving SVG/ })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: /Cut panels/ })).toHaveCount(0);
+  await page.setViewportSize({ width: 320, height: 700 });
+  await expect(dialog).toBeVisible();
+  expect(await dialog.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+  await dialog.getByRole("button", { name: /Project settings/ }).scrollIntoViewIfNeeded();
+  await expect(dialog.getByRole("button", { name: /Project settings/ })).toBeInViewport();
+  await page.keyboard.press("Escape");
+  await expect(trigger).toBeFocused();
 });

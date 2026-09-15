@@ -9,7 +9,8 @@ test("production generates export-ready real terrain", async ({ page }) => {
   await page.getByRole("button", { name: /Generate terrain/ }).click();
   await expect(page.locator(".status-line")).toContainText("Real terrain ready", { timeout: 120_000 });
   await expect(page.getByText("Ready to export")).toBeVisible();
-  const button = page.getByRole("button", { name: "Download files" });
+  await page.getByRole("button", { name: "Export", exact: true }).click();
+  const button = page.getByRole("button", { name: /Complete project/ });
   await expect(button).toBeEnabled();
   const downloadReady = page.waitForEvent("download");
   await button.click();

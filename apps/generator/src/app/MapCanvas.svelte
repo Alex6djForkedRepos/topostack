@@ -2,6 +2,7 @@
   import { onMount, untrack } from "svelte";
   import { LocateFixed } from "@lucide/svelte";
   import * as maplibregl from "maplibre-gl";
+  import mapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
   import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
   import { markerSymbolCenterForAnchor, markerSymbolPaths, unwrapLongitude, type CustomLineFeatureV1, type GeoBounds, type MapMarkerV1, type MarkerSymbol, type ProjectConfigV1 } from "@topostack/core";
   import { boundsForProject } from "../data-provider";
@@ -101,6 +102,9 @@
   }
 
   onMount(() => {
+    // MapLibre 6 needs an explicit worker URL with bundlers. Use Vite's worker
+    // pipeline so the worker's shared-module imports are bundled for production.
+    maplibregl.setWorkerUrl(mapWorkerUrl);
     try {
       map = new maplibregl.Map({ container, style: "https://tiles.openfreemap.org/styles/liberty", center: [project.location.lon, project.location.lat], zoom: project.location.zoom, attributionControl: false, cooperativeGestures: true, dragRotate: false, touchPitch: false, trackResize: false });
     } catch { onUnavailable?.(); return; }
