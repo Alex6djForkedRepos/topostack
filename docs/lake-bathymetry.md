@@ -157,3 +157,19 @@ In **Map details → Water depth**, enable **Fit lake depth to available layers*
 When a lake exceeds the stack floor, fitting compresses all its depths by the same factor around its waterline. Each lake fits independently; shallower lakes keep their requested depth scale. Land, islands, and ocean depths keep their existing behavior. The material thickness and layer budget still limit the detail the model can resolve. If no depth fits below a lake's waterline, the clipping warning remains.
 
 The depth exaggeration control remains the requested multiplier. Each fitted lake displays its effective multiplier relative to terrain and percentage of requested depth. The exported project JSON records the setting, per-lake compression, effective multiplier, and bed elevation before fitting; the fabrication README also lists applied scales. Turning fitting off restores the requested depths from the original source data. Fitting stays enabled after a refresh because it is saved with the project; the preview shows **Use manual depth** while it is enabled. The **Fit depth** warning takes priority over other preview warnings so its action remains visible.
+
+## Searchable public directory
+
+`/guides/lake-depth-data` lists the integrated lakes and basins, with search by source names, aliases, county/region and survey IDs. Each record links to a padded survey extent in the studio. Opening a lake retains fabrication preferences, selects layered output with water depth on, and requires fresh generation before export. The link is consumed once so subsequent reloads restore the edited project.
+
+The directory includes every contributing regional grid in the verified archive receipts, plus the three USGS lakes and six NOAA lakes (including St. Clair). Counts refer to lake/basin records: a lake can have several named basins, and a survey can cover only a portion of a lake. Very small lakes may lack a matching HydroLAKES outline in the studio. Regional contours are labeled separately from surveyed grids. No GLOBathy-only basins are included.
+
+Regenerate the static catalog after rebuilding or adding survey archives:
+
+```sh
+/tmp/topostack-surveys-venv/bin/python scripts/build-lake-directory.py \
+  --cache /tmp/topostack-lake-surveys \
+  --archives /tmp/topostack-survey-archives
+```
+
+The generator checks the regional download checksums and matches receipts to `scripts/data/lake-survey-builds.json`. It reads Minnesota DNR outline names/counties and Syke depth-area names, preserves regional survey identifiers, and includes curated Swiss names/aliases. Update the committed build receipts and name mappings when sources change. The resulting `apps/generator/static/data/lake-depth-directory.json` is fetched only on the directory page; it is excluded from the studio's startup JavaScript.

@@ -18,7 +18,7 @@
   </ol>
   <p>Choosing the location preset changes the place; it does not reset all of a saved project's other settings. Check output mode, size, material thickness and map details explicitly.</p>
   <h2>Understand the lake</h2>
-  <p>The surrounding terrain uses real elevation data. Where water depth is enabled and lake data is available, the basin is modeled using HydroLAKES and GLOBathy. The underwater shape is decorative and should not be interpreted as a survey.</p>
+  <p>The surrounding terrain uses real elevation data. With water depth enabled, Crater Lake uses the integrated USGS lake-floor survey where available; uncovered areas use existing terrain or modeled depths. The <a href={`${base}/guides/lake-depth-data`}>searchable lake depth directory</a> lists the full integrated survey coverage. Use <strong>Fit depth</strong> if the lake is deeper than the stack can hold.</p>
   <p>Look for warnings about missing requested data, omitted labels or terrain that needs regeneration. Fresh data, a different crop or different fabrication settings can change the resulting layer and panel counts.</p>
   <h2>Try the same place as an engraving</h2>
   <p>Switch to <strong>Flat engraving</strong> for a single surface. Adjust contour density and index lines, choose the details you want, then generate and inspect the flat preview. Follow the <a href={`${base}/guides/topographic-map-engraving`}>engraving guide</a> for the SVG output and import checks.</p>

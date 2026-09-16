@@ -14,6 +14,7 @@ const loadLakeAreasMock = vi.hoisted(() => vi.fn());
 vi.mock("../data-provider", async (importOriginal) => ({ ...await importOriginal<typeof import("../data-provider")>(), loadTerrain: loadTerrainMock, loadVectorMarkings: loadVectorMarkingsMock, loadLakeAreas: loadLakeAreasMock }));
 vi.mock("../storage", async (importOriginal) => ({ ...await importOriginal<typeof import("../storage")>(), loadProject: vi.fn(async () => undefined), saveProject: vi.fn(async () => undefined) }));
 vi.mock("./atomm-bridge", () => ({ connectAtomm: vi.fn(() => () => undefined) }));
+vi.mock("$app/navigation", () => ({ replaceState: (url: URL) => window.history.replaceState(window.history.state, "", url) }));
 vi.mock("./ThreePreview.svelte", async () => ({ default: (await import("./TestPreview.svelte")).default }));
 
 import App from "./App.svelte";
@@ -171,6 +172,28 @@ describe("TopoStack Svelte shell", () => {
     await tick();
     expect(target.querySelectorAll(".preview-warning")).toHaveLength(2);
     expect(target.querySelector(".preview-warning .warning-action")?.textContent).toBe("Fit depth");
+  });
+
+  it("opens a directory lake after restoring settings and consumes the place link once", async () => {
+    const { loadProject, saveProject } = await import("../storage");
+    vi.mocked(saveProject).mockClear();
+    vi.mocked(loadProject).mockResolvedValueOnce({ ...DEFAULT_PROJECT, name: "Saved mountain", materialThicknessMm: 5, outputMode: "engraving", showWaterDepth: false });
+    window.history.replaceState(null, "", "/studio?lake=Lake%20Tahoe&bounds=-120.2,38.9,-119.8,39.3");
+    try {
+      const target = document.createElement("div");
+      component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+      await vi.waitFor(() => expect(target.textContent).toContain("Lake selected from the depth directory"));
+      expect(target.querySelector<HTMLInputElement>('[aria-label="Project name"]')?.value).toBe("Lake Tahoe");
+      expect(target.querySelector('[aria-label="Water depth"]')?.getAttribute("aria-checked")).toBe("true");
+      expect(window.location.search).toBe("");
+      await vi.waitFor(() => expect(saveProject).toHaveBeenLastCalledWith(expect.objectContaining({
+        name: "Lake Tahoe", materialThicknessMm: 5, outputMode: "stack", showWaterDepth: true,
+        location: expect.objectContaining({ label: "Lake Tahoe", lon: -120 }),
+      })));
+      expect(vi.mocked(saveProject).mock.lastCall![0].location.lat).toBeCloseTo(39.1);
+      expect(loadTerrainMock).not.toHaveBeenCalled();
+      expect(target.querySelector(".context-export-status")?.textContent).toContain("Generate before export");
+    } finally { window.history.replaceState(null, "", "/"); }
   });
 
   it("edits and undoes the project name and switches preview modes", async () => {

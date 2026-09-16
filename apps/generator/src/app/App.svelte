@@ -478,9 +478,28 @@
       if (update.phase === "ready") trackUsage("export_prepared", project.outputMode, "atomm");
       if (update.phase === "error") trackUsage("export_failed", project.outputMode, "atomm");
     });
-    void loadProject().then((saved) => {
+    void loadProject().then(async (saved) => {
       if (cancelled) return;
       if (saved) { const source = createSyntheticSource(saved); project = saved; sourceProject = saved; activeSource = source; geometry = previewFor(saved, source); selectedLayer = featuredLayerIndex(geometry); status = "Local project restored · generate to refresh terrain"; }
+      const linkedLake = new URLSearchParams(window.location.search).has("lake")
+        ? (await import("../lib/lake-location")).lakeLocationFromSearch(window.location.search, project.widthMm, project.heightMm)
+        : undefined;
+      if (cancelled) return;
+      if (linkedLake) {
+        const { replaceState } = await import("$app/navigation");
+        if (cancelled) return;
+        const previous = project;
+        const next = { ...project, name: linkedLake.label.slice(0, MAX_PROJECT_NAME_LENGTH), location: linkedLake, outputMode: "stack" as const, showWaterDepth: true };
+        const source = createSyntheticSource(next);
+        history = [...history, previous];
+        project = next; sourceProject = next; activeSource = source; geometry = previewFor(next, source);
+        selectedLayer = featuredLayerIndex(geometry);
+        status = "Lake selected from the depth directory · generate terrain to load survey data";
+        // Consume the link once so a later refresh restores subsequent edits.
+        const url = new URL(window.location.href);
+        url.searchParams.delete("lake"); url.searchParams.delete("bounds");
+        replaceState(url, {});
+      }
       booted = true;
     });
     return () => { cancelled = true; disconnectAtomm(); if (exportNoticeTimeout !== undefined) window.clearTimeout(exportNoticeTimeout); generationAbort?.abort(); detailAbort?.abort(); geometryWorker?.terminate(); geometryReject?.(new DOMException("Generator closed", "AbortError")); };

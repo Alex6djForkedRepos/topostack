@@ -9,14 +9,16 @@ const budgets = {
   landingJavaScriptGzip: 52_000,
   landingHtmlGzip: 10_000,
   initialJavaScriptGzip: 180_000,
-  startupJavaScriptGzip: 400_000,
+  // Directory-to-studio links add location restoration and router integration.
+  startupJavaScriptGzip: 402_000,
   // Includes the MapLibre 6 worker (~144 kB gzip), fetched only in Map mode.
-  // Shared SVG viewport controls and responsive warning dismissal bring the
-  // full asset set to ~821 kB gzip. Allow 4 kB of headroom while preserving
-  // the separate homepage, editor startup, and largest-chunk limits.
-  totalJavaScriptGzip: 825_000,
+  // The searchable lake directory adds a separate guide route. Allow 8 kB
+  // for its JS while keeping the homepage and initial-entry limits.
+  // Its full lake catalog is fetched separately and budgeted below.
+  totalJavaScriptGzip: 833_000,
   largestJavaScriptGzip: 300_000,
-  totalCssGzip: 30_000,
+  totalCssGzip: 31_000, // Includes the directory page controls and result list.
+  lakeDirectoryGzip: 150_000,
   studioHtmlBytes: 10_000,
 };
 
@@ -80,6 +82,8 @@ for (const file of files.filter((file) => /geometry\.worker[^/]*\.js$/.test(file
 const startupJavaScriptGzip = (await Promise.all([...startupFiles].map(async (href) => gzipSync(await readFile(new URL(href))).byteLength))).reduce((total, size) => total + size, 0);
 const studioHtmlBytes = (await stat(studioHtml)).size;
 
+const lakeDirectoryGzip = gzipSync(await readFile(new URL("data/lake-depth-directory.json", dist))).byteLength;
+
 const report = {
   landingJavaScriptGzip,
   landingHtmlGzip,
@@ -89,6 +93,7 @@ const report = {
   largestJavaScriptGzip: largestJavaScript?.gzip ?? 0,
   largestJavaScriptFile: largestJavaScript?.file ?? "none",
   totalCssGzip,
+  lakeDirectoryGzip,
   studioHtmlBytes,
 };
 console.log(JSON.stringify({ budgets, measured: report }, null, 2));
@@ -102,5 +107,6 @@ const failures = [
   [report.largestJavaScriptGzip, budgets.largestJavaScriptGzip, "Largest JavaScript chunk gzip size"],
   [report.totalCssGzip, budgets.totalCssGzip, "Total CSS gzip size"],
   [report.studioHtmlBytes, budgets.studioHtmlBytes, "studio.html size"],
+  [report.lakeDirectoryGzip, budgets.lakeDirectoryGzip, "Lake directory data gzip size"],
 ].filter(([actual, maximum]) => actual > maximum);
 if (failures.length) throw new Error(failures.map(([actual, maximum, label]) => `${label} is ${actual} bytes; budget is ${maximum} bytes.`).join("\n"));
