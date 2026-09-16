@@ -10,3 +10,4 @@ export * from "./water.js";
 export * from "./water-pattern.js";
 export * from "./export-policy.js";
 export * from "./source-requirements.js";
+export { cropRadiusMm } from "./crop.js";

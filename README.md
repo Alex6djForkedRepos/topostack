@@ -132,6 +132,14 @@ npm run budget:web
 
 `npm run build` builds all workspaces, including a dry run of the Worker deployment; it does not publish the app. The generated frontend is in `apps/generator/dist`. `npm run budget:web` checks that built output against separate homepage/editor JavaScript budgets, startup costs, total assets, and HTML limits.
 
+The Python data builders under `scripts/` have their own tests, kept out of `npm test` so Node-only contributors need no GDAL stack. CI runs them on Python 3.13. Locally, use a virtual environment with the pinned builder dependencies:
+
+```sh
+python3.13 -m venv .venv-data && . .venv-data/bin/activate
+pip install -r scripts/survey-requirements.txt
+npm run test:python
+```
+
 Install browsers before running the end-to-end suite:
 
 ```sh

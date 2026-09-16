@@ -1,6 +1,6 @@
 <script lang="ts">
   import SvgViewport from "./SvgViewport.svelte";
-  import { labelPathData, waterPatternStrokes, type GeometryIRV1, type OperationPath, type Point2D, type ProjectConfigV1 } from "@topostack/core";
+  import { cropRadiusMm, labelPathData, waterPatternStrokes, type GeometryIRV1, type OperationPath, type Point2D, type ProjectConfigV1 } from "@topostack/core";
 
   let { geometry, project }: { geometry: GeometryIRV1; project: ProjectConfigV1 } = $props();
   const contourLayers = $derived(geometry.layers.slice(1));
@@ -10,7 +10,7 @@
   function onBoundary(start: Point2D, end: Point2D): boolean {
     const epsilon = 0.02;
     if (project.cropShape === "circle") {
-      const radius = project.widthMm / 2;
+      const radius = cropRadiusMm(project);
       return Math.abs(Math.hypot(start.x, start.y) - radius) <= epsilon &&
         Math.abs(Math.hypot(end.x, end.y) - radius) <= epsilon;
     }
@@ -67,7 +67,7 @@
   <SvgViewport widthMm={geometry.widthMm} heightMm={geometry.heightMm} label="engraving" svgLabel="Flat engraving preview" controlsLabel="Engraving zoom controls" resetLabel="Reset engraving view">
     <defs><filter id="engraving-shadow"><feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.2" /></filter></defs>
     {#if project.cropShape === "circle"}
-      <circle cx="0" cy="0" r={project.widthMm / 2} class="engraving-surface" data-preview-shadow filter="url(#engraving-shadow)" />
+      <circle cx="0" cy="0" r={cropRadiusMm(project)} class="engraving-surface" data-preview-shadow filter="url(#engraving-shadow)" />
     {:else}
       <rect x={-project.widthMm / 2} y={-project.heightMm / 2} width={project.widthMm} height={project.heightMm} class="engraving-surface" data-preview-shadow filter="url(#engraving-shadow)" />
     {/if}
@@ -94,7 +94,7 @@
       {/each}
     </g>
     {#if project.showEngravingBorder}
-      {#if project.cropShape === "circle"}<circle cx="0" cy="0" r={project.widthMm / 2} class="engraving-border" stroke-width={geometry.lineStyle.borderMm} />{:else}<rect x={-project.widthMm / 2} y={-project.heightMm / 2} width={project.widthMm} height={project.heightMm} class="engraving-border" stroke-width={geometry.lineStyle.borderMm} />{/if}
+      {#if project.cropShape === "circle"}<circle cx="0" cy="0" r={cropRadiusMm(project)} class="engraving-border" stroke-width={geometry.lineStyle.borderMm} />{:else}<rect x={-project.widthMm / 2} y={-project.heightMm / 2} width={project.widthMm} height={project.heightMm} class="engraving-border" stroke-width={geometry.lineStyle.borderMm} />{/if}
     {/if}
   </SvgViewport>
   <div class="engraving-legend"><span><i style:--sample-width={`${Math.max(1, geometry.lineStyle.contourMm * 5)}px`}></i> Minor contour</span><span><i class="index" style:--sample-width={`${Math.max(1, geometry.lineStyle.indexContourMm * 5)}px`}></i> Index every {project.engravingIndexInterval}</span><span>{project.engravingContourCount} contours</span>{#if project.showWater && project.waterFillPattern !== "none"}<span>{project.waterFillPattern} water</span>{/if}</div>

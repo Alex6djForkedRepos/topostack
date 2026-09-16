@@ -252,6 +252,105 @@ describe("TopoStack Svelte shell", () => {
     expect(target.querySelector(".layer-heading")?.textContent).toMatch(/Layer \d+ of 13/);
   });
 
+  it("refreshes the preview and export state when undoing and redoing a fabrication change", async () => {
+    const source = { ...createSyntheticSource(DEFAULT_PROJECT, 32), sourceKind: "real" as const, vectorStatus: "available" as const };
+    loadTerrainMock.mockResolvedValue({ source, fallback: false });
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await tick();
+    target.querySelector<HTMLButtonElement>(".generate-button")!.click();
+    await vi.waitFor(() => expect(target.querySelector(".status-line")?.textContent).toContain("Real terrain ready"));
+    const exportStatus = () => target.querySelector(".context-export-status")?.textContent;
+    expect(exportStatus()).toContain("Ready to export");
+    const stackSummary = () => target.querySelector(".bar-meta")?.textContent;
+    const initialStack = stackSummary();
+
+    const material = target.querySelector<HTMLInputElement>('input[aria-label="Material"]')!;
+    const originalThickness = material.value;
+    material.value = String(Number(originalThickness) * 2);
+    material.dispatchEvent(new Event("input", { bubbles: true }));
+    await vi.waitFor(() => expect(target.querySelector(".status-line")?.textContent).toContain("Fabrication geometry updated"));
+    await vi.waitFor(() => expect(stackSummary()).not.toBe(initialStack));
+    expect(exportStatus()).toContain("Ready to export");
+
+    target.querySelector<HTMLButtonElement>('button[aria-label="Undo"]')!.click();
+    await vi.waitFor(() => expect(target.querySelector<HTMLInputElement>('input[aria-label="Material"]')?.value).toBe(originalThickness));
+    await vi.waitFor(() => expect(stackSummary()).toBe(initialStack));
+    await vi.waitFor(() => expect(target.querySelector(".preview-stage")?.getAttribute("aria-busy")).toBe("false"));
+    expect(exportStatus()).toContain("Ready to export");
+
+    target.querySelector<HTMLButtonElement>('button[aria-label="Redo"]')!.click();
+    await vi.waitFor(() => expect(stackSummary()).not.toBe(initialStack));
+    await vi.waitFor(() => expect(target.querySelector(".preview-stage")?.getAttribute("aria-busy")).toBe("false"));
+    expect(exportStatus()).toContain("Ready to export");
+    expect(loadTerrainMock).toHaveBeenCalledOnce();
+  });
+
+  it("restores map-detail markings when undoing a detail toggle", async () => {
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await tick();
+    const stage = target.querySelector<HTMLElement>(".preview-stage")!;
+    const initialRoads = stage.dataset.roadMarkings;
+    expect(Number(initialRoads)).toBeGreaterThan(0);
+    const roads = target.querySelector<HTMLButtonElement>('button[role="switch"][aria-label="Roads"]')!;
+    roads.click();
+    await vi.waitFor(() => expect(stage.dataset.roadMarkings).toBe("0"));
+    target.querySelector<HTMLButtonElement>('button[aria-label="Undo"]')!.click();
+    await vi.waitFor(() => expect(roads.getAttribute("aria-checked")).toBe("true"));
+    await vi.waitFor(() => expect(stage.dataset.roadMarkings).toBe(initialRoads));
+    expect(target.querySelector(".status-line")?.textContent).toMatch(/updated/i);
+  });
+
+  it("asks for regeneration instead of refreshing when undo restores a different map area", async () => {
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await tick();
+    [...target.querySelectorAll<HTMLButtonElement>(".preset-row button")].find((button) => button.textContent === "Grand Teton and Jenny Lake")!.click();
+    await tick();
+    expect(target.querySelector(".status-line")?.textContent).toContain("Map area changed");
+    target.querySelector<HTMLButtonElement>('button[aria-label="Undo"]')!.click();
+    await tick();
+    expect(target.querySelector(".status-line")?.textContent).not.toContain("Map area changed");
+    target.querySelector<HTMLButtonElement>('button[aria-label="Redo"]')!.click();
+    await tick();
+    expect(target.querySelector(".status-line")?.textContent).toContain("Map area changed");
+    expect(target.querySelector(".preview-stage")?.getAttribute("aria-busy")).toBe("false");
+  });
+
+  it("keeps autosave working and reports the problem when restoring a saved project fails", async () => {
+    const { loadProject, saveProject } = await import("../storage");
+    vi.mocked(saveProject).mockClear();
+    vi.mocked(loadProject).mockRejectedValueOnce(new Error("IndexedDB blocked"));
+    const errors = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const target = document.createElement("div");
+      component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+      await vi.waitFor(() => expect(target.querySelector(".status-line")?.textContent).toContain("Saved project could not be restored"));
+      const name = target.querySelector<HTMLInputElement>('input[aria-label="Project name"]')!;
+      name.value = "Still saved";
+      name.dispatchEvent(new Event("input", { bubbles: true }));
+      await vi.waitFor(() => expect(saveProject).toHaveBeenLastCalledWith(expect.objectContaining({ name: "Still saved" })));
+    } finally { errors.mockRestore(); }
+  });
+
+  it("discards a generation started before the saved project finished restoring", async () => {
+    const { loadProject } = await import("../storage");
+    let finishRestore: ((project: typeof DEFAULT_PROJECT) => void) | undefined;
+    vi.mocked(loadProject).mockImplementationOnce(() => new Promise((resolve) => { finishRestore = resolve; }));
+    loadTerrainMock.mockImplementation((_project, signal: AbortSignal) => new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(new DOMException("Canceled", "AbortError")), { once: true })));
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await tick();
+    target.querySelector<HTMLButtonElement>(".generate-button")!.click();
+    await vi.waitFor(() => expect(loadTerrainMock).toHaveBeenCalledOnce());
+    finishRestore!({ ...DEFAULT_PROJECT, name: "Restored ridge" });
+    await vi.waitFor(() => expect(target.textContent).toContain("Local project restored"));
+    expect(target.querySelector<HTMLInputElement>('input[aria-label="Project name"]')?.value).toBe("Restored ridge");
+    expect(target.querySelector(".generate-button")?.textContent).not.toContain("Cancel generation");
+    expect(target.querySelector<HTMLButtonElement>('button[aria-label="Undo"]')?.disabled).toBe(true);
+  });
+
   it("switches to a flat engraving workflow with dedicated controls and preview", async () => {
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
@@ -397,7 +496,8 @@ describe("TopoStack Svelte shell", () => {
     await vi.waitFor(() => expect(topLeft.getAttribute("aria-checked")).toBe("true"));
     await vi.waitFor(() => expect(target.querySelector<HTMLInputElement>('input[aria-label="North arrow size slider"]')?.value).toBe("30"));
     expect(offsetX.value).toBe("15");
-    expect(Number(target.querySelector<HTMLElement>(".preview-stage")?.dataset.northMarkings)).toBeGreaterThan(10);
+    // Preview refreshes trail rapid edits, so wait for the coalesced rebuild.
+    await vi.waitFor(() => expect(Number(target.querySelector<HTMLElement>(".preview-stage")?.dataset.northMarkings)).toBeGreaterThan(10));
     expect(loadTerrainMock).not.toHaveBeenCalled();
   });
 

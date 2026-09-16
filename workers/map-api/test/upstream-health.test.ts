@@ -31,3 +31,12 @@ it("rejects absent and stale probe results", async () => {
   await env.MAP_CACHE.put("health/upstreams-v1.json", JSON.stringify({ ok: true, checkedAt: new Date(Date.now() - 3 * 3600000).toISOString() }));
   expect((await status()).status).toBe(503);
 });
+it("reports corrupt probe records as invalid instead of failing", async () => {
+  vi.spyOn(console, "warn").mockImplementation(() => {});
+  for (const record of ["{not json", "null", "[]"]) {
+    await env.MAP_CACHE.put("health/upstreams-v1.json", record);
+    const response = await status();
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ status: "invalid" });
+  }
+});

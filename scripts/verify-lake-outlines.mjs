@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { open, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { chromium } from "@playwright/test";
+import { openBrowserCheck } from "./lib/browser-check.mjs";
 
 const base = process.env.SURVEY_TEST_APP_URL ?? "http://localhost:5297";
 assert(["localhost", "127.0.0.1"].includes(new URL(base).hostname), "Use a local Vite server");
@@ -12,9 +12,8 @@ assert(archives, "Pass --local-archives=<directory>");
 const directory = JSON.parse(await readFile(new URL("../apps/generator/static/data/lake-depth-directory.json", import.meta.url), "utf8"));
 const datasets = ["mn-dnr-lakes-v1", "syke-finland-lakes-v1", "ontario-lakes-v1", "nve-norway-lakes-v1", "twdb-texas-reservoirs-v1", "usbr-reservoirs-v1"];
 const coreUrl = `/@fs${fileURLToPath(new URL("../packages/core/src/index.ts", import.meta.url))}`;
-const browser = await chromium.launch();
-const page = await browser.newPage();
-try {
+const { page, run } = await openBrowserCheck();
+await run(async () => {
   await page.route("**/v1/lakes.pmtiles", (route) => route.abort());
   await page.route("**/v1/bathymetry/*.pmtiles", async (route) => {
     const file = new URL(route.request().url()).pathname.split("/").at(-1);
@@ -55,4 +54,4 @@ try {
     assert(result.carvedCells > 0, JSON.stringify(result));
     console.log(JSON.stringify(result));
   }
-} finally { await browser.close(); }
+});

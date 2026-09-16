@@ -1,7 +1,7 @@
-import { pointInPolygon } from "./geometry2d.js";
+import { ringBounds } from "./geometry2d.js";
 import { terrainBasinDistance } from "./terrain-basin.js";
 import { BATHYMETRIC_RELIEF_M } from "./types.js";
-import type { ElevationGrid, GeometryWarning, Point2D, ProjectConfigV1, WaterAreaV1, WaterSurfaceIR } from "./types.js";
+import type { ElevationGrid, GeometryWarning, Point2D, Polygon2D, ProjectConfigV1, WaterAreaV1, WaterSurfaceIR } from "./types.js";
 
 /**
  * Water depth is not a geometry kind of its own - it is a carve of the
@@ -42,6 +42,79 @@ function cellPoint(column: number, row: number, grid: ElevationGrid, config: Pro
     x: (column / (grid.width - 1) - 0.5 + insetX / (grid.width - 1)) * config.widthMm,
     y: (row / (grid.height - 1) - 0.5 + insetY / (grid.height - 1)) * config.heightMm,
   };
+}
+
+/**
+ * Row-major grid indexes whose `cellPoint` lies inside `polygon`, decided
+ * exactly as `pointInPolygon` would decide each cell - the crossing abscissa
+ * uses the same expression and the same `<` comparison - but one scanline at a
+ * time and only across the rows the outline's bounding box spans. Testing every
+ * cell against every vertex took tens of seconds on detailed lakes.
+ */
+function ringCrossings(ring: Point2D[], y: number, into: number[]): void {
+  for (let index = 0, previous = ring.length - 1; index < ring.length; previous = index, index += 1) {
+    const a = ring[index];
+    const b = ring[previous];
+    if (!a || !b) continue;
+    if ((a.y > y) !== (b.y > y)) into.push(((b.x - a.x) * (y - a.y)) / (b.y - a.y) + a.x);
+  }
+}
+
+function polygonCells(polygon: Polygon2D, grid: ElevationGrid, config: ProjectConfigV1): Int32Array {
+  const result: number[] = [];
+  const outer = ringBounds(polygon.outer);
+  if (!(outer.minY <= outer.maxY)) return new Int32Array(0);
+  const xs = new Float64Array(grid.width);
+  for (let column = 0; column < grid.width; column += 1) xs[column] = cellPoint(column, 0, grid, config).x;
+  const holeBounds = polygon.holes.map(ringBounds);
+  const outerCrossings: number[] = [];
+  const holeCrossings: number[][] = polygon.holes.map(() => []);
+  for (let row = 0; row < grid.height; row += 1) {
+    const y = cellPoint(0, row, grid, config).y;
+    // Outside [minY, maxY) no edge straddles the scanline, so nothing is inside.
+    if (!(y >= outer.minY && y < outer.maxY)) continue;
+    outerCrossings.length = 0;
+    ringCrossings(polygon.outer, y, outerCrossings);
+    if (!outerCrossings.length) continue;
+    outerCrossings.sort((left, right) => left - right);
+    const activeHoles: number[][] = [];
+    polygon.holes.forEach((hole, holeIndex) => {
+      const bounds = holeBounds[holeIndex]!;
+      if (!(y >= bounds.minY && y < bounds.maxY)) return;
+      const crossings = holeCrossings[holeIndex]!;
+      crossings.length = 0;
+      ringCrossings(hole, y, crossings);
+      if (crossings.length) activeHoles.push(crossings.sort((left, right) => left - right));
+    });
+    const rowOffset = row * grid.width;
+    for (let column = 0; column < grid.width; column += 1) {
+      if (!oddCrossingsRightOf(outerCrossings, xs[column]!)) continue;
+      if (activeHoles.some((crossings) => oddCrossingsRightOf(crossings, xs[column]!))) continue;
+      result.push(rowOffset + column);
+    }
+  }
+  return Int32Array.from(result);
+}
+
+/** Parity of `x < crossing` over ascending crossings, i.e. the ray-casting rule. */
+function oddCrossingsRightOf(sorted: number[], x: number): boolean {
+  let low = 0;
+  let high = sorted.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (x < sorted[middle]!) high = middle;
+    else low = middle + 1;
+  }
+  return ((sorted.length - low) & 1) === 1;
+}
+
+function surfaceIndexes(polygons: readonly Polygon2D[], grid: ElevationGrid, config: ProjectConfigV1): Int32Array {
+  if (polygons.length === 1) return polygonCells(polygons[0]!, grid, config);
+  const mask = new Uint8Array(grid.width * grid.height);
+  for (const polygon of polygons) for (const index of polygonCells(polygon, grid, config)) mask[index] = 1;
+  const result: number[] = [];
+  mask.forEach((value, index) => { if (value) result.push(index); });
+  return Int32Array.from(result);
 }
 
 /**
@@ -185,6 +258,12 @@ export interface CarvedWater {
    * from land alone, so it needs to know which cells to leave out of that.
    */
   waterMask: Uint8Array;
+  /**
+   * Grid indexes inside each surface's polygons, parallel to `surfaces`, so
+   * later passes need not rasterize the outlines again. Optional for callers
+   * that assemble a `CarvedWater` by hand; it is recomputed when absent.
+   */
+  surfaceCells?: readonly Int32Array[];
 }
 
 /**
@@ -225,12 +304,10 @@ export function carveWaterDepth(
 
   // Build the complete mask before carving so neighboring lakes never become
   // land samples for the terrain prior, regardless of their processing order.
-  for (let row = 0; row < grid.height; row += 1) {
-    for (let column = 0; column < grid.width; column += 1) {
-      const point = cellPoint(column, row, grid, config);
-      if (areas.some((area) => pointInPolygon(point, area.polygon))) waterMask[row * grid.width + column] = 1;
-    }
-  }
+  // Each lake's cells are rasterized once and reused by the carve below and by
+  // `fitLakesToLadder`.
+  const areaCells = areas.map((area) => polygonCells(area.polygon, grid, config));
+  for (const indexes of areaCells) for (const index of indexes) waterMask[index] = 1;
 
   const normalizeBasin = (area: WaterAreaV1, distance: Float64Array, surfaceM: number): number => {
     let visibleRadiusM = 0;
@@ -250,19 +327,22 @@ export function carveWaterDepth(
     return radiusM;
   };
 
-  for (const area of areas) {
+  const surfaceCells: Int32Array[] = [];
+  const pushSurface = (surface: WaterSurfaceIR, indexes: Int32Array): void => {
+    surfaces.push(surface);
+    surfaceCells.push(indexes);
+  };
+
+  for (const [areaIndex, area] of areas.entries()) {
     mask.fill(0);
     cells.length = 0;
     let count = 0;
-    for (let row = 0; row < grid.height; row += 1) {
-      for (let column = 0; column < grid.width; column += 1) {
-        if (!pointInPolygon(cellPoint(column, row, grid, config), area.polygon)) continue;
-        const index = row * grid.width + column;
-        mask[index] = 1;
-        cells.push(index);
-        interior[count] = values[index]!;
-        count += 1;
-      }
+    const areaIndexes = areaCells[areaIndex]!;
+    for (const index of areaIndexes) {
+      mask[index] = 1;
+      cells.push(index);
+      interior[count] = values[index]!;
+      count += 1;
     }
     if (count === 0) continue;
 
@@ -316,12 +396,12 @@ export function carveWaterDepth(
           values[cell] = bed;
           bedElevationM = Math.min(bedElevationM, bed);
         }
-        surfaces.push({
+        pushSurface({
           id: area.id, kind: area.kind, name: area.name, hylakId: area.hylakId,
           polygons: [area.polygon], surfaceElevationM, bedElevationM,
           ...(fallbackCount && area.maxDepthM ? { maxDepthM: area.maxDepthM } : {}),
           layerIndex: 0, depthSource: fallbackCount ? "mixed" : "surveyed",
-        });
+        }, areaIndexes);
         if (fallbackCount) warnings.push({
           code: "BATHYMETRY_FALLBACK",
           message: `${area.name ?? "A lake"} has incomplete survey coverage. Uncovered cells use existing terrain or modeled depths; cells without enough information remain at the waterline.`,
@@ -350,7 +430,7 @@ export function carveWaterDepth(
           if (scaled < surveyedBedM) surveyedBedM = scaled;
         }
       }
-      surfaces.push({
+      pushSurface({
         id: area.id,
         kind: area.kind,
         ...(area.name ? { name: area.name } : {}),
@@ -360,7 +440,7 @@ export function carveWaterDepth(
         bedElevationM: surveyedBedM,
         layerIndex: 0,
         depthSource: "surveyed",
-      });
+      }, areaIndexes);
       continue;
     }
 
@@ -410,7 +490,7 @@ export function carveWaterDepth(
       if (bed < bedElevationM) bedElevationM = bed;
     }
 
-    surfaces.push({
+    pushSurface({
       id: area.id,
       kind: area.kind,
       ...(area.name ? { name: area.name } : {}),
@@ -421,7 +501,7 @@ export function carveWaterDepth(
       maxDepthM: sourceMaxDepthM,
       layerIndex: 0,
       depthSource: area.depthSource ?? "modeled",
-    });
+    }, areaIndexes);
   }
 
   let min = Number.POSITIVE_INFINITY;
@@ -430,29 +510,25 @@ export function carveWaterDepth(
     if (value < min) min = value;
     if (value > max) max = value;
   }
-  return { grid: { ...grid, values, min, max }, surfaces, warnings, waterMask };
+  return { grid: { ...grid, values, min, max }, surfaces, warnings, waterMask, surfaceCells };
 }
 
 /** Compress over-budget lakes uniformly around their own waterlines before contouring. */
 export function fitLakesToLadder(carved: CarvedWater, config: ProjectConfigV1, floorM: number): CarvedWater {
   const values = Float32Array.from(carved.grid.values);
-  const surfaces = carved.surfaces.map((surface) => {
+  const surfaces = carved.surfaces.map((surface, surfaceIndex) => {
     const depth = surface.surfaceElevationM - surface.bedElevationM;
     const available = surface.surfaceElevationM - floorM;
     // No usable depth cannot be fixed by scaling. Keep the clipping warning in that case.
     if (surface.kind !== "lake" || !(depth > available && available > 0)) return surface;
     const factor = available / depth;
-    for (let row = 0; row < carved.grid.height; row += 1) {
-      for (let column = 0; column < carved.grid.width; column += 1) {
-        const index = row * carved.grid.width + column;
-        const original = carved.grid.values[index]!;
-        if (original >= surface.surfaceElevationM) continue;
-        const point = cellPoint(column, row, carved.grid, config);
-        if (!surface.polygons.some((polygon) => pointInPolygon(point, polygon))) continue;
-        // Round upward to a representable Float32 floor to avoid a spurious clipping warning.
-        values[index] = surface.surfaceElevationM - (surface.surfaceElevationM - original) * factor;
-        if (values[index]! < floorM) values[index] = floorM + Math.max(1, Math.abs(floorM)) * 2 ** -23;
-      }
+    const indexes = carved.surfaceCells?.[surfaceIndex] ?? surfaceIndexes(surface.polygons, carved.grid, config);
+    for (const index of indexes) {
+      const original = carved.grid.values[index]!;
+      if (original >= surface.surfaceElevationM) continue;
+      // Round upward to a representable Float32 floor to avoid a spurious clipping warning.
+      values[index] = surface.surfaceElevationM - (surface.surfaceElevationM - original) * factor;
+      if (values[index]! < floorM) values[index] = floorM + Math.max(1, Math.abs(floorM)) * 2 ** -23;
     }
     return {
       ...surface,

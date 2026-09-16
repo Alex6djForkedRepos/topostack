@@ -6,15 +6,29 @@ import { fileURLToPath } from "node:url";
 
 const root = new URL("../atomm/", import.meta.url);
 const provenance = JSON.parse(await readFile(new URL("media-provenance.json", root), "utf8"));
-const files = ["listing.md", "listing-copy.txt", "media-provenance.json", "cover-prompt.txt", "cover-prompt-v2.txt"];
+const files = ["listing.md", "listing-copy.txt", "media-provenance.json"];
+for (const reference of [provenance.coverPresentation?.prompt, provenance.projectFile, provenance.video?.recipe]) {
+  if (!reference) continue;
+  assert.match(reference, /^[a-z0-9-]+\.(txt|json)$/);
+  files.push(reference);
+}
 for (const item of provenance.media) {
-  assert.match(item.file, /^assets\/[a-z0-9-]+\.png$/);
+  assert.match(item.file, /^assets\/[a-z0-9-]+\.(png|mp4)$/);
   const data = await readFile(new URL(item.file, root));
+  const video = item.file.endsWith(".mp4");
   assert.equal(createHash("sha256").update(data).digest("hex"), item.sha256, `${item.file}: stale media provenance`);
-  assert.ok(data.length <= 15_000_000, `${item.file}: exceeds Atomm's image limit`);
+  assert.equal(data.length, item.bytes, `${item.file}: stale byte count`);
+  assert.ok(data.length <= (video ? 70_000_000 : 15_000_000), `${item.file}: exceeds Atomm's ${video ? "video" : "image"} limit`);
+  if (video) {
+    assert.equal(data.subarray(4, 8).toString("ascii"), "ftyp", `${item.file}: expected MP4`);
+  } else {
+    assert.equal(data.subarray(0, 8).toString("hex"), "89504e470d0a1a0a", `${item.file}: expected PNG`);
+    assert.equal(data.readUInt32BE(16), item.width, `${item.file}: stale width`);
+    assert.equal(data.readUInt32BE(20), item.height, `${item.file}: stale height`);
+  }
   files.push(item.file);
 }
-assert.ok(provenance.media.length <= 20, "Too many listing images");
+assert.ok(provenance.media.length <= 20, "Too many listing media files");
 await rm(new URL("topostack-listing-upload.zip", root), { force: true });
 execFileSync("zip", ["-Xq", "topostack-listing-upload.zip", ...new Set(files)], { cwd: fileURLToPath(root), stdio: "inherit" });
-console.log(`Packaged listing text and ${provenance.media.length} images.`);
+console.log(`Packaged listing text and ${provenance.media.length} media files.`);

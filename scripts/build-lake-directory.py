@@ -120,5 +120,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     result = build(args.cache, args.archives)
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(result, ensure_ascii=False, separators=(',', ':')) + '\n')
+    partial = args.output.with_name(args.output.name + '.part')
+    partial.write_text(json.dumps(result, ensure_ascii=False, separators=(',', ':')) + '\n')
+    partial.replace(args.output)
     print(f"Wrote {len(result['lakes'])} lake and basin records from {len(result['sources'])} datasets to {args.output}")

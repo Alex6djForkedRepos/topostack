@@ -3,15 +3,22 @@ import { loadProviderOutlines, resolveLakeOutlines } from "./lake-outlines";
 import { mapTiles } from "./tile-requests";
 import { fitCutBounds } from "./selection-bounds";
 import { createFeatureBudget, yieldForCancellation } from "./feature-budget";
-import { sourceRequirements, createSyntheticSource, type GeoBounds, type MarkingFeature, type Point2D, type Polygon2D, type ProjectConfigV1, type SourceBundleV1, type TransportationClass, type WaterAreaV1 } from "@topostack/core";
+import { sourceRequirements, createSyntheticSource, type GeoBounds, type MarkingFeature, type Polygon2D, type ProjectConfigV1, type SourceBundleV1, type TransportationClass, type WaterAreaV1 } from "@topostack/core";
 import { createArchive, networkSignal } from "./archive";
 import { classifyRings, VectorTile } from "@mapbox/vector-tile";
 import { PbfReader } from "pbf";
-import polygonClipping, { type MultiPolygon, type Pair } from "polygon-clipping";
 import { MAP_DATA_ATTRIBUTION } from "./map-attribution";
 import { decodeTerrainPng } from "./terrain-png";
 import { loadLakeBathymetry, applySurveyProvenance } from "./bathymetry";
+import { applyPreferredTerrain } from "./terrain-sources";
 import { repairElevationSpikes } from "./elevation-cleanup";
+import { fittingTileWindow, groundWidthM, latToWorldY, lonToWorldX, tilePointProjector, TILE_SIZE, worldSize, worldXToLon, worldYToLat, type TileWindow } from "./tile-math";
+import { cleanBoundaryMarkings, cleanWaterwayMarkings, clipVectorTileLine, dissolveWaterAreas, limitVectorMarkingGroups, MAX_VECTOR_MARKINGS, shorelineMarkings, stitchTransportationMarkings } from "./vector-cleanup";
+import { assembleWater } from "./water-assembly";
+
+// Pure geometry helpers moved to focused modules; re-exported for existing callers.
+export { cleanBoundaryMarkings, cleanWaterwayMarkings, clipVectorTileLine, dissolveWaterAreas, dissolveWaterPolygons, joinPaths, limitVectorMarkingGroups, shorelineMarkings, stitchTransportationMarkings } from "./vector-cleanup";
+export { applyLakeShorelines, assembleWater, combineWaterAreas } from "./water-assembly";
 
 export interface PlaceResult { id: string; label: string; lat: number; lon: number; type?: string; bounds?: GeoBounds; zoom?: number; surveyedLake?: boolean }
 
@@ -32,24 +39,12 @@ const developmentApiBase = import.meta.env.DEV ? `http://localhost:${development
 // Standalone deployments serve the app and API from the same Worker. Atomm
 // packages still inject an explicit API URL during their build.
 const apiBase = configuredApiBase ?? developmentApiBase ?? "";
-const TILE_SIZE = 256;
-const MAX_DATA_TILES = 24;
-const MAX_VECTOR_MARKINGS = 1800;
 const RAW_VECTOR_MARKING_BUDGET_MULTIPLIER = 4;
 const MAJOR_ROAD_DETAILS = new Set(["motorway", "motorway_link", "trunk", "trunk_link", "primary", "primary_link", "secondary", "secondary_link"]);
 const LOCAL_ROAD_DETAILS = new Set(["tertiary", "tertiary_link", "residential", "service", "unclassified", "road", "raceway", "driveway", "parking_aisle", "alley", "drive-through", "emergency_access"]);
 const TRAIL_DETAILS = new Set(["pedestrian", "track", "path", "cycleway", "bridleway", "steps", "corridor", "sidewalk", "crossing"]);
 const EXCLUDED_TRANSPORT_KINDS = new Set(["rail", "aerialway", "ferry", "pier", "aeroway"]);
-const worldSize = (zoom: number) => TILE_SIZE * 2 ** zoom;
-const lonToWorldX = (lon: number, zoom: number) => ((lon + 180) / 360) * worldSize(zoom);
-function latToWorldY(lat: number, zoom: number): number {
-  const radians = Math.max(-85.0511, Math.min(85.0511, lat)) * Math.PI / 180;
-  return ((1 - Math.asinh(Math.tan(radians)) / Math.PI) / 2) * worldSize(zoom);
-}
-const worldXToLon = (x: number, zoom: number) => (x / worldSize(zoom)) * 360 - 180;
-function worldYToLat(y: number, zoom: number): number {
-  return Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / worldSize(zoom)))) * 180 / Math.PI;
-}
+
 
 export function boundsForProject(config: ProjectConfigV1): GeoBounds {
   if (config.location.bounds) return fitCutBounds(config.location.bounds, config.widthMm, config.heightMm);
@@ -63,40 +58,6 @@ export function boundsForProject(config: ProjectConfigV1): GeoBounds {
   return fitCutBounds({ west: worldXToLon(centerX - widthPx / 2, zoom), east: worldXToLon(centerX + widthPx / 2, zoom), north: worldYToLat(northY, zoom), south: worldYToLat(northY + heightPx, zoom) }, config.widthMm, config.heightMm);
 }
 
-interface DataTile { x: number; worldX: number; y: number; z: number }
-interface TileWindow { zoom: number; westX: number; eastX: number; northY: number; southY: number; tiles: DataTile[] }
-function tileWindow(bounds: GeoBounds, zoom: number): TileWindow {
-  const westX = lonToWorldX(bounds.west, zoom);
-  const eastX = lonToWorldX(bounds.east, zoom);
-  const northY = latToWorldY(bounds.north, zoom);
-  const southY = latToWorldY(bounds.south, zoom);
-  const scale = 2 ** zoom;
-  const minWorldX = Math.floor(westX / TILE_SIZE);
-  const maxWorldX = Math.floor((eastX - 1e-6) / TILE_SIZE);
-  const minY = Math.max(0, Math.floor(northY / TILE_SIZE));
-  const maxY = Math.min(scale - 1, Math.floor((southY - 1e-6) / TILE_SIZE));
-  const count = (maxWorldX - minWorldX + 1) * (maxY - minY + 1);
-  if (!Number.isSafeInteger(count) || count < 1 || count > MAX_DATA_TILES) throw new Error("The selected area is too large at this zoom. Zoom in and try again.");
-  const tiles: TileWindow["tiles"] = [];
-  for (let y = minY; y <= maxY; y += 1) {
-    for (let worldX = minWorldX; worldX <= maxWorldX; worldX += 1) {
-      const x = ((worldX % scale) + scale) % scale;
-      tiles.push({ x, worldX, y, z: zoom });
-    }
-  }
-  return { zoom, westX, eastX, northY, southY, tiles };
-}
-
-function fittingTileWindow(bounds: GeoBounds, requestedZoom: number, minimumZoom = 0): TileWindow {
-  let zoom = Math.max(minimumZoom, requestedZoom);
-  while (true) {
-    try { return tileWindow(bounds, zoom); }
-    catch (error) {
-      if (zoom <= minimumZoom || !(error instanceof Error) || !error.message.includes("too large")) throw error;
-      zoom -= 1;
-    }
-  }
-}
 
 export function fittingDataZoom(bounds: GeoBounds, requestedZoom: number): number {
   return fittingTileWindow(bounds, requestedZoom).zoom;
@@ -125,292 +86,9 @@ export function isStateProvinceBoundary(properties: Record<string, unknown>): bo
   return properties.kind === "region";
 }
 
-// Vector tiles deliberately repeat linework in a buffer outside each tile so a
-// map renderer can draw seamless strokes. Fabrication geometry cannot retain
-// that buffer: adjacent tiles would score or engrave the same path several times.
-export function clipVectorTileLine(points: Point2D[], extent: number): Point2D[][] {
-  if (points.length < 2 || !(extent > 0)) return [];
-  const result: Point2D[][] = [];
-  let active: Point2D[] = [];
-  const samePoint = (left: Point2D, right: Point2D) => Math.hypot(left.x - right.x, left.y - right.y) <= 1e-7;
-  const flush = () => {
-    if (active.length > 1) result.push(active);
-    active = [];
-  };
-  for (let index = 0; index < points.length - 1; index += 1) {
-    const start = points[index]!;
-    const end = points[index + 1]!;
-    const dx = end.x - start.x;
-    const dy = end.y - start.y;
-    let entry = 0;
-    let exit = 1;
-    let visible = true;
-    for (const [p, q] of [[-dx, start.x], [dx, extent - start.x], [-dy, start.y], [dy, extent - start.y]] as Array<[number, number]>) {
-      if (Math.abs(p) <= 1e-12) {
-        if (q < 0) { visible = false; break; }
-        continue;
-      }
-      const ratio = q / p;
-      if (p < 0) entry = Math.max(entry, ratio);
-      else exit = Math.min(exit, ratio);
-      if (entry > exit) { visible = false; break; }
-    }
-    if (!visible || exit - entry <= 1e-12) {
-      flush();
-      continue;
-    }
-    const clippedStart = { x: start.x + dx * entry, y: start.y + dy * entry };
-    const clippedEnd = { x: start.x + dx * exit, y: start.y + dy * exit };
-    const previous = active.at(-1);
-    if (!previous || !samePoint(previous, clippedStart)) {
-      flush();
-      active = [clippedStart];
-    }
-    if (!samePoint(active.at(-1)!, clippedEnd)) active.push(clippedEnd);
-  }
-  flush();
-  return result;
-}
-
-function pointKey(point: Point2D, toleranceMm = 1e-4): string {
-  return `${Math.round(point.x / toleranceMm)},${Math.round(point.y / toleranceMm)}`;
-}
-
-function samePoint(left: Point2D, right: Point2D, tolerance = 1e-7): boolean {
-  return Math.hypot(left.x - right.x, left.y - right.y) <= tolerance;
-}
-
-function pathLength(points: Point2D[]): number {
-  let length = 0;
-  for (let index = 0; index < points.length - 1; index += 1) length += Math.hypot(points[index + 1]!.x - points[index]!.x, points[index + 1]!.y - points[index]!.y);
-  return length;
-}
-
-function distanceToSegment(point: Point2D, start: Point2D, end: Point2D): number {
-  const dx = end.x - start.x;
-  const dy = end.y - start.y;
-  const lengthSquared = dx * dx + dy * dy;
-  if (lengthSquared <= 1e-12) return Math.hypot(point.x - start.x, point.y - start.y);
-  const ratio = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared));
-  return Math.hypot(point.x - (start.x + dx * ratio), point.y - (start.y + dy * ratio));
-}
-
-function simplifyPath(points: Point2D[], tolerance: number): Point2D[] {
-  if (points.length < 3 || tolerance <= 0) return points;
-  const closed = samePoint(points[0]!, points.at(-1)!);
-  const source = closed ? points.slice(0, -1) : points;
-  if (source.length < 3) return points;
-  const keep = new Uint8Array(source.length);
-  keep[0] = 1;
-  keep[source.length - 1] = 1;
-  const stack: Array<[number, number]> = [[0, source.length - 1]];
-  while (stack.length) {
-    const [start, end] = stack.pop()!;
-    let maximum = tolerance;
-    let selected = -1;
-    for (let index = start + 1; index < end; index += 1) {
-      const distance = distanceToSegment(source[index]!, source[start]!, source[end]!);
-      if (distance > maximum) { maximum = distance; selected = index; }
-    }
-    if (selected > 0) {
-      keep[selected] = 1;
-      stack.push([start, selected], [selected, end]);
-    }
-  }
-  const simplified = source.filter((_, index) => keep[index] === 1);
-  if (closed && simplified[0]) simplified.push({ ...simplified[0] });
-  return simplified;
-}
-
-function ringIsLargeEnough(points: Point2D[], minimumFeatureMm: number): boolean {
-  if (points.length < 4) return false;
-  const xs = points.map((point) => point.x);
-  const ys = points.map((point) => point.y);
-  return Math.max(...xs) - Math.min(...xs) >= minimumFeatureMm && Math.max(...ys) - Math.min(...ys) >= minimumFeatureMm;
-}
-
-/**
- * Dissolve vector-tile polygon fragments into whole water bodies.
- *
- * Tiles cut every lake into per-tile pieces, so the union has to happen before
- * anything measures a shoreline or a distance to one. The result keeps its
- * outer/hole structure - islands included - because a carve needs the filled
- * shape, not a bag of rings.
- */
-export function dissolveWaterAreas(polygons: Polygon2D[], minimumFeatureMm: number): Polygon2D[] {
-  if (!polygons.length) return [];
-  const inputs: MultiPolygon[] = polygons.map((polygon) => [[
-    polygon.outer.map((point) => [point.x, point.y] as Pair),
-    ...polygon.holes.map((ring) => ring.map((point) => [point.x, point.y] as Pair)),
-  ]]);
-  const dissolved = polygonClipping.union(inputs[0]!, ...inputs.slice(1));
-  return multiPolygonToAreas(dissolved, minimumFeatureMm);
-}
-
-/** polygon-clipping emits outer-first rings; restore the winding Polygon2D promises. */
-function multiPolygonToAreas(multi: MultiPolygon, minimumFeatureMm: number): Polygon2D[] {
-  const tolerance = minimumFeatureMm * 0.18;
-  const areas: Polygon2D[] = [];
-  for (const polygon of multi) {
-    const [outerRing, ...holeRings] = polygon;
-    if (!outerRing) continue;
-    const outer = closedSimplified(outerRing, tolerance);
-    if (!ringIsLargeEnough(outer, minimumFeatureMm)) continue;
-    areas.push({
-      outer: signedArea(outer) < 0 ? [...outer].reverse() : outer,
-      holes: holeRings
-        .map((ring) => closedSimplified(ring, tolerance))
-        .filter((ring) => ringIsLargeEnough(ring, minimumFeatureMm))
-        .map((ring) => (signedArea(ring) > 0 ? [...ring].reverse() : ring)),
-    });
-  }
-  return areas;
-}
-
-function closedSimplified(ring: readonly Pair[], tolerance: number): Point2D[] {
-  const points = simplifyPath(ring.map(([x, y]) => ({ x, y })), tolerance);
-  if (!samePoint(points[0]!, points.at(-1)!)) points.push({ ...points[0]! });
-  return points;
-}
-
-function signedArea(points: Point2D[]): number {
-  let total = 0;
-  for (let index = 0, previous = points.length - 1; index < points.length; previous = index, index += 1) {
-    total += (points[previous]!.x - points[index]!.x) * (points[previous]!.y + points[index]!.y);
-  }
-  return total / 2;
-}
-
-/** Dissolve vector-tile polygon fragments before extracting their shorelines. */
-export function dissolveWaterPolygons(polygons: Polygon2D[], minimumFeatureMm: number): MarkingFeature[] {
-  return shorelineMarkings(dissolveWaterAreas(polygons, minimumFeatureMm));
-}
-
-export function shorelineMarkings(areas: Polygon2D[]): MarkingFeature[] {
-  const markings: MarkingFeature[] = [];
-  areas.forEach((area, areaIndex) => [area.outer, ...area.holes].forEach((points, ringIndex) => {
-    markings.push({ id: `water-area-${areaIndex}-shore-${ringIndex}`, kind: "water", operation: "score", points });
-  }));
-  return markings;
-}
-
-/** Remove buffered duplicates and join continuous river/stream tile pieces. */
-export function cleanWaterwayMarkings(markings: MarkingFeature[], minimumFeatureMm: number): MarkingFeature[] {
-  const unique: MarkingFeature[] = [];
-  const paths = new Set<string>();
-  for (const marking of markings) {
-    if (marking.points.length < 2) continue;
-    const forward = marking.points.map((point) => pointKey(point)).join(";");
-    const reverse = [...marking.points].reverse().map((point) => pointKey(point)).join(";");
-    const key = forward < reverse ? forward : reverse;
-    if (!paths.has(key)) { paths.add(key); unique.push(marking); }
-  }
-  const endpoints = new Map<string, Set<number>>();
-  unique.forEach((marking, index) => {
-    for (const point of [marking.points[0]!, marking.points.at(-1)!]) {
-      const key = pointKey(point);
-      const owners = endpoints.get(key) ?? new Set<number>();
-      owners.add(index);
-      endpoints.set(key, owners);
-    }
-  });
-  const used = new Set<number>();
-  const result: MarkingFeature[] = [];
-  unique.forEach((marking, markingIndex) => {
-    if (used.has(markingIndex)) return;
-    used.add(markingIndex);
-    const points = [...marking.points];
-    let extended = true;
-    while (extended) {
-      extended = false;
-      for (const atStart of [false, true]) {
-        const shared = atStart ? points[0]! : points.at(-1)!;
-        const owners = endpoints.get(pointKey(shared));
-        if (owners?.size !== 2) continue;
-        const nextIndex = [...owners].find((index) => !used.has(index));
-        if (nextIndex === undefined) continue;
-        const next = unique[nextIndex]!;
-        const oriented = pointKey(next.points[0]!) === pointKey(shared) ? [...next.points] : [...next.points].reverse();
-        if (atStart) points.unshift(...oriented.reverse().slice(0, -1));
-        else points.push(...oriented.slice(1));
-        used.add(nextIndex);
-        extended = true;
-        break;
-      }
-    }
-    const simplified = simplifyPath(points, minimumFeatureMm * 0.18);
-    if (pathLength(simplified) >= minimumFeatureMm) result.push({ ...marking, id: `waterway-${result.length}`, points: simplified });
-  });
-  return result;
-}
-
-export function cleanBoundaryMarkings(markings: MarkingFeature[], minimumFeatureMm: number): MarkingFeature[] {
-  return cleanWaterwayMarkings(markings, minimumFeatureMm).map((marking, index) => ({ ...marking, id: `boundary-${index}` }));
-}
-
-// Once tile buffers are removed, join matching road pieces at unambiguous
-// degree-two endpoints. This keeps offset normals continuous around bends while
-// preserving real forks and intersections as separate branches.
-export function stitchTransportationMarkings(markings: MarkingFeature[]): MarkingFeature[] {
-  const transportation = markings.filter((marking) => marking.transportationClass && marking.points.length > 1);
-  const other = markings.filter((marking) => !marking.transportationClass || marking.points.length < 2);
-  const groups = new Map<string, MarkingFeature[]>();
-  for (const marking of transportation) {
-    const key = `${marking.kind}\u0000${marking.transportationClass}\u0000${marking.label ?? ""}`;
-    groups.set(key, [...(groups.get(key) ?? []), marking]);
-  }
-  const stitched: MarkingFeature[] = [];
-  for (const features of groups.values()) {
-    const unique: MarkingFeature[] = [];
-    const paths = new Set<string>();
-    for (const feature of features) {
-      const forward = feature.points.map((point) => pointKey(point)).join(";");
-      const reverse = [...feature.points].reverse().map((point) => pointKey(point)).join(";");
-      const key = forward < reverse ? forward : reverse;
-      if (!paths.has(key)) { paths.add(key); unique.push(feature); }
-    }
-    const endpoints = new Map<string, Set<number>>();
-    unique.forEach((feature, index) => {
-      for (const point of [feature.points[0]!, feature.points.at(-1)!]) {
-        const key = pointKey(point);
-        const owners = endpoints.get(key) ?? new Set<number>();
-        owners.add(index);
-        endpoints.set(key, owners);
-      }
-    });
-    const used = new Set<number>();
-    unique.forEach((feature, featureIndex) => {
-      if (used.has(featureIndex)) return;
-      used.add(featureIndex);
-      const points = [...feature.points];
-      let extended = true;
-      while (extended) {
-        extended = false;
-        for (const atStart of [false, true]) {
-          const shared = atStart ? points[0]! : points.at(-1)!;
-          const owners = endpoints.get(pointKey(shared));
-          if (owners?.size !== 2) continue;
-          const nextIndex = [...owners].find((index) => !used.has(index));
-          if (nextIndex === undefined) continue;
-          const next = unique[nextIndex]!;
-          const sharesNextStart = pointKey(next.points[0]!) === pointKey(shared);
-          const oriented = sharesNextStart ? [...next.points] : [...next.points].reverse();
-          if (atStart) points.unshift(...oriented.reverse().slice(0, -1));
-          else points.push(...oriented.slice(1));
-          used.add(nextIndex);
-          extended = true;
-          break;
-        }
-      }
-      stitched.push({ ...feature, points });
-    });
-  }
-  return [...stitched, ...other];
-}
-
 // Decode numeric PNG channels directly, then interpolate elevations at native
 // pixel centers. Browser image/canvas APIs can alter the encoded heights.
-async function loadElevation(window: TileWindow, signal?: AbortSignal): Promise<{ elevation: SourceBundleV1["elevation"]; elevationRepairCount: number; imagerySources: string[]; datasetVersion: string }> {
+async function loadElevation(window: TileWindow, bounds: GeoBounds, signal?: AbortSignal) {
   const responses = await mapTiles(window.tiles, async (tile, signal) => {
     // Public tile URLs survive dataset releases; revalidate before fabrication.
     const response = await fetch(`${apiBase}/v1/terrain/${tile.z}/${tile.x}/${tile.y}.png`, { signal: networkSignal(signal), cache: "no-cache" });
@@ -419,14 +97,16 @@ async function loadElevation(window: TileWindow, signal?: AbortSignal): Promise<
     signal?.throwIfAborted();
     return { tile, response, values: decodeTerrainPng(bytes) };
   }, signal);
+  const preferred = await applyPreferredTerrain(apiBase, bounds, responses.map(({ tile, values }) => ({ ...tile, values })), signal);
   const minTileX = Math.min(...window.tiles.map((tile) => tile.worldX));
   const minTileY = Math.min(...window.tiles.map((tile) => tile.y));
   const mosaicWidth = (Math.max(...window.tiles.map((tile) => tile.worldX)) - minTileX + 1) * TILE_SIZE;
   const mosaicHeight = (Math.max(...window.tiles.map((tile) => tile.y)) - minTileY + 1) * TILE_SIZE;
   const mosaic = new Float32Array(mosaicWidth * mosaicHeight);
+  const terrainOwners = new Uint16Array(mosaic.length);
   const imagerySources = new Set<string>();
   const datasetVersions = new Set<string>();
-  for (const { tile, response, values } of responses) {
+  for (const [tileIndex, { tile, response, values }] of responses.entries()) {
     const datasetVersion = response.headers.get("x-topostack-dataset");
     if (!datasetVersion?.trim()) throw new Error("Terrain tile is missing its dataset version.");
     datasetVersions.add(datasetVersion);
@@ -434,7 +114,9 @@ async function loadElevation(window: TileWindow, signal?: AbortSignal): Promise<
     const left = (tile.worldX - minTileX) * TILE_SIZE;
     const top = (tile.y - minTileY) * TILE_SIZE;
     for (let row = 0; row < TILE_SIZE; row += 1) {
-      mosaic.set(values.subarray(row * TILE_SIZE, (row + 1) * TILE_SIZE), (top + row) * mosaicWidth + left);
+      const offset = (top + row) * mosaicWidth + left;
+      mosaic.set(values.subarray(row * TILE_SIZE, (row + 1) * TILE_SIZE), offset);
+      terrainOwners.set(preferred.owners[tileIndex]!.subarray(row * TILE_SIZE, (row + 1) * TILE_SIZE), offset);
     }
   }
   if (datasetVersions.size > 1) throw new Error("Terrain tiles came from inconsistent dataset versions. Try again shortly.");
@@ -453,10 +135,13 @@ async function loadElevation(window: TileWindow, signal?: AbortSignal): Promise<
   const values = new Float32Array(outputWidth * outputHeight);
   let min = Number.POSITIVE_INFINITY;
   let max = Number.NEGATIVE_INFINITY;
-  const sampleMosaic = (x: number, y: number): number => {
+  const contributions = new Float64Array(preferred.selectedSources.length + 1);
+  const sampleMosaic = (x: number, y: number, weight: number): number => {
     const clampedX = Math.max(0, Math.min(mosaicWidth - 1, x));
     const clampedY = Math.max(0, Math.min(mosaicHeight - 1, y));
-    return mosaic[clampedY * mosaicWidth + clampedX] ?? 0;
+    const index = clampedY * mosaicWidth + clampedX;
+    contributions[terrainOwners[index]!]! += weight;
+    return mosaic[index] ?? 0;
   };
   for (let row = 0; row < outputHeight; row += 1) {
     // Native pixel centers sit at +0.5, so subtract it before interpolating.
@@ -467,15 +152,22 @@ async function loadElevation(window: TileWindow, signal?: AbortSignal): Promise<
       const worldX = window.westX + (spanX * column) / (outputWidth - 1) - minTileX * TILE_SIZE - 0.5;
       const x0 = Math.floor(worldX);
       const fx = worldX - x0;
-      const top = sampleMosaic(x0, y0) * (1 - fx) + sampleMosaic(x0 + 1, y0) * fx;
-      const bottom = sampleMosaic(x0, y0 + 1) * (1 - fx) + sampleMosaic(x0 + 1, y0 + 1) * fx;
+      const top = sampleMosaic(x0, y0, (1 - fx) * (1 - fy)) * (1 - fx) + sampleMosaic(x0 + 1, y0, fx * (1 - fy)) * fx;
+      const bottom = sampleMosaic(x0, y0 + 1, (1 - fx) * fy) * (1 - fx) + sampleMosaic(x0 + 1, y0 + 1, fx * fy) * fx;
       const elevation = top * (1 - fy) + bottom * fy;
       values[row * outputWidth + column] = elevation;
       min = Math.min(min, elevation);
       max = Math.max(max, elevation);
     }
   }
-  return { elevation: { width: outputWidth, height: outputHeight, values, min, max }, elevationRepairCount, imagerySources: [...imagerySources].sort(), datasetVersion: [...datasetVersions][0]! };
+  const terrainSelection: NonNullable<SourceBundleV1["terrainSelection"]> = {
+    policy: "terrain-priority-v1", attempts: preferred.attempts,
+    sources: [
+      { id: "mapzen", name: "Mapzen composite terrain", verticalDatum: "Source-dependent", fraction: contributions[0]! / values.length },
+      ...preferred.selectedSources.map((source, index) => ({ id: source.id, name: source.name, nativeResolutionM: source.nativeResolutionM, verticalDatum: source.verticalDatum, fraction: contributions[index + 1]! / values.length })),
+    ].filter((source) => source.fraction > 0.000001),
+  };
+  return { terrainSelection, elevation: { width: outputWidth, height: outputHeight, values, min, max }, elevationRepairCount, imagerySources: [...imagerySources, ...preferred.imagerySources].sort(), datasetVersion: [[...datasetVersions][0]!, ...preferred.datasetVersions].join("+"), terrainAttribution: preferred.attribution, terrainSourceUnavailable: preferred.unavailable };
 }
 
 export interface VectorData {
@@ -488,41 +180,13 @@ export interface VectorData {
   truncated: boolean;
 }
 
-export function limitVectorMarkingGroups(groups: MarkingFeature[][], maximum = MAX_VECTOR_MARKINGS): { markings: MarkingFeature[]; truncated: boolean } {
-  const nonempty = groups.filter((group) => group.length > 0);
-  const markings: MarkingFeature[] = [];
-  for (let index = 0; markings.length < maximum; index += 1) {
-    let added = false;
-    for (const group of nonempty) {
-      const marking = group[index];
-      if (!marking) continue;
-      markings.push(marking);
-      added = true;
-      if (markings.length >= maximum) break;
-    }
-    if (!added) break;
-  }
-  return { markings, truncated: groups.reduce((total, group) => total + group.length, 0) > markings.length };
-}
-
 export async function loadVectorMarkings(bounds: GeoBounds, requestedZoom: number, config: ProjectConfigV1, signal?: AbortSignal): Promise<VectorData> {
   signal?.throwIfAborted();
   const vectorArchive = createArchive(`${apiBase}/v1/osm.pmtiles`, signal);
   const header = await vectorArchive.getHeader();
   signal?.throwIfAborted();
-  let vectorZoom = Math.max(header.minZoom, Math.min(header.maxZoom, Math.round(requestedZoom) + 1));
-  let window: TileWindow;
-  while (true) {
-    try { window = tileWindow(bounds, vectorZoom); break; }
-    catch (error) {
-      if (vectorZoom <= header.minZoom || !(error instanceof Error) || !error.message.includes("too large")) throw error;
-      vectorZoom -= 1;
-    }
-  }
-  const projectPoint = (tile: DataTile, extent: number, point: Point2D): Point2D => ({
-    x: (((tile.worldX + point.x / extent) * TILE_SIZE - window.westX) / (window.eastX - window.westX) - 0.5) * config.widthMm,
-    y: (((tile.y + point.y / extent) * TILE_SIZE - window.northY) / (window.southY - window.northY) - 0.5) * config.heightMm,
-  });
+  const window = fittingTileWindow(bounds, Math.max(header.minZoom, Math.min(header.maxZoom, Math.round(requestedZoom) + 1)), header.minZoom);
+  const projectPoint = tilePointProjector(window, config.widthMm, config.heightMm);
   const { lakes: usesWaterDepth } = sourceRequirements(config);
   // Share cleanup headroom across the selection. Fixed per-tile/category
   // quotas can discard a dense tile while empty neighbors leave room unused.
@@ -653,19 +317,8 @@ async function loadHydroLakeAreas(bounds: GeoBounds, requestedZoom: number, conf
   const lakeArchive = createArchive(`${apiBase}/v1/lakes.pmtiles`, signal);
   const header = await lakeArchive.getHeader();
   signal?.throwIfAborted();
-  let zoom = Math.max(header.minZoom, Math.min(header.maxZoom, Math.round(requestedZoom)));
-  let window: TileWindow;
-  while (true) {
-    try { window = tileWindow(bounds, zoom); break; }
-    catch (error) {
-      if (zoom <= header.minZoom || !(error instanceof Error) || !error.message.includes("too large")) throw error;
-      zoom -= 1;
-    }
-  }
-  const projectPoint = (tile: DataTile, extent: number, point: Point2D): Point2D => ({
-    x: (((tile.worldX + point.x / extent) * TILE_SIZE - window.westX) / (window.eastX - window.westX) - 0.5) * config.widthMm,
-    y: (((tile.y + point.y / extent) * TILE_SIZE - window.northY) / (window.southY - window.northY) - 0.5) * config.heightMm,
-  });
+  const window = fittingTileWindow(bounds, Math.max(header.minZoom, Math.min(header.maxZoom, Math.round(requestedZoom))), header.minZoom);
+  const projectPoint = tilePointProjector(window, config.widthMm, config.heightMm);
   const numberProperty = (properties: Record<string, unknown>, key: string): number | undefined => {
     const value = Number(properties[key]);
     return Number.isFinite(value) ? value : undefined;
@@ -742,51 +395,19 @@ export function loadSurveyedLakeDepths(bounds: GeoBounds, elevation: SourceBundl
   return loadLakeBathymetry(apiBase, bounds, elevation, zoom, areas, signal, dimensions);
 }
 
-function groundWidthM(bounds: GeoBounds): number {
-  return Math.abs(bounds.east - bounds.west) * Math.PI / 180 * 6_371_008.8 * Math.cos(((bounds.north + bounds.south) / 2) * Math.PI / 180);
+export interface TerrainLoadResult {
+  source: SourceBundleV1;
+  /** True when elevation could not be loaded and deterministic sample terrain was substituted. */
+  fallback: boolean;
+  /** The underlying elevation failure behind a fallback, for the status line and warning. */
+  fallbackReason?: string;
+  /** Lake/ocean assembly failed after real elevation loaded; the terrain is kept without water adjustment. */
+  waterWarning?: string;
 }
 
-/**
- * Merge the depth-bearing lakes with the OSM ocean.
- *
- * Where a HydroLAKES lake covers OSM water, the lake wins and the OSM shape is
- * cut away. Both would otherwise describe the same shoreline a few tens of
- * meters apart, and the scored outline would visibly miss the cut recess.
- */
-export function combineWaterAreas(lakes: WaterAreaV1[], ocean: Polygon2D[], minimumFeatureMm: number): WaterAreaV1[] {
-  const oceanAreas: WaterAreaV1[] = ocean.map((polygon, index) => ({ id: `ocean-${index}`, kind: "ocean", polygon }));
-  if (!lakes.length || !ocean.length) return [...oceanAreas, ...lakes];
-  const lakeInput: MultiPolygon = lakes.map((lake) => [
-    lake.polygon.outer.map((point) => [point.x, point.y] as Pair),
-    ...lake.polygon.holes.map((ring) => ring.map((point) => [point.x, point.y] as Pair)),
-  ]);
-  const trimmed: WaterAreaV1[] = [];
-  oceanAreas.forEach((area, areaIndex) => {
-    const difference = polygonClipping.difference(
-      [[area.polygon.outer.map((point) => [point.x, point.y] as Pair), ...area.polygon.holes.map((ring) => ring.map((point) => [point.x, point.y] as Pair))]],
-      lakeInput,
-    );
-    multiPolygonToAreas(difference, minimumFeatureMm).forEach((polygon, index) => {
-      trimmed.push({ id: `ocean-${areaIndex}-${index}`, kind: "ocean", polygon });
-    });
-  });
-  return [...trimmed, ...lakes];
-}
+const errorMessage = (error: unknown, fallback: string) => error instanceof Error && error.message.trim() ? error.message : fallback;
 
-/** Keep visible shorelines aligned with the polygons used for lake depths. */
-export function applyLakeShorelines(source: SourceBundleV1, config: ProjectConfigV1): SourceBundleV1 {
-  if (!source.waterAreas?.length) return source;
-  const lakes = resolveLakeOutlines([], source.waterAreas.filter((area) => area.kind === "lake"), source.inlandWaterAreas ?? []);
-  const polygons = [...source.waterAreas.filter((area) => area.kind === "ocean").map((area) => area.polygon), ...lakes.map((area) => area.polygon)];
-  const limited = limitVectorMarkingGroups([
-    source.markings.filter((marking) => !marking.id.startsWith("water-area-")),
-    config.showWater ? shorelineMarkings(polygons) : [],
-  ]);
-  return { ...source, markings: limited.markings, waterPatternAreas: polygons,
-    vectorStatus: limited.truncated && source.vectorStatus === "available" ? "partial" : source.vectorStatus };
-}
-
-export async function loadTerrain(config: ProjectConfigV1, signal?: AbortSignal): Promise<{ source: SourceBundleV1; fallback: boolean }> {
+export async function loadTerrain(config: ProjectConfigV1, signal?: AbortSignal): Promise<TerrainLoadResult> {
   const bounds = boundsForProject(config);
   // Compiled only into the Playwright build (vite build --mode e2e) so browser
   // generation/export stays deterministic and cannot accidentally depend on an
@@ -802,44 +423,67 @@ export async function loadTerrain(config: ProjectConfigV1, signal?: AbortSignal)
   const operation = new AbortController();
   signal = userSignal ? AbortSignal.any([userSignal, operation.signal]) : operation.signal;
   try {
-    // Imported/custom bounds can be much wider than their stored map zoom.
-    // Downshift terrain resolution until the request fits the bounded tile
-    // budget, matching the vector and lake behavior instead of falling back to
-    // synthetic terrain for an otherwise valid statewide selection.
-    const window = fittingTileWindow(bounds, zoom);
     // Ocean polygons are how geometry separates bathymetry from land relief,
     // so depth modeling needs vectors even when shoreline scoring is hidden.
     const { lakes: usesWaterDepth } = sourceRequirements(config);
     const vectorRequested = sourceRequirements(config).vectors;
-    const [{ elevation, elevationRepairCount, imagerySources, datasetVersion }, vector, lakes] = await Promise.all([
-      loadElevation(window, signal),
-      vectorRequested
-        ? loadVectorMarkings(bounds, zoom, config, signal)
-          .then((vectorData) => ({ ...vectorData, status: vectorData.truncated ? "partial" as const : "available" as const }))
-          .catch((error) => {
-            if (signal?.aborted) throw error;
-            return { markings: [], inland: [], ocean: [], truncated: false, status: "unavailable" as const };
-          })
-        : Promise.resolve({ markings: [], inland: [], ocean: [], truncated: false, status: "not-requested" as const }),
-      (usesWaterDepth || config.showWater)
-        ? loadLakeAreas(bounds, zoom, config, signal)
-          .then((areas) => ({ areas, status: "available" as const }))
-          .catch((error) => {
-            if (signal?.aborted) throw error;
-            return { areas: [] as WaterAreaV1[], status: "unavailable" as const };
-          })
-        : Promise.resolve({ areas: [] as WaterAreaV1[], status: "not-requested" as const }),
-    ]);
-    const areas = resolveLakeOutlines([], lakes.areas, usesWaterDepth || config.showWater ? vector.inland : []);
-    const bathymetry = usesWaterDepth
-      ? await loadSurveyedLakeDepths(bounds, elevation, zoom, areas, signal, config)
-      : { areas, status: "not-covered" as const, datasetVersions: [], attribution: [] };
-    const waterAreas = combineWaterAreas(bathymetry.areas, vector.ocean, config.minimumFeatureMm);
-    return { fallback: false, source: applyLakeShorelines(applySurveyProvenance({ schemaVersion: 1, elevation, elevationRepairCount, markings: vector.markings, waterAreas, waterPatternAreas: [...vector.ocean, ...vector.inland], inlandWaterAreas: vector.inland, vectorStatus: vector.status, lakeDataStatus: bathymetry.areas.length ? "available" : lakes.status, datasetVersion, sourceKind: "real", bounds, imagerySources, resolutionM: groundWidthM(bounds) / elevation.width, attribution: MAP_DATA_ATTRIBUTION }, bathymetry), config) };
-  } catch (error) {
-    if (userSignal?.aborted) throw error;
-    const source = createSyntheticSource({ ...config, location: { ...config.location, bounds } });
-    return { source: { ...source, vectorStatus: sourceRequirements(config).vectors ? "unavailable" : "not-requested", lakeDataStatus: config.outputMode === "stack" && config.showWaterDepth ? "unavailable" : "not-requested" }, fallback: true };
+    let loaded;
+    try {
+      // Imported/custom bounds can be much wider than their stored map zoom.
+      // Downshift terrain resolution until the request fits the bounded tile
+      // budget, matching the vector and lake behavior instead of falling back to
+      // synthetic terrain for an otherwise valid statewide selection.
+      const window = fittingTileWindow(bounds, zoom);
+      loaded = await Promise.all([
+        loadElevation(window, bounds, signal),
+        vectorRequested
+          ? loadVectorMarkings(bounds, zoom, config, signal)
+            .then((vectorData) => ({ ...vectorData, status: vectorData.truncated ? "partial" as const : "available" as const }))
+            .catch((error) => {
+              if (signal?.aborted) throw error;
+              return { markings: [], inland: [], ocean: [], truncated: false, status: "unavailable" as const };
+            })
+          : Promise.resolve({ markings: [], inland: [], ocean: [], truncated: false, status: "not-requested" as const }),
+        (usesWaterDepth || config.showWater)
+          ? loadLakeAreas(bounds, zoom, config, signal)
+            .then((areas) => ({ areas, status: "available" as const }))
+            .catch((error) => {
+              if (signal?.aborted) throw error;
+              return { areas: [] as WaterAreaV1[], status: "unavailable" as const };
+            })
+          : Promise.resolve({ areas: [] as WaterAreaV1[], status: "not-requested" as const }),
+      ]);
+    } catch (error) {
+      if (userSignal?.aborted) throw error;
+      // Elevation is the one input fabrication cannot do without. Keep the
+      // editor usable with sample terrain, but say why real data is missing.
+      const source = createSyntheticSource({ ...config, location: { ...config.location, bounds } });
+      return {
+        source: { ...source, vectorStatus: vectorRequested ? "unavailable" : "not-requested", lakeDataStatus: usesWaterDepth ? "unavailable" : "not-requested" },
+        fallback: true,
+        fallbackReason: errorMessage(error, "The terrain service could not be reached."),
+      };
+    }
+    const [{ elevation, elevationRepairCount, imagerySources, datasetVersion, terrainAttribution, terrainSourceUnavailable, terrainSelection }, vector, lakes] = loaded;
+    const base: SourceBundleV1 = { schemaVersion: 1, elevation, elevationRepairCount, terrainSourceUnavailable, terrainSelection, markings: vector.markings, waterPatternAreas: [...vector.ocean, ...vector.inland], inlandWaterAreas: vector.inland, vectorStatus: vector.status, lakeDataStatus: lakes.status, datasetVersion, sourceKind: "real", bounds, imagerySources, resolutionM: groundWidthM(bounds) / elevation.width, attribution: [...MAP_DATA_ATTRIBUTION, ...terrainAttribution] };
+    try {
+      const areas = resolveLakeOutlines([], lakes.areas, usesWaterDepth || config.showWater ? vector.inland : []);
+      const bathymetry = usesWaterDepth
+        ? await loadSurveyedLakeDepths(bounds, elevation, zoom, areas, signal, config)
+        : { areas, status: "not-covered" as const, datasetVersions: [], attribution: [] };
+      const source = applySurveyProvenance({ ...base, lakeDataStatus: bathymetry.areas.length ? "available" : lakes.status }, bathymetry);
+      return { fallback: false, source: assembleWater(source, bathymetry.areas, vector.ocean, config) };
+    } catch (error) {
+      if (userSignal?.aborted) throw error;
+      // Water assembly is an enhancement over good elevation; never trade real
+      // terrain for sample terrain because a lake outline failed to clip.
+      const requested = usesWaterDepth || config.showWater;
+      return {
+        fallback: false,
+        waterWarning: errorMessage(error, "Water outlines could not be assembled."),
+        source: { ...base, waterAreas: vector.ocean.map((polygon, index) => ({ id: `ocean-${index}`, kind: "ocean" as const, polygon })), lakeDataStatus: requested ? "unavailable" : lakes.status, ...(usesWaterDepth ? { bathymetryStatus: "unavailable" as const } : {}) },
+      };
+    }
   } finally {
     operation.abort();
   }

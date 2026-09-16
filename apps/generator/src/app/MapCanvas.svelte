@@ -7,7 +7,7 @@
   import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
   import { MAX_PROJECT_DIMENSION_MM, markerSymbolCenterForAnchor, markerSymbolPaths, unwrapLongitude, type CustomLineFeatureV1, type GeoBounds, type MapMarkerV1, type MarkerSymbol, type ProjectConfigV1 } from "@topostack/core";
   import { boundsForProject } from "../data-provider";
-  let { project, onLocationChange, onSelectionResize, onUnavailable }: { project: ProjectConfigV1; onSelectionResize: (widthMm: number, heightMm: number, bounds: GeoBounds) => void; onUnavailable?: () => void; onLocationChange: (lat: number, lon: number, zoom: number, bounds: GeoBounds) => void } = $props();
+  let { project, onLocationChange, onSelectionResize, onUnavailable }: { project: ProjectConfigV1; onSelectionResize: (widthMm: number, heightMm: number, bounds: GeoBounds) => void; onUnavailable?: (reason?: "unsupported" | "load-failed") => void; onLocationChange: (lat: number, lon: number, zoom: number, bounds: GeoBounds) => void } = $props();
   import AtommZoom from "./AtommZoom.svelte";
   const isEmbedded = getContext<() => boolean>("atomm-embedded") ?? (() => false);
   let zoomScale = $state(1);
@@ -173,13 +173,26 @@
     maplibregl.setWorkerUrl(mapWorkerUrl);
     try {
       map = new maplibregl.Map({ container, style: "https://tiles.openfreemap.org/styles/liberty", center: [project.location.lon, project.location.lat], zoom: project.location.zoom, attributionControl: false, cooperativeGestures: true, dragRotate: false, touchPitch: false, trackResize: false });
-    } catch { onUnavailable?.(); return; }
+    } catch { onUnavailable?.("unsupported"); return; }
     map.touchZoomRotate.disableRotation();
     if (!isEmbedded()) map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
     initialZoom = map.getZoom(); initialCenter = [project.location.lon, project.location.lat];
     map.on("zoom", () => { if (map) zoomScale = 2 ** (map.getZoom() - initialZoom); });
     map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: `<a href="${base}/attribution" target="_blank" rel="noopener noreferrer">All sources</a>` }), "bottom-left");
     map.on("load", () => syncCustomLines(project.customLines));
+    let reportedFailure = false;
+    let styleReady = false;
+    map.once("style.load", () => { styleReady = true; });
+    map.once("load", () => { styleReady = true; });
+    map.on("error", (event) => {
+      // Individual tiles fail routinely (offline pans, rate limits) and MapLibre
+      // retries them; only a style that never loaded leaves a blank canvas.
+      const detail = event as unknown as { sourceId?: string; tile?: unknown; error?: unknown };
+      if (reportedFailure || styleReady || detail.sourceId !== undefined || detail.tile !== undefined) return;
+      reportedFailure = true;
+      console.warn("TopoStack map style could not load.", detail.error);
+      onUnavailable?.("load-failed");
+    });
     const emitSelection = () => {
       if (!map) return;
       const center = map.getCenter();

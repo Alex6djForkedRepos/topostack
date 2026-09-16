@@ -1,0 +1,31 @@
+{
+  "dataset": "nrcan-hrdem-alexander-v1",
+  "tile": {
+    "z": 14,
+    "x": 4598,
+    "y": 5796
+  },
+  "sha256": "876c7d995e6a91bf427c42808a06b4676d75692c67eaf0f8020120ef86f4280e",
+  "samples": [
+    {
+      "index": 36352,
+      "elevationM": 320.66015625
+    },
+    {
+      "index": 43647,
+      "elevationM": 251.296875
+    },
+    {
+      "index": 50943,
+      "elevationM": 271.9765625
+    },
+    {
+      "index": 58239,
+      "elevationM": 290.30859375
+    },
+    {
+      "index": 65535,
+      "elevationM": 247.62890625
+    }
+  ]
+}

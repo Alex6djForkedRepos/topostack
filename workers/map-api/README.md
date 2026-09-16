@@ -84,6 +84,12 @@ Configure `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and `GEOCODER_API_KEY
 
 Geocoder cache reads enforce the age of the R2 object's upload timestamp. Results older than 24 hours are refreshed; browser `max-age` is limited to the remaining freshness of a cached result. Configure an R2 lifecycle rule scoped to `geocode/` to delete objects after two days for storage cleanup. Application freshness is enforced even if lifecycle cleanup is delayed. Do not apply this rule to terrain or vector archive prefixes.
 
+Empty geocoder answers are never written to R2 and carry a five-minute browser `max-age`. Place-search cache misses pass a per-client `GEOCODE_LIMITER` budget and then a shared `REQUEST_LIMITER` key (`geocode-global`, 240/min per Cloudflare location) that caps provider spend regardless of `Origin`; CORS is not access control.
+
+Request budgets: PMTiles range reads and terrain cache hits/304s are R2-backed and are not charged to the per-client `REQUEST_LIMITER`; terrain charges it only before an upstream fetch. Health, readiness, manifest and geocode routes keep the per-client budget. Ranges above 16 MiB return 413 (416 would make PMTiles clients reload the archive).
+
+Terrain tiles carry an MD5 `etag` on both misses and hits, and conditional hits use an R2 `etagDoesNotMatch` read without fetching the body. Cached tiles are current only with `terrainValidation: png-v1` and `provenance: v2` metadata; older entries are refetched lazily and overwritten (a validated legacy tile is served as `x-topostack-cache: STALE` if the origin is unreachable). Release-pointer resolution for PMTiles reads is memoized per isolate for 60 seconds; a failed conditional range read evicts it and retries once, and an invalid pointer returns 503 with `retry-after` and an `archive_release_invalid` log.
+
 `/ready` requires both PMTiles archives and a configured geocoder, matching a default project's water-depth requirements. `/health` remains the process liveness check. Gateway completion logs include status, cache outcome, environment, and elapsed milliseconds without search text or provider credentials. Alert on elevated 5xx responses on `/v1/terrain/` and `/v1/geocode`, including cache-miss paths; a fixed canary served from R2 alone cannot establish upstream health.
 
 Both provisioning scripts save `<archive>.provisioning.json` after remote verification, recording the immutable object, byte count, SHA-256, previous release, and promotion state per bucket. The receipt is saved before pointer activation and updated afterward; keep it even after a partially completed multi-bucket run. Retain the actual archives and receipts outside the repository so the mutable `current.pmtiles` keys can be restored. See [release acceptance and rollback](../../docs/release-acceptance.md). A production browser monitor failure uploads `test-results-live` diagnostics for seven days.
@@ -113,3 +119,10 @@ Deploy this gateway before using `--promote`; provisioning verifies the public m
 The hourly cron at minute 7 validates terrain and geocoder origins without consulting their caches. The monitor at minute 17 checks `/v1/upstream-health`; snapshots become stale after two hours. After first deployment, the endpoint intentionally reports 503 until a probe completes. Live canaries and benchmark artifacts complement readiness rather than depending on a fixed R2 cache hit.
 
 See [data operations](../../docs/data-layer-operations.md) for staging, promotion, lifecycle audit, rollback, and benchmark commands.
+
+## Additional terrain sources
+
+Optional NRCan HRDEM archives use `/v1/terrain-sources/<dataset-id>.pmtiles` and
+`VECTOR_DATA`, with the same bounded ranges and verified release pointers as
+survey archives. The generator prefers valid HRDEM pixels and retains Mapzen
+for gaps or unavailable archives. See [HRDEM coverage, build and rollout](../../docs/hrdem-terrain.md).

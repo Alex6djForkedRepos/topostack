@@ -4,7 +4,7 @@ import { access, stat, writeFile } from "node:fs/promises";
 import { createReadStream } from "node:fs";
 import { createHash } from "node:crypto";
 import { pipeline } from "node:stream/promises";
-import { spawn } from "node:child_process";
+import { processRunner } from "./lib/process.mjs";
 
 const DATASET_SNAPSHOT = "20260905";
 const EXPECTED_MAX_ZOOM = 12;
@@ -38,24 +38,7 @@ await access(archivePath);
 const archive = await stat(archivePath);
 if (!archive.isFile()) throw new Error(`${archivePath} is not a file.`);
 
-function run(command, args, extraEnv = {}) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { env: { ...childBaseEnv, ...extraEnv }, stdio: "inherit" });
-    child.once("error", reject);
-    child.once("exit", (code, signal) => code === 0 ? resolve() : reject(new Error(`${command} exited with ${signal ? `signal ${signal}` : `code ${code}`}.`)));
-  });
-}
-
-function capture(command, args) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { env: childBaseEnv, stdio: ["ignore", "pipe", "inherit"] });
-    let output = "";
-    child.stdout.setEncoding("utf8");
-    child.stdout.on("data", (chunk) => { output += chunk; });
-    child.once("error", reject);
-    child.once("exit", (code, signal) => code === 0 ? resolve(output) : reject(new Error(`${command} exited with ${signal ? `signal ${signal}` : `code ${code}`}.`)));
-  });
-}
+const { run, capture } = processRunner(childBaseEnv);
 
 const cloudflare = cloudflareClient(accountId, apiToken);
 

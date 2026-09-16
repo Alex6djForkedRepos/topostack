@@ -1,16 +1,12 @@
 /** Browser check for the complete surveyed-lake catalog in studio location search. */
 import assert from 'node:assert/strict';
-import { mkdir, readFile } from 'node:fs/promises';
-import { chromium, expect } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
+import { expect } from '@playwright/test';
+import { artifactDirectory, openBrowserCheck } from './lib/browser-check.mjs';
 const origin=process.env.LAKE_SEARCH_TEST_URL ?? 'http://localhost:5298';
 if(!['localhost','127.0.0.1','dev-topostack.echofoxtrot.works'].includes(new URL(origin).hostname)) throw new Error('Use a local preview or the development app.');
-const output=process.env.LAKE_SEARCH_TEST_OUTPUT ?? '/tmp/topostack-lake-search';
-await mkdir(output,{recursive:true});
 const directory=JSON.parse(await readFile(new URL('../apps/generator/static/data/lake-depth-directory.json',import.meta.url),'utf8'));
-const browser=await chromium.launch();
-const page=await browser.newPage({viewport:{width:1440,height:1000}});
-page.setDefaultTimeout(30000);
-const errors=[];page.on('pageerror',e=>errors.push(e.message));
+const {page,errors,output,run}=await openBrowserCheck({output:artifactDirectory(process.env.LAKE_SEARCH_TEST_OUTPUT,'lake-search'),pageOptions:{viewport:{width:1440,height:1000}},defaultTimeout:30000});
 let catalogRequests=0;
 page.on('request',r=>{if(new URL(r.url()).pathname.endsWith('/data/lake-depth-directory.json'))catalogRequests++;});
 const openSearch=async()=>{await page.locator('.location-card').first().click();await expect(page.getByRole('dialog',{name:'Choose anywhere'})).toBeVisible();};
@@ -18,7 +14,7 @@ const readSaved=()=>page.evaluate(()=>new Promise((resolve,reject)=>{
  const request=indexedDB.open('keyval-store');request.onerror=()=>reject(request.error);
  request.onsuccess=()=>{const db=request.result;const tx=db.transaction('keyval');const get=tx.objectStore('keyval').get('topostack:project:v1');get.onsuccess=()=>resolve(get.result);tx.oncomplete=()=>db.close();};
 }));
-try{
+await run(async()=>{
  await page.route('**/v1/geocode?**',route=>route.fulfill({status:503,body:'Unavailable'}));
  await page.goto(`${origin}/studio`,{waitUntil:'domcontentloaded'});
  await expect(page.locator('.location-card').first()).toBeVisible();
@@ -86,5 +82,4 @@ try{
  assert.equal((await readSaved()).location.bounds,undefined,'Ordinary places clear old lake bounds');
  assert.deepEqual(errors,[]);
  console.log(`Passed: ${directory.lakes.length} catalog records; all ${directory.sources.length} sources searchable; pagination, accents, selection bounds, persistence, independent provider failures, retry, and mobile layout.`);
-}catch(error){await page.screenshot({path:`${output}/failure.png`,fullPage:true}).catch(()=>{});throw error;}
-finally{await browser.close();}
+});

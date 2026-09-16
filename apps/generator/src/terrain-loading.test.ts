@@ -40,6 +40,7 @@ describe("West Point terrain loading", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(png)));
     const result = await loadTerrain(terrainOnly);
     expect(result.fallback).toBe(true);
+    expect(result.fallbackReason).toBe("Terrain tile is missing its dataset version.");
     expect(result.source.sourceKind).toBe("synthetic");
   });
 
@@ -47,6 +48,7 @@ describe("West Point terrain loading", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("not a terrain PNG")));
     const result = await loadTerrain(terrainOnly);
     expect(result.fallback).toBe(true);
+    expect(result.fallbackReason).toEqual(expect.any(String));
     expect(result.source.sourceKind).toBe("synthetic");
   });
 });

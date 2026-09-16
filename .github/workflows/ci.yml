@@ -12,6 +12,7 @@ permissions:
 
 env:
   NODE_VERSION: "22.22.2"
+  PYTHON_VERSION: "3.13"
   DEVELOPMENT_URL: https://dev-topostack.echofoxtrot.works
   PRODUCTION_URL: https://topostack.echofoxtrot.works
 
@@ -58,6 +59,32 @@ jobs:
 
       - name: Test unit and component suites with coverage thresholds
         run: npm run test:coverage
+
+  python-data-tools:
+    name: Python data tooling tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: python-${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: scripts/survey-requirements.txt
+
+      # survey-requirements.txt pins a superset of the NOAA and terrain builder
+      # dependencies (numpy, rasterio, Pillow, fiona, scipy, shapely).
+      - name: Install pinned builder dependencies
+        run: python -m pip install -r scripts/survey-requirements.txt
+
+      - name: Test bathymetry, terrain, and lake outline builders
+        run: python -m unittest discover -s scripts -p 'test_*.py'
 
   build-and-budget:
     name: Build and budget
@@ -161,7 +188,7 @@ jobs:
 
   deploy-worker:
     name: Deploy Worker
-    needs: [quality, build-and-budget, browser-e2e]
+    needs: [quality, python-data-tools, build-and-budget, browser-e2e]
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && (github.ref_name == 'dev' || github.ref_name == 'main')
     runs-on: ubuntu-latest
     timeout-minutes: 15

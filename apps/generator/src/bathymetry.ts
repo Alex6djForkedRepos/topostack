@@ -2,6 +2,7 @@ import { mapTiles } from "./tile-requests";
 import type { ElevationGrid, GeoBounds, ProjectConfigV1, SourceAttribution, SourceBundleV1, WaterAreaV1 } from "@topostack/core";
 import { createArchive } from "./archive";
 import { decodeTerrainPng } from "./terrain-png";
+import { latToWorldY, lonToWorldX } from "./tile-math";
 import rawSurveyCatalog from "../../../scripts/data/lake-bathymetry.json";
 import { validateSurveyCatalog, type SurveySource } from "../../../packages/core/src/source-catalog";
 import catalog from "../../../scripts/data/noaa-great-lakes.json";
@@ -21,8 +22,8 @@ export function hasNoaaCoverage(area: WaterAreaV1): boolean {
     ? names.has(area.name?.trim().toLowerCase() ?? "")
     : lakeIds.has(area.hylakId)));
 }
-const worldX = (lon: number, z: number) => (lon + 180) / 360 * 256 * 2 ** z;
-const worldY = (lat: number, z: number) => (1 - Math.asinh(Math.tan(lat * Math.PI / 180)) / Math.PI) / 2 * 256 * 2 ** z;
+const worldX = lonToWorldX;
+const worldY = latToWorldY;
 
 /** Interpolate only covered samples; a transparent neighbor never becomes a zero-depth shore. */
 export function sampleDepth(sample: (x: number, y: number) => number, x: number, y: number, min = 0, max = 1500): number {
@@ -148,7 +149,11 @@ export async function loadLakeBathymetry(apiBase: string, bounds: GeoBounds, gri
         const values = area.bathymetry!.depthsM;
         const previous = merged.find((item) => item.id === area.id)!;
         // Ignore samples outside this lake, including islands and neighboring lakes.
-        const samples = Float32Array.from(previous.bathymetry?.depthsM ?? new Float32Array(values.length).fill(Number.NaN));
+        // `merged` dropped every incoming bathymetry above, so an existing grid
+        // was allocated by an earlier provider in this call and can be filled in
+        // place. A grid-sized array is only allocated once a lake has a sample:
+        // most lakes in a wide selection have no survey coverage at all.
+        let samples = previous.bathymetry?.depthsM;
         let count = 0;
         for (let row = 0; row < grid.height; row += 1) {
           signal?.throwIfAborted();
@@ -163,10 +168,11 @@ export async function loadLakeBathymetry(apiBase: string, bounds: GeoBounds, gri
             const depth = dataset.encoding === "elevation-terrarium-v1" ? area.surfaceElevationM! - values[index]! : values[index]!;
             if (depth < 0 || depth > 1500) continue;
             // First provider wins; later providers only fill gaps.
+            samples ??= new Float32Array(values.length).fill(Number.NaN);
             if (!Number.isFinite(samples[index])) { samples[index] = depth; count += 1; }
           }
         }
-        if (count) {
+        if (count && samples) {
           used = true;
           merged = merged.map((item) => item.id === area.id ? { ...item, bathymetry: { width: grid.width, height: grid.height, depthsM: samples } } : item);
         }

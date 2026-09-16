@@ -3,6 +3,7 @@
   import Article from "../../lib/Article.svelte";
   import { REPOSITORY_URL } from "../../lib/seo";
   import { MAP_DATA_ATTRIBUTION } from "../../map-attribution";
+  import terrainCatalog from "../../../../../scripts/data/terrain-sources.json";
   import type { PageData } from "./$types";
 
   let { data }: { data: PageData } = $props();
@@ -64,6 +65,13 @@
         </div>
       {/each}
       {#if section.id === "terrain"}
+        {#each terrainCatalog.sources as source}
+          <div class="source">
+            <h3><a href={source.url}>{source.name}</a></h3>
+            <p>Within registered coverage, preferred bare-earth elevations are selected by quality priority, native resolution, and survey year. Standard terrain fills coverage gaps. These elevations describe the ground and water surface; lake-floor depths use separate sources.</p>
+            <p class="credit"><strong>Credit / license:</strong> {source.license}</p>
+          </div>
+        {/each}
         <p>Mapzen combines regional and global elevation datasets. Contributors vary with the selected location; the credits below cover its contributing sources. See the <a href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md">terrain source attribution and terms</a>.</p>
         <details>
           <summary>Terrain contributors and credit notices ({terrainContributors.length})</summary>

@@ -7,7 +7,8 @@ The missing `geocode/` expiry rule was applied and verified in both `topostack-m
 ```sh
 # Read-only audit; nonzero exit if the rule is missing.
 node --env-file=.env scripts/manage-cache-lifecycle.mjs --prod
-# Explicit reconciliation; writes a backup of previous rules to /tmp first.
+# Explicit reconciliation; first writes a backup of previous rules to the
+# gitignored .topostack/receipts/ (override with LIFECYCLE_RECEIPT_DIR).
 node --env-file=.env scripts/manage-cache-lifecycle.mjs --prod --apply
 ```
 

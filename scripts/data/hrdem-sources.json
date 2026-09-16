@@ -1,0 +1,33 @@
+{
+  "nrcan-hrdem-alexander-v1": {
+    "item": "https://datacube.services.geo.ca/stac/api/collections/hrdem-lidar/items/ON-SPL_ON_West_Nipissing_UTM17_2020-1m",
+    "url": "https://canelevation-dem.s3.ca-central-1.amazonaws.com/hrdem-lidar/ON-SPL_ON_West_Nipissing_UTM17_2020-1m-dtm.tif",
+    "etag": "\"e6b6eb9f688ce8e813d2af063cb3520e-168\"",
+    "bytes": 45071284581,
+    "acquisitionYear": 2020,
+    "sourceResolutionM": 1,
+    "verticalDatum": "CGVD2013"
+  },
+  "nrcan-hrdem-mosaic-1m-1898742dd0f3-v1": {
+    "item": "https://datacube.services.geo.ca/stac/api/collections/hrdem-mosaic-1m/items/7_2-mosaic-1m",
+    "url": "https://canelevation-dem.s3.ca-central-1.amazonaws.com/hrdem-mosaic-1m/7_2-mosaic-1m-dtm.tif",
+    "etag": "\"1ad06782a0c9eacdbc4201865449c978-1015\"",
+    "bytes": 272364315596,
+    "verticalDatum": "CGVD2013",
+    "sourceResolutionM": 1,
+    "published": "2024-11-09T12:00:00Z",
+    "snapshotSha256": "82425ff41074ca89fc83801184be561334227169cfc3b2af83d072b85f3672a9",
+    "samplesSha256": "97c604217338bf33072e30709d2e12476f951a19460b50ceaae345af0ba3c534"
+  },
+  "nrcan-hrdem-mosaic-1m-cd6412cfd2b8-v1": {
+    "item": "https://datacube.services.geo.ca/stac/api/collections/hrdem-mosaic-1m/items/7_2-mosaic-1m",
+    "url": "https://canelevation-dem.s3.ca-central-1.amazonaws.com/hrdem-mosaic-1m/7_2-mosaic-1m-dtm.tif",
+    "etag": "\"1ad06782a0c9eacdbc4201865449c978-1015\"",
+    "bytes": 272364315596,
+    "verticalDatum": "CGVD2013",
+    "sourceResolutionM": 1,
+    "published": "2024-11-09T12:00:00Z",
+    "snapshotSha256": "6bd1339b4978919909fd36a87e469eccaaa32df3d08ed684764ac61698873eab",
+    "samplesSha256": "4dbc31f2d7d8ab18d278c51b111d476aefb5369e021b598625095b1f7906f98a"
+  }
+}

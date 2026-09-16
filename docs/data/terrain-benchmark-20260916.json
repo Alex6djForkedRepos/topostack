@@ -1,0 +1,1223 @@
+{
+  "schemaVersion": 1,
+  "host": "macOS-27.0-arm64-arm-64bit-Mach-O",
+  "sourcePin": {
+    "item": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+    "url": "https://canelevation-dem.s3.ca-central-1.amazonaws.com/mrdem-30/mrdem-30-dtm.tif",
+    "etag": "\"1bf055857edce86b1311967c8d88395e-9997\"",
+    "bytes": 83854027098,
+    "sourceResolutionM": 30,
+    "verticalDatum": "CGVD2013",
+    "published": "2026-06-22T12:00:00Z"
+  },
+  "results": [
+    {
+      "source": {
+        "id": "nrcan-mrdem-benchmark-30e68f4892f7-v1",
+        "name": "MRDEM benchmark ontario z12",
+        "url": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+        "license": "Open Government Licence \u2013 Canada; NRCan MRDEM DTM, CGVD2013 metres.",
+        "bounds": [
+          -79.0,
+          46.44,
+          -78.94,
+          46.5
+        ],
+        "encoding": "elevation-terrarium-v1",
+        "minZoom": 10,
+        "maxZoom": 12,
+        "verticalDatum": "CGVD2013",
+        "kind": "national-dtm",
+        "nativeResolutionM": 30,
+        "priority": 200
+      },
+      "receipt": {
+        "dataset": "nrcan-mrdem-benchmark-30e68f4892f7-v1",
+        "sha256": "5ae44bb04e15120625712d8af838ae9531bacf41d00d74b436f9d15b0fba23d5",
+        "bytes": 126915,
+        "tiles": 10,
+        "sources": [
+          {
+            "item": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+            "url": "https://canelevation-dem.s3.ca-central-1.amazonaws.com/mrdem-30/mrdem-30-dtm.tif",
+            "etag": "\"1bf055857edce86b1311967c8d88395e-9997\"",
+            "bytes": 83854027098,
+            "sourceResolutionM": 30,
+            "verticalDatum": "CGVD2013",
+            "published": "2026-06-22T12:00:00Z",
+            "snapshotSha256": "c0f5491810f3e84c5b0e294437799e694dd4a3dde3503dbb864e0b42a81963df",
+            "samplesSha256": "2c601b79b7b9b919e0e3d4a0057dfce943d72f3969e0f7e6c6877be6bd76f3e5"
+          }
+        ],
+        "grids": [
+          {
+            "name": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+            "bounds": [
+              -78.99999999999999,
+              46.43999999999999,
+              -78.94,
+              46.49999999999999
+            ],
+            "tilesWritten": 10
+          }
+        ],
+        "schemaVersion": 1,
+        "encoding": "elevation-terrarium-v1",
+        "verticalDatum": "CGVD2013",
+        "verticalUnits": "metre",
+        "coverage": {
+          "validSamples": 44450,
+          "totalSamples": 44450,
+          "minElevationM": 205.3912353515625,
+          "maxElevationM": 405.1258239746094
+        },
+        "normalization": {
+          "horizontalCrs": "EPSG:3857",
+          "resampling": "bilinear",
+          "verticalTransform": "none; pinned provider CGVD2013 metres"
+        },
+        "tools": {
+          "python": "3.14.2",
+          "rasterio": "1.5.1",
+          "gdal": "3.12.4",
+          "numpy": "2.5.3"
+        }
+      },
+      "readSeconds": 1.7960230000026058,
+      "buildAndVerifySeconds": 0.5197452910069842,
+      "totalSeconds": 2.316294582997216,
+      "processPeakRssBytes": 109297664,
+      "retainedScratchBytes": 429712,
+      "pngBytes": 126340,
+      "pngBytesPerTile": 12634.0,
+      "tilesPerBuildSecond": 19.240193558320517,
+      "sourceBytesRead": null,
+      "retryCount": null,
+      "region": "ontario",
+      "comparisonToZ15Snapshot": {
+        "interiorComparedSamples": 2624610,
+        "interiorP95AbsoluteErrorM": 0.911895751953125,
+        "interiorMaxAbsoluteErrorM": 4.391143798828125,
+        "comparedSamples": 2837940,
+        "missingReferenceSamples": 2030,
+        "filledNoDataSamples": 0,
+        "meanAbsoluteErrorM": 0.30301743745803833,
+        "p95AbsoluteErrorM": 0.924072265625,
+        "maxAbsoluteErrorM": 5.154876708984375,
+        "contourBandDisagreement": {
+          "5": 0.06047132779410418,
+          "10": 0.02977018541618216,
+          "20": 0.014867826663002036
+        }
+      }
+    },
+    {
+      "source": {
+        "id": "nrcan-mrdem-benchmark-af61a78cc8fa-v1",
+        "name": "MRDEM benchmark ontario z13",
+        "url": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+        "license": "Open Government Licence \u2013 Canada; NRCan MRDEM DTM, CGVD2013 metres.",
+        "bounds": [
+          -79.0,
+          46.44,
+          -78.94,
+          46.5
+        ],
+        "encoding": "elevation-terrarium-v1",
+        "minZoom": 10,
+        "maxZoom": 13,
+        "verticalDatum": "CGVD2013",
+        "kind": "national-dtm",
+        "nativeResolutionM": 30,
+        "priority": 200
+      },
+      "receipt": {
+        "dataset": "nrcan-mrdem-benchmark-af61a78cc8fa-v1",
+        "sha256": "b92fedcfdbc274ed1908a306db767ffad277300fc7052db32d472140699af86e",
+        "bytes": 432130,
+        "tiles": 16,
+        "sources": [
+          {
+            "item": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+            "url": "https://canelevation-dem.s3.ca-central-1.amazonaws.com/mrdem-30/mrdem-30-dtm.tif",
+            "etag": "\"1bf055857edce86b1311967c8d88395e-9997\"",
+            "bytes": 83854027098,
+            "sourceResolutionM": 30,
+            "verticalDatum": "CGVD2013",
+            "published": "2026-06-22T12:00:00Z",
+            "snapshotSha256": "84f0e305a43c36ce48d3b2843667b3c022d2b0bfd99fff3597624fe2da9726dd",
+            "samplesSha256": "f480945c4817e1d00c3fbc52394d87897f2cb0b48d6b463b3f57fd54e540e466"
+          }
+        ],
+        "grids": [
+          {
+            "name": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+            "bounds": [
+              -78.99999999999999,
+              46.43999999999999,
+              -78.94,
+              46.49999999999999
+            ],
+            "tilesWritten": 16
+          }
+        ],
+        "schemaVersion": 1,
+        "encoding": "elevation-terrarium-v1",
+        "verticalDatum": "CGVD2013",
+        "verticalUnits": "metre",
+        "coverage": {
+          "validSamples": 177800,
+          "totalSamples": 177800,
+          "minElevationM": 204.4275360107422,
+          "maxElevationM": 405.338134765625
+        },
+        "normalization": {
+          "horizontalCrs": "EPSG:3857",
+          "resampling": "bilinear",
+          "verticalTransform": "none; pinned provider CGVD2013 metres"
+        },
+        "tools": {
+          "python": "3.14.2",
+          "rasterio": "1.5.1",
+          "gdal": "3.12.4",
+          "numpy": "2.5.3"
+        }
+      },
+      "readSeconds": 1.6783218329946976,
+      "buildAndVerifySeconds": 0.4104008339927532,
+      "totalSeconds": 2.0894337909994647,
+      "processPeakRssBytes": 111460352,
+      "retainedScratchBytes": 1473662,
+      "pngBytes": 431534,
+      "pngBytesPerTile": 26970.875,
+      "tilesPerBuildSecond": 38.98627555002124,
+      "sourceBytesRead": null,
+      "retryCount": null,
+      "region": "ontario",
+      "comparisonToZ15Snapshot": {
+        "interiorComparedSamples": 2624610,
+        "interiorP95AbsoluteErrorM": 0.2952880859375,
+        "interiorMaxAbsoluteErrorM": 2.12530517578125,
+        "comparedSamples": 2835910,
+        "missingReferenceSamples": 4060,
+        "filledNoDataSamples": 0,
+        "meanAbsoluteErrorM": 0.0827198326587677,
+        "p95AbsoluteErrorM": 0.2987060546875,
+        "maxAbsoluteErrorM": 2.12530517578125,
+        "contourBandDisagreement": {
+          "5": 0.01659361545324076,
+          "10": 0.008225931006273118,
+          "20": 0.004138354179081847
+        }
+      }
+    },
+    {
+      "source": {
+        "id": "nrcan-mrdem-benchmark-8e52d5059fbf-v1",
+        "name": "MRDEM benchmark ontario z15",
+        "url": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+        "license": "Open Government Licence \u2013 Canada; NRCan MRDEM DTM, CGVD2013 metres.",
+        "bounds": [
+          -79.0,
+          46.44,
+          -78.94,
+          46.5
+        ],
+        "encoding": "elevation-terrarium-v1",
+        "minZoom": 10,
+        "maxZoom": 15,
+        "verticalDatum": "CGVD2013",
+        "kind": "national-dtm",
+        "nativeResolutionM": 30,
+        "priority": 200
+      },
+      "receipt": {
+        "dataset": "nrcan-mrdem-benchmark-8e52d5059fbf-v1",
+        "sha256": "5382dfc855ac8f5209c8f8ceefaa08d16e76e571d3cdf0f0ca35fb1656541cc9",
+        "bytes": 4920481,
+        "tiles": 90,
+        "sources": [
+          {
+            "item": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+            "url": "https://canelevation-dem.s3.ca-central-1.amazonaws.com/mrdem-30/mrdem-30-dtm.tif",
+            "etag": "\"1bf055857edce86b1311967c8d88395e-9997\"",
+            "bytes": 83854027098,
+            "sourceResolutionM": 30,
+            "verticalDatum": "CGVD2013",
+            "published": "2026-06-22T12:00:00Z",
+            "snapshotSha256": "a64612649db065890bd0003bcbefd4e34d882e4a0fd62859f55f90ddf479de1a",
+            "samplesSha256": "0c4bafec2da09139b7e90967cfea662f33694d1c96e852b86101ae0e0eb0e1c0"
+          }
+        ],
+        "grids": [
+          {
+            "name": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+            "bounds": [
+              -78.99999999999999,
+              46.43999999999999,
+              -78.94,
+              46.49999999999999
+            ],
+            "tilesWritten": 90
+          }
+        ],
+        "schemaVersion": 1,
+        "encoding": "elevation-terrarium-v1",
+        "verticalDatum": "CGVD2013",
+        "verticalUnits": "metre",
+        "coverage": {
+          "validSamples": 2839970,
+          "totalSamples": 2839970,
+          "minElevationM": 203.56922912597656,
+          "maxElevationM": 405.3782958984375
+        },
+        "normalization": {
+          "horizontalCrs": "EPSG:3857",
+          "resampling": "bilinear",
+          "verticalTransform": "none; pinned provider CGVD2013 metres"
+        },
+        "tools": {
+          "python": "3.14.2",
+          "rasterio": "1.5.1",
+          "gdal": "3.12.4",
+          "numpy": "2.5.3"
+        }
+      },
+      "readSeconds": 2.263083290978102,
+      "buildAndVerifySeconds": 3.610355459008133,
+      "totalSeconds": 5.878139874985209,
+      "processPeakRssBytes": 168411136,
+      "retainedScratchBytes": 18710057,
+      "pngBytes": 4919635,
+      "pngBytesPerTile": 54662.61111111111,
+      "tilesPerBuildSecond": 24.928293355559386,
+      "sourceBytesRead": null,
+      "retryCount": null,
+      "region": "ontario",
+      "comparisonToZ15Snapshot": {
+        "interiorComparedSamples": 2624610,
+        "interiorP95AbsoluteErrorM": 0.0357818603515625,
+        "interiorMaxAbsoluteErrorM": 0.424468994140625,
+        "comparedSamples": 2839970,
+        "missingReferenceSamples": 0,
+        "filledNoDataSamples": 0,
+        "meanAbsoluteErrorM": 0.007061552722007036,
+        "p95AbsoluteErrorM": 0.036712646484375,
+        "maxAbsoluteErrorM": 0.427886962890625,
+        "contourBandDisagreement": {
+          "5": 0.0013940288101634876,
+          "10": 0.0006950777649059673,
+          "20": 0.0003545812103648982
+        }
+      }
+    },
+    {
+      "source": {
+        "id": "nrcan-mrdem-benchmark-f4affea38ac2-v1",
+        "name": "MRDEM benchmark rockies z12",
+        "url": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+        "license": "Open Government Licence \u2013 Canada; NRCan MRDEM DTM, CGVD2013 metres.",
+        "bounds": [
+          -115.6,
+          51.16,
+          -115.54,
+          51.22
+        ],
+        "encoding": "elevation-terrarium-v1",
+        "minZoom": 10,
+        "maxZoom": 12,
+        "verticalDatum": "CGVD2013",
+        "kind": "national-dtm",
+        "nativeResolutionM": 30,
+        "priority": 200
+      },
+      "receipt": {
+        "dataset": "nrcan-mrdem-benchmark-f4affea38ac2-v1",
+        "sha256": "f4f46a3c9d1ce2c54b5c57129d473d038c37a9380b404eabd741947f78ac8c73",
+        "bytes": 156773,
+        "tiles": 14,
+        "sources": [
+          {
+            "item": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+            "url": "https://canelevation-dem.s3.ca-central-1.amazonaws.com/mrdem-30/mrdem-30-dtm.tif",
+            "etag": "\"1bf055857edce86b1311967c8d88395e-9997\"",
+            "bytes": 83854027098,
+            "sourceResolutionM": 30,
+            "verticalDatum": "CGVD2013",
+            "published": "2026-06-22T12:00:00Z",
+            "snapshotSha256": "40b35e779ea18f9cfbde2b973481afa3f3c5b1def30f04d5feaed8f205f36aa2",
+            "samplesSha256": "2165550783ae8d9e07baf508b3a42e744709ae7e028b8d6f709e9a8573b1bb50"
+          }
+        ],
+        "grids": [
+          {
+            "name": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+            "bounds": [
+              -115.59999999999998,
+              51.15999999999998,
+              -115.54000000000002,
+              51.21999999999999
+            ],
+            "tilesWritten": 14
+          }
+        ],
+        "schemaVersion": 1,
+        "encoding": "elevation-terrarium-v1",
+        "verticalDatum": "CGVD2013",
+        "verticalUnits": "metre",
+        "coverage": {
+          "validSamples": 48825,
+          "totalSamples": 48825,
+          "minElevationM": 1343.1962890625,
+          "maxElevationM": 2464.648681640625
+        },
+        "normalization": {
+          "horizontalCrs": "EPSG:3857",
+          "resampling": "bilinear",
+          "verticalTransform": "none; pinned provider CGVD2013 metres"
+        },
+        "tools": {
+          "python": "3.14.2",
+          "rasterio": "1.5.1",
+          "gdal": "3.12.4",
+          "numpy": "2.5.3"
+        }
+      },
+      "readSeconds": 1.5687307080079336,
+      "buildAndVerifySeconds": 0.19544624999980442,
+      "totalSeconds": 1.7647484579938464,
+      "processPeakRssBytes": 100827136,
+      "retainedScratchBytes": 500209,
+      "pngBytes": 156184,
+      "pngBytesPerTile": 11156.0,
+      "tilesPerBuildSecond": 71.63094712747883,
+      "sourceBytesRead": null,
+      "retryCount": null,
+      "region": "rockies",
+      "comparisonToZ15Snapshot": {
+        "interiorComparedSamples": 2892945,
+        "interiorP95AbsoluteErrorM": 1.21826171875,
+        "interiorMaxAbsoluteErrorM": 8.44384765625,
+        "comparedSamples": 3107783,
+        "missingReferenceSamples": 13386,
+        "filledNoDataSamples": 0,
+        "meanAbsoluteErrorM": 0.3939279317855835,
+        "p95AbsoluteErrorM": 1.283203125,
+        "maxAbsoluteErrorM": 19.6953125,
+        "contourBandDisagreement": {
+          "5": 0.07827316128571396,
+          "10": 0.039385954553454984,
+          "20": 0.020606972880667665
+        }
+      }
+    },
+    {
+      "source": {
+        "id": "nrcan-mrdem-benchmark-44fc3aee2878-v1",
+        "name": "MRDEM benchmark rockies z13",
+        "url": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+        "license": "Open Government Licence \u2013 Canada; NRCan MRDEM DTM, CGVD2013 metres.",
+        "bounds": [
+          -115.6,
+          51.16,
+          -115.54,
+          51.22
+        ],
+        "encoding": "elevation-terrarium-v1",
+        "minZoom": 10,
+        "maxZoom": 13,
+        "verticalDatum": "CGVD2013",
+        "kind": "national-dtm",
+        "nativeResolutionM": 30,
+        "priority": 200
+      },
+      "receipt": {
+        "dataset": "nrcan-mrdem-benchmark-44fc3aee2878-v1",
+        "sha256": "d67c44fc694dd2ff6e4e67988f852d0cea9b32c7e164b9fb2458e7217769ee68",
+        "bytes": 516793,
+        "tiles": 20,
+        "sources": [
+          {
+            "item": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+            "url": "https://canelevation-dem.s3.ca-central-1.amazonaws.com/mrdem-30/mrdem-30-dtm.tif",
+            "etag": "\"1bf055857edce86b1311967c8d88395e-9997\"",
+            "bytes": 83854027098,
+            "sourceResolutionM": 30,
+            "verticalDatum": "CGVD2013",
+            "published": "2026-06-22T12:00:00Z",
+            "snapshotSha256": "18340b63097a6bfa83dd578688bed5a830f043a01cfaa07bce4c588dc0ad0036",
+            "samplesSha256": "0d7e80cc33078ef1c4c1194b59dfe22e160c5a504862c8134cea7d67da71faff"
+          }
+        ],
+        "grids": [
+          {
+            "name": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+            "bounds": [
+              -115.59999999999998,
+              51.15999999999998,
+              -115.54000000000002,
+              51.21999999999999
+            ],
+            "tilesWritten": 20
+          }
+        ],
+        "schemaVersion": 1,
+        "encoding": "elevation-terrarium-v1",
+        "verticalDatum": "CGVD2013",
+        "verticalUnits": "metre",
+        "coverage": {
+          "validSamples": 195300,
+          "totalSamples": 195300,
+          "minElevationM": 1343.132080078125,
+          "maxElevationM": 2469.069580078125
+        },
+        "normalization": {
+          "horizontalCrs": "EPSG:3857",
+          "resampling": "bilinear",
+          "verticalTransform": "none; pinned provider CGVD2013 metres"
+        },
+        "tools": {
+          "python": "3.14.2",
+          "rasterio": "1.5.1",
+          "gdal": "3.12.4",
+          "numpy": "2.5.3"
+        }
+      },
+      "readSeconds": 1.6440856249828357,
+      "buildAndVerifySeconds": 0.44522062499891035,
+      "totalSeconds": 2.090101042005699,
+      "processPeakRssBytes": 104579072,
+      "retainedScratchBytes": 1686517,
+      "pngBytes": 516176,
+      "pngBytesPerTile": 25808.8,
+      "tilesPerBuildSecond": 44.92154872665422,
+      "sourceBytesRead": null,
+      "retryCount": null,
+      "region": "rockies",
+      "comparisonToZ15Snapshot": {
+        "interiorComparedSamples": 2892945,
+        "interiorP95AbsoluteErrorM": 0.2685546875,
+        "interiorMaxAbsoluteErrorM": 3.183837890625,
+        "comparedSamples": 3121169,
+        "missingReferenceSamples": 0,
+        "filledNoDataSamples": 0,
+        "meanAbsoluteErrorM": 0.07562601566314697,
+        "p95AbsoluteErrorM": 0.28759765625,
+        "maxAbsoluteErrorM": 7.8475341796875,
+        "contourBandDisagreement": {
+          "5": 0.015154578300630309,
+          "10": 0.007554861656001325,
+          "20": 0.0039020636178303705
+        }
+      }
+    },
+    {
+      "source": {
+        "id": "nrcan-mrdem-benchmark-0b43fbbe55a5-v1",
+        "name": "MRDEM benchmark rockies z15",
+        "url": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+        "license": "Open Government Licence \u2013 Canada; NRCan MRDEM DTM, CGVD2013 metres.",
+        "bounds": [
+          -115.6,
+          51.16,
+          -115.54,
+          51.22
+        ],
+        "encoding": "elevation-terrarium-v1",
+        "minZoom": 10,
+        "maxZoom": 15,
+        "verticalDatum": "CGVD2013",
+        "kind": "national-dtm",
+        "nativeResolutionM": 30,
+        "priority": 200
+      },
+      "receipt": {
+        "dataset": "nrcan-mrdem-benchmark-0b43fbbe55a5-v1",
+        "sha256": "e87d6a956c15e59288bf8211cbdbafc06e321f764cf6d74928e055e876013724",
+        "bytes": 5655325,
+        "tiles": 103,
+        "sources": [
+          {
+            "item": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+            "url": "https://canelevation-dem.s3.ca-central-1.amazonaws.com/mrdem-30/mrdem-30-dtm.tif",
+            "etag": "\"1bf055857edce86b1311967c8d88395e-9997\"",
+            "bytes": 83854027098,
+            "sourceResolutionM": 30,
+            "verticalDatum": "CGVD2013",
+            "published": "2026-06-22T12:00:00Z",
+            "snapshotSha256": "73b5932f34e669e2e5fc5958e956e6accfdbf96865132ce5d6dc91e0028aca72",
+            "samplesSha256": "b11cab88fed5a28b26a917d23e1d05284e2b483b619cf3cb7b0e1a5d952217ca"
+          }
+        ],
+        "grids": [
+          {
+            "name": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+            "bounds": [
+              -115.59999999999998,
+              51.15999999999998,
+              -115.54000000000002,
+              51.21999999999999
+            ],
+            "tilesWritten": 103
+          }
+        ],
+        "schemaVersion": 1,
+        "encoding": "elevation-terrarium-v1",
+        "verticalDatum": "CGVD2013",
+        "verticalUnits": "metre",
+        "coverage": {
+          "validSamples": 3121169,
+          "totalSamples": 3121169,
+          "minElevationM": 1343.160400390625,
+          "maxElevationM": 2471.860595703125
+        },
+        "normalization": {
+          "horizontalCrs": "EPSG:3857",
+          "resampling": "bilinear",
+          "verticalTransform": "none; pinned provider CGVD2013 metres"
+        },
+        "tools": {
+          "python": "3.14.2",
+          "rasterio": "1.5.1",
+          "gdal": "3.12.4",
+          "numpy": "2.5.3"
+        }
+      },
+      "readSeconds": 2.446149333991343,
+      "buildAndVerifySeconds": 3.886432750005042,
+      "totalSeconds": 6.337339624995366,
+      "processPeakRssBytes": 171065344,
+      "retainedScratchBytes": 20640270,
+      "pngBytes": 5654427,
+      "pngBytesPerTile": 54897.34951456311,
+      "tilesPerBuildSecond": 26.50245266687462,
+      "sourceBytesRead": null,
+      "retryCount": null,
+      "region": "rockies",
+      "comparisonToZ15Snapshot": {
+        "interiorComparedSamples": 2892945,
+        "interiorP95AbsoluteErrorM": 0.0223388671875,
+        "interiorMaxAbsoluteErrorM": 0.4864501953125,
+        "comparedSamples": 3121169,
+        "missingReferenceSamples": 0,
+        "filledNoDataSamples": 0,
+        "meanAbsoluteErrorM": 0.005121771711856127,
+        "p95AbsoluteErrorM": 0.0235595703125,
+        "maxAbsoluteErrorM": 0.822265625,
+        "contourBandDisagreement": {
+          "5": 0.001028781203452937,
+          "10": 0.0005248033669436036,
+          "20": 0.0002819456428024243
+        }
+      }
+    },
+    {
+      "source": {
+        "id": "nrcan-mrdem-benchmark-e09d00f26ac0-v1",
+        "name": "MRDEM benchmark coast z12",
+        "url": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+        "license": "Open Government Licence \u2013 Canada; NRCan MRDEM DTM, CGVD2013 metres.",
+        "bounds": [
+          -123.2,
+          49.25,
+          -123.14,
+          49.31
+        ],
+        "encoding": "elevation-terrarium-v1",
+        "minZoom": 10,
+        "maxZoom": 12,
+        "verticalDatum": "CGVD2013",
+        "kind": "national-dtm",
+        "nativeResolutionM": 30,
+        "priority": 200
+      },
+      "receipt": {
+        "dataset": "nrcan-mrdem-benchmark-e09d00f26ac0-v1",
+        "sha256": "f5f737eff280a49ace11b1683b8c78ff91e4fcf53b9d929b10c952cde92f4e3a",
+        "bytes": 87833,
+        "tiles": 11,
+        "sources": [
+          {
+            "item": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+            "url": "https://canelevation-dem.s3.ca-central-1.amazonaws.com/mrdem-30/mrdem-30-dtm.tif",
+            "etag": "\"1bf055857edce86b1311967c8d88395e-9997\"",
+            "bytes": 83854027098,
+            "sourceResolutionM": 30,
+            "verticalDatum": "CGVD2013",
+            "published": "2026-06-22T12:00:00Z",
+            "snapshotSha256": "e7d3aadf282ed19af605a0f1162e13f017539e9af99996c48bd1e80e65b11e63",
+            "samplesSha256": "fac3b84ca477fa24afbc7a1c1a85ec5e2a11a3579a992b42f3e5bbca0de122f3"
+          }
+        ],
+        "grids": [
+          {
+            "name": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+            "bounds": [
+              -123.19999999999999,
+              49.24999999999999,
+              -123.14,
+              49.31
+            ],
+            "tilesWritten": 11
+          }
+        ],
+        "schemaVersion": 1,
+        "encoding": "elevation-terrarium-v1",
+        "verticalDatum": "CGVD2013",
+        "verticalUnits": "metre",
+        "coverage": {
+          "validSamples": 46900,
+          "totalSamples": 46900,
+          "minElevationM": -3.2498984336853027,
+          "maxElevationM": 95.5598373413086
+        },
+        "normalization": {
+          "horizontalCrs": "EPSG:3857",
+          "resampling": "bilinear",
+          "verticalTransform": "none; pinned provider CGVD2013 metres"
+        },
+        "tools": {
+          "python": "3.14.2",
+          "rasterio": "1.5.1",
+          "gdal": "3.12.4",
+          "numpy": "2.5.3"
+        }
+      },
+      "readSeconds": 1.7312700000184122,
+      "buildAndVerifySeconds": 0.1865285829990171,
+      "totalSeconds": 1.918353000015486,
+      "processPeakRssBytes": 110510080,
+      "retainedScratchBytes": 370634,
+      "pngBytes": 87256,
+      "pngBytesPerTile": 7932.363636363636,
+      "tilesPerBuildSecond": 58.97219516248598,
+      "sourceBytesRead": null,
+      "retryCount": null,
+      "region": "coast",
+      "comparisonToZ15Snapshot": {
+        "interiorComparedSamples": 2776800,
+        "interiorP95AbsoluteErrorM": 0.20430469512939453,
+        "interiorMaxAbsoluteErrorM": 4.142244338989258,
+        "comparedSamples": 2989663,
+        "missingReferenceSamples": 9793,
+        "filledNoDataSamples": 0,
+        "meanAbsoluteErrorM": 0.053675323724746704,
+        "p95AbsoluteErrorM": 0.21686023473739624,
+        "maxAbsoluteErrorM": 6.116399765014648,
+        "contourBandDisagreement": {
+          "5": 0.01211675028255693,
+          "10": 0.007382102932671676,
+          "20": 0.004966446050942866
+        }
+      }
+    },
+    {
+      "source": {
+        "id": "nrcan-mrdem-benchmark-0bb9cc7fa2ee-v1",
+        "name": "MRDEM benchmark coast z13",
+        "url": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+        "license": "Open Government Licence \u2013 Canada; NRCan MRDEM DTM, CGVD2013 metres.",
+        "bounds": [
+          -123.2,
+          49.25,
+          -123.14,
+          49.31
+        ],
+        "encoding": "elevation-terrarium-v1",
+        "minZoom": 10,
+        "maxZoom": 13,
+        "verticalDatum": "CGVD2013",
+        "kind": "national-dtm",
+        "nativeResolutionM": 30,
+        "priority": 200
+      },
+      "receipt": {
+        "dataset": "nrcan-mrdem-benchmark-0bb9cc7fa2ee-v1",
+        "sha256": "66544fa5ad9d8c96fe43934a69dbeaafc3a0fdaf3e05928dce30b6d1a84ab32e",
+        "bytes": 276921,
+        "tiles": 17,
+        "sources": [
+          {
+            "item": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+            "url": "https://canelevation-dem.s3.ca-central-1.amazonaws.com/mrdem-30/mrdem-30-dtm.tif",
+            "etag": "\"1bf055857edce86b1311967c8d88395e-9997\"",
+            "bytes": 83854027098,
+            "sourceResolutionM": 30,
+            "verticalDatum": "CGVD2013",
+            "published": "2026-06-22T12:00:00Z",
+            "snapshotSha256": "fc088b8bcb8fea09ecdd026c6f7f470ecf68fcdb958830c40af8ef11116de5e3",
+            "samplesSha256": "08638c5466ecdb38a858ef4f47d973dd3b448a29a6b6052fc6b1a7b3b10432b9"
+          }
+        ],
+        "grids": [
+          {
+            "name": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+            "bounds": [
+              -123.19999999999999,
+              49.24999999999999,
+              -123.14,
+              49.31
+            ],
+            "tilesWritten": 17
+          }
+        ],
+        "schemaVersion": 1,
+        "encoding": "elevation-terrarium-v1",
+        "verticalDatum": "CGVD2013",
+        "verticalUnits": "metre",
+        "coverage": {
+          "validSamples": 187600,
+          "totalSamples": 187600,
+          "minElevationM": -3.4134230613708496,
+          "maxElevationM": 95.72464752197266
+        },
+        "normalization": {
+          "horizontalCrs": "EPSG:3857",
+          "resampling": "bilinear",
+          "verticalTransform": "none; pinned provider CGVD2013 metres"
+        },
+        "tools": {
+          "python": "3.14.2",
+          "rasterio": "1.5.1",
+          "gdal": "3.12.4",
+          "numpy": "2.5.3"
+        }
+      },
+      "readSeconds": 1.8870432080002502,
+      "buildAndVerifySeconds": 0.3365525839908514,
+      "totalSeconds": 2.224451374990167,
+      "processPeakRssBytes": 113557504,
+      "retainedScratchBytes": 1242178,
+      "pngBytes": 276316,
+      "pngBytesPerTile": 16253.882352941177,
+      "tilesPerBuildSecond": 50.51216602889644,
+      "sourceBytesRead": null,
+      "retryCount": null,
+      "region": "coast",
+      "comparisonToZ15Snapshot": {
+        "interiorComparedSamples": 2776800,
+        "interiorP95AbsoluteErrorM": 0.042953696101903915,
+        "interiorMaxAbsoluteErrorM": 1.6157398223876953,
+        "comparedSamples": 2999456,
+        "missingReferenceSamples": 0,
+        "filledNoDataSamples": 0,
+        "meanAbsoluteErrorM": 0.010875743813812733,
+        "p95AbsoluteErrorM": 0.04639330506324768,
+        "maxAbsoluteErrorM": 2.381359100341797,
+        "contourBandDisagreement": {
+          "5": 0.006379490147546755,
+          "10": 0.005440319844665166,
+          "20": 0.004962899939188973
+        }
+      }
+    },
+    {
+      "source": {
+        "id": "nrcan-mrdem-benchmark-f0313f843169-v1",
+        "name": "MRDEM benchmark coast z15",
+        "url": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+        "license": "Open Government Licence \u2013 Canada; NRCan MRDEM DTM, CGVD2013 metres.",
+        "bounds": [
+          -123.2,
+          49.25,
+          -123.14,
+          49.31
+        ],
+        "encoding": "elevation-terrarium-v1",
+        "minZoom": 10,
+        "maxZoom": 15,
+        "verticalDatum": "CGVD2013",
+        "kind": "national-dtm",
+        "nativeResolutionM": 30,
+        "priority": 200
+      },
+      "receipt": {
+        "dataset": "nrcan-mrdem-benchmark-f0313f843169-v1",
+        "sha256": "65cf53d692ebb8db7cd6c7db54b71bb9a3a3d7ec2351c1ed97691d0cc0493a1b",
+        "bytes": 2349953,
+        "tiles": 86,
+        "sources": [
+          {
+            "item": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+            "url": "https://canelevation-dem.s3.ca-central-1.amazonaws.com/mrdem-30/mrdem-30-dtm.tif",
+            "etag": "\"1bf055857edce86b1311967c8d88395e-9997\"",
+            "bytes": 83854027098,
+            "sourceResolutionM": 30,
+            "verticalDatum": "CGVD2013",
+            "published": "2026-06-22T12:00:00Z",
+            "snapshotSha256": "965ee54f58a40d4e5c47e04fffb3a53204b8b206c5cad0052dbb827ab12200ea",
+            "samplesSha256": "3343e85c68cb2878541b4ae0f43b9c8a75a34f311e804a86c465b3dd7f6f0baf"
+          }
+        ],
+        "grids": [
+          {
+            "name": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+            "bounds": [
+              -123.19999999999999,
+              49.24999999999999,
+              -123.14,
+              49.31
+            ],
+            "tilesWritten": 86
+          }
+        ],
+        "schemaVersion": 1,
+        "encoding": "elevation-terrarium-v1",
+        "verticalDatum": "CGVD2013",
+        "verticalUnits": "metre",
+        "coverage": {
+          "validSamples": 2999456,
+          "totalSamples": 2999456,
+          "minElevationM": -3.5767107009887695,
+          "maxElevationM": 95.71791076660156
+        },
+        "normalization": {
+          "horizontalCrs": "EPSG:3857",
+          "resampling": "bilinear",
+          "verticalTransform": "none; pinned provider CGVD2013 metres"
+        },
+        "tools": {
+          "python": "3.14.2",
+          "rasterio": "1.5.1",
+          "gdal": "3.12.4",
+          "numpy": "2.5.3"
+        }
+      },
+      "readSeconds": 2.9067147920140997,
+      "buildAndVerifySeconds": 2.647489750001114,
+      "totalSeconds": 5.559814333013492,
+      "processPeakRssBytes": 171114496,
+      "retainedScratchBytes": 14733159,
+      "pngBytes": 2349121,
+      "pngBytesPerTile": 27315.36046511628,
+      "tilesPerBuildSecond": 32.483600739139334,
+      "sourceBytesRead": null,
+      "retryCount": null,
+      "region": "coast",
+      "comparisonToZ15Snapshot": {
+        "interiorComparedSamples": 2776800,
+        "interiorP95AbsoluteErrorM": 0.0036220550537109375,
+        "interiorMaxAbsoluteErrorM": 0.3419914245605469,
+        "comparedSamples": 2999456,
+        "missingReferenceSamples": 0,
+        "filledNoDataSamples": 0,
+        "meanAbsoluteErrorM": 0.00144768797326833,
+        "p95AbsoluteErrorM": 0.0037593841552734375,
+        "maxAbsoluteErrorM": 0.6045761108398438,
+        "contourBandDisagreement": {
+          "5": 0.006425165096604184,
+          "10": 0.006343817012151537,
+          "20": 0.006293807943840483
+        }
+      }
+    },
+    {
+      "source": {
+        "id": "nrcan-mrdem-benchmark-da27a63838f5-v1",
+        "name": "MRDEM benchmark north z12",
+        "url": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+        "license": "Open Government Licence \u2013 Canada; NRCan MRDEM DTM, CGVD2013 metres.",
+        "bounds": [
+          -68.55,
+          63.72,
+          -68.49,
+          63.78
+        ],
+        "encoding": "elevation-terrarium-v1",
+        "minZoom": 10,
+        "maxZoom": 12,
+        "verticalDatum": "CGVD2013",
+        "kind": "national-dtm",
+        "nativeResolutionM": 30,
+        "priority": 200
+      },
+      "receipt": {
+        "dataset": "nrcan-mrdem-benchmark-da27a63838f5-v1",
+        "sha256": "8bc0d6cb398575d29465ca6cb16465525d60b9da2bba007b3a4f36e506673835",
+        "bytes": 147635,
+        "tiles": 10,
+        "sources": [
+          {
+            "item": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+            "url": "https://canelevation-dem.s3.ca-central-1.amazonaws.com/mrdem-30/mrdem-30-dtm.tif",
+            "etag": "\"1bf055857edce86b1311967c8d88395e-9997\"",
+            "bytes": 83854027098,
+            "sourceResolutionM": 30,
+            "verticalDatum": "CGVD2013",
+            "published": "2026-06-22T12:00:00Z",
+            "snapshotSha256": "c1a9823339f4300eea484f66071db4c843c440cf8fac887bed8b6fa3ab5a5bc7",
+            "samplesSha256": "57385851ddf3fd2e6fd7087da3d17d7bbf8ebafc7cfb259915b1c9483d510119"
+          }
+        ],
+        "grids": [
+          {
+            "name": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+            "bounds": [
+              -68.54999999999998,
+              63.71999999999999,
+              -68.49,
+              63.78
+            ],
+            "tilesWritten": 10
+          }
+        ],
+        "schemaVersion": 1,
+        "encoding": "elevation-terrarium-v1",
+        "verticalDatum": "CGVD2013",
+        "verticalUnits": "metre",
+        "coverage": {
+          "validSamples": 69300,
+          "totalSamples": 69300,
+          "minElevationM": -0.23021838068962097,
+          "maxElevationM": 177.9868927001953
+        },
+        "normalization": {
+          "horizontalCrs": "EPSG:3857",
+          "resampling": "bilinear",
+          "verticalTransform": "none; pinned provider CGVD2013 metres"
+        },
+        "tools": {
+          "python": "3.14.2",
+          "rasterio": "1.5.1",
+          "gdal": "3.12.4",
+          "numpy": "2.5.3"
+        }
+      },
+      "readSeconds": 1.7022004580067005,
+      "buildAndVerifySeconds": 0.2232943749986589,
+      "totalSeconds": 1.926068833010504,
+      "processPeakRssBytes": 108724224,
+      "retainedScratchBytes": 571095,
+      "pngBytes": 147059,
+      "pngBytesPerTile": 14705.9,
+      "tilesPerBuildSecond": 44.78393152563767,
+      "sourceBytesRead": null,
+      "retryCount": null,
+      "region": "north",
+      "comparisonToZ15Snapshot": {
+        "interiorComparedSamples": 4135830,
+        "interiorP95AbsoluteErrorM": 0.18849945068359375,
+        "interiorMaxAbsoluteErrorM": 0.971160888671875,
+        "comparedSamples": 4404666,
+        "missingReferenceSamples": 18972,
+        "filledNoDataSamples": 0,
+        "meanAbsoluteErrorM": 0.0502975657582283,
+        "p95AbsoluteErrorM": 0.1945343017578125,
+        "maxAbsoluteErrorM": 1.7422561645507812,
+        "contourBandDisagreement": {
+          "5": 0.010863025709554368,
+          "10": 0.006112154701400742,
+          "20": 0.004011200849281194
+        }
+      }
+    },
+    {
+      "source": {
+        "id": "nrcan-mrdem-benchmark-88f8d8d783cc-v1",
+        "name": "MRDEM benchmark north z13",
+        "url": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+        "license": "Open Government Licence \u2013 Canada; NRCan MRDEM DTM, CGVD2013 metres.",
+        "bounds": [
+          -68.55,
+          63.72,
+          -68.49,
+          63.78
+        ],
+        "encoding": "elevation-terrarium-v1",
+        "minZoom": 10,
+        "maxZoom": 13,
+        "verticalDatum": "CGVD2013",
+        "kind": "national-dtm",
+        "nativeResolutionM": 30,
+        "priority": 200
+      },
+      "receipt": {
+        "dataset": "nrcan-mrdem-benchmark-88f8d8d783cc-v1",
+        "sha256": "d715955f16d9c3053ecffd37980c07fdb7b7de83f375226b97ab8b1cb45203f0",
+        "bytes": 491424,
+        "tiles": 18,
+        "sources": [
+          {
+            "item": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+            "url": "https://canelevation-dem.s3.ca-central-1.amazonaws.com/mrdem-30/mrdem-30-dtm.tif",
+            "etag": "\"1bf055857edce86b1311967c8d88395e-9997\"",
+            "bytes": 83854027098,
+            "sourceResolutionM": 30,
+            "verticalDatum": "CGVD2013",
+            "published": "2026-06-22T12:00:00Z",
+            "snapshotSha256": "7377ce88bab2a71d1f4f8aeecca17c6764c3a733b5f878b4bfc9fe17b463995b",
+            "samplesSha256": "eb849755842ace1392a97bcbaa5c4168acd04f51014770bff7006b04904a6160"
+          }
+        ],
+        "grids": [
+          {
+            "name": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+            "bounds": [
+              -68.54999999999998,
+              63.71999999999999,
+              -68.49,
+              63.78
+            ],
+            "tilesWritten": 18
+          }
+        ],
+        "schemaVersion": 1,
+        "encoding": "elevation-terrarium-v1",
+        "verticalDatum": "CGVD2013",
+        "verticalUnits": "metre",
+        "coverage": {
+          "validSamples": 276850,
+          "totalSamples": 276850,
+          "minElevationM": -0.23054176568984985,
+          "maxElevationM": 178.2449951171875
+        },
+        "normalization": {
+          "horizontalCrs": "EPSG:3857",
+          "resampling": "bilinear",
+          "verticalTransform": "none; pinned provider CGVD2013 metres"
+        },
+        "tools": {
+          "python": "3.14.2",
+          "rasterio": "1.5.1",
+          "gdal": "3.12.4",
+          "numpy": "2.5.3"
+        }
+      },
+      "readSeconds": 1.7582464170118328,
+      "buildAndVerifySeconds": 0.5198572920053266,
+      "totalSeconds": 2.2792702080041636,
+      "processPeakRssBytes": 114147328,
+      "retainedScratchBytes": 1991162,
+      "pngBytes": 490817,
+      "pngBytesPerTile": 27267.61111111111,
+      "tilesPerBuildSecond": 34.62488701575349,
+      "sourceBytesRead": null,
+      "retryCount": null,
+      "region": "north",
+      "comparisonToZ15Snapshot": {
+        "interiorComparedSamples": 4135830,
+        "interiorP95AbsoluteErrorM": 0.05448150634765625,
+        "interiorMaxAbsoluteErrorM": 0.4177093505859375,
+        "comparedSamples": 4422239,
+        "missingReferenceSamples": 1399,
+        "filledNoDataSamples": 0,
+        "meanAbsoluteErrorM": 0.012080840766429901,
+        "p95AbsoluteErrorM": 0.056549072265625,
+        "maxAbsoluteErrorM": 0.8602523803710938,
+        "contourBandDisagreement": {
+          "5": 0.0025887338970146116,
+          "10": 0.0014693914100979164,
+          "20": 0.0009676093942457655
+        }
+      }
+    },
+    {
+      "source": {
+        "id": "nrcan-mrdem-benchmark-4d3a96239396-v1",
+        "name": "MRDEM benchmark north z15",
+        "url": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+        "license": "Open Government Licence \u2013 Canada; NRCan MRDEM DTM, CGVD2013 metres.",
+        "bounds": [
+          -68.55,
+          63.72,
+          -68.49,
+          63.78
+        ],
+        "encoding": "elevation-terrarium-v1",
+        "minZoom": 10,
+        "maxZoom": 15,
+        "verticalDatum": "CGVD2013",
+        "kind": "national-dtm",
+        "nativeResolutionM": 30,
+        "priority": 200
+      },
+      "receipt": {
+        "dataset": "nrcan-mrdem-benchmark-4d3a96239396-v1",
+        "sha256": "540d427b8a10a29a9564309d505d771a769fc5d36d10fafa1f795c857bbfd21c",
+        "bytes": 4292655,
+        "tiles": 117,
+        "sources": [
+          {
+            "item": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+            "url": "https://canelevation-dem.s3.ca-central-1.amazonaws.com/mrdem-30/mrdem-30-dtm.tif",
+            "etag": "\"1bf055857edce86b1311967c8d88395e-9997\"",
+            "bytes": 83854027098,
+            "sourceResolutionM": 30,
+            "verticalDatum": "CGVD2013",
+            "published": "2026-06-22T12:00:00Z",
+            "snapshotSha256": "e83312ebcae58c339a5ba16454a08afaf15b7b0c909f3f9ba716c383a1146178",
+            "samplesSha256": "f7b6494fe7716328c70874a51ce0a28f7a71ec399fbdf2d1943c90fa8f742d75"
+          }
+        ],
+        "grids": [
+          {
+            "name": "https://datacube.services.geo.ca/stac/api/collections/mrdem-30/items/mrdem",
+            "bounds": [
+              -68.54999999999998,
+              63.71999999999999,
+              -68.49,
+              63.78
+            ],
+            "tilesWritten": 117
+          }
+        ],
+        "schemaVersion": 1,
+        "encoding": "elevation-terrarium-v1",
+        "verticalDatum": "CGVD2013",
+        "verticalUnits": "metre",
+        "coverage": {
+          "validSamples": 4423638,
+          "totalSamples": 4423638,
+          "minElevationM": -0.2308017909526825,
+          "maxElevationM": 178.44947814941406
+        },
+        "normalization": {
+          "horizontalCrs": "EPSG:3857",
+          "resampling": "bilinear",
+          "verticalTransform": "none; pinned provider CGVD2013 metres"
+        },
+        "tools": {
+          "python": "3.14.2",
+          "rasterio": "1.5.1",
+          "gdal": "3.12.4",
+          "numpy": "2.5.3"
+        }
+      },
+      "readSeconds": 2.7448793750081677,
+      "buildAndVerifySeconds": 3.9690171660040505,
+      "totalSeconds": 6.721822542021982,
+      "processPeakRssBytes": 201588736,
+      "retainedScratchBytes": 23434991,
+      "pngBytes": 4291739,
+      "pngBytesPerTile": 36681.529914529914,
+      "tilesPerBuildSecond": 29.47833055551985,
+      "sourceBytesRead": null,
+      "retryCount": null,
+      "region": "north",
+      "comparisonToZ15Snapshot": {
+        "interiorComparedSamples": 4135830,
+        "interiorP95AbsoluteErrorM": 0.00395965576171875,
+        "interiorMaxAbsoluteErrorM": 0.099609375,
+        "comparedSamples": 4423638,
+        "missingReferenceSamples": 0,
+        "filledNoDataSamples": 0,
+        "meanAbsoluteErrorM": 0.0013610582100227475,
+        "p95AbsoluteErrorM": 0.004119873046875,
+        "maxAbsoluteErrorM": 0.12957000732421875,
+        "contourBandDisagreement": {
+          "5": 0.00029274547329596136,
+          "10": 0.00017768180850241363,
+          "20": 0.00013450467691976603
+        }
+      }
+    }
+  ],
+  "limitations": [
+    "Small bounded chunks, not a national throughput or compression forecast.",
+    "RSS is the Python worker peak, excluding pmtiles subprocesses.",
+    "Scratch is retained files, not sampled peak disk use.",
+    "GDAL transfer bytes and retry counts are not instrumented.",
+    "Contour band disagreement is a numeric proxy, not geometric contour validation.",
+    "Reference is z15 resampled MRDEM, not independent surveyed truth."
+  ]
+}

@@ -126,7 +126,7 @@ node scripts/verify-surveys-live.mjs --dataset=syke-finland-lakes-v1 --coverage-
 The browser check uses real HydroLAKES polygons and real depth archives, checks
 new source coverage, and generates a Crater Lake fabrication ZIP after enabling
 depth. It then interrupts survey requests and verifies warning-bearing fallback
-exports. Reports and ZIPs are written to `/tmp/topostack-survey-validation`.
+exports. Reports and ZIPs are written to `topostack-survey-validation` in the OS temp directory (`SURVEY_TEST_OUTPUT` overrides).
 Run it separately from builds/coverage to avoid Vite reloads during the test.
 `SURVEY_TEST_BROWSER=firefox` or `webkit` selects another installed Playwright
 browser; Chromium is the default.

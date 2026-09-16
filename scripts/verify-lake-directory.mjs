@@ -1,19 +1,18 @@
 /** Local browser check for the lake directory and studio place links. */
 import assert from "node:assert/strict";
-import { mkdir, readFile } from "node:fs/promises";
-import { chromium, expect } from "@playwright/test";
+import { readFile } from "node:fs/promises";
+import { expect } from "@playwright/test";
+import { artifactDirectory, openBrowserCheck } from "./lib/browser-check.mjs";
 
 const directory = JSON.parse(await readFile(new URL("../apps/generator/static/data/lake-depth-directory.json", import.meta.url), "utf8"));
 const totalLakes = new Intl.NumberFormat("en-US").format(directory.lakes.length);
 
 const origin = process.env.DIRECTORY_TEST_APP_URL ?? "http://localhost:5273";
 if (!["localhost", "127.0.0.1"].includes(new URL(origin).hostname)) throw new Error("Use a local preview for this check.");
-const output = process.env.DIRECTORY_TEST_OUTPUT ?? "/tmp/topostack-lake-directory";
-await mkdir(output, { recursive: true });
-const browser = await chromium.launch();
-const errors = [];
-const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
-page.on("pageerror", (error) => errors.push(error.message));
+const { browser, page, errors, output, run } = await openBrowserCheck({
+  output: artifactDirectory(process.env.DIRECTORY_TEST_OUTPUT, "lake-directory"),
+  pageOptions: { viewport: { width: 1440, height: 1000 } },
+});
 const directoryPath = `${origin}/guides/lake-depth-data`;
 let catalogRequests = 0;
 page.on("request", (request) => { if (request.url().endsWith("/data/lake-depth-directory.json")) catalogRequests += 1; });
@@ -30,7 +29,7 @@ async function readSaved() {
     };
   }));
 }
-try {
+await run(async () => {
   await page.goto(directoryPath);
   await expect(page.locator(".result-summary")).toContainText(totalLakes);
   await expect(page.locator(".lake-list > li")).toHaveCount(25);
@@ -83,7 +82,4 @@ try {
   assert.deepEqual(errors, []);
   console.log("Lake directory passed: search, accents/aliases, filters, pagination, mobile layout, studio selection, saved edits, and load recovery.");
   console.log(`Screenshots: ${output}`);
-} catch (error) {
-  await page.screenshot({ path: `${output}/failure.png`, fullPage: true }).catch(() => {});
-  throw error;
-} finally { await browser.close(); }
+});

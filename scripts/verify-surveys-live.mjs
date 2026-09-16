@@ -1,26 +1,29 @@
 /** Manual integration check against a local Vite app + Worker with development R2. */
 import assert from "node:assert/strict";
 import { mkdir, writeFile, readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, firefox, webkit } from "@playwright/test";
+import { artifactDirectory, openBrowserCheck } from "./lib/browser-check.mjs";
 import { unzipSync } from "fflate";
 
 const baseURL = process.env.SURVEY_TEST_APP_URL ?? "http://localhost:5293";
 if (!["localhost", "127.0.0.1"].includes(new URL(baseURL).hostname)) throw new Error("Use a local Vite app for this development-data check.");
 const coreUrl = `/@fs${fileURLToPath(new URL("../packages/core/src/index.ts", import.meta.url))}`;
-const artifacts = process.env.SURVEY_TEST_OUTPUT ?? "/tmp/topostack-survey-validation";
-await mkdir(artifacts, { recursive: true });
 const browserName = process.env.SURVEY_TEST_BROWSER ?? "chromium";
 if (!["chromium", "firefox", "webkit"].includes(browserName)) throw new Error("Unknown survey test browser.");
-const firefoxData = "/tmp/topostack-survey-firefox";
+const firefoxData = join(tmpdir(), "topostack-survey-firefox");
 if (browserName === "firefox") await mkdir(firefoxData, { recursive: true });
-const browser = await ({ chromium, firefox, webkit })[browserName].launch(browserName === "firefox"
-  ? { firefoxUserPrefs: { "webgl.force-enabled": true }, env: { ...process.env, MOZ_APP_DATA: firefoxData } } : {});
-const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
-page.setDefaultTimeout(120_000);
-const errors = [];
-page.on("pageerror", (error) => errors.push(error.message));
+const { page, errors, output: artifacts, run } = await openBrowserCheck({
+  output: artifactDirectory(process.env.SURVEY_TEST_OUTPUT, "survey-validation"),
+  browserType: ({ chromium, firefox, webkit })[browserName],
+  launchOptions: browserName === "firefox"
+    ? { firefoxUserPrefs: { "webgl.force-enabled": true }, env: { ...process.env, MOZ_APP_DATA: firefoxData } } : {},
+  pageOptions: { viewport: { width: 1440, height: 1000 } },
+  defaultTimeout: 120_000,
+  failureReport: true,
+});
 const reports = [];
 const localArchives = process.argv.find((arg) => arg.startsWith("--local-archives="))?.slice(17);
 if (localArchives) {
@@ -41,7 +44,7 @@ if (localArchives) {
     } });
   });
 }
-try {
+await run(async () => {
   await page.goto(`${baseURL}/studio`, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: "Build the landscape." }).waitFor();
   const cases = [
@@ -164,10 +167,4 @@ try {
   await writeFile(`${artifacts}/report.json`, JSON.stringify(reports, null, 2) + "\n");
   console.log(`Survey live checks passed. Artifacts: ${artifacts}`);
   }
-} catch (error) {
-  await page.screenshot({ path: `${artifacts}/failure.png`, fullPage: true }).catch(() => {});
-  await writeFile(`${artifacts}/failure.txt`, `${error.stack}\nBrowser errors: ${JSON.stringify(errors)}\n${await page.locator("body").innerText().catch(() => "")}`);
-  throw error;
-} finally {
-  await browser.close();
-}
+});

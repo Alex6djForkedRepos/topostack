@@ -10,6 +10,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import re
 
 import fiona
 from rasterio.warp import transform_geom
@@ -19,6 +20,7 @@ from shapely.ops import unary_union
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / 'scripts/data'
+SHARD_NAME = re.compile(r'^[0-9a-f]{24}\.json$')
 
 
 def clean_water(water, islands=()):
@@ -84,6 +86,45 @@ def read_masks(cache, pins):
             yield dataset, pin['id'], water, crs
 
 
+def write_atomic(target, payload):
+    partial = target.with_name(target.name + '.part')
+    try:
+        partial.write_bytes(payload)
+        partial.replace(target)
+    except BaseException:
+        partial.unlink(missing_ok=True)
+        raise
+
+
+def publish_shards(output, features):
+    """Write content-addressed shards, then swap the index, then prune stale shards.
+
+    Readers see either the previous index (whose shards still exist) or the new
+    one. Only files matching the shard naming pattern are ever removed.
+    """
+    output.mkdir(parents=True, exist_ok=True)
+    chunks = defaultdict(list)
+    for identity, feature in sorted(features.items()):
+        w, s, e, n = feature['bbox']
+        chunks[(feature['properties']['sourceId'], math.floor((w+e)/2), math.floor((s+n)/2))].append(feature)
+    shards = []
+    for key, records in sorted(chunks.items()):
+        for start in range(0, len(records), 32):
+            batch = records[start:start+32]
+            payload = (json.dumps({'type': 'FeatureCollection', 'features': batch}, separators=(',', ':'), ensure_ascii=False) + '\n').encode()
+            filename = hashlib.sha256(payload).hexdigest()[:24] + '.json'
+            write_atomic(output / filename, payload)
+            boxes = [f['bbox'] for f in batch]
+            bounds = [min(b[0] for b in boxes), min(b[1] for b in boxes), max(b[2] for b in boxes), max(b[3] for b in boxes)]
+            shards.append({'file': filename, 'bounds': bounds, 'sourceId': key[0], 'count': len(batch)})
+    write_atomic(output / 'index.json', (json.dumps({'schemaVersion': 1, 'shards': shards}, separators=(',', ':')) + '\n').encode())
+    referenced = {shard['file'] for shard in shards}
+    for path in output.iterdir():
+        if path.is_file() and SHARD_NAME.match(path.name) and path.name not in referenced:
+            path.unlink()
+    return shards
+
+
 def build(caches, output, directory):
     pins = json.loads((DATA / 'lake-survey-sources.json').read_text())
     lakes = {lake['id']: lake for lake in directory['lakes']}
@@ -127,27 +168,12 @@ def build(caches, output, directory):
     missing = sorted(key for key, lake in lakes.items() if lake['sourceId'] in supported and key not in features)
     if missing:
         raise ValueError(f'Missing provider masks for {len(missing)} directory entries: {missing[:10]}')
-    output.mkdir(parents=True, exist_ok=True)
-    chunks = defaultdict(list)
-    for identity, feature in sorted(features.items()):
-        w, s, e, n = feature['bbox']
-        chunks[(feature['properties']['sourceId'], math.floor((w+e)/2), math.floor((s+n)/2))].append(feature)
-    shards = []
-    for key, records in sorted(chunks.items()):
-        for start in range(0, len(records), 32):
-            batch = records[start:start+32]
-            payload = (json.dumps({'type': 'FeatureCollection', 'features': batch}, separators=(',', ':'), ensure_ascii=False) + '\n').encode()
-            filename = hashlib.sha256(payload).hexdigest()[:24] + '.json'
-            (output / filename).write_bytes(payload)
-            boxes = [f['bbox'] for f in batch]
-            bounds = [min(b[0] for b in boxes), min(b[1] for b in boxes), max(b[2] for b in boxes), max(b[3] for b in boxes)]
-            shards.append({'file': filename, 'bounds': bounds, 'sourceId': key[0], 'count': len(batch)})
-    (output / 'index.json').write_text(json.dumps({'schemaVersion': 1, 'shards': shards}, separators=(',', ':')) + '\n')
+    shards = publish_shards(output, features)
     audit = {'schemaVersion': 1, 'directoryEntries': len(lakes), 'providerOutlines': len(features), 'shards': len(shards),
              'entries': [{'id': key, 'outline': 'provider' if key in features else 'external-fallback',
                           **({'reason': 'Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM.'} if key not in features else {})}
                          for key in sorted(lakes)]}
-    (DATA / 'lake-outline-coverage.json').write_text(json.dumps(audit, indent=2, ensure_ascii=False) + '\n')
+    write_atomic(DATA / 'lake-outline-coverage.json', (json.dumps(audit, indent=2, ensure_ascii=False) + '\n').encode())
     print(f"Published {len(features)} provider outlines in {len(shards)} shards; {len(lakes)-len(features)} grid-source entries require external shorelines.")
 
 

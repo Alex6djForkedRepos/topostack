@@ -1,3 +1,4 @@
+import { cropRadiusMm } from "./crop.js";
 import { clamp } from "./geometry2d.js";
 import { labelDimensions } from "./labels.js";
 import type { NorthArrowAnchor, OperationPath, Point2D, ProjectConfigV1, TextStyleV1 } from "./types.js";
@@ -44,7 +45,7 @@ function centerFor(config: ProjectConfigV1): Point2D {
     };
   }
 
-  const availableRadius = Math.max(0, Math.min(config.widthMm, config.heightMm) / 2 - halfSymbol - CLEARANCE_MM);
+  const availableRadius = Math.max(0, cropRadiusMm(config) - halfSymbol - CLEARANCE_MM);
   const anchorLength = Math.hypot(vector.x, vector.y);
   const anchor = anchorLength > 1 ? { x: vector.x / anchorLength, y: vector.y / anchorLength } : vector;
   const desired = { x: (anchor.x + offset.x) * availableRadius, y: (anchor.y + offset.y) * availableRadius };

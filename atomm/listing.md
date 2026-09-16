@@ -19,11 +19,15 @@ When you are ready, use Export to download the files or open the master SVG in x
 
 Make a keepsake of a favorite hike, a mountain you climbed, a memorable lake, or the place you call home.
 
-Generate fresh terrain before exporting, then review the artwork, material, and machine settings before fabrication. The opening design is a bundled preview. The gallery shows a freshly generated Crater Lake project, including USGS surveyed bathymetry in the layered views. The cover uses an AI-assisted workshop setting based on the app rendering.
+Generate fresh terrain before exporting, then review the artwork, material, and machine settings before fabrication. The opening design is a bundled preview. The gallery shows a freshly generated Crater Lake project, including USGS surveyed bathymetry in the layered views. The cover and motion preview show the app’s actual Crater Lake geometry.
 
 ## Upload media
 
-Upload the cover separately as the card cover. These images were captured from the current app after **Generate terrain**, rather than from its bundled preview. The recommended cover is an AI-assisted workshop presentation based on the app’s rendered 3D canvas, not a photograph of a manufactured piece. It is 1448 × 1086 PNG (4:3). The nine gallery images remain direct app screenshots at 1600 × 1200. All images are below 15 MB. The original canvas capture is retained as an alternate cover.
+Use `assets/topostack-cover-motion-4x3.png` in the image-only card-cover field. Use `assets/topostack-exploded-stack-v2.mp4` as the lead video wherever Atomm supports motion. The matching still is extracted directly from the video, and both use actual app geometry.
+
+The motion preview is an eight-second, 1600 × 1200, 60 fps H.264 loop: faster layer separation and reassembly, continuous camera orbit, and automatic framing. It contains 479 decoded frames with no duplicate frames in the verification pass. The ten gallery images show real app output at 1600 × 1200. All images are below 15 MB and the video is below 70 MB. The direct canvas capture is retained as an alternate still cover.
+
+The layered project is 406.4 × 270.933 mm (16 × 10.67 inches), with 24 sheets of 3.175 mm (⅛-inch) plywood and a 76.2 mm (3-inch) maximum stack height. Requested terrain exaggeration is 4×; the 24-sheet limit refits it to approximately 2.32×. Lake depth exaggeration is 1.75×, depth fitting is enabled, and generation produces no depth-clipping warning. Import `media-project-v3.json` and generate fresh terrain to reproduce the design.
 
 The regenerated project loaded `usgs-crater-lake-v1` successfully (`bathymetryStatus: available`). Crater Lake’s geometry reports `depthSource: mixed`: measured lake-floor data is used where covered, with existing terrain or modeled depth filling uncovered cells. The gallery does not imply complete survey coverage. Flat engraving shows surface contour artwork, not submerged 3D relief.
 
@@ -31,7 +35,8 @@ Suggested gallery order:
 
 | Order | File | Caption / alt text |
 | --- | --- | --- |
-| Cover | `assets/topostack-cover-workshop-v2-4x3.png` | AI-assisted workshop presentation of Crater Lake terrain, with a larger tabletop scale and approximately ⅛-inch plywood layers. |
+| Cover | `assets/topostack-cover-motion-4x3.png` | Direct frame from the dynamic video, showing the actual 24-layer Crater Lake model and full lake basin. |
+| Video | `assets/topostack-exploded-stack-v2.mp4` | Eight-second, 60 fps loop with quicker layer separation and reassembly, a gentle orbit, and dynamic framing. |
 | Alternate cover | `assets/topostack-cover-4x3.png` | Direct capture of the app’s regenerated Crater Lake model with USGS lake-floor bathymetry. |
 | 1 | `assets/topostack-gallery-01-3d.png` | Assembled terrain relief showing Crater Lake’s surveyed underwater features. |
 | 2 | `assets/topostack-gallery-04-exploded.png` | Exploded 3D view separates the physical sheets for a clearer look at the terrain layers. |
@@ -42,8 +47,9 @@ Suggested gallery order:
 | 7 | `assets/topostack-gallery-03-flat-engraving.png` | Switch to flat engraving and customize contour artwork at physical size. |
 | 8 | `assets/topostack-gallery-08-custom-marker.png` | Add a coordinate-based marker near Wizard Island to personalize the design. |
 | 9 | `assets/topostack-gallery-09-circular-design.png` | Use a circular crop for a different presentation of the same terrain. |
+| 10 | `assets/topostack-gallery-10-expanded.png` | Full-size exploded view of the 24-layer model, captured directly from the app canvas. |
 
-Nine gallery files are supplied, within the 20-file limit. Video is optional and is not included. `media-provenance.json` records the generation sources and settings used for the initial layered capture; subsequent screenshots demonstrate UI changes to that project.
+The bundle contains 13 media files: the recommended cover, its direct app reference, ten gallery images, and one video, within the 20-file limit. `media-provenance.json` records the generation sources and settings used for the initial layered capture; subsequent screenshots demonstrate UI changes to that project.
 
 Credits: USGS Crater Lake multibeam bathymetry (public domain); Mapzen Terrain Tiles and their contributing elevation sources; HydroLAKES / GLOBathy; map data © OpenStreetMap contributors, via Protomaps. The map view also displays its tile attribution. Full generation attribution is retained in `media-provenance.json` and the app’s exports.
 

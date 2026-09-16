@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { buildProjectPackage, carveWaterDepth, createSyntheticSource, DEFAULT_PROJECT, generateGeometry, type ProjectConfigV1, type SourceBundleV1, type WaterAreaV1 } from "./index.js";
-import { ringFitsInsidePolygon } from "./geometry2d.js";
+import { buildProjectPackage, carveWaterDepth, createSyntheticSource, DEFAULT_PROJECT, engravingToSvg, generateGeometry, planTerrainStack, type ProjectConfigV1, type SourceBundleV1, type WaterAreaV1 } from "./index.js";
+import { pointInRing, ringFitsInsidePolygon, rotatedPoint, segmentsIntersect } from "./geometry2d.js";
+import { labelDimensions } from "./labels.js";
 
 const bounds = { west: 0, east: 0.1, south: 0, north: 0.1 };
 const base: ProjectConfigV1 = { ...DEFAULT_PROJECT, widthMm: 300, heightMm: 300, showWaterDepth: false, showWater: false, showRoads: false, showTrails: false, showNorthArrow: false, showScaleBar: false, showElevationLabels: false, showAlignmentGuides: false, optimizeMaterialUse: false, location: { ...DEFAULT_PROJECT.location, bounds } };
@@ -53,6 +54,111 @@ describe("fabrication geometry regressions", () => {
     const polygon = { outer: ring([[-10,-10],[-3,-10],[-3,0],[-2,0],[-2,-10],[10,-10],[10,10],[-10,10],[-10,-10]]), holes: [] };
     expect(ringFitsInsidePolygon(footprint, polygon, 0)).toBe(false);
     expect(ringFitsInsidePolygon(footprint, { outer: ring([[-10,-10],[10,-10],[10,10],[-10,10],[-10,-10]]), holes: [] }, 0)).toBe(true);
+  });
+
+  /** Contour sub-paths from a flat engraving whose every vertex hugs the circular crop edge. */
+  function boundaryStubs(svg: string, radius: number): number {
+    const group = (id: string) => svg.match(new RegExp(`<g id="${id}"[^>]*>(.*?)</g>`))?.[1] ?? "";
+    const contours = group("ENGRAVE-contours-minor") + group("ENGRAVE-contours-index");
+    let stubs = 0;
+    for (const [, data] of contours.matchAll(/ d="([^"]+)"/g)) {
+      for (const subpath of data!.split("M").filter(Boolean)) {
+        const points = [...subpath.matchAll(/(-?[\d.]+) (-?[\d.]+)/g)].map((match) => ({ x: Number(match[1]), y: Number(match[2]) }));
+        // Straight contours legitimately span the crop as one chord, so test
+        // segment midpoints as well as vertices.
+        const samples = points.flatMap((point, index) => index === 0 ? [point] : [{ x: (point.x + points[index - 1]!.x) / 2, y: (point.y + points[index - 1]!.y) / 2 }, point]);
+        if (points.length > 1 && samples.every((point) => Math.hypot(point.x, point.y) > radius - 0.5)) stubs += 1;
+      }
+    }
+    return stubs;
+  }
+
+  it.each([[300, 300], [300, 200], [200, 300]])("does not engrave the circular crop edge as contour stubs at %ix%i mm", (widthMm, heightMm) => {
+    const config = { ...base, cropShape: "circle" as const, outputMode: "engraving" as const, widthMm, heightMm, engravingContourCount: 12 };
+    // A tilted plane: every contour is a straight line clipped by the circle, so
+    // each filled polygon carries long arcs of the crop boundary.
+    const result = generateGeometry(config, source(config, (x, y) => x * 20 + y * 7, 48));
+    const radius = Math.min(widthMm, heightMm) / 2;
+    const svg = engravingToSvg(result, config);
+    expect(svg).toContain(`<circle id="engraving-border" cx="0" cy="0" r="${radius}"/>`);
+    expect(svg).toContain("ENGRAVE-contours-minor");
+    expect(boundaryStubs(svg, radius)).toBe(0);
+  });
+
+  it("keeps flat-engraving elevation labels clear of map details and of each other", () => {
+    const config = { ...base, outputMode: "engraving" as const, showElevationLabels: true, showRoads: true, engravingContourCount: 10, engravingIndexInterval: 2, elevationLabelPosition: { x: 0, y: 0 } };
+    const data = source(config, (x, y) => x * 20 + y * 7, 48);
+    const footprint = (marking: { points: Array<{ x: number; y: number }>; label?: string; labelRotationRad?: number }) => {
+      const origin = marking.points[0]!;
+      const { width, height } = labelDimensions(marking.label!, config.textStyle);
+      const corners = [{ x: origin.x, y: origin.y }, { x: origin.x + width, y: origin.y }, { x: origin.x + width, y: origin.y + height }, { x: origin.x, y: origin.y + height }]
+        .map((point) => rotatedPoint(point, origin, marking.labelRotationRad ?? 0));
+      return [...corners, corners[0]!];
+    };
+    const elevationLabels = (result: ReturnType<typeof generateGeometry>) => result.layers.flatMap((layer) => layer.markings).filter((marking) => marking.id.startsWith("elevation-"));
+    const unobstructed = elevationLabels(generateGeometry(config, data));
+    expect(unobstructed.length).toBeGreaterThan(1);
+    // Run a road straight through every label that was placed without obstacles.
+    data.markings = unobstructed.map((marking, index) => {
+      const ring = footprint(marking);
+      return { id: `through-${index}`, kind: "road" as const, operation: "engrave" as const, transportationClass: "local-road" as const, points: [ring[0]!, ring[2]!] };
+    });
+    const result = generateGeometry(config, data);
+    const roads = result.layers[0]!.markings.filter((marking) => marking.kind === "road");
+    expect(roads.length).toBeGreaterThan(0);
+    const labels = elevationLabels(result);
+    for (const label of labels) {
+      const ring = footprint(label);
+      for (const road of roads) {
+        const crosses = road.points.some((point) => pointInRing(point, ring)) ||
+          road.points.slice(1).some((point, index) => ring.slice(1).some((corner, edge) => segmentsIntersect(road.points[index]!, point, ring[edge]!, corner)));
+        expect(crosses, `${label.id} crosses ${road.id}`).toBe(false);
+      }
+    }
+    for (const [index, left] of labels.entries()) {
+      for (const right of labels.slice(index + 1)) {
+        const a = footprint(left);
+        const b = footprint(right);
+        expect(a.some((point) => pointInRing(point, b)) || b.some((point) => pointInRing(point, a)), `${left.id} overlaps ${right.id}`).toBe(false);
+      }
+    }
+  });
+
+  it("sizes the stack from measured elevations rather than a grid's declared no-data extremes", () => {
+    const config = { ...base, showElevationLabels: true };
+    const honest = source(config, (x, y) => 800 + x * 9 + y * 4);
+    const sentinel = { ...honest, elevation: { ...honest.elevation, min: -32768, max: 9000 } };
+    const expected = generateGeometry(config, honest);
+    const result = generateGeometry(config, sentinel);
+    expect(result.layers).toHaveLength(expected.layers.length);
+    expect(result.landReliefM).toBe(expected.landReliefM);
+    expect(result.minElevationM).toBe(expected.minElevationM);
+    expect(result.maxElevationM).toBe(expected.maxElevationM);
+    expect(result.layers.map((layer) => layer.elevationM)).toEqual(expected.layers.map((layer) => layer.elevationM));
+  });
+
+  it("reports the exaggeration actually cut when the sea-level snap adds a sheet", () => {
+    const config = { ...base, materialThicknessMm: 2, showWaterDepth: true };
+    const data = source(config, (x) => x < 10 ? -30 : 40 + x * 25);
+    data.waterAreas = [{ id: "sea", kind: "ocean", polygon: { outer: ring([[-150,-150],[-55,-150],[-55,150],[-150,150],[-150,-150]]), holes: [] } }];
+    const result = generateGeometry(config, data);
+    const plan = planTerrainStack(config, result.landReliefM, bounds, result.waterDepthBelowLandM);
+    // The snap slides the ladder, so it needs one more sheet than planned...
+    expect(result.layers.length).toBe(plan.layerCount + 1);
+    // ...but every sheet still spans the planned interval, so the vertical
+    // scale of the cut stack - and therefore its exaggeration - is unchanged.
+    const stepM = result.layers[1]!.elevationM - result.layers[0]!.elevationM;
+    expect(result.horizontalScale).toBeGreaterThan(0);
+    expect(result.verticalExaggeration).toBeCloseTo(config.materialThicknessMm / (stepM * result.horizontalScale! * 1000), 9);
+  });
+
+  it("states the horizontal scale in the README, including for IR recorded before it was stored", async () => {
+    const result = generateGeometry(base, source(base, (x, y) => 400 + x * 12 + y * 5));
+    const readme = async (ir: typeof result) => buildProjectPackage(ir, base).files.find((file) => file.filename === "README.txt")!.blob.text();
+    const { horizontalScale: _stored, ...legacy } = result;
+    const current = await readme(result);
+    expect(current).toMatch(/horizontal scale 1:[\d,]+\)/);
+    expect(await readme(legacy)).toBe(current);
   });
 
   it("omits annotations that cannot fit a valid small output", () => {
