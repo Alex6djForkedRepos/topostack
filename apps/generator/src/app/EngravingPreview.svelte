@@ -67,9 +67,9 @@
   <SvgViewport widthMm={geometry.widthMm} heightMm={geometry.heightMm} label="engraving" svgLabel="Flat engraving preview" controlsLabel="Engraving zoom controls" resetLabel="Reset engraving view">
     <defs><filter id="engraving-shadow"><feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.2" /></filter></defs>
     {#if project.cropShape === "circle"}
-      <circle cx="0" cy="0" r={project.widthMm / 2} class="engraving-surface" filter="url(#engraving-shadow)" />
+      <circle cx="0" cy="0" r={project.widthMm / 2} class="engraving-surface" data-preview-shadow filter="url(#engraving-shadow)" />
     {:else}
-      <rect x={-project.widthMm / 2} y={-project.heightMm / 2} width={project.widthMm} height={project.heightMm} class="engraving-surface" filter="url(#engraving-shadow)" />
+      <rect x={-project.widthMm / 2} y={-project.heightMm / 2} width={project.widthMm} height={project.heightMm} class="engraving-surface" data-preview-shadow filter="url(#engraving-shadow)" />
     {/if}
     {#if waterPattern.length}
       <g class="engraving-water-pattern" data-water-pattern={project.waterFillPattern} stroke-width={geometry.lineStyle.waterMm}>
