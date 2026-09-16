@@ -1,0 +1,91 @@
+{
+  "dataset": "noaa-great-lakes-v1",
+  "sha256": "2ed7b833b8ea3129cf3dceab9e74feabd4bf7761e4d947bf889a930096c66744",
+  "sources": [
+    {
+      "id": "erie",
+      "url": "https://www.ngdc.noaa.gov/mgg/greatlakes/erie/data/geotiff/erie_lld.geotiff.tar.gz",
+      "sha256": "730f9209900cd7a671011bf793860c643b7e2c9faf4c7c3f97b08a3d5c5e6715",
+      "bounds": [
+        -84.00041666666665,
+        40.99958333333335,
+        -77.99958333357336,
+        43.000416666586645
+      ],
+      "resolutionDegrees": [
+        0.0008333333333,
+        0.0008333333333
+      ],
+      "verticalDatum": "local lake low water",
+      "minElevationM": -62.57689666748047
+    },
+    {
+      "id": "huron",
+      "url": "https://www.ngdc.noaa.gov/mgg/greatlakes/huron/data/geotiff/huron_lld.geotiff.tar.gz",
+      "sha256": "c67bf76db8f58f3f069c30207e96e9ab061d14a80539a690e510417912152089",
+      "bounds": [
+        -84.50041666666665,
+        42.99958333333335,
+        -79.67958333352615,
+        46.50041666652665
+      ],
+      "resolutionDegrees": [
+        0.0008333333333,
+        0.0008333333333
+      ],
+      "verticalDatum": "local lake low water",
+      "minElevationM": -224.29640197753906
+    },
+    {
+      "id": "michigan",
+      "url": "https://www.ngdc.noaa.gov/mgg/greatlakes/michigan/data/geotiff/michigan_lld.geotiff.tar.gz",
+      "sha256": "7e42ece50a4a8614b630745aefaa46dfb759b4077ad754e3d790960094494ad8",
+      "bounds": [
+        -88.00041666666665,
+        41.619583333333345,
+        -84.49958333347335,
+        46.09041666648785
+      ],
+      "resolutionDegrees": [
+        0.0008333333333,
+        0.0008333333333
+      ],
+      "verticalDatum": "local lake low water",
+      "minElevationM": -275.8900146484375
+    },
+    {
+      "id": "ontario",
+      "url": "https://www.ngdc.noaa.gov/mgg/greatlakes/ontario/data/geotiff/ontario_lld.geotiff.tar.gz",
+      "sha256": "80c9fa04065f1b5754304c96747d34d8e266caebdfc1e452e7eb7fb5f979141e",
+      "bounds": [
+        -79.90041666666666,
+        43.14958333333335,
+        -76.04958333348736,
+        44.25041666662265
+      ],
+      "resolutionDegrees": [
+        0.0008333333333,
+        0.0008333333333
+      ],
+      "verticalDatum": "local lake low water",
+      "minElevationM": -243.9023895263672
+    },
+    {
+      "id": "superior",
+      "url": "https://www.ngdc.noaa.gov/mgg/greatlakes/superior/data/geotiff/superior_lld.geotiff.tar.gz",
+      "sha256": "273908d7d4c6f5ae4741603fa7dbe78d259b719e73244d0f8d16e558bdbcd407",
+      "bounds": [
+        -92.20041666666665,
+        45.99958333333335,
+        -83.99958333366135,
+        49.50041666652665
+      ],
+      "resolutionDegrees": [
+        0.0008333333333,
+        0.0008333333333
+      ],
+      "verticalDatum": "local lake low water",
+      "minElevationM": -405.0823974609375
+    }
+  ]
+}

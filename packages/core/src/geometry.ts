@@ -669,6 +669,10 @@ export function generateGeometry(config: ProjectConfigV1, source: SourceBundleV1
     code: "LAKE_DATA_UNAVAILABLE",
     message: "Lake depth data is unavailable. Disable water depth or regenerate after the service is restored before exporting.",
   });
+  if (source.bathymetryStatus === "unavailable" && usesWaterDepth) warnings.push({
+    code: "BATHYMETRY_FALLBACK",
+    message: "NOAA lake-floor data is unavailable. Lake depths use the existing terrain or modeled basins instead.",
+  });
   // Carve modeled lake beds into the grid before anything reads it. Everything
   // downstream then produces the recess on its own: the contour rings become
   // holes, and holes are already honoured by clipping, nesting, and labelling.

@@ -1,9 +1,13 @@
+import { readFileSync } from "node:fs";
+import noaaFixture from "../fixtures/noaa-erie-z11.json";
 import { mount, tick, unmount } from "svelte";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { createSyntheticSource, DEFAULT_PROJECT, generateGeometry, type GeometryIRV1 } from "@topostack/core";
 import { theme } from "../lib/theme";
 import { createSamplePreviewSource } from "../sample-preview";
 
+const noaaArchive = vi.hoisted(() => ({ getHeader: vi.fn(), getMetadata: vi.fn(), getZxy: vi.fn() }));
+vi.mock("../archive", async (importOriginal) => ({ ...await importOriginal<typeof import("../archive")>(), createArchive: vi.fn(() => noaaArchive) }));
 const loadTerrainMock = vi.hoisted(() => vi.fn());
 const loadVectorMarkingsMock = vi.hoisted(() => vi.fn());
 const loadLakeAreasMock = vi.hoisted(() => vi.fn());
@@ -42,7 +46,7 @@ describe("TopoStack Svelte shell", () => {
     } });
     await import("./ThreePreview.svelte");
   });
-  afterEach(async () => { if (component) await unmount(component); component = undefined; loadTerrainMock.mockReset(); loadVectorMarkingsMock.mockReset(); loadLakeAreasMock.mockReset(); theme.preference = "system"; localStorage.removeItem("topostack-theme"); localStorage.removeItem("topostack-menu-sections-v1"); delete window.atomm; });
+  afterEach(async () => { if (component) await unmount(component); component = undefined; loadTerrainMock.mockReset(); loadVectorMarkingsMock.mockReset(); loadLakeAreasMock.mockReset(); Object.values(noaaArchive).forEach((mock) => mock.mockReset()); theme.preference = "system"; localStorage.removeItem("topostack-theme"); localStorage.removeItem("topostack-menu-sections-v1"); delete window.atomm; });
 
   it("dismisses preview warnings without clearing export restrictions and restores warnings for fresh terrain", async () => {
     loadTerrainMock.mockResolvedValue({ source: createSyntheticSource(DEFAULT_PROJECT, 32), fallback: true });
@@ -688,6 +692,45 @@ describe("TopoStack Svelte shell", () => {
     target.querySelector<HTMLButtonElement>('button[role="radio"][aria-label="Layered relief"]')!.click();
     await vi.waitFor(() => expect(loadLakeAreasMock).toHaveBeenCalledOnce());
     await vi.waitFor(() => expect(target.querySelector<HTMLButtonElement>('button[role="radio"][aria-label="Layered relief"]')!.getAttribute("aria-checked")).toBe("true"));
+  });
+
+  it.each([false, true])("loads NOAA on enabling depth and handles unavailable=%s", async (unavailable) => {
+    noaaArchive.getHeader.mockResolvedValue({ tileType: 2, minZoom: 0, maxZoom: 11 });
+    noaaArchive.getMetadata.mockResolvedValue({ topostack_dataset: "noaa-great-lakes-v1", topostack_encoding: "depth-terrarium-v1" });
+    const png = readFileSync("src/fixtures/noaa-erie-z11.png");
+    if (unavailable) noaaArchive.getZxy.mockRejectedValue(new Error("NOAA offline"));
+    else noaaArchive.getZxy.mockResolvedValue({ data: Uint8Array.from(png).buffer });
+    const source = {
+      ...createSyntheticSource(DEFAULT_PROJECT, 16), bounds: noaaFixture.bounds,
+      elevation: { width: 16, height: 16, values: new Float32Array(256).fill(180), min: 180, max: 180 },
+      sourceKind: "real" as const, vectorStatus: "available" as const, lakeDataStatus: "not-requested" as const, waterAreas: [],
+    };
+    loadTerrainMock.mockResolvedValue({ source, fallback: false });
+    loadLakeAreasMock.mockResolvedValue([{
+      id: "erie", hylakId: 9, kind: "lake", name: "Erie", maxDepthM: 64, lmaxM: 10000,
+      polygon: { outer: [{ x: -80, y: -60 }, { x: 80, y: -60 }, { x: 80, y: 60 }, { x: -80, y: 60 }, { x: -80, y: -60 }], holes: [] },
+    }]);
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await tick();
+    const depth = target.querySelector<HTMLButtonElement>('button[role="switch"][aria-label="Water depth"]')!;
+    depth.click();
+    await vi.waitFor(() => expect(depth.getAttribute("aria-checked")).toBe("false"));
+    [...target.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes("Generate terrain"))!.click();
+    await vi.waitFor(() => expect(target.querySelector(".status-line")?.textContent).toContain("Real terrain ready"));
+    expect(noaaArchive.getZxy).not.toHaveBeenCalled();
+    depth.click();
+    await vi.waitFor(() => expect(noaaArchive.getZxy).toHaveBeenCalled());
+    await vi.waitFor(() => expect(target.textContent).toContain(unavailable ? "NOAA lake-floor data is unavailable" : "NOAA lake-floor data is used where available"));
+    expect(target.querySelector(".context-export-status")?.textContent).toContain("Ready to export");
+    if (!unavailable) {
+      const calls = noaaArchive.getZxy.mock.calls.length;
+      const slider = target.querySelector<HTMLInputElement>('input[aria-label="Water depth exaggeration slider"]')!;
+      slider.value = "2";
+      slider.dispatchEvent(new Event("input", { bubbles: true }));
+      await vi.waitFor(() => expect(target.querySelector(".status-line")?.textContent).toContain("updated"));
+      expect(noaaArchive.getZxy).toHaveBeenCalledTimes(calls);
+    }
   });
 
   it("fetches lake metadata when water depth is enabled after generation", async () => {

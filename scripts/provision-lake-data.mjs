@@ -11,9 +11,12 @@ import { createHash } from "node:crypto";
 import { pipeline } from "node:stream/promises";
 import { spawn } from "node:child_process";
 
-const DATASET_SNAPSHOT = "hydrolakes-v10+globathy-2022";
-const EXPECTED_MAX_ZOOM = 12;
-const OBJECT_KEY = "lakes/current.pmtiles";
+const sourceFlag = process.argv.find((argument) => argument.startsWith("--source="));
+if (sourceFlag && !["--source=noaa", "--source=globathy"].includes(sourceFlag)) throw new Error("Source must be noaa or globathy.");
+const isNoaa = sourceFlag === "--source=noaa";
+const DATASET_SNAPSHOT = isNoaa ? "noaa-great-lakes-v1" : "hydrolakes-v10+globathy-2022";
+const EXPECTED_MAX_ZOOM = isNoaa ? 11 : 12;
+const OBJECT_KEY = isNoaa ? "bathymetry/noaa-great-lakes-v1.pmtiles" : "lakes/current.pmtiles";
 const DEVELOPMENT_BUCKET = "topostack-vector-data-development";
 const PRODUCTION_BUCKET = "topostack-vector-data";
 const credentialTtlSeconds = 24 * 60 * 60;
@@ -25,7 +28,7 @@ const skipDigestCheck = flags.includes("--skip-digest-check");
 const expectedDigest = (flags.find((flag) => flag.startsWith("--expected-sha256="))?.slice("--expected-sha256=".length)
   ?? process.env.EXPECTED_ARCHIVE_SHA256 ?? "").trim().toLowerCase();
 if (!archivePath || !flags.includes("--provision")) {
-  throw new Error("Usage: node scripts/provision-lake-data.mjs <archive.pmtiles> --provision [--prod] [--expected-sha256=<hex> | EXPECTED_ARCHIVE_SHA256=<hex>] [--skip-digest-check]");
+  throw new Error("Usage: node scripts/provision-lake-data.mjs <archive.pmtiles> --provision [--source=globathy|noaa] [--prod] [--expected-sha256=<hex> | EXPECTED_ARCHIVE_SHA256=<hex>] [--skip-digest-check]");
 }
 if (includeProduction && !expectedDigest) throw new Error("Production provisioning requires a pinned SHA-256 digest; --skip-digest-check is development-only.");
 if (skipDigestCheck && expectedDigest) throw new Error("Choose either a pinned SHA-256 digest or --skip-digest-check, not both.");
@@ -90,7 +93,14 @@ if (expectedDigest) {
 await run(pmtilesBin, ["verify", archivePath]);
 const header = JSON.parse(await capture(pmtilesBin, ["show", archivePath, "--header-json"]));
 if (header.minzoom !== 0 || header.maxzoom !== EXPECTED_MAX_ZOOM) {
-  throw new Error(`Expected a global zoom 0-${EXPECTED_MAX_ZOOM} archive; received zoom ${header.minzoom}-${header.maxzoom}.`);
+  throw new Error(`Expected a zoom 0-${EXPECTED_MAX_ZOOM} archive; received zoom ${header.minzoom}-${header.maxzoom}.`);
+}
+
+if (isNoaa) {
+  const metadata = JSON.parse(await capture(pmtilesBin, ["show", archivePath, "--metadata"]));
+  if (header.tile_type !== "png" || metadata.topostack_dataset !== DATASET_SNAPSHOT || metadata.topostack_encoding !== "depth-terrarium-v1") {
+    throw new Error("Expected NOAA depth-encoded PNG bathymetry. Refusing to upload a different dataset.");
+  }
 }
 
 const parent = await cloudflare(`/accounts/${accountId}/tokens/verify`);

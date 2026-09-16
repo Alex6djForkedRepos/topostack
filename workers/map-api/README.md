@@ -87,3 +87,13 @@ Geocoder cache reads enforce the age of the R2 object's upload timestamp. Result
 `/ready` requires both PMTiles archives and a configured geocoder, matching a default project's water-depth requirements. `/health` remains the process liveness check. Gateway completion logs include status, cache outcome, environment, and elapsed milliseconds without search text or provider credentials. Alert on elevated 5xx responses on `/v1/terrain/` and `/v1/geocode`, including cache-miss paths; a fixed canary served from R2 alone cannot establish upstream health.
 
 Both provisioning scripts save `<archive>.provisioning.json` after successful uploads, recording the dataset, target buckets/key, bytes, zoom, and SHA-256. Retain the actual archives and receipts outside the repository so the mutable `current.pmtiles` keys can be restored. See [release acceptance and rollback](../../docs/release-acceptance.md). A production browser monitor failure uploads `test-results-live` diagnostics for seven days.
+
+## NOAA bathymetry
+
+The optional `/v1/bathymetry/noaa-great-lakes-v1.pmtiles` endpoint serves the
+versioned NOAA raster archive from the existing `VECTOR_DATA` binding, with the
+same bounded byte ranges, etags, and CORS as the global lake archive. Provision it
+with `scripts/provision-lake-data.mjs --source=noaa`; see
+[build, provenance, and rollout instructions](../../docs/noaa-bathymetry.md).
+Missing NOAA data produces a modeled-depth fallback warning in the generator
+and does not change the existing required dependencies for `/ready`.

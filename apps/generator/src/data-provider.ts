@@ -7,6 +7,7 @@ import { PbfReader } from "pbf";
 import polygonClipping, { type MultiPolygon, type Pair } from "polygon-clipping";
 import { MAP_DATA_ATTRIBUTION } from "./map-attribution";
 import { decodeTerrainPng } from "./terrain-png";
+import { loadNoaaBathymetry, NOAA_ATTRIBUTION, NOAA_DATASET_VERSION } from "./bathymetry";
 import { repairElevationSpikes } from "./elevation-cleanup";
 
 export interface PlaceResult { id: string; label: string; lat: number; lon: number; type?: string }
@@ -720,6 +721,10 @@ export async function loadLakeAreas(bounds: GeoBounds, requestedZoom: number, co
   return areas;
 }
 
+export function loadSurveyedLakeDepths(bounds: GeoBounds, elevation: SourceBundleV1["elevation"], zoom: number, areas: WaterAreaV1[], signal?: AbortSignal) {
+  return loadNoaaBathymetry(apiBase, bounds, elevation.width, elevation.height, zoom, areas, signal);
+}
+
 function groundWidthM(bounds: GeoBounds): number {
   return Math.abs(bounds.east - bounds.west) * Math.PI / 180 * 6_371_008.8 * Math.cos(((bounds.north + bounds.south) / 2) * Math.PI / 180);
 }
@@ -792,8 +797,9 @@ export async function loadTerrain(config: ProjectConfigV1, signal?: AbortSignal)
           })
         : Promise.resolve({ areas: [] as WaterAreaV1[], status: "not-requested" as const }),
     ]);
-    const waterAreas = combineWaterAreas(lakes.areas, vector.ocean, config.minimumFeatureMm);
-    return { fallback: false, source: { schemaVersion: 1, elevation, elevationRepairCount, markings: vector.markings, waterAreas, waterPatternAreas: [...vector.ocean, ...vector.inland], vectorStatus: vector.status, lakeDataStatus: lakes.status, datasetVersion, sourceKind: "real", bounds, imagerySources, resolutionM: groundWidthM(bounds) / elevation.width, attribution: MAP_DATA_ATTRIBUTION } };
+    const bathymetry = await loadSurveyedLakeDepths(bounds, elevation, zoom, lakes.areas, signal);
+    const waterAreas = combineWaterAreas(bathymetry.areas, vector.ocean, config.minimumFeatureMm);
+    return { fallback: false, source: { schemaVersion: 1, elevation, elevationRepairCount, markings: vector.markings, waterAreas, bathymetryStatus: bathymetry.status, waterPatternAreas: [...vector.ocean, ...vector.inland], vectorStatus: vector.status, lakeDataStatus: lakes.status, datasetVersion: bathymetry.status === "available" ? `${datasetVersion}+${NOAA_DATASET_VERSION}` : datasetVersion, sourceKind: "real", bounds, imagerySources, resolutionM: groundWidthM(bounds) / elevation.width, attribution: bathymetry.status === "available" ? [...MAP_DATA_ATTRIBUTION, NOAA_ATTRIBUTION] : MAP_DATA_ATTRIBUTION } };
   } catch (error) {
     if (signal?.aborted) throw error;
     const source = createSyntheticSource({ ...config, location: { ...config.location, bounds } });

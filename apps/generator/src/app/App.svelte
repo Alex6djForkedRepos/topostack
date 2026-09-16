@@ -4,8 +4,9 @@
   import { House } from "@lucide/svelte";
   import { Box, ChevronDown, Circle, Compass, Download, Grid3X3, Layers3, Map as MapIcon, MapPin, Minus, Mountain, PenTool, Plus, Route, Search, Sparkles, Square, Trash2, Undo2, Redo2, Upload, Waves, X } from "@lucide/svelte";
   import { AppShell, Brand, Button, ContextBar, Field, IconButton, Input, NumberField, Section, Sidebar, Switch, ThemeToggle, Topbar, Workspace } from "@loidolt/theme-svelte";
+  import { hasNoaaCoverage, NOAA_ATTRIBUTION, NOAA_DATASET_VERSION } from "../bathymetry";
   import { sourceRequirements, buildProjectPackage, createSyntheticSource, DEFAULT_PROJECT, displayElevation, displayLength, elevationUnit, generateGeometry, labelPathData, lengthUnit, markerSymbolPaths, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, MAX_WATER_DEPTH_EXAGGERATION, millimetersFromDisplay, MIN_VERTICAL_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, northArrowMarkings, planTerrainStack, validateProject, type CustomLineFeatureV1, type CustomLineKind, type GeoBounds, type GeoPoint, type GeometryIRV1, type LineStyleV1, type MapMarkerV1, type MarkerSymbol, type NorthArrowAnchor, type NorthArrowStyle, type OperationPath, type Point2D, type ProjectConfigV1, type RoadCap, type RoadStyle, type SourceBundleV1, type TextFont, type TrailPattern, type WaterFillPattern } from "@topostack/core";
-  import { boundsForProject, combineWaterAreas, loadLakeAreas, loadTerrain, loadVectorMarkings, type PlaceResult } from "../data-provider";
+  import { boundsForProject, combineWaterAreas, loadLakeAreas, loadSurveyedLakeDepths, loadTerrain, loadVectorMarkings, type PlaceResult } from "../data-provider";
   import { theme } from "../lib/theme";
   import { trackUsage } from "../lib/usage";
   import { MAP_DATA_ATTRIBUTION } from "../map-attribution";
@@ -273,7 +274,7 @@
    */
   const modeledLakes = $derived((geometry.waterSurfaces ?? [])
     // A maximum-depth override only affects modeled basins. Surveyed beds come
-    // from the DEM, so showing the same control for them would be a no-op.
+    // from the DEM or NOAA, so showing the same control for them would be a no-op.
     .filter((surface) => surface.kind === "lake" && surface.hylakId !== undefined && surface.depthSource !== "surveyed" && surface.maxDepthM !== undefined)
     .map((surface, index) => ({
       id: surface.id,
@@ -656,6 +657,14 @@
       }
     }
 
+    if (usesWaterDepth && next.lakeDataStatus === "available" && (next.bathymetryStatus !== "available" || lakes.some((lake) => hasNoaaCoverage(lake) && !lake.bathymetry))) {
+      const bathymetry = await loadSurveyedLakeDepths(source.bounds, source.elevation, config.location.zoom, lakes, signal);
+      lakes = bathymetry.areas;
+      next = { ...next, bathymetryStatus: bathymetry.status };
+      if (bathymetry.status === "available" && !next.attribution.some((item) => item.name === NOAA_ATTRIBUTION.name)) {
+        next = { ...next, attribution: [...next.attribution, NOAA_ATTRIBUTION], datasetVersion: `${next.datasetVersion}+${NOAA_DATASET_VERSION}` };
+      }
+    }
     return { ...next, waterAreas: combineWaterAreas(lakes, ocean, config.minimumFeatureMm) };
   }
 
@@ -1016,6 +1025,9 @@
                     </div>
                     <small class="depth-note">Relative to the terrain's vertical scale, which water already follows. 1× keeps lakes and sea floor on the same scale as the hills.</small>
                   </div>
+                {/if}
+                {#if project.showWaterDepth && activeSource.bathymetryStatus === "available"}
+                  <small class="depth-note">NOAA lake-floor data is used where available. Gaps use existing terrain or modeled depths.</small>
                 {/if}
                 {#if project.showWaterDepth && modeledLakes.length}
                   <div class="toggle-settings">

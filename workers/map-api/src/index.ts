@@ -13,6 +13,7 @@ const VECTOR_CACHE_SECONDS = 60 * 60;
 const GEOCODE_CACHE_SECONDS = 60 * 60 * 24;
 const VECTOR_ARCHIVE_KEY = "osm/current.pmtiles";
 const LAKE_ARCHIVE_KEY = "lakes/current.pmtiles";
+const BATHYMETRY_ARCHIVE_KEY = "bathymetry/noaa-great-lakes-v1.pmtiles";
 const DEFAULT_ALLOWED_ORIGIN_SUFFIXES = ".atomm.com";
 
 async function readBounded(body: ReadableStream<Uint8Array> | null, maximumBytes: number): Promise<Uint8Array<ArrayBuffer>> {
@@ -386,6 +387,7 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
     sources: [
       { name: "Mapzen Terrain Tiles", url: "https://registry.opendata.aws/terrain-tiles/", attribution: "See Mapzen source attribution" },
       { name: "HydroLAKES v1.0", url: "https://www.hydrosheds.org/products/hydrolakes", attribution: "CC BY 4.0 — Messager et al. (2016)" },
+      { name: "NOAA NCEI Great Lakes Bathymetry", url: "https://www.ncei.noaa.gov/products/great-lakes-bathymetry", attribution: "NOAA/NCEI; Superior grid is a draft", archive: "/v1/bathymetry/noaa-great-lakes-v1.pmtiles" },
       { name: "GLOBathy", url: "https://doi.org/10.1038/s41597-022-01132-9", attribution: "CC0 1.0 — Khazaei et al. (2022)" },
       { name: "Protomaps Basemap 20260905", url: "https://build.protomaps.com/20260905.pmtiles", version: "4.15.2", license: "ODbL Produced Work" },
       { name: "OpenStreetMap contributors", url: "https://www.openstreetmap.org/copyright", license: "ODbL" },
@@ -394,6 +396,7 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
   if (url.pathname === "/v1/geocode") return geocodeResponse(request, env, ctx, url);
   if (url.pathname === "/v1/osm.pmtiles") return pmtilesResponse(request, env, VECTOR_ARCHIVE_KEY, "OSM");
   if (url.pathname === "/v1/lakes.pmtiles") return pmtilesResponse(request, env, LAKE_ARCHIVE_KEY, "Lake bathymetry");
+  if (url.pathname === "/v1/bathymetry/noaa-great-lakes-v1.pmtiles") return pmtilesResponse(request, env, BATHYMETRY_ARCHIVE_KEY, "NOAA bathymetry");
   const terrainMatch = url.pathname.match(/^\/v1\/terrain\/(\d+)\/(\d+)\/(\d+)\.png$/);
   if (terrainMatch) {
     const tile = validTile(terrainMatch[1] ?? "", terrainMatch[2] ?? "", terrainMatch[3] ?? "");

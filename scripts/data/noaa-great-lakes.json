@@ -1,0 +1,69 @@
+{
+  "dataset": "noaa-great-lakes-v1",
+  "maxZoom": 11,
+  "sourceUrl": "https://www.ncei.noaa.gov/products/great-lakes-bathymetry",
+  "lakes": [
+    {
+      "id": "erie",
+      "names": [
+        "Erie",
+        "Lake Erie",
+        "St. Clair",
+        "Lake St. Clair",
+        "Saint Clair",
+        "Lake Saint Clair"
+      ],
+      "doi": "10.7289/V5KS6PHK",
+      "hylakIds": [
+        9,
+        66
+      ]
+    },
+    {
+      "id": "huron",
+      "names": [
+        "Huron",
+        "Lake Huron"
+      ],
+      "doi": "10.7289/V5G15XS5",
+      "hylakIds": [
+        8
+      ]
+    },
+    {
+      "id": "michigan",
+      "names": [
+        "Michigan",
+        "Lake Michigan"
+      ],
+      "doi": "10.7289/V5B85627",
+      "hylakIds": [
+        6
+      ]
+    },
+    {
+      "id": "ontario",
+      "names": [
+        "Ontario",
+        "Lake Ontario",
+        "America",
+        "Lake America"
+      ],
+      "doi": "10.7289/V56H4FBH",
+      "hylakIds": [
+        7
+      ]
+    },
+    {
+      "id": "superior",
+      "names": [
+        "Superior",
+        "Lake Superior"
+      ],
+      "draft": true,
+      "hylakIds": [
+        5
+      ]
+    }
+  ]
+}

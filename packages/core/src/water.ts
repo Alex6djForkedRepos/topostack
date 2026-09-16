@@ -10,7 +10,8 @@ import type { ElevationGrid, GeometryWarning, Point2D, ProjectConfigV1, WaterAre
  * recess: d3-contour cuts the rings, clipContours winds them as holes, and
  * every consumer downstream already honours holes.
  *
- * The basin itself follows GLOBathy, whose published rasters are a derived
+ * NOAA depth grids take precedence where supplied. Otherwise the basin follows
+ * GLOBathy, whose published rasters are a derived
  * product of just two inputs - a HydroLAKES polygon and a maximum depth -
  * combined by a proximity-to-shore pass and `D = l * Dmax / L`. We reproduce
  * that at whatever resolution the model needs instead of shipping their 16.7 GB
@@ -126,7 +127,7 @@ export function distanceToShoreM(mask: Uint8Array, width: number, height: number
  * Choose the profile exponent so the modeled basin holds the mean depth
  * HydroLAKES reports.
  *
- * This is the one place real shape information enters. GLOBathy's own
+ * For modeled basins, this is where mean-depth information enters. GLOBathy's own
  * head-Area-Volume curves are fitted *from* its conical rasters, so they cannot
  * bend the profile; `Depth_avg` can, because it is `Vol_total / Lake_area` from
  * Messager et al.'s geostatistical model, which never saw the distance
@@ -189,7 +190,7 @@ export interface CarvedWater {
 }
 
 /**
- * Write modeled lake beds into a copy of the elevation grid.
+ * Write surveyed or modeled lake beds into a copy of the elevation grid.
  *
  * Oceans are never carved: Terrarium already carries real soundings for them,
  * and the `BATHYMETRIC_RELIEF_M` guard extends that courtesy to any water body
@@ -249,6 +250,66 @@ export function carveWaterDepth(
     // handful of steep rim cells caught inside the polygon would otherwise
     // condemn the whole lake to being read as surveyed and left flat.
     const interiorSpreadM = quantile(sorted, count, 0.9) - quantile(sorted, count, 0.1);
+
+    if (area.bathymetry && area.kind === "lake") {
+      const survey = area.bathymetry;
+      if (survey.width !== grid.width || survey.height !== grid.height || survey.depthsM.length !== values.length) {
+        throw new Error("Lake bathymetry dimensions do not match the terrain grid.");
+      }
+      let surveyedCount = 0;
+      for (const index of cells) {
+        const depth = survey.depthsM[index]!;
+        if (Number.isNaN(depth)) continue;
+        if (!Number.isFinite(depth) || depth < 0 || depth > 1500) throw new Error("Lake bathymetry contains an invalid depth.");
+        surveyedCount += 1;
+      }
+      if (surveyedCount > 0) {
+        // Depths are relative to NOAA low water, not absolute elevations. Anchor
+        // them to the flat terrain waterline. If the DEM already has a basin,
+        // use the lake's published surface elevation instead of its bed median.
+        const surfaceElevationM = interiorSpreadM > BATHYMETRIC_RELIEF_M && Number.isFinite(area.surfaceElevationM)
+          ? area.surfaceElevationM!
+          : surfaceLevelM;
+        const missing = surveyedCount < cells.length;
+        const distance = missing ? distanceToShoreM(mask, grid.width, grid.height, spacingXM, spacingYM) : undefined;
+        let visibleRadiusM = 0;
+        if (distance) for (const index of cells) if (Number.isFinite(distance[index]!)) visibleRadiusM = Math.max(visibleRadiusM, distance[index]!);
+        const radiusM = area.lmaxM && area.lmaxM > 0 ? area.lmaxM : visibleRadiusM;
+        if (distance && radiusM > 0) {
+          for (let index = 0; index < cells.length; index += 1) normalized[index] = Math.min(1, distance[cells[index]!]! / radiusM);
+        }
+        const exponent = !distance || radiusM <= 0 || area.clipped || !(area.meanDepthM && area.maxDepthM)
+          ? 1 : solveShapeExponent(normalized, cells.length, area.meanDepthM / area.maxDepthM);
+        let bedElevationM = surfaceElevationM;
+        let fallbackCount = 0;
+        for (let index = 0; index < cells.length; index += 1) {
+          const cell = cells[index]!;
+          // Preserve banks and islands caught by a slightly different shoreline.
+          if (values[cell]! > surfaceElevationM + BATHYMETRIC_RELIEF_M) continue;
+          let depth = survey.depthsM[cell]!;
+          if (Number.isNaN(depth)) {
+            fallbackCount += 1;
+            if (interiorSpreadM > BATHYMETRIC_RELIEF_M) depth = Math.max(0, surfaceElevationM - values[cell]!);
+            else if (distance && radiusM > 0 && Number.isFinite(distance[cell]!) && area.maxDepthM) depth = area.maxDepthM * normalized[index]! ** exponent;
+            else depth = 0;
+          }
+          const bed = surfaceElevationM - depth * exaggeration;
+          values[cell] = bed;
+          bedElevationM = Math.min(bedElevationM, bed);
+        }
+        surfaces.push({
+          id: area.id, kind: area.kind, name: area.name, hylakId: area.hylakId,
+          polygons: [area.polygon], surfaceElevationM, bedElevationM,
+          ...(fallbackCount && area.maxDepthM ? { maxDepthM: area.maxDepthM } : {}),
+          layerIndex: 0, depthSource: fallbackCount ? "mixed" : "surveyed",
+        });
+        if (fallbackCount) warnings.push({
+          code: "BATHYMETRY_FALLBACK",
+          message: `${area.name ?? "A lake"} has incomplete NOAA coverage. Uncovered cells use existing terrain or modeled depths; cells without enough information remain at the waterline.`,
+        });
+        continue;
+      }
+    }
 
     // The DEM already knows this basin, so its shape is left alone - but its
     // depth is still scaled, so surveyed and modeled water answer to the same

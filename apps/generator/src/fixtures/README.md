@@ -12,3 +12,11 @@ so tests cover PNG decoding and repair before interpolation, at multiple zooms.
 Source attribution: Mapzen terrain tiles, compiled from open elevation datasets.
 See https://github.com/tilezen/joerd/blob/master/docs/attribution.md and
 https://github.com/tilezen/joerd/blob/master/docs/data-sources.md.
+
+## NOAA Lake Erie depth tile
+
+`noaa-erie-z11.png` is a numeric depth tile from the pinned NOAA Great Lakes
+build. Its source is [NOAA/NCEI Lake Erie and Lake St. Clair bathymetry](https://doi.org/10.7289/V5KS6PHK).
+RGB encodes positive depth using Terrarium's formula; transparent pixels have no
+coverage. `noaa-erie-z11.json` records a small interior sample for testing pixel
+center alignment. Source hashes are in `scripts/data/noaa-great-lakes-sources.json`.

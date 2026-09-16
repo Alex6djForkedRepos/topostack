@@ -71,6 +71,12 @@ describe("numeric Terrarium PNG decoding", () => {
     expect(() => decodeTerrainPng(terrainPng(options))).toThrow(/elevation PNG/);
   });
 
+  it("preserves transparent bathymetry as missing without weakening terrain validation", () => {
+    const bytes = terrainPng({ rgba: true, alpha: 0 });
+    expect(() => decodeTerrainPng(bytes)).toThrow();
+    expect(decodeTerrainPng(bytes, true).every(Number.isNaN)).toBe(true);
+  });
+
   it("rejects damaged and truncated PNGs", () => {
     const png = terrainPng();
     expect(() => decodeTerrainPng(png.subarray(0, -1))).toThrow(/elevation PNG/);

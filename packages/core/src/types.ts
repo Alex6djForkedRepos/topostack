@@ -132,7 +132,7 @@ export const SEA_LEVEL_M = 0;
 export const BATHYMETRIC_RELIEF_M = 5;
 
 export type WaterKind = "ocean" | "lake";
-export type DepthSource = "surveyed" | "modeled" | "user";
+export type DepthSource = "surveyed" | "mixed" | "modeled" | "user";
 
 /**
  * Physical consequences of a config plus its terrain relief. Layer count is a
@@ -248,7 +248,8 @@ export interface MarkingFeature {
  * A water body with whatever depth metadata its source could supply. Oceans
  * arrive from the OSM water layer and carry no depth - the DEM already holds
  * their bed. Lakes arrive from the HydroLAKES/GLOBathy archive and carry the
- * numbers `carveWaterDepth` needs to model one.
+ * numbers `carveWaterDepth` needs to model one, optionally supplemented by
+ * a NOAA depth grid.
  */
 export interface WaterAreaV1 {
   id: string;
@@ -273,6 +274,8 @@ export interface WaterAreaV1 {
   clipped?: boolean;
   /** Set to "user" once a per-lake override has replaced `maxDepthM`. */
   depthSource?: DepthSource;
+  /** NOAA depths below low water, aligned to the terrain grid. NaN means no coverage. */
+  bathymetry?: { width: number; height: number; depthsM: Float32Array };
 }
 
 export interface WaterSurfaceIR {
@@ -306,6 +309,8 @@ export interface SourceBundleV1 {
   vectorStatus: "available" | "partial" | "unavailable" | "not-requested";
   /** Status of the optional HydroLAKES/GLOBathy depth archive. */
   lakeDataStatus: "available" | "unavailable" | "not-requested";
+  /** Survey failures retain modeled lake depths and generate a warning. */
+  bathymetryStatus?: "available" | "unavailable" | "not-covered";
   datasetVersion: string;
   sourceKind: "real" | "preview" | "synthetic";
   bounds: GeoBounds;
@@ -370,7 +375,7 @@ export interface FabricationNest {
 }
 
 export interface GeometryWarning {
-  code: "ELEVATION_REPAIRED" | "LOW_RELIEF" | "EMPTY_LAYER" | "SMALL_FEATURES" | "DATA_FALLBACK" | "VECTOR_DATA_PARTIAL" | "VECTOR_DATA_UNAVAILABLE" | "LAKE_DATA_UNAVAILABLE" | "LABEL_OMITTED" | "WATER_DEPTH_CLAMPED";
+  code: "ELEVATION_REPAIRED" | "LOW_RELIEF" | "EMPTY_LAYER" | "SMALL_FEATURES" | "DATA_FALLBACK" | "VECTOR_DATA_PARTIAL" | "VECTOR_DATA_UNAVAILABLE" | "LAKE_DATA_UNAVAILABLE" | "BATHYMETRY_FALLBACK" | "LABEL_OMITTED" | "WATER_DEPTH_CLAMPED";
   message: string;
 }
 

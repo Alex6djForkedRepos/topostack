@@ -25,7 +25,7 @@ function paeth(left: number, up: number, corner: number): number {
  * alpha compositing and fingerprint protection must never alter them.
  * PNG filters: https://www.w3.org/TR/png-3/#9Filters
  */
-export function decodeTerrainPng(bytes: Uint8Array): Float32Array {
+export function decodeTerrainPng(bytes: Uint8Array, allowNoData = false): Float32Array {
   const invalid = () => new Error("Terrain service returned an invalid or unsupported elevation PNG. Try generating again.");
   if (!SIGNATURE.every((byte, index) => bytes[index] === byte)) throw invalid();
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -94,7 +94,11 @@ export function decodeTerrainPng(bytes: Uint8Array): Float32Array {
     const pixel = index * channels;
     // Missing samples must not become -32768m pits or blended coastal cliffs.
     if ((channels === 4 && pixels[pixel + 3] !== 255) ||
-        transparent?.every((channel, i) => pixels[pixel + i] === channel)) throw invalid();
+        transparent?.every((channel, i) => pixels[pixel + i] === channel)) {
+      if (!allowNoData) throw invalid();
+      values[index] = Number.NaN;
+      continue;
+    }
     const elevation = pixels[pixel]! * 256 + pixels[pixel + 1]! + pixels[pixel + 2]! / 256 - 32768;
     if (elevation === -32768) throw invalid();
     values[index] = elevation;

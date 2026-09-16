@@ -370,3 +370,23 @@ describe("lake bathymetry archive", () => {
     expect(ready.status).toBe(200);
   });
 });
+
+
+describe("NOAA bathymetry archive", () => {
+  const url = "http://example.com/v1/bathymetry/noaa-great-lakes-v1.pmtiles";
+  const key = "bathymetry/noaa-great-lakes-v1.pmtiles";
+  const origin = { origin: "http://localhost:5273" };
+  it("serves bounded byte ranges with cache validators and handles missing data", async () => {
+    await workerEnv.VECTOR_DATA.delete(key);
+    expect((await exports.default.fetch(url, { headers: origin })).status).toBe(404);
+    await workerEnv.VECTOR_DATA.put(key, new Uint8Array([1, 2, 3, 4]));
+    const response = await exports.default.fetch(url, { headers: { ...origin, range: "bytes=1-2" } });
+    expect(response.status).toBe(206);
+    expect(response.headers.get("content-range")).toBe("bytes 1-2/4");
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array([2, 3]));
+    expect(response.headers.get("etag")).toBeTruthy();
+    expect((await exports.default.fetch(url, { headers: origin })).status).toBe(400);
+    expect((await exports.default.fetch(url, { method: "HEAD", headers: origin })).headers.get("content-length")).toBe("4");
+    await workerEnv.VECTOR_DATA.delete(key);
+  });
+});
