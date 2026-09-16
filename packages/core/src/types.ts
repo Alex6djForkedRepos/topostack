@@ -280,7 +280,13 @@ export interface WaterAreaV1 {
   /** Set to "user" once a per-lake override has replaced `maxDepthM`. */
   depthSource?: DepthSource;
   /** Surveyed depths below the dataset reference waterline, aligned to the terrain grid. NaN means no coverage. */
-  bathymetry?: { width: number; height: number; depthsM: Float32Array };
+  bathymetry?: {
+    width: number;
+    height: number;
+    depthsM: Float32Array;
+    /** Ground spacing of the sampled survey raster, before alignment to terrain. */
+    sampleSpacingM?: number;
+  };
 }
 
 export interface WaterSurfaceIR {

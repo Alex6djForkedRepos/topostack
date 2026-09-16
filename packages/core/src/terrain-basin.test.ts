@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_PROJECT, type ElevationGrid, type WaterAreaV1 } from "./types.js";
 import { carveWaterDepth, distanceToShoreM } from "./water.js";
+import { vectorShoreDistances } from "./shore-distance.js";
 import { terrainBasinDistance } from "./terrain-basin.js";
 
 const config = { ...DEFAULT_PROJECT, widthMm: 100, heightMm: 100, waterDepthExaggeration: 1 };
@@ -57,14 +58,14 @@ describe("terrain-informed lake basins", () => {
     expect(normal.surfaces[0]?.depthSource).toBe("user");
   });
 
-  it("retains the exact distance fallback when surrounding terrain is flat or missing", () => {
+  it("retains the raster distance fallback with smoothing disabled when terrain is flat or missing", () => {
     for (const missing of [false, true]) {
       const input = terrain(41, 41, "x", true);
       if (missing) input.values.forEach((_, i) => {
         const x = (i % 41 - 20) * 50, y = (Math.floor(i / 41) - 20) * 50;
         if (Math.hypot(x, y) > radius) input.values[i] = Number.NaN;
       });
-      const result = carve(input);
+      const result = carveWaterDepth(input, { ...config, smoothing: 0 }, [lake], groundSize, groundSize);
       const distance = distanceToShoreM(result.waterMask, 41, 41, 50, 50);
       const cells = Array.from(result.waterMask.keys()).filter((i) => result.waterMask[i]);
       const shape = terrainBasinDistance(input, result.waterMask, result.waterMask, cells, distance, 50, 50, surface, 100 / radius, false);
@@ -72,6 +73,21 @@ describe("terrain-informed lake basins", () => {
       const maximum = Math.max(...cells.map((i) => distance[i]!));
       cells.forEach((i) => expect(surface - result.grid.values[i]!).toBeCloseTo(100 * distance[i]! / maximum, 3));
     }
+  });
+
+  it("seeds terrain-informed shallow banks at the vector shore between grid samples", () => {
+    const input = terrain(41);
+    const result = carve(input);
+    const cells = Array.from(result.waterMask.keys()).filter(i => result.waterMask[i]);
+    const distance = vectorShoreDistances(lake.polygon, cells, 41, 41, 100, 100, groundSize, groundSize, new Float64Array(41 * 41));
+    const shape = terrainBasinDistance(input, result.waterMask, result.waterMask, cells, distance, 50, 50, surface, 100 / radius, false, undefined, true);
+    expect(shape).not.toBe(distance);
+    const shallow = cells.filter(i => distance[i]! < 1);
+    expect(shallow.length).toBeGreaterThan(0);
+    // Bank factors are bounded at 2. Raster-center seeds would instead put
+    // these almost-on-shore samples tens of meters down the distance field.
+    shallow.forEach(i => expect(shape[i]!).toBeLessThanOrEqual(2 * distance[i]!));
+    cells.forEach(i => expect(Number.isFinite(shape[i])).toBe(true));
   });
 
   it("keeps clipped lakes on the whole-lake distance scale without fitting the visible mean", () => {

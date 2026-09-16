@@ -1,3 +1,5 @@
+import { surveyShoreDepths } from "./survey-shore.js";
+import { vectorShoreDistances } from "./shore-distance.js";
 import { ringBounds } from "./geometry2d.js";
 import { terrainBasinDistance } from "./terrain-basin.js";
 import { BATHYMETRIC_RELIEF_M } from "./types.js";
@@ -342,7 +344,14 @@ export function carveWaterDepth(
   const basinBuffers = { factors: new Float64Array(grid.width * grid.height), result: new Float64Array(grid.width * grid.height) };
   const cells: number[] = [];
   let lakeWindow: CellWindow = { minX: 0, minY: 0, maxX: -1, maxY: -1 };
-  const lakeDistance = () => distanceToShoreM(mask, grid.width, grid.height, spacingXM, spacingYM, lakeWindow, shoreDistance);
+  let vectorShore = false;
+  const lakeDistance = (area: WaterAreaV1) => {
+    vectorShore = config.smoothing > 0 && !area.clipped && !cells.some(cell =>
+      cell < grid.width || cell >= grid.width * (grid.height - 1) || cell % grid.width === 0 || cell % grid.width === grid.width - 1);
+    return vectorShore
+      ? vectorShoreDistances(area.polygon, cells, grid.width, grid.height, config.widthMm, config.heightMm, groundWidthM, groundHeightM, shoreDistance)
+      : distanceToShoreM(mask, grid.width, grid.height, spacingXM, spacingYM, lakeWindow, shoreDistance);
+  };
 
   // Build the complete mask before carving so neighboring lakes never become
   // land samples for the terrain prior, regardless of their processing order.
@@ -357,7 +366,7 @@ export function carveWaterDepth(
     const radiusM = area.lmaxM && area.lmaxM > 0 ? area.lmaxM : visibleRadiusM;
     if (!(radiusM > 0)) return 0;
     const shape = terrainBasinDistance(grid, mask, waterMask, cells, distance, spacingXM, spacingYM,
-      surfaceM, (area.maxDepthM ?? 0) / radiusM, area.clipped ?? false, basinBuffers);
+      surfaceM, (area.maxDepthM ?? 0) / radiusM, area.clipped ?? false, basinBuffers, vectorShore);
     let shapeRadiusM = 0;
     if (shape !== distance) for (const cell of cells) shapeRadiusM = Math.max(shapeRadiusM, shape[cell]!);
     for (let index = 0; index < cells.length; index += 1) {
@@ -424,10 +433,16 @@ export function carveWaterDepth(
           ? area.surfaceElevationM!
           : surfaceLevelM;
         const missing = surveyedCount < cells.length;
-        const distance = missing ? lakeDistance() : undefined;
+        const distance = missing ? lakeDistance(area) : undefined;
         const radiusM = distance && interiorSpreadM <= BATHYMETRIC_RELIEF_M ? normalizeBasin(area, distance, surfaceElevationM) : 0;
         const exponent = !distance || radiusM <= 0 || area.clipped || !(area.meanDepthM && area.maxDepthM)
           ? 1 : solveShapeExponent(normalized, cells.length, area.meanDepthM / area.maxDepthM);
+        // Coarse survey masks leave a ragged uncovered rim after resampling.
+        // Where no depth model exists, bridge only that narrow rim to the real
+        // shoreline instead of dropping abruptly from survey depth to zero.
+        const rimDepths = distance && vectorShore && !area.maxDepthM && interiorSpreadM <= BATHYMETRIC_RELIEF_M
+          ? surveyShoreDepths(survey.depthsM, mask, cells, distance, grid.width, grid.height, spacingXM, spacingYM, survey.sampleSpacingM)
+          : undefined;
         let bedElevationM = surfaceElevationM;
         let fallbackCount = 0;
         for (let index = 0; index < cells.length; index += 1) {
@@ -439,7 +454,7 @@ export function carveWaterDepth(
             fallbackCount += 1;
             if (interiorSpreadM > BATHYMETRIC_RELIEF_M) depth = Math.max(0, surfaceElevationM - values[cell]!);
             else if (distance && radiusM > 0 && Number.isFinite(distance[cell]!) && area.maxDepthM) depth = area.maxDepthM * normalized[index]! ** exponent;
-            else depth = 0;
+            else depth = rimDepths && Number.isFinite(rimDepths[cell]) ? rimDepths[cell]! : 0;
           }
           const bed = surfaceElevationM - depth * exaggeration;
           values[cell] = bed;
@@ -453,7 +468,7 @@ export function carveWaterDepth(
         }, areaIndexes);
         if (fallbackCount) warnings.push({
           code: "BATHYMETRY_FALLBACK",
-          message: `${area.name ?? "A lake"} has incomplete survey coverage. Uncovered cells use existing terrain or modeled depths; cells without enough information remain at the waterline.`,
+          message: `${area.name ?? "A lake"} has incomplete survey coverage. Uncovered cells use existing terrain, modeled depths, or estimates near surveyed shores; cells without enough information remain at the waterline.`,
         });
         continue;
       }
@@ -503,7 +518,7 @@ export function carveWaterDepth(
     // instead would leave a step at the shoreline wherever the two disagree.
     const surfaceElevationM = surfaceLevelM;
 
-    const distance = lakeDistance();
+    const distance = lakeDistance(area);
     // No shoreline in view means no way to place these cells within the basin.
     if (cells.some((index) => !Number.isFinite(distance[index]!))) {
       warnings.push({

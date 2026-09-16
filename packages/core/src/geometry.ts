@@ -1,3 +1,4 @@
+import { smoothLakeShorelines } from "./lake-shoreline.js";
 import { cropBoundary as boundary, cropElevationRange, cropRadiusMm } from "./crop.js";
 import { contours } from "d3-contour";
 import polygonClipping, { type MultiPolygon, type Pair, type Ring } from "polygon-clipping";
@@ -1215,6 +1216,7 @@ function dedupeMarkingIds(layers: LayerIR[]): void {
 export function generateGeometry(config: ProjectConfigV1, source: SourceBundleV1): GeometryIRV1 {
   validateProject(config);
   if (source.schemaVersion !== 1) throw new Error("Unsupported source-data schema version.");
+  source = smoothLakeShorelines(source, config);
   const grid = measuredElevationGrid(source.elevation);
   assertGeographicBounds(source.bounds, "Source");
 

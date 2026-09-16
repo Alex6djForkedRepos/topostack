@@ -90,7 +90,8 @@ async function loadRaster(apiBase: string, bounds: GeoBounds, width: number, hei
       }
     }
     if (!covered) return { areas, status: "not-covered" };
-    const bathymetry = { width, height, depthsM };
+    const sampleSpacingM = 2 * Math.PI * 6_371_008.8 * Math.cos((bounds.north + bounds.south) / 2 * Math.PI / 180) / (256 * 2 ** z);
+    const bathymetry = { width, height, depthsM, sampleSpacingM };
     return { areas: areas.map((area) => ({ ...area, bathymetry })), status: "available" };
   } catch (error) {
     if (signal?.aborted) throw error;
@@ -201,7 +202,7 @@ export async function loadLakeBathymetry(apiBase: string, bounds: GeoBounds, gri
         }
         if (count && samples) {
           used = true;
-          merged = merged.map((item) => item.id === area.id ? { ...item, bathymetry: { width: grid.width, height: grid.height, depthsM: samples } } : item);
+          merged = merged.map((item) => item.id === area.id ? { ...item, bathymetry: { width: grid.width, height: grid.height, depthsM: samples, sampleSpacingM: Math.max(previous.bathymetry?.sampleSpacingM ?? 0, area.bathymetry!.sampleSpacingM ?? 0) } } : item);
         }
       }
     }

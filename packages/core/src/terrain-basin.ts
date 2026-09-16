@@ -29,6 +29,8 @@ export function terrainBasinDistance(
    * one-cell margin are reset, and the returned array may be `buffers.result`.
    */
   buffers?: { factors: Float64Array; result: Float64Array },
+  /** Distances reach the vector shore between samples, rather than dry cell centers. */
+  vectorShore = false,
 ): Float64Array {
   const { width, height, values } = grid;
   // A partial shoreline cannot constrain the whole basin. Never normalize a
@@ -112,8 +114,9 @@ export function terrainBasinDistance(
     factors[cell] = weight ? sum / weight : 1;
   }
 
-  // Fast sweeping solves the Eikonal equation in physical meters, with dry
-  // cells fixed at zero. Unlike multiplying distance by a bank factor, this
+  // Fast sweeping solves the Eikonal equation in physical meters. The raster
+  // fallback fixes dry cells at zero; vector shores seed boundary water cells.
+  // Unlike multiplying distance by a bank factor, this
   // forms a continuous floor where opposing slopes meet without depth jumps.
   let minX = width, maxX = 0, minY = height, maxY = 0;
   for (const cell of cells) {
@@ -121,10 +124,16 @@ export function terrainBasinDistance(
     minY = Math.min(minY, Math.floor(cell / width)); maxY = Math.max(maxY, Math.floor(cell / width));
   }
   // The sweep reads lake cells and their direct neighbours, which lie inside the
-  // grid because edge-touching lakes returned above; dry neighbours stay at zero.
+  // grid because edge-touching lakes returned above. Vector mode excludes dry
+  // neighbours from the solve after seeding the real shoreline distances.
   const result = buffers?.result ?? new Float64Array(values.length);
-  if (buffers) for (let y = minY - 1; y <= maxY + 1; y += 1) result.fill(0, y * width + minX - 1, y * width + maxX + 2);
-  for (const cell of cells) result[cell] = Infinity;
+  for (let y = minY - 1; y <= maxY + 1; y += 1) result.fill(vectorShore ? Infinity : 0, y * width + minX - 1, y * width + maxX + 2);
+  for (const cell of cells) {
+    // Seed at the actual shore distance. Seeding dry cells at zero instead
+    // turns the shallow basin into terraces aligned with raster rows/columns.
+    const shore = vectorShore && NEIGHBORS.some(([dx, dy]) => !mask[cell + dy * width + dx]);
+    result[cell] = shore ? distance[cell]! * factors[cell]! : Infinity;
+  }
   const wx = 1 / spacingX ** 2, wy = 1 / spacingY ** 2;
   for (let iteration = 0; iteration < 8; iteration += 1) {
     let change = 0;
