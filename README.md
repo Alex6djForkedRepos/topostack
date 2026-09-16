@@ -44,6 +44,10 @@ Explore the code, ask questions, suggest improvements, or contribute through [Gi
 
 [Donations](https://www.paypal.com/donate/?hosted_button_id=QXCUQVC3XAEZA) help support development and are always optional. Every export is available without donating.
 
+## Feedback
+
+Use **Feedback** in the studio or page footer to report bugs, request features, or flag low-quality terrain and lake data. Optionally include reviewable location and source diagnostics. Reports open as prefilled GitHub issues; a GitHub account and submission on GitHub are required. See the [feedback workflow and triage guide](docs/feedback.md).
+
 ## Local development
 
 ### Install
