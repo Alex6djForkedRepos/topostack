@@ -66,14 +66,16 @@ test(`keeps saved ${cropShape} bounds aligned after opening and resizing Map`, a
       if (!crop || !first || !last) return Infinity;
       return Math.max(Math.abs(first.x + first.width / 2 - crop.x), Math.abs(first.y + first.height / 2 - crop.y), Math.abs(last.x + last.width / 2 - crop.x - crop.width), Math.abs(last.y + last.height / 2 - crop.y - crop.height));
     }).toBeLessThan(3);
+    await expectCircle();
   }
-  await expectAligned();
-  if (cropShape === "circle") {
+  async function expectCircle(): Promise<void> {
+    if (cropShape !== "circle") return;
     const frame = await guide.boundingBox();
     const outline = await page.locator(".circle-outline").boundingBox();
     expect(outline!.width / frame!.width).toBeCloseTo(Math.min(project.widthMm, project.heightMm) / project.widthMm, 2);
     expect(outline!.height / frame!.height).toBeCloseTo(Math.min(project.widthMm, project.heightMm) / project.heightMm, 2);
   }
+  await expectAligned();
   await page.setViewportSize({ width: 900, height: 700 });
   await expectAligned();
   await expect(page.getByText("Ready to export")).toBeVisible();

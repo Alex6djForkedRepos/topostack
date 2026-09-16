@@ -159,6 +159,11 @@ body:has(.app-shell) {
   gap: var(--loidolt-space-3);
 }
 
+/* Keep icon-and-label toggles centered as a unit, including narrow layouts. */
+.ldt-toggle-group__item > svg {
+  flex-shrink: 0;
+}
+
 .output-mode-switch {
   width: 264px;
   flex: 0 0 auto;
@@ -1279,7 +1284,7 @@ body:has(.app-shell) {
 }
 
 .mode-switch {
-  width: 286px;
+  width: max-content;
 }
 
 .preview-readout {
@@ -2165,6 +2170,11 @@ body:has(.app-shell) {
 
   .mode-switch {
     width: 100%;
+  }
+
+  .mode-switch .ldt-toggle-group__item {
+    gap: 4px;
+    padding-inline: 8px;
   }
 
   .preview-toolbar {

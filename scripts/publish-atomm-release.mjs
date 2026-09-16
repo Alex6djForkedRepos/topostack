@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { validateVersion } from "./versions.mjs";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
@@ -16,7 +17,10 @@ export function validateRun(run, repository) {
   assert.match(run.head_sha, /^[a-f0-9]{40}$/);
 }
 
-export function validatePackage(receipt, archive, checksum, commit) {
+export function validatePackage(receipt, archive, checksum, commit, tag) {
+  validateVersion(receipt.version);
+  validateVersion(receipt.atommVersion);
+  assert.equal(tag, `atomm-v${receipt.atommVersion}`, "Release tag must match the packaged Atomm version");
   assert.equal(receipt.schemaVersion, 1);
   assert.equal(receipt.commit, commit, "Package must match the tested commit");
   assert.equal(receipt.workingTreeDirty, false, "Package must come from a clean checkout");
@@ -47,7 +51,13 @@ async function main() {
   const receiptPath = join(directory, "apps/generator/topostack-atomm.release.json");
   const listing = join(directory, "atomm/topostack-listing-upload.zip");
   const receipt = JSON.parse(await readFile(receiptPath, "utf8"));
-  const digest = validatePackage(receipt, await readFile(code), await readFile(checksum, "utf8"), run.head_sha);
+  const digest = validatePackage(receipt, await readFile(code), await readFile(checksum, "utf8"), run.head_sha, tag);
+  const build = JSON.parse(execFileSync("unzip", ["-p", code, "version.json"], { encoding: "utf8" }));
+  assert.equal(build.environment, "atomm");
+  assert.equal(build.version, receipt.version);
+  assert.equal(build.atommVersion, receipt.atommVersion);
+  assert.equal(build.commit, receipt.commit);
+  assert.equal(build.workingTreeDirty, false);
   assert.ok((await readFile(listing)).length > 0, "Listing media bundle is required");
   execFileSync("unzip", ["-tq", code], { stdio: "pipe" });
   execFileSync("unzip", ["-tq", listing], { stdio: "pipe" });
@@ -63,6 +73,7 @@ async function main() {
     `- **topostack-atomm.release.json** — clean source commit, production API, dataset and archive metadata.\n` +
     `- **topostack-listing-upload.zip** — cover options, feature screenshots, listing copy and media provenance.\n\n` +
     `Built and deployed by [production CI run ${runId}](${run.html_url}) at commit ${run.head_sha}. These are the exact verified CI assets, without a local rebuild.\n\n` +
+    `Main codebase: **${receipt.version}**. Atomm package: **${receipt.atommVersion}**.\n\n` +
     `ZIP SHA-256: \`${digest}\`\n\nAtomm host review and physical fabrication acceptance are separate from automated CI.\n`);
   const prerelease = tag.slice("atomm-v".length).includes("-");
   const flags = prerelease ? ["--prerelease"] : [];

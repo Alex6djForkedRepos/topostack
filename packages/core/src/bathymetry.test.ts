@@ -94,3 +94,46 @@ describe("NOAA lake-floor carving", () => {
     expect(result.grid.values[11]).toBe(160);
   });
 });
+
+
+describe("predicted lake-depth warning", () => {
+  const warningsFor = (areas: WaterAreaV1[], project = config) => generateGeometry(project,
+    { ...createSyntheticSource(project, 5), elevation: grid, waterAreas: areas }).warnings
+    .filter((warning) => warning.code === "LAKE_DEPTH_PREDICTED");
+
+  it("warns once for modeled lakes, including user maximum-depth overrides", () => {
+    const modeled = lake();
+    delete modeled.bathymetry;
+    const warnings = warningsFor([modeled]);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]?.message).toContain("estimated rather than surveyed");
+    expect(warningsFor([modeled], { ...config, waterDepthOverrides: { "1": 50 } })).toHaveLength(1);
+    expect(warningsFor([modeled, { ...modeled, id: "second-lake" }])).toHaveLength(1);
+  });
+
+  it("warns for gaps in survey coverage", () => {
+    const area = lake();
+    area.bathymetry!.depthsM[12] = Number.NaN;
+    expect(warningsFor([area])).toHaveLength(1);
+  });
+
+  it("does not warn for fully surveyed lakes, oceans, or absent lakes", () => {
+    expect(warningsFor([lake()])).toEqual([]);
+    expect(warningsFor([{ ...lake(), kind: "ocean" }])).toEqual([]);
+    expect(warningsFor([])).toEqual([]);
+  });
+
+  it("does not warn when water depth is disabled or output is flat engraving", () => {
+    const area = lake();
+    delete area.bathymetry;
+    expect(warningsFor([area], { ...config, showWaterDepth: false })).toEqual([]);
+    expect(warningsFor([area], { ...config, outputMode: "engraving" })).toEqual([]);
+  });
+
+  it("does not warn for a modeled lake outside the circular cut", () => {
+    const area = lake();
+    delete area.bathymetry;
+    area.polygon.outer = [{ x: 41, y: 41 }, { x: 60, y: 41 }, { x: 60, y: 60 }, { x: 41, y: 60 }];
+    expect(warningsFor([area], { ...config, cropShape: "circle" })).toEqual([]);
+  });
+});

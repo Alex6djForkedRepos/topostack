@@ -11,3 +11,9 @@
 
 <Seo />
 {@render children()}
+
+<style>
+  :global(.ldt-topbar__actions) {
+    gap: clamp(var(--loidolt-space-2), 2vw, var(--loidolt-space-6));
+  }
+</style>

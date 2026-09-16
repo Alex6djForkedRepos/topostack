@@ -176,6 +176,28 @@ describe("TopoStack Svelte shell", () => {
     expect(manualButton()).toBeUndefined();
   });
 
+  it("shows the predicted-depth notice alongside Fit depth and allows dismissal", async () => {
+    const preview = structuredClone(initialPreview);
+    const prediction = "Some lake depths are estimated rather than surveyed.";
+    preview.warnings = [
+      { code: "LABEL_OMITTED", message: "Some labels do not fit." },
+      { code: "BATHYMETRY_FALLBACK", message: "Partial survey coverage." },
+      { code: "LAKE_DEPTH_PREDICTED", message: prediction },
+      { code: "WATER_DEPTH_CLAMPED", message: "The lake is too deep for the stack.", action: "fit-lake-depth" },
+    ];
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: preview } });
+    await tick();
+    expect(target.querySelectorAll(".preview-warning")).toHaveLength(2);
+    expect(target.querySelector(".preview-warning .warning-action")?.textContent).toBe("Fit depth");
+    expect(target.querySelector(".warning-stack")?.textContent).toContain(prediction);
+    expect(target.querySelector<HTMLAnchorElement>('.warning-stack a[href$="/guides/how-lake-depths-work"]')?.target).toBe("_blank");
+    target.querySelector<HTMLButtonElement>(`button[aria-label="Dismiss warning: ${prediction}"]`)!.click();
+    await tick();
+    expect(target.querySelector(".warning-stack")?.textContent).not.toContain(prediction);
+    expect(preview.warnings.some((warning) => warning.code === "LAKE_DEPTH_PREDICTED")).toBe(true);
+  });
+
   it("keeps the fit action visible when other warnings fill the preview", async () => {
     const preview = structuredClone(initialPreview);
     preview.warnings = [
@@ -286,13 +308,18 @@ describe("TopoStack Svelte shell", () => {
       return event;
     };
     viewport.dispatchEvent(pointerEvent("pointerdown", 100, 100));
-    viewport.dispatchEvent(pointerEvent("pointermove", 150, 125));
+    viewport.dispatchEvent(pointerEvent("pointermove", 110, 108));
     const panLayer = target.querySelector<HTMLElement>(".svg-pan-layer")!;
-    await vi.waitFor(() => expect(panLayer.style.transform).toContain("50px, 25px"));
+    await vi.waitFor(() => {
+      const offset = panLayer.style.transform.match(/translate3d\(([-\d.]+)px, ([-\d.]+)px/);
+      expect(Number(offset?.[1])).toBeCloseTo(10);
+      expect(Number(offset?.[2])).toBeCloseTo(8);
+    });
     expect(artwork.getAttribute("viewBox")).toBe(settledViewBox);
-    viewport.dispatchEvent(pointerEvent("pointerup", 150, 125));
+    viewport.dispatchEvent(pointerEvent("pointerup", 110, 108));
     await vi.waitFor(() => expect(panLayer.style.transform).toBe("translate3d(0, 0, 0)"));
-    expect(artwork.getAttribute("viewBox")).not.toBe(settledViewBox);
+    expect(artwork.getAttribute("viewBox")).toBe(settledViewBox);
+    expect(target.querySelector<HTMLElement>(".svg-canvas")?.style.transform).not.toContain("translate3d(0px, 0px");
   });
 
   it("applies linework presets and custom trail patterns to the engraving preview", async () => {

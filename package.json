@@ -26,7 +26,10 @@
     "test:scripts": "node --test scripts/test/*.test.mjs",
     "data:cache-audit": "node scripts/manage-cache-lifecycle.mjs",
     "data:benchmark": "node scripts/benchmark-data-layer.mjs",
-    "package:atomm-listing": "node scripts/package-atomm-listing.mjs"
+    "package:atomm-listing": "node scripts/package-atomm-listing.mjs",
+    "version:check": "node scripts/versions.mjs check",
+    "version:main": "node scripts/versions.mjs main",
+    "version:atomm": "node scripts/versions.mjs atomm"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

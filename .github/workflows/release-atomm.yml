@@ -8,7 +8,7 @@ on:
         type: string
         required: true
       tag:
-        description: New version tag, for example atomm-v0.1.0
+        description: Tag matching the artifact Atomm version, for example atomm-v0.1.0
         type: string
         required: true
 

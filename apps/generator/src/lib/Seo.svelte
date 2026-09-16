@@ -8,7 +8,7 @@
   const indexable = $derived(production && page.status === 200 && Boolean(PUBLIC_PAGES[path]));
   const canonical = $derived(SITE_ORIGIN + path);
   const title = $derived(metadata?.title ?? "Page Not Found | TopoStack");
-  const description = $derived(metadata?.description ?? "This page could not be found. Explore TopoStack's topographic map guides or open the terrain studio.");
+  const description = $derived(metadata?.description ?? "This page could not be found. Explore TopoStack's topographic map guides or open the studio.");
   const schema = $derived(JSON.stringify({
     "@context": "https://schema.org",
     "@graph": [

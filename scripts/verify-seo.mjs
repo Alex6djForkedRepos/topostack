@@ -16,7 +16,7 @@ for (const file of files) {
   const document = new JSDOM(html).window.document;
   if (file === "about.html") continue; // Static adapter's portable refresh fallback.
   const path = file === "index.html" ? "/" : "/" + file.replace(/\.html$/, "");
-  assert.equal(document.querySelectorAll("title").length, 1, file + ": unique title");
+  assert.equal(document.head.querySelectorAll("title").length, 1, file + ": unique title");
   const robots = document.querySelector('meta[name="robots"]')?.content;
   assert.ok(robots, file + ": robots policy");
   const noindex = !production || ["/studio", "/404"].includes(path);

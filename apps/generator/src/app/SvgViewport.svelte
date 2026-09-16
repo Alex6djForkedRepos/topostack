@@ -28,6 +28,8 @@
   let renderZoom = $state(MIN_ZOOM);
   let panX = $state(0);
   let panY = $state(0);
+  // Pan remains a compositor translation, including after release. Only a
+  // settled zoom changes the SVG camera and requires a fresh vector drawing.
   let dragging = $state(false);
   let dragOffsetX = 0;
   let dragOffsetY = 0;
@@ -40,8 +42,8 @@
   }
   let dragFrame: number | undefined;
   let zoomCommitTimer: ReturnType<typeof setTimeout> | undefined;
-  let canvasWidth = 0;
-  let canvasHeight = 0;
+  let canvasWidth = $state(0);
+  let canvasHeight = $state(0);
   let artworkSize = "";
   const baseX = $derived(-widthMm / 2 - 5);
   const baseY = $derived(-heightMm / 2 - 5);
@@ -52,8 +54,11 @@
   const visibleHeight = $derived(baseHeight / zoom);
   const renderWidth = $derived(baseWidth / renderZoom);
   const renderHeight = $derived(baseHeight / renderZoom);
-  const renderX = $derived(baseX + (baseWidth - renderWidth) / 2 + panX);
-  const renderY = $derived(baseY + (baseHeight - renderHeight) / 2 + panY);
+  const renderX = $derived(baseX + (baseWidth - renderWidth) / 2);
+  const renderY = $derived(baseY + (baseHeight - renderHeight) / 2);
+  const pixelsPerUnit = $derived(Math.min(canvasWidth / baseWidth, canvasHeight / baseHeight) * zoom);
+  const previewX = $derived((-panX) * pixelsPerUnit);
+  const previewY = $derived((-panY) * pixelsPerUnit);
   const viewBox = $derived(`${renderX} ${renderY} ${renderWidth} ${renderHeight}`);
 
   function clamp(value: number, minimum: number, maximum: number): number {
@@ -74,17 +79,14 @@
 
   function scheduleVectorZoom(): void {
     cancelZoomCommit();
-    zoomCommitTimer = setTimeout(() => {
-      zoomCommitTimer = undefined;
-      renderZoom = zoom;
-      setPan(panX, panY, zoom);
-    }, ZOOM_SETTLE_MS);
+    if (dragStart || pinch) return;
+    zoomCommitTimer = setTimeout(commitVectorZoom, ZOOM_SETTLE_MS);
   }
 
   function clampedPan(x: number, y: number, scale = renderZoom): { x: number; y: number } {
-    if (scale <= MIN_ZOOM) return { x: 0, y: 0 };
-    const maximumX = (baseWidth - baseWidth / scale) / 2;
-    const maximumY = (baseHeight - baseHeight / scale) / 2;
+    // Keep some artwork reachable, while allowing panning at the fitted zoom.
+    const maximumX = (baseWidth + baseWidth / scale) / 2 - Math.min(baseWidth, baseWidth / scale) * 0.1;
+    const maximumY = (baseHeight + baseHeight / scale) / 2 - Math.min(baseHeight, baseHeight / scale) * 0.1;
     return { x: clamp(x, -maximumX, maximumX), y: clamp(y, -maximumY, maximumY) };
   }
 
@@ -98,12 +100,12 @@
     const next = clamp(value, MIN_ZOOM, MAX_ZOOM);
     if (next === zoom) return;
     zoom = next;
+    setPan(panX, panY, zoom);
     scheduleVectorZoom();
   }
 
   function panUnitsPerPixel(): number | undefined {
-    const scale = Math.min(canvasWidth / renderWidth, canvasHeight / renderHeight) * residualScale;
-    return Number.isFinite(scale) && scale > 0 ? scale : undefined;
+    return Number.isFinite(pixelsPerUnit) && pixelsPerUnit > 0 ? 1 / pixelsPerUnit : undefined;
   }
 
   function cancelDragFrame(): void {
@@ -142,14 +144,17 @@
 
   function handleWheel(event: WheelEvent): void {
     event.preventDefault();
-    commitVectorZoom();
+    if (dragStart || pinch) return;
     const previous = zoom;
-    const bounds = canvas.getBoundingClientRect();
+    const previousX = panX;
+    const previousY = panY;
+    // The canvas itself is transformed; measure its stable centered container.
+    const bounds = viewport.getBoundingClientRect();
     const units = panUnitsPerPixel() ?? 0;
     const dx = (event.clientX - bounds.left - bounds.width / 2) * units;
     const dy = (event.clientY - bounds.top - bounds.height / 2) * units;
     setZoom(zoom * Math.exp(-event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? viewport.clientHeight : 1) * 0.0015));
-    setPan(panX + dx * (1 - previous / zoom), panY + dy * (1 - previous / zoom), zoom);
+    setPan(previousX + dx * (1 - previous / zoom), previousY + dy * (1 - previous / zoom), zoom);
   }
 
   function startPan(event: PointerEvent): void {
@@ -157,16 +162,26 @@
       touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
       viewport.setPointerCapture(event.pointerId);
       const pair = touchPair();
-      if (pair) { pinch = pair; dragStart = undefined; resetDragLayer(); commitVectorZoom(); return; }
+      if (pair) {
+        if (dragStart) {
+          setPan(dragStart.panX - dragOffsetX * dragStart.unitsPerPixel, dragStart.panY - dragOffsetY * dragStart.unitsPerPixel, zoom);
+          dragStart = undefined;
+          resetDragLayer();
+        }
+        cancelZoomCommit();
+        pinch = pair;
+        dragging = true;
+        return;
+      }
     }
-    if (event.button !== 0 || zoom <= MIN_ZOOM || dragStart) return;
+    if (event.button !== 0 || dragStart) return;
     cancelZoomCommit();
     const scale = panUnitsPerPixel();
     if (scale === undefined) return;
     viewport.setPointerCapture(event.pointerId);
     resetDragLayer();
     dragging = true;
-    dragStart = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, panX, panY, unitsPerPixel: 1 / scale };
+    dragStart = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, panX, panY, unitsPerPixel: scale };
   }
 
   function movePan(event: PointerEvent): void {
@@ -175,27 +190,47 @@
       const pair = touchPair();
       if (pinch && pair && pinch.distance > 0) {
         event.preventDefault();
-        commitVectorZoom();
         const previous = zoom;
-        const bounds = canvas.getBoundingClientRect();
+        const previousX = panX;
+        const previousY = panY;
+        const bounds = viewport.getBoundingClientRect();
         const units = panUnitsPerPixel() ?? 0;
         const dx = (pinch.x - bounds.left - bounds.width / 2) * units;
         const dy = (pinch.y - bounds.top - bounds.height / 2) * units;
         setZoom(zoom * pair.distance / pinch.distance);
-        setPan(panX - (pair.x - pinch.x) * units + dx * (1 - previous / zoom), panY - (pair.y - pinch.y) * units + dy * (1 - previous / zoom), zoom);
+        setPan(previousX - (pair.x - pinch.x) * units * previous / zoom + dx * (1 - previous / zoom), previousY - (pair.y - pinch.y) * units * previous / zoom + dy * (1 - previous / zoom), zoom);
         pinch = pair;
         return;
       }
     }
     if (!dragStart || dragStart.pointerId !== event.pointerId) return;
-    dragOffsetX = event.clientX - dragStart.x;
-    dragOffsetY = event.clientY - dragStart.y;
+    // Preview the same bounded camera that finishPan commits. Unbounded
+    // screen offsets here would snap back to the pan limits on release.
+    const next = clampedPan(
+      dragStart.panX - (event.clientX - dragStart.x) * dragStart.unitsPerPixel,
+      dragStart.panY - (event.clientY - dragStart.y) * dragStart.unitsPerPixel,
+      zoom,
+    );
+    dragOffsetX = (dragStart.panX - next.x) / dragStart.unitsPerPixel;
+    dragOffsetY = (dragStart.panY - next.y) / dragStart.unitsPerPixel;
     scheduleDragFrame();
   }
 
   function finishPan(event: PointerEvent): void {
     touches.delete(event.pointerId);
-    if (pinch) { pinch = undefined; dragging = false; commitVectorZoom(); }
+    if (pinch) {
+      pinch = undefined;
+      dragging = false;
+      commitVectorZoom();
+      // Continue with one-finger panning when the other finger is lifted.
+      const remaining = touches.entries().next().value;
+      const units = panUnitsPerPixel();
+      if (remaining && units !== undefined) {
+        const [pointerId, point] = remaining;
+        dragStart = { pointerId, ...point, panX, panY, unitsPerPixel: units };
+        dragging = true;
+      }
+    }
     if (!dragStart || dragStart.pointerId !== event.pointerId) return;
     const finalOffsetX = event.type === "pointerup" ? event.clientX - dragStart.x : dragOffsetX;
     const finalOffsetY = event.type === "pointerup" ? event.clientY - dragStart.y : dragOffsetY;
@@ -205,18 +240,18 @@
     dragging = false;
     if (viewport.hasPointerCapture(event.pointerId)) viewport.releasePointerCapture(event.pointerId);
     resetDragLayer();
-    commitVectorZoom();
     setPan(nextX, nextY, zoom);
+    commitVectorZoom();
   }
 
   function handleKeyDown(event: KeyboardEvent): void {
     if (event.key === "+" || event.key === "=") setZoom(zoom + ZOOM_STEP);
     else if (event.key === "-" || event.key === "_") setZoom(zoom - ZOOM_STEP);
     else if (event.key === "0" || event.key === "Home") resetView();
-    else if (event.key === "ArrowLeft") { commitVectorZoom(); setPan(panX - visibleWidth * 0.1, panY, zoom); }
-    else if (event.key === "ArrowRight") { commitVectorZoom(); setPan(panX + visibleWidth * 0.1, panY, zoom); }
-    else if (event.key === "ArrowUp") { commitVectorZoom(); setPan(panX, panY - visibleHeight * 0.1, zoom); }
-    else if (event.key === "ArrowDown") { commitVectorZoom(); setPan(panX, panY + visibleHeight * 0.1, zoom); }
+    else if (event.key === "ArrowLeft") { setPan(panX - visibleWidth * 0.1, panY, zoom); commitVectorZoom(); }
+    else if (event.key === "ArrowRight") { setPan(panX + visibleWidth * 0.1, panY, zoom); commitVectorZoom(); }
+    else if (event.key === "ArrowUp") { setPan(panX, panY - visibleHeight * 0.1, zoom); commitVectorZoom(); }
+    else if (event.key === "ArrowDown") { setPan(panX, panY + visibleHeight * 0.1, zoom); commitVectorZoom(); }
     else return;
     event.preventDefault();
   }
@@ -256,7 +291,7 @@
   <button
     type="button"
     bind:this={viewport}
-    class="svg-viewport" class:dragging
+    class="svg-viewport" class:dragging class:detail-view={renderZoom >= 2}
     data-svg-viewport
     data-zoom={zoom.toFixed(2)}
     data-render-zoom={renderZoom.toFixed(2)}
@@ -271,7 +306,7 @@
     onkeydown={handleKeyDown}
   >
     <span bind:this={panLayer} class="svg-pan-layer">
-    <span bind:this={canvas} class="svg-canvas" style:transform={`scale(${residualScale})`}>
+    <span bind:this={canvas} class="svg-canvas" style:transform={`translate3d(${previewX}px, ${previewY}px, 0) scale(${residualScale})`}>
   <svg viewBox={viewBox} role="img" aria-label={svgLabel}>
     {@render children()}
   </svg>
@@ -284,6 +319,10 @@
 .svg-viewer { position: relative; width: 100%; height: 100%; min-width: 0; min-height: 0; }
 .svg-viewport.dragging { cursor: grabbing; }
 .svg-viewport {
+  /* Isolate the moving artwork from the surrounding page's paint surface.
+     Keep this clip stationary: clipping the moving pan layer cuts off artwork. */
+  contain: layout paint;
+  transform: translateZ(0);
   width: 100%;
   height: 100%;
   min-height: 0;
@@ -299,6 +338,14 @@
   text-align: initial;
 }
 
+/* At close zoom, SVG blur filters rasterize large offscreen surfaces as new
+   tiles come into view. Keep decorative shadows for the overview; the vector
+   linework remains unchanged and sharp at every zoom. Use settled zoom so this
+   paint change happens with the vector redraw, never in the middle of a gesture. */
+.svg-viewport.detail-view :global([data-preview-shadow]) {
+  filter: none;
+}
+
 .svg-viewport:focus-visible {
   outline: 2px solid var(--loidolt-accent);
   outline-offset: -2px;
@@ -310,7 +357,7 @@
   display: flex;
   transform: translate3d(0, 0, 0);
   will-change: transform;
-  contain: layout paint;
+  contain: layout;
 }
 
 .svg-canvas {

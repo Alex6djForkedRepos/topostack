@@ -25,7 +25,10 @@ try{
  assert.equal(catalogRequests,0,'Catalog must remain out of studio startup');
  await openSearch();
  await expect(page.locator('.lake-search-summary')).toContainText(directory.lakes.length.toLocaleString('en-US'));
- await expect(page.locator('[data-lake-id]')).toHaveCount(10);
+ await expect(page.locator('[data-lake-id]')).toHaveCount(5);
+ await page.setViewportSize({width:1280,height:720});
+ assert(await page.locator('.search-modal .ldt-dialog__body').evaluate(el=>el.scrollHeight<=el.clientHeight+1),'Initial desktop selector should not scroll');
+ await page.setViewportSize({width:1440,height:1000});
  const first=await page.locator('[data-lake-id]').first().getAttribute('data-lake-id');
  await page.getByRole('button',{name:'Next lakes',exact:true}).click();
  await expect(page.getByRole('navigation',{name:'Surveyed lake pages'})).toContainText('Page 2 of');
@@ -37,10 +40,19 @@ try{
   await expect(page.locator(`[data-lake-id="${lake.id}"]`)).toBeVisible();
  }
  await expect(page.getByText('Other place search is unavailable.',{exact:false})).toBeVisible();
+ await page.route('**/v1/geocode?**',route=>route.fulfill({json:[{place_id:'crater-copy',display_name:'Crater Lake, Oregon, USA',lat:42.9446,lon:-122.109,type:'lake'}]}));
+ await search.fill('Crater Lake');
+ await expect(page.locator('[data-lake-id]')).toHaveCount(1);
+ await expect(page.getByText('Searching other places…')).not.toBeVisible();
+ await expect(page.locator('.search-results:not(.lake-search-results) .location-option')).toHaveCount(0);
+ await page.unroute('**/v1/geocode?**');
+ await page.route('**/v1/geocode?**',route=>route.fulfill({status:503,body:'Unavailable'}));
  await search.fill('tinnsja');
  await expect(page.locator('[data-lake-id] strong')).toContainText(['Tinnsjå']);
  await search.fill('Switzerland');
  await expect(page.locator('.lake-search-summary')).toContainText('22 lakes and basins');
+ await page.getByRole('button',{name:'Next lakes',exact:true}).click();
+ await page.getByRole('button',{name:'Next lakes',exact:true}).click();
  await page.getByRole('button',{name:'Next lakes',exact:true}).click();
  await page.getByRole('button',{name:'Next lakes',exact:true}).click();
  await expect(page.locator('[data-lake-id]')).toHaveCount(2);

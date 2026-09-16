@@ -4,29 +4,28 @@ import { gzipSync } from "node:zlib";
 const dist = new URL("../apps/generator/dist/", import.meta.url);
 // Budget the lightweight homepage separately from the editor and its default
 // 3D preview. Moving the editor must not hide its cost behind a smaller entry page.
+// Production baseline with Node 22.22.2 and VITE_MAP_API_URL=https://ci.invalid:
+// homepage 54.8 kB, startup 423.0 kB, all JS 858.1 kB, standalone CSS 32.2 kB.
+// Includes terrain-informed lake depths, the interactive depth guide, and the
+// integrated studio release. Keep roughly 2% JS headroom for platform/minifier
+// variation; compare a fresh build before accepting future budget increases.
 const budgets = {
-  // Search metadata and attribution share the UI chunk with platform controls.
-  // The integrated release measures ~52.7 kB gzip for the homepage.
-  landingJavaScriptGzip: 54_000,
+  // Shared UI and search metadata are included in the homepage's preload graph.
+  landingJavaScriptGzip: 56_000,
   landingHtmlGzip: 10_000,
   initialJavaScriptGzip: 180_000,
-  // Directory-to-studio links add location restoration and router integration.
-  // Survey selection framing and duplicate coverage-warning handling add <1 kB.
-  // Integrated Node 22/Linux CI build measures ~406.2 kB (gzip differs by runtime).
-  startupJavaScriptGzip: 408_000,
-  // Includes the MapLibre 6 worker (~144 kB gzip), fetched only in Map mode.
-  // The searchable lake directory adds a separate guide route. Allow 8 kB
-  // for its JS while keeping the homepage and initial-entry limits.
-  // Its full lake catalog is fetched separately and budgeted below.
-  // Full-catalog location search adds ~2.2 kB, loaded with the search dialog.
-  // Full Node 22/Linux CI release measures ~841.2 kB across all routes.
-  totalJavaScriptGzip: 844_000,
+  // Includes the editor, default 3D preview, and geometry worker. Lake modeling
+  // runs in the main-thread fallback as well as the worker, so both are counted.
+  startupJavaScriptGzip: 432_000,
+  // All routes, lazy-loaded tools, and workers, including the interactive lake
+  // guide and MapLibre's worker. The fetched lake catalog is budgeted below.
+  totalJavaScriptGzip: 876_000,
   largestJavaScriptGzip: 300_000,
-  // The fetched Atomm template is loaded only inside the platform iframe.
-  // Keep the original standalone CSS allowance and bound the extra surface.
-  standaloneCssGzip: 31_000,
+  // Public guides add styles outside the studio. Keep a separate allowance for
+  // the Atomm template, which is loaded only inside the platform iframe.
+  standaloneCssGzip: 33_000,
   atommCssGzip: 10_000,
-  totalCssGzip: 41_000,
+  totalCssGzip: 43_000,
   // 7,775 records across 11 sources (~306 kB); fetched only when browsing/searching.
   lakeDirectoryGzip: 320_000,
   studioHtmlBytes: 10_000,

@@ -1,4 +1,5 @@
 import { pointInPolygon } from "./geometry2d.js";
+import { terrainBasinDistance } from "./terrain-basin.js";
 import { BATHYMETRIC_RELIEF_M } from "./types.js";
 import type { ElevationGrid, GeometryWarning, Point2D, ProjectConfigV1, WaterAreaV1, WaterSurfaceIR } from "./types.js";
 
@@ -10,13 +11,10 @@ import type { ElevationGrid, GeometryWarning, Point2D, ProjectConfigV1, WaterAre
  * recess: d3-contour cuts the rings, clipContours winds them as holes, and
  * every consumer downstream already honours holes.
  *
- * NOAA depth grids take precedence where supplied. Otherwise the basin follows
- * GLOBathy, whose published rasters are a derived
- * product of just two inputs - a HydroLAKES polygon and a maximum depth -
- * combined by a proximity-to-shore pass and `D = l * Dmax / L`. We reproduce
- * that at whatever resolution the model needs instead of shipping their 16.7 GB
- * of TIFFs, and generalize the straight line to `D = Dmax * (l / L)^p` so the
- * profile can bend. See `solveShapeExponent` for what fixes `p`.
+ * Survey grids take precedence where supplied. Otherwise dry terrain slopes
+ * around the shore inform the basin shape, constrained by the GLOBathy maximum
+ * depth and HydroLAKES mean depth. Cropped lakes or uninformative terrain retain
+ * the distance-to-shore profile `D = Dmax * (l / L)^p`.
  */
 
 /** Fraction of a cell the border samples move inward; see `cellPoint`. */
@@ -225,6 +223,33 @@ export function carveWaterDepth(
   const normalized = new Float64Array(grid.width * grid.height);
   const cells: number[] = [];
 
+  // Build the complete mask before carving so neighboring lakes never become
+  // land samples for the terrain prior, regardless of their processing order.
+  for (let row = 0; row < grid.height; row += 1) {
+    for (let column = 0; column < grid.width; column += 1) {
+      const point = cellPoint(column, row, grid, config);
+      if (areas.some((area) => pointInPolygon(point, area.polygon))) waterMask[row * grid.width + column] = 1;
+    }
+  }
+
+  const normalizeBasin = (area: WaterAreaV1, distance: Float64Array, surfaceM: number): number => {
+    let visibleRadiusM = 0;
+    for (const cell of cells) if (Number.isFinite(distance[cell])) visibleRadiusM = Math.max(visibleRadiusM, distance[cell]!);
+    const radiusM = area.lmaxM && area.lmaxM > 0 ? area.lmaxM : visibleRadiusM;
+    if (!(radiusM > 0)) return 0;
+    const shape = terrainBasinDistance(grid, mask, waterMask, cells, distance, spacingXM, spacingYM,
+      surfaceM, (area.maxDepthM ?? 0) / radiusM, area.clipped ?? false);
+    let shapeRadiusM = 0;
+    if (shape !== distance) for (const cell of cells) shapeRadiusM = Math.max(shapeRadiusM, shape[cell]!);
+    for (let index = 0; index < cells.length; index += 1) {
+      const cell = cells[index]!;
+      normalized[index] = shape === distance
+        ? Math.min(1, distance[cell]! / radiusM)
+        : shape[cell]! / shapeRadiusM * Math.min(1, visibleRadiusM / radiusM);
+    }
+    return radiusM;
+  };
+
   for (const area of areas) {
     mask.fill(0);
     cells.length = 0;
@@ -234,7 +259,6 @@ export function carveWaterDepth(
         if (!pointInPolygon(cellPoint(column, row, grid, config), area.polygon)) continue;
         const index = row * grid.width + column;
         mask[index] = 1;
-        waterMask[index] = 1;
         cells.push(index);
         interior[count] = values[index]!;
         count += 1;
@@ -272,12 +296,7 @@ export function carveWaterDepth(
           : surfaceLevelM;
         const missing = surveyedCount < cells.length;
         const distance = missing ? distanceToShoreM(mask, grid.width, grid.height, spacingXM, spacingYM) : undefined;
-        let visibleRadiusM = 0;
-        if (distance) for (const index of cells) if (Number.isFinite(distance[index]!)) visibleRadiusM = Math.max(visibleRadiusM, distance[index]!);
-        const radiusM = area.lmaxM && area.lmaxM > 0 ? area.lmaxM : visibleRadiusM;
-        if (distance && radiusM > 0) {
-          for (let index = 0; index < cells.length; index += 1) normalized[index] = Math.min(1, distance[cells[index]!]! / radiusM);
-        }
+        const radiusM = distance && interiorSpreadM <= BATHYMETRIC_RELIEF_M ? normalizeBasin(area, distance, surfaceElevationM) : 0;
         const exponent = !distance || radiusM <= 0 || area.clipped || !(area.meanDepthM && area.maxDepthM)
           ? 1 : solveShapeExponent(normalized, cells.length, area.meanDepthM / area.maxDepthM);
         let bedElevationM = surfaceElevationM;
@@ -361,9 +380,8 @@ export function carveWaterDepth(
       continue;
     }
 
-    const lmaxM = area.lmaxM && area.lmaxM > 0 ? area.lmaxM : Math.max(...cells.map((index) => distance[index]!));
+    const lmaxM = normalizeBasin(area, distance, surfaceElevationM);
     if (!(lmaxM > 0)) continue;
-    for (let index = 0; index < cells.length; index += 1) normalized[index] = Math.min(1, distance[cells[index]!]! / lmaxM);
 
     // A clipped lake's visible cells are not a fair sample of the whole basin,
     // so fitting an exponent to them would bend the profile to the crop rather

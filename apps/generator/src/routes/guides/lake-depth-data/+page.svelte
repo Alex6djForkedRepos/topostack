@@ -55,6 +55,7 @@
     <strong>Real surveys, with different levels of detail.</strong>
     <p>Surveyed grids describe the lake floor from published bathymetric data. Survey contours use measured depth lines with the spaces between them interpolated. A listing may cover only part of a lake; gaps use existing terrain or modeled depths. Check the source notes after generating.</p>
   </div>
+  <p>Wondering how the lake floor is made? <a href={`${base}/guides/how-lake-depths-work`}>Learn how surveys, predictions, and depth settings work</a>.</p>
   <section class="directory" aria-label="Search surveyed lakes" aria-busy={loading}>
     <div class="search-field">
       <label for="lake-search">Search lakes</label>
@@ -96,6 +97,7 @@
       <p class="catalog-date">Catalog updated {directory.updated}. Regional datasets can list separate basins of the same lake. <a href={`${base}/data/lake-depth-directory.json`} download>Download the complete list</a>.</p>
     {/if}
   </section>
+  <p><a href={`${base}/attribution#surveys`}>View survey credits and how each source is used</a>.</p>
   <h2>Using a lake’s depth data</h2>
   <p>Select <strong>Open in studio</strong> to frame the survey area, then generate terrain with <strong>Water depth</strong> enabled. Some small lakes may lack a matching lake outline. The studio’s source notes identify available survey data and any modeled gaps.</p>
   <p>If a deep lake exceeds the available layers, choose <strong>Fit depth</strong> to compress its depths while keeping the shoreline fixed. <strong>Use manual depth</strong> restores your requested scale. See the <a href={`${base}/guides/laser-cut-topographic-map`}>layered map guide</a> for fabrication steps.</p>

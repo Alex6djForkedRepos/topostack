@@ -134,14 +134,21 @@ test("mobile preview warnings can be dismissed without enabling export", async (
   await notice.press("Enter");
   await expect(page.locator(".preview-notice")).toHaveCount(0);
   await expect(page.locator(".warning-dismiss").first()).toBeFocused();
-  const sample = page.getByRole("button", { name: /^Dismiss warning: Bundled real-data preview/ });
-  await expect(sample).toBeVisible();
-  const target = (await sample.boundingBox())!;
-  expect(target.width).toBeGreaterThanOrEqual(44);
-  expect(target.height).toBeGreaterThanOrEqual(44);
+  // Only two warnings are visible at once. Higher-priority lake-depth warnings
+  // can precede the bundled-preview warning, so inspect each as it is revealed.
+  let dismissedSampleWarning = false;
   for (let count = 0; count < 20 && await page.locator(".warning-dismiss").count(); count++) {
-    await page.locator(".warning-dismiss").first().tap();
+    const warning = page.locator(".warning-dismiss").first();
+    await expect(warning).toBeVisible();
+    const label = (await warning.getAttribute("aria-label"))!;
+    const target = (await warning.boundingBox())!;
+    expect(target.width).toBeGreaterThanOrEqual(44);
+    expect(target.height).toBeGreaterThanOrEqual(44);
+    await warning.tap();
+    await expect(page.getByRole("button", { name: label, exact: true })).toHaveCount(0);
+    if (label.startsWith("Dismiss warning: Bundled real-data preview")) dismissedSampleWarning = true;
   }
+  expect(dismissedSampleWarning).toBe(true);
   await expect(page.locator(".warning-stack")).toHaveCount(0);
   await page.setViewportSize({ width: 844, height: 390 });
   await expect(page.locator(".warning-stack")).toHaveCount(0);
