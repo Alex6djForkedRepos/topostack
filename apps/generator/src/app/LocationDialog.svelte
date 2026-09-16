@@ -2,8 +2,9 @@
   import { onMount } from "svelte";
   import { base } from "$app/paths";
   import { indexLakeDirectory, lakeStudioLink, searchLakes, type IndexedLake, type LakeDirectory } from "../lib/lake-directory";
+  import { uniqueLocationLakes, uniqueOtherPlaces } from "../lib/location-results";
   import { lakeLocationFromSearch } from "../lib/lake-location";
-  import { Map as MapIcon, Mountain, Search } from "@lucide/svelte";
+  import { LocateFixed, Map as MapIcon, Mountain, Search } from "@lucide/svelte";
   import { Button, Field, IconButton, Input } from "@loidolt/theme-svelte";
   import NumberField from "./StudioNumberField.svelte";
   import type { ProjectConfigV1 } from "@topostack/core";
@@ -14,13 +15,17 @@
   let results = $state.raw<PlaceResult[]>([]);
   let searchError = $state("");
   let placesLoading = $state(false);
+  let locating = $state(false);
+  let locationError = $state("");
+  let locationRequest = 0;
   let dialog: HTMLDialogElement;
   let lakes = $state.raw<IndexedLake[]>([]);
   let lakesLoading = $state(true);
   let lakesFailed = $state(false);
   let lakePage = $state(1);
-  const lakePageSize = 10;
+  const lakePageSize = 5;
   const matchedLakes = $derived(searchLakes(lakes, query));
+  const otherPlaces = $derived(uniqueOtherPlaces(results, matchedLakes));
   const lakePageCount = $derived(Math.max(1, Math.ceil(matchedLakes.length / lakePageSize)));
   const currentLakePage = $derived(Math.min(lakePage, lakePageCount));
   const shownLakes = $derived(matchedLakes.slice((currentLakePage - 1) * lakePageSize, currentLakePage * lakePageSize));
@@ -36,7 +41,7 @@
       if (!response.ok) throw new Error("Lake directory unavailable");
       const data = await response.json() as LakeDirectory;
       if (data.schemaVersion !== 1 || !Array.isArray(data.lakes) || !Array.isArray(data.sources)) throw new Error("Invalid lake directory");
-      const indexed = indexLakeDirectory(data);
+      const indexed = uniqueLocationLakes(indexLakeDirectory(data));
       if (!controller.signal.aborted) lakes = indexed;
     } catch { if (!controller.signal.aborted) lakesFailed = true; }
     finally { if (!controller.signal.aborted) lakesLoading = false; }
@@ -59,7 +64,7 @@
   onMount(() => {
     dialog.showModal();
     void loadLakes();
-    return () => { directoryController?.abort(); if (dialog.open) dialog.close(); };
+    return () => { locationRequest++; directoryController?.abort(); if (dialog.open) dialog.close(); };
   });
 
   function closeFromBackdrop(event: MouseEvent): void {
@@ -67,8 +72,40 @@
     if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) dialog.close();
   }
 
+  function useCurrentLocation(): void {
+    if (locating) return;
+    locationError = "";
+    if (!navigator.geolocation) {
+      locationError = "Current location is unavailable in this browser. Enter coordinates instead.";
+      return;
+    }
+    locating = true;
+    const request = ++locationRequest;
+    const isCurrent = () => request === locationRequest && dialog.open;
+    navigator.geolocation.getCurrentPosition(({ coords }) => {
+      if (!isCurrent()) return;
+      locating = false;
+      if (!Number.isFinite(coords.latitude) || !Number.isFinite(coords.longitude)
+        || Math.abs(coords.latitude) > 85.0511 || Math.abs(coords.longitude) > 180) {
+        locationError = "Your location is outside the supported map area. Enter coordinates instead.";
+        return;
+      }
+      onCoordinates(coords.latitude, coords.longitude);
+      dialog.close();
+    }, (error) => {
+      if (!isCurrent()) return;
+      locating = false;
+      locationError = error.code === 1
+        ? "Location access was denied. Allow location access in your browser or enter coordinates."
+        : error.code === 3
+          ? "Finding your location timed out. Try again or enter coordinates."
+          : "Your location could not be determined. Try again or enter coordinates.";
+    }, { timeout: 10000, maximumAge: 60000 });
+  }
+
   function commitCoordinate(value: number, axis: "lat" | "lon"): void {
     if (!Number.isFinite(value)) return;
+    locationRequest++; locating = false; locationError = "";
     if (axis === "lat") onCoordinates(Math.max(-85.0511, Math.min(85.0511, value)), project.location.lon);
     else onCoordinates(project.location.lat, Math.max(-180, Math.min(180, value)));
   }
@@ -97,8 +134,11 @@
     <div class="coordinate-row">
       <Field label="Latitude">{#snippet children({ id })}<NumberField {id} label="Latitude" min={-85.0511} max={85.0511} step={0.0001} value={project.location.lat} boxed oninput={(event) => event.currentTarget.value !== "" && commitCoordinate(event.currentTarget.valueAsNumber, "lat")} onValueChange={(value) => commitCoordinate(value, "lat")} />{/snippet}</Field>
       <Field label="Longitude">{#snippet children({ id })}<NumberField {id} label="Longitude" min={-180} max={180} step={0.0001} value={project.location.lon} boxed oninput={(event) => event.currentTarget.value !== "" && commitCoordinate(event.currentTarget.valueAsNumber, "lon")} onValueChange={(value) => commitCoordinate(value, "lon")} />{/snippet}</Field>
+      <IconButton label={locating ? "Locating…" : "Use current location"} title={locating ? "Finding your current location…" : "Use current location"} disabled={locating} onclick={useCurrentLocation}><LocateFixed size={18} /></IconButton>
       <Button onclick={() => dialog.close()}>Use coordinates</Button>
     </div>
+    {#if locating}<p class="location-feedback" role="status">Finding your current location…</p>{/if}
+    {#if locationError}<p class="location-feedback" role="alert">{locationError}</p>{/if}
     <section class="surveyed-lake-search" aria-labelledby="surveyed-lake-search-title" aria-busy={lakesLoading}>
       <h3 id="surveyed-lake-search-title">Surveyed lakes</h3>
       {#if lakesLoading}
@@ -111,7 +151,7 @@
           {#each shownLakes as lake (lake.id)}
             <button class="location-option" data-lake-id={lake.id} onclick={() => chooseLake(lake)}>
               <span class="location-option__icon"><MapIcon size={17} /></span>
-              <span class="location-option__copy"><strong>{lake.name}</strong><small>{lake.region} · {lake.source.name}</small><small>Survey {lake.surveyId}</small></span>
+              <span class="location-option__copy"><strong>{lake.name}</strong><small>{lake.region} · {lake.source.name} · Survey {lake.surveyId}</small></span>
             </button>
           {/each}
         </div>
@@ -127,7 +167,7 @@
     </section>
     <div class="search-results">
       {#if query.trim().length >= 2}<h3>Other places</h3>{/if}
-      {#each results as result (result.id)}
+      {#each otherPlaces as result (result.id)}
         <button class="location-option" onclick={() => onChoose(result)}>
           <span class="location-option__icon"><MapIcon size={17} /></span>
           <span class="location-option__copy"><strong>{result.label.split(",")[0]}</strong><small>{result.label.split(",").slice(1).join(",")}</small></span>
@@ -135,8 +175,8 @@
       {/each}
       {#if placesLoading}<p role="status">Searching other places…</p>{:else if searchError}<p role="status">{searchError}</p>{/if}
       {#if !query}
-        <section class="preset-locations" aria-labelledby="preset-locations-title">
-          <h3 id="preset-locations-title">Example locations</h3>
+        <details class="preset-locations">
+          <summary>Example locations</summary>
           <div class="preset-grid">
             {#each presets as preset (preset.id)}
               <button class="location-option" onclick={() => onChoose(preset)}>
@@ -145,7 +185,7 @@
               </button>
             {/each}
           </div>
-        </section>
+        </details>
       {/if}
     </div>
     <small class="provider-attribution">Place search by <a href="https://www.geoapify.com/" target="_blank" rel="noreferrer">Geoapify</a> · © OpenStreetMap contributors</small>
@@ -153,8 +193,18 @@
 </dialog>
 
 <style>
-  .surveyed-lake-search { margin-block: 1rem; }
+  .search-modal :global(.search-results) { max-height: none; overflow: visible; padding-block: 0; }
+  .preset-locations summary { cursor: pointer; font-size: 0.8125rem; }
+  .preset-locations[open] summary { margin-bottom: 0.5rem; }
+  .search-modal .location-option { min-height: 44px; padding-block: 5px; }
+  .location-feedback { font-size: 0.8125rem; margin-block: 0.5rem; }
+  .coordinate-row { grid-template-columns: repeat(2, minmax(0, 1fr)) auto auto; margin-top: 0.5rem; padding-bottom: 0.5rem; }
+  @media (max-width: 600px) {
+    .coordinate-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .coordinate-row > :global(button) { grid-column: auto; white-space: normal; }
+  }
+  .surveyed-lake-search { margin-block: 0.5rem; }
   h3 { font-size: 1rem; margin-block: 0 0.5rem; }
-  .lake-search-summary, .lake-search-note { font-size: 0.8125rem; line-height: 1.5; }
-  .lake-search-pagination { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: space-between; margin-block: 0.75rem; font-size: 0.8125rem; }
+  .lake-search-summary, .lake-search-note { font-size: 0.8125rem; line-height: 1.4; margin-block: 0.5rem; }
+  .lake-search-pagination { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: space-between; margin-block: 0.5rem; font-size: 0.8125rem; }
 </style>
