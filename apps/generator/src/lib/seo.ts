@@ -26,6 +26,11 @@ export const PUBLIC_PAGES: Record<string, { title: string; description: string; 
     description: "Explore the Crater Lake terrain preview in TopoStack, follow the project setup, and learn how to generate fresh terrain for layered or engraved SVG exports.",
     label: "Crater Lake example",
   },
+  "/attribution": {
+    title: "Sources and Attribution | TopoStack",
+    description: "Explore TopoStack’s terrain, map, lake-depth, artwork, and software sources, how they are used, and their credits and licenses.",
+    label: "Sources and attribution",
+  },
   "/privacy": {
     title: "Privacy and Browser Storage | TopoStack",
     description: "How TopoStack stores project settings, requests map data, and measures visits and successful exports.",

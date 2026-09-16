@@ -93,6 +93,7 @@
             {/each}
           </ul>
         </details>
+        <p><a class="secondary-link" href={`${base}/attribution`}>All sources, uses, and attribution <ArrowRight size={16} aria-hidden="true" /></a></p>
         <h3>Your project, in your browser</h3>
         <p>Project settings are saved in this browser. Export a project-settings JSON file to keep a backup or move your settings to another device. Place search and map data require an internet connection.</p>
         <p class="data-note">Terrain and map data are intended for decorative projects, not surveying, navigation, or engineering. Review the exported artwork and your machine settings before fabrication.</p>
@@ -134,7 +135,7 @@
     </section>
   </main>
 
-  <footer><span>TopoStack <span class="footer-note">/ Terrain studio</span></span><a href={`${base}/guides/lake-depth-data`}>Lake depth directory</a><a href={`${base}/privacy`}>Privacy</a><a href={studioUrl}>Open terrain studio <ArrowUpRight size={14} aria-hidden="true" /></a></footer>
+  <footer><span>TopoStack <span class="footer-note">/ Terrain studio</span></span><a href={`${base}/guides/lake-depth-data`}>Lake depth directory</a><a href={`${base}/attribution`}>Sources and attribution</a><a href={`${base}/privacy`}>Privacy</a><a href={studioUrl}>Open terrain studio <ArrowUpRight size={14} aria-hidden="true" /></a></footer>
 </div>
 
 <style>

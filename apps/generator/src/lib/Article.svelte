@@ -28,7 +28,7 @@
       <a class="start" href={`${base}/studio`}>Create a topographic map</a>
     </aside>
   </main>
-  <footer>TopoStack · Free, browser-based terrain tools · <a href="https://github.com/Echo-Foxtrot-Works/topostack">GitHub</a></footer>
+  <footer>TopoStack · Free, browser-based terrain tools · <a href="https://github.com/Echo-Foxtrot-Works/topostack">GitHub</a> · <a href={`${base}/attribution`}>Sources and attribution</a></footer>
 </div>
 
 <style>

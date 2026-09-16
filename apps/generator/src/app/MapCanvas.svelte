@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
+  import { base } from "$app/paths";
   import { LocateFixed } from "@lucide/svelte";
   import * as maplibregl from "maplibre-gl";
   import mapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
@@ -107,7 +108,7 @@
     } catch { onUnavailable?.(); return; }
     map.touchZoomRotate.disableRotation();
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
-    map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
+    map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: `<a href="${base}/attribution" target="_blank" rel="noopener noreferrer">All sources</a>` }), "bottom-left");
     map.on("load", () => syncCustomLines(project.customLines));
     const emitSelection = () => {
       if (!map) return;
