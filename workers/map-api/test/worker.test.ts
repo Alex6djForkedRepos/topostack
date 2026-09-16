@@ -372,9 +372,9 @@ describe("lake bathymetry archive", () => {
 });
 
 
-describe("NOAA bathymetry archive", () => {
-  const url = "http://example.com/v1/bathymetry/noaa-great-lakes-v1.pmtiles";
-  const key = "bathymetry/noaa-great-lakes-v1.pmtiles";
+describe.each(["noaa-great-lakes-v1", "usgs-crater-lake-v1", "usgs-lake-tahoe-v1", "usgs-mono-lake-v1", "mn-dnr-lakes-v1", "swissbathy3d-v1", "syke-finland-lakes-v1"])("%s bathymetry archive", (dataset) => {
+  const url = `http://example.com/v1/bathymetry/${dataset}.pmtiles`;
+  const key = `bathymetry/${dataset}.pmtiles`;
   const origin = { origin: "http://localhost:5273" };
   it("serves bounded byte ranges with cache validators and handles missing data", async () => {
     await workerEnv.VECTOR_DATA.delete(key);

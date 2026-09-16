@@ -317,6 +317,13 @@ export function buildFabricationPackage(generated: GeometryIRV1, config: Project
       warnings: ir.warnings,
       vectorStatus: ir.vectorStatus,
       lakeDataStatus: ir.lakeDataStatus,
+      lakeDepths: ir.waterSurfaces.filter((surface) => surface.kind === "lake").map((surface) => ({
+        id: surface.id, name: surface.name, hylakId: surface.hylakId,
+        depthSource: surface.depthSource, surfaceElevationM: surface.surfaceElevationM,
+        bedElevationM: surface.bedElevationM, unfittedBedElevationM: surface.unfittedBedElevationM,
+        depthFitScale: surface.depthFitScale ?? 1,
+        appliedDepthExaggeration: surface.appliedDepthExaggeration ?? config.waterDepthExaggeration,
+      })),
       imagerySources: ir.imagerySources,
     },
     attribution: ir.attribution,
@@ -329,11 +336,13 @@ export function buildFabricationPackage(generated: GeometryIRV1, config: Project
   const stack = planTerrainStack(config, ir.maxElevationM - ir.minElevationM, ir.bounds);
   // Layer count is derived, so the README states the scale relationship it came from.
   const scale = stack.horizontalScale > 0 ? ` (horizontal scale 1:${Math.round(1 / stack.horizontalScale).toLocaleString("en-US")})` : "";
+  const fittedDepths = ir.waterSurfaces.filter((surface) => surface.depthFitScale !== undefined)
+    .map((surface) => `${surface.name ?? "Lake"}: fitted to ${(surface.depthFitScale! * 100).toFixed(1)}% of requested depth; ${surface.appliedDepthExaggeration!.toFixed(3)}x terrain depth scale.\n`).join("");
   const vertical = `Vertical exaggeration: ${ir.verticalExaggeration.toFixed(1)}x${scale}\n`;
   const roadAppearance = config.lineStyle.roadStyle === "centerline" ? "centerlines" : `outlined major roads spaced ${format(config.lineStyle.majorRoadSpacingMm)} mm`;
   const linework = `Road appearance: ${roadAppearance}, ${config.lineStyle.roadCap} endpoints. Engraved line widths: major roads ${format(config.lineStyle.majorRoadMm)} mm, local roads ${format(config.lineStyle.localRoadMm)} mm, trails ${format(config.lineStyle.trailMm)} mm (${config.lineStyle.trailPattern}), water ${format(config.lineStyle.waterMm)} mm, state/province boundaries ${format(config.lineStyle.boundaryMm)} mm (dashed), latitude/longitude grid ${format(config.lineStyle.coordinateGridMm)} mm (dotted), labels and guides ${format(config.lineStyle.annotationMm)} mm.\n`;
   const nesting = ir.fabricationNests.length ? `Material nesting reduced ${ir.layers.length} layer panels to ${panels.length} fabrication panels. Smaller layers share cut lines inside lower layers while preserving at least ${shownLength(config.glueMarginMm)} of covered glue land. Keep every loose cutout: nested pieces belong to the layer IDs listed in each panel filename and SVG data-layers attribute.\n\n` : config.optimizeMaterialUse ? `No safe material nests fit the requested ${shownLength(config.glueMarginMm)} glue margin, so every layer remains on its own panel.\n\n` : "Material-saving nesting is disabled.\n\n";
-  const readme = `${ir.projectName}\n\n${ir.layers.length} layers at ${shownLength(config.materialThicknessMm)} each\nFinished stack height: ${shownLength(ir.layers.length * config.materialThicknessMm)}\n${vertical}${linework}Fabrication panels: ${panels.length}\n\nCUT ${CUT}\nSCORE ${SCORE}\nENGRAVE ${ENGRAVE}\n\nEvery complete panel and the master SVG place all engraved paths in a black ENGRAVE color layer, separate from red CUT and blue SCORE paths. Each panel also has a registered -engrave.svg companion containing the same ENGRAVE paths only. Use either the complete panel SVG, or pair its engraving-only companion with a cut workflow; do not process both engraving copies in the same job.\n\n${alignment}${kerf}${nesting}Import the master SVG into xTool Studio, or use the fabrication-panel SVGs. Assign and verify each color layer's processing type, dimensions, and material settings before fabrication. Terrain data is decorative and is not survey or engineering data.\n`;
+  const readme = `${ir.projectName}\n\n${ir.layers.length} layers at ${shownLength(config.materialThicknessMm)} each\nFinished stack height: ${shownLength(ir.layers.length * config.materialThicknessMm)}\n${vertical}${fittedDepths}${linework}Fabrication panels: ${panels.length}\n\nCUT ${CUT}\nSCORE ${SCORE}\nENGRAVE ${ENGRAVE}\n\nEvery complete panel and the master SVG place all engraved paths in a black ENGRAVE color layer, separate from red CUT and blue SCORE paths. Each panel also has a registered -engrave.svg companion containing the same ENGRAVE paths only. Use either the complete panel SVG, or pair its engraving-only companion with a cut workflow; do not process both engraving copies in the same job.\n\n${alignment}${kerf}${nesting}Import the master SVG into xTool Studio, or use the fabrication-panel SVGs. Assign and verify each color layer's processing type, dimensions, and material settings before fabrication. Terrain data is decorative and is not survey or engineering data.\n`;
   const files: ExportFile[] = [
     ...panelFiles.flatMap(({ file, engravingFile }) => [file, engravingFile]),
     master,

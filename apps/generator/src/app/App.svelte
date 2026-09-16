@@ -4,7 +4,7 @@
   import { House } from "@lucide/svelte";
   import { Box, ChevronDown, Circle, Compass, Download, Grid3X3, Layers3, Map as MapIcon, MapPin, Minus, Mountain, PenTool, Plus, Route, Search, Sparkles, Square, Trash2, Undo2, Redo2, Upload, Waves, X } from "@lucide/svelte";
   import { AppShell, Brand, Button, ContextBar, Field, IconButton, Input, NumberField, Section, Sidebar, Switch, ThemeToggle, Topbar, Workspace } from "@loidolt/theme-svelte";
-  import { hasNoaaCoverage, NOAA_ATTRIBUTION, NOAA_DATASET_VERSION } from "../bathymetry";
+  import { applySurveyProvenance } from "../bathymetry";
   import { sourceRequirements, buildProjectPackage, createSyntheticSource, DEFAULT_PROJECT, displayElevation, displayLength, elevationUnit, generateGeometry, labelPathData, lengthUnit, markerSymbolPaths, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, MAX_WATER_DEPTH_EXAGGERATION, millimetersFromDisplay, MIN_VERTICAL_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, northArrowMarkings, planTerrainStack, validateProject, type CustomLineFeatureV1, type CustomLineKind, type GeoBounds, type GeoPoint, type GeometryIRV1, type LineStyleV1, type MapMarkerV1, type MarkerSymbol, type NorthArrowAnchor, type NorthArrowStyle, type OperationPath, type Point2D, type ProjectConfigV1, type RoadCap, type RoadStyle, type SourceBundleV1, type TextFont, type TrailPattern, type WaterFillPattern } from "@topostack/core";
   import { boundsForProject, combineWaterAreas, loadLakeAreas, loadSurveyedLakeDepths, loadTerrain, loadVectorMarkings, type PlaceResult } from "../data-provider";
   import { theme } from "../lib/theme";
@@ -214,8 +214,10 @@
   const exportBlockedBy = $derived(exportBlockReason(geometry, project));
   const exportReady = $derived(!exportBlockedBy);
   const platformExportAvailable = $derived(atommReady && embeddedInPlatform);
+  const lakeDepthFittingOn = $derived(project.outputMode === "stack" && project.showWaterDepth && project.fitLakeDepth);
   const visibleWarnings = $derived(geometry.warnings
     .filter((warning) => !dismissedWarnings.includes(`${warning.code}-${warning.message}`))
+    .sort((a, b) => Number(b.action === "fit-lake-depth") - Number(a.action === "fit-lake-depth"))
     .slice(0, 2));
 
   function dismissPreviewWarning(event: MouseEvent, warningKey?: string): void {
@@ -649,7 +651,7 @@
     if (usesWaterDepth && source.lakeDataStatus !== "available") {
       try {
         lakes = await loadLakeAreas(source.bounds, config.location.zoom, config, signal);
-        next = { ...next, lakeDataStatus: "available" };
+        next = { ...next, lakeDataStatus: "available", bathymetryStatus: undefined };
       } catch (error) {
         if (signal.aborted) throw error;
         lakes = [];
@@ -657,13 +659,10 @@
       }
     }
 
-    if (usesWaterDepth && next.lakeDataStatus === "available" && (next.bathymetryStatus !== "available" || lakes.some((lake) => hasNoaaCoverage(lake) && !lake.bathymetry))) {
-      const bathymetry = await loadSurveyedLakeDepths(source.bounds, source.elevation, config.location.zoom, lakes, signal);
+    if (usesWaterDepth && next.lakeDataStatus === "available" && (next.bathymetryStatus === undefined || next.bathymetryStatus === "unavailable" || next.bathymetryStatus === "partial")) {
+      const bathymetry = await loadSurveyedLakeDepths(source.bounds, source.elevation, config.location.zoom, lakes, signal, config);
       lakes = bathymetry.areas;
-      next = { ...next, bathymetryStatus: bathymetry.status };
-      if (bathymetry.status === "available" && !next.attribution.some((item) => item.name === NOAA_ATTRIBUTION.name)) {
-        next = { ...next, attribution: [...next.attribution, NOAA_ATTRIBUTION], datasetVersion: `${next.datasetVersion}+${NOAA_DATASET_VERSION}` };
-      }
+      next = applySurveyProvenance(next, bathymetry);
     }
     return { ...next, waterAreas: combineWaterAreas(lakes, ocean, config.minimumFeatureMm) };
   }
@@ -1024,10 +1023,15 @@
                       <small><span>{MIN_WATER_DEPTH_EXAGGERATION}×</span><span>{MAX_WATER_DEPTH_EXAGGERATION}× terrain</span></small>
                     </div>
                     <small class="depth-note">Relative to the terrain's vertical scale, which water already follows. 1× keeps lakes and sea floor on the same scale as the hills.</small>
+                    <Switch checked={project.fitLakeDepth} onCheckedChange={(fitLakeDepth) => void updateFabrication({ fitLakeDepth })} aria-label="Fit lake depth to available layers"><span class="toggle-label">Fit lake depth to available layers</span></Switch>
+                    <small class="depth-note">Compresses lakes only when needed to preserve their floor shape within the stack. Shorelines stay fixed.</small>
+                    {#each geometry.waterSurfaces.filter((lake) => lake.depthFitScale !== undefined) as lake (lake.id)}
+                      <small class="depth-note">{lake.name ?? "Lake"}: {lake.appliedDepthExaggeration!.toFixed(2)}× terrain depth applied · {Math.round(lake.depthFitScale! * 100)}% of requested depth.</small>
+                    {/each}
                   </div>
                 {/if}
-                {#if project.showWaterDepth && activeSource.bathymetryStatus === "available"}
-                  <small class="depth-note">NOAA lake-floor data is used where available. Gaps use existing terrain or modeled depths.</small>
+                {#if project.showWaterDepth && (activeSource.bathymetryStatus === "available" || activeSource.bathymetryStatus === "partial")}
+                  <small class="depth-note">Surveyed lake-floor data is used where available. Gaps use existing terrain or modeled depths.</small>
                 {/if}
                 {#if project.showWaterDepth && modeledLakes.length}
                   <div class="toggle-settings">
@@ -1340,8 +1344,14 @@
 
     <section class="preview-panel" class:engraving-preview-panel={project.outputMode === "engraving"}>
       <div class="preview-toolbar"><div class="ldt-toggle-group mode-switch" role="radiogroup" aria-label="Preview mode">{#each previewModeOptions as option}<button type="button" class="ldt-toggle-group__item" role="radio" aria-checked={mode === option.value} data-state={mode === option.value ? "on" : "off"} tabindex={mode === option.value ? 0 : -1} onclick={() => { if (option.value === "2d" && selectedLayer === 0) selectedLayer = featuredLayerIndex(geometry); previewNotice = ""; if (option.value === "3d") threeUnavailable = false; mode = option.value as PreviewMode; }} onkeydown={navigateChoice}>{#if option.value === "map"}<MapIcon size={15} />{:else if option.value === "engraving"}<PenTool size={15} />{:else if option.value === "2d"}<Layers3 size={15} />{:else}<Box size={15} />{/if}{option.label}</button>{/each}</div><div class="preview-readout"><span>{shownLength(project.widthMm)} × {shownLength(project.heightMm)} {shownLengthUnit}</span><span>{Math.round(displayElevation(geometry.minElevationM, project.units)).toLocaleString()}–{Math.round(displayElevation(geometry.maxElevationM, project.units)).toLocaleString()} {shownElevationUnit}</span></div></div>
-      <div class="preview-stage" aria-busy={previewBusy} data-road-markings={detailCounts.road} data-trail-markings={detailCounts.trail} data-transportation-label-markings={detailCounts.transportationLabel} data-water-markings={detailCounts.water} data-contour-markings={detailCounts.contour} data-alignment-markings={detailCounts.alignment} data-elevation-markings={detailCounts.elevation} data-north-markings={detailCounts.north} data-scale-markings={detailCounts.scale} data-marker-markings={detailCounts.marker} data-custom-line-markings={detailCounts.customLine}>{#if mode === "map"}{#if MapCanvas}<MapCanvas {project} onUnavailable={() => { mode = project.outputMode === "engraving" ? "engraving" : "2d"; previewNotice = "Map is unavailable in this browser · choose a location using search or coordinates"; }} onLocationChange={(lat: number, lon: number, zoom: number, bounds: GeoBounds) => updateLocation({ lat, lon, zoom, bounds, label: `${lat.toFixed(4)}, ${lon.toFixed(4)}` })} />{:else}<div class="preview-loading">Loading map…</div>{/if}{:else if mode === "engraving"}{#if EngravingPreview}<EngravingPreview {geometry} {project} />{:else}<div class="preview-loading">Loading engraving…</div>{/if}{:else if mode === "2d"}{#if TwoDPreview}<TwoDPreview {geometry} {selectedLayer} />{:else}<div class="preview-loading">Loading cut preview…</div>{/if}{:else if ThreePreview}<ThreePreview {geometry} exploded={project.explodedPreview} onUnavailable={() => { threeUnavailable = true; mode = "2d"; previewNotice = "3D is unavailable in this browser · showing cut layers"; }} />{:else}<div class="preview-loading">Loading 3D preview…</div>{/if}{#if mode !== "map"}<div class="preview-attribution">Map data © <a href={OSM_ATTRIBUTION.url} target="_blank" rel="noreferrer">{OSM_ATTRIBUTION.name}</a></div>{/if}{#if previewBusy}<div class:preview-update-overlay={detailsUpdating && generationState !== "loading"} class="generation-overlay" role="status" aria-live="polite" style:pointer-events={detailsUpdating && generationState !== "loading" ? "none" : undefined}><div class="contour-loader"><span></span><span></span><span></span></div><strong>{previewBusyLabel}</strong><small>{status}</small></div>{/if}{#if visibleWarnings.length || previewNotice}
+      <div class="preview-stage" aria-busy={previewBusy} data-road-markings={detailCounts.road} data-trail-markings={detailCounts.trail} data-transportation-label-markings={detailCounts.transportationLabel} data-water-markings={detailCounts.water} data-contour-markings={detailCounts.contour} data-alignment-markings={detailCounts.alignment} data-elevation-markings={detailCounts.elevation} data-north-markings={detailCounts.north} data-scale-markings={detailCounts.scale} data-marker-markings={detailCounts.marker} data-custom-line-markings={detailCounts.customLine}>{#if mode === "map"}{#if MapCanvas}<MapCanvas {project} onUnavailable={() => { mode = project.outputMode === "engraving" ? "engraving" : "2d"; previewNotice = "Map is unavailable in this browser · choose a location using search or coordinates"; }} onLocationChange={(lat: number, lon: number, zoom: number, bounds: GeoBounds) => updateLocation({ lat, lon, zoom, bounds, label: `${lat.toFixed(4)}, ${lon.toFixed(4)}` })} />{:else}<div class="preview-loading">Loading map…</div>{/if}{:else if mode === "engraving"}{#if EngravingPreview}<EngravingPreview {geometry} {project} />{:else}<div class="preview-loading">Loading engraving…</div>{/if}{:else if mode === "2d"}{#if TwoDPreview}<TwoDPreview {geometry} {selectedLayer} />{:else}<div class="preview-loading">Loading cut preview…</div>{/if}{:else if ThreePreview}<ThreePreview {geometry} exploded={project.explodedPreview} onUnavailable={() => { threeUnavailable = true; mode = "2d"; previewNotice = "3D is unavailable in this browser · showing cut layers"; }} />{:else}<div class="preview-loading">Loading 3D preview…</div>{/if}{#if mode !== "map"}<div class="preview-attribution">Map data © <a href={OSM_ATTRIBUTION.url} target="_blank" rel="noreferrer">{OSM_ATTRIBUTION.name}</a></div>{/if}{#if previewBusy}<div class:preview-update-overlay={detailsUpdating && generationState !== "loading"} class="generation-overlay" role="status" aria-live="polite" style:pointer-events={detailsUpdating && generationState !== "loading" ? "none" : undefined}><div class="contour-loader"><span></span><span></span><span></span></div><strong>{previewBusyLabel}</strong><small>{status}</small></div>{/if}{#if visibleWarnings.length || previewNotice || lakeDepthFittingOn}
           <div class="warning-stack">
+            {#if lakeDepthFittingOn}
+              <div class="preview-warning preview-notice" role="status">
+                <span class="warning-icon" aria-hidden="true"><Waves size={12} /></span>
+                <p>Lake depth fitting is on. <button type="button" class="warning-action" disabled={previewBusy} onclick={() => void updateFabrication({ fitLakeDepth: false })}>Use manual depth</button></p>
+              </div>
+            {/if}
             {#if previewNotice}
               <div class="preview-warning preview-notice" role="status">
                 <span class="warning-icon" aria-hidden="true">!</span>
@@ -1352,7 +1362,7 @@
             {#each visibleWarnings as warning (`${warning.code}-${warning.message}`)}
               <div class="preview-warning">
                 <span class="warning-icon" aria-hidden="true">!</span>
-                <p>{warning.message}</p>
+                <p>{warning.message}{#if warning.action === "fit-lake-depth" && !project.fitLakeDepth} <button type="button" class="warning-action" disabled={previewBusy} onclick={() => void updateFabrication({ fitLakeDepth: true })}>Fit depth</button>{/if}</p>
                 <button type="button" class="warning-dismiss" aria-label={`Dismiss warning: ${warning.message}`} title="Dismiss warning" onclick={(event) => dismissPreviewWarning(event, `${warning.code}-${warning.message}`)}><X size={14} aria-hidden="true" /></button>
               </div>
             {/each}

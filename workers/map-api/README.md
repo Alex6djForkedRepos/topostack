@@ -97,3 +97,7 @@ with `scripts/provision-lake-data.mjs --source=noaa`; see
 [build, provenance, and rollout instructions](../../docs/noaa-bathymetry.md).
 Missing NOAA data produces a modeled-depth fallback warning in the generator
 and does not change the existing required dependencies for `/ready`.
+
+Additional lake-survey archives are allowlisted in `scripts/data/lake-bathymetry.json`
+and served at `/v1/bathymetry/<dataset-id>.pmtiles` using the same bounded range
+handler. See [survey coverage and provisioning](../../docs/lake-bathymetry.md).

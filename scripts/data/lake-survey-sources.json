@@ -1,0 +1,369 @@
+[
+  {
+    "id": "crater",
+    "dataset": "usgs-crater-lake-v1",
+    "file": "crater.tgz",
+    "url": "https://pubs.usgs.gov/dds/dds-72/data/bathy.tgz",
+    "sha256": "b36cca66f9c346f4f3479cdc863932994acebf84f68ca7a01e87729f2961ab87",
+    "grid": "bathy/bathyg",
+    "epsg": 32610,
+    "resolutionM": 2,
+    "surface": 1882.6,
+    "scale": 1,
+    "verticalReference": "Survey lake surface 1882.6 m above sea level (2000)"
+  },
+  {
+    "id": "tahoe",
+    "dataset": "usgs-lake-tahoe-v1",
+    "file": "tahoe.e00.gz",
+    "url": "https://pubs.usgs.gov/dds/dds-55/pacmaps/exports/lt_bathy.e00.gz",
+    "sha256": "59ba7f215e2d7b5f0e1d293b2c309d24ba2ab1447631c63e141d237384852037",
+    "surface": 1899,
+    "verticalReference": "Survey mean lake surface 1899 m (1998)"
+  },
+  {
+    "id": "mono",
+    "dataset": "usgs-mono-lake-v1",
+    "file": "mono.zip",
+    "url": "https://pubs.usgs.gov/mf/2002/2393/monobathy.zip",
+    "sha256": "ff1c3ebe4dc30f3c798c9c464391f65aed2241f3d382df727cf310d3ea238e33",
+    "grid": "monobathy10",
+    "epsg": 26911,
+    "resolutionM": 10,
+    "surface": 6390,
+    "scale": 0.3048,
+    "verticalReference": "Map lake level 6390 ft, Mono Basin survey datum"
+  },
+  {
+    "id": "minnesota",
+    "dataset": "mn-dnr-lakes-v1",
+    "file": "minnesota.zip",
+    "url": "https://resources.gisdata.mn.gov/pub/gdrs/data/pub/us_mn_state_dnr/water_lake_bathymetry/fgdb_water_lake_bathymetry.zip",
+    "sha256": "be7aa34b3dcb0c893c86ec2f78a6fbe0a8fff30671614197e47c28889f5f1694",
+    "verticalReference": "Negative feet below mapped lake shoreline; contours interpolated at 20 m"
+  },
+  {
+    "id": "swissbathy3d_aegerisee",
+    "url": "https://data.geo.admin.ch/ch.swisstopo.swissbathy3d/swissbathy3d_aegerisee/swissbathy3d_aegerisee_2056_5728.esriasciigrid.zip",
+    "sha256": "3755756a773c346566c2364875cac6d4f3debed2e1f456bb183f8b6e2652bc59",
+    "bbox": [
+      8.5846552,
+      47.0976129,
+      8.6515265,
+      47.1432581
+    ],
+    "dataset": "swissbathy3d-v1",
+    "file": "swiss/swissbathy3d_aegerisee.zip",
+    "verticalReference": "LN02 bed elevation, metres"
+  },
+  {
+    "id": "swissbathy3d_baldeggersee",
+    "url": "https://data.geo.admin.ch/ch.swisstopo.swissbathy3d/swissbathy3d_baldeggersee/swissbathy3d_baldeggersee_2056_5728.esriasciigrid.zip",
+    "sha256": "bca5a88af0c29c2a268a84632758edc5f5b5471f1741c43c96be7ee545026204",
+    "bbox": [
+      8.2432036,
+      47.1774744,
+      8.2769715,
+      47.2173779
+    ],
+    "dataset": "swissbathy3d-v1",
+    "file": "swiss/swissbathy3d_baldeggersee.zip",
+    "verticalReference": "LN02 bed elevation, metres"
+  },
+  {
+    "id": "swissbathy3d_bielersee",
+    "url": "https://data.geo.admin.ch/ch.swisstopo.swissbathy3d/swissbathy3d_bielersee/swissbathy3d_bielersee_2056_5728.esriasciigrid.zip",
+    "sha256": "5c91023a4a10feb2f445cd81b0c98879165811c419064e0ffec3b92b8607a08c",
+    "bbox": [
+      7.0695217,
+      47.031444,
+      7.241292,
+      47.1398061
+    ],
+    "dataset": "swissbathy3d-v1",
+    "file": "swiss/swissbathy3d_bielersee.zip",
+    "verticalReference": "LN02 bed elevation, metres"
+  },
+  {
+    "id": "swissbathy3d_bodensee",
+    "url": "https://data.geo.admin.ch/ch.swisstopo.swissbathy3d/swissbathy3d_bodensee/swissbathy3d_bodensee_2056_5728.esriasciigrid.zip",
+    "sha256": "aab49f8c4c298586a93788e8587343446e7f0e87256ea3483cf49599fa7679c2",
+    "bbox": [
+      8.8450405,
+      47.4674759,
+      9.7751191,
+      47.8239128
+    ],
+    "dataset": "swissbathy3d-v1",
+    "file": "swiss/swissbathy3d_bodensee.zip",
+    "verticalReference": "LN02 bed elevation, metres"
+  },
+  {
+    "id": "swissbathy3d_brienzersee",
+    "url": "https://data.geo.admin.ch/ch.swisstopo.swissbathy3d/swissbathy3d_brienzersee/swissbathy3d_brienzersee_2056_5728.esriasciigrid.zip",
+    "sha256": "50c4d6b0bc22e60be1cc8f8684cc587d3b4fed3e6ac30d9e212633d259473e20",
+    "bbox": [
+      7.8568868,
+      46.679571,
+      8.0538562,
+      46.7614159
+    ],
+    "dataset": "swissbathy3d-v1",
+    "file": "swiss/swissbathy3d_brienzersee.zip",
+    "verticalReference": "LN02 bed elevation, metres"
+  },
+  {
+    "id": "swissbathy3d_hallwilersee",
+    "url": "https://data.geo.admin.ch/ch.swisstopo.swissbathy3d/swissbathy3d_hallwilersee/swissbathy3d_hallwilersee_2056_5728.esriasciigrid.zip",
+    "sha256": "680adc608624ef8b7e7d3ca8470c93479284fa01a2312de6f6cfcdc783824a75",
+    "bbox": [
+      8.1803036,
+      47.232182,
+      8.2331249,
+      47.3215666
+    ],
+    "dataset": "swissbathy3d-v1",
+    "file": "swiss/swissbathy3d_hallwilersee.zip",
+    "verticalReference": "LN02 bed elevation, metres"
+  },
+  {
+    "id": "swissbathy3d_lacdejoux",
+    "url": "https://data.geo.admin.ch/ch.swisstopo.swissbathy3d/swissbathy3d_lacdejoux/swissbathy3d_lacdejoux_2056_5728.esriasciigrid.zip",
+    "sha256": "90557cbb1bfa3ac931d48e368e6afa98886b0fd8f3939238a8cf123420a16fa3",
+    "bbox": [
+      6.24932,
+      46.6120421,
+      6.3420741,
+      46.6759228
+    ],
+    "dataset": "swissbathy3d-v1",
+    "file": "swiss/swissbathy3d_lacdejoux.zip",
+    "verticalReference": "LN02 bed elevation, metres"
+  },
+  {
+    "id": "swissbathy3d_lacleman",
+    "url": "https://data.geo.admin.ch/ch.swisstopo.swissbathy3d/swissbathy3d_lacleman/swissbathy3d_lacleman_2056_5728.esriasciigrid.zip",
+    "sha256": "567b9db6371d53eacbee542b62967e8566e7dfb58c830f096afb21d59e00c595",
+    "bbox": [
+      6.1223815,
+      46.1968631,
+      6.9333705,
+      46.5271564
+    ],
+    "dataset": "swissbathy3d-v1",
+    "file": "swiss/swissbathy3d_lacleman.zip",
+    "verticalReference": "LN02 bed elevation, metres"
+  },
+  {
+    "id": "swissbathy3d_lacneuchatel",
+    "url": "https://data.geo.admin.ch/ch.swisstopo.swissbathy3d/swissbathy3d_lacneuchatel/swissbathy3d_lacneuchatel_2056_5728.esriasciigrid.zip",
+    "sha256": "abaa001f4026a03941b80e76c1f0ebbd16faa3b309ce27e49ccba339b8025a41",
+    "bbox": [
+      6.622717033099777,
+      46.77727802402064,
+      7.071993933270965,
+      47.04943382495336
+    ],
+    "dataset": "swissbathy3d-v1",
+    "file": "swiss/swissbathy3d_lacneuchatel.zip",
+    "verticalReference": "LN02 bed elevation, metres"
+  },
+  {
+    "id": "swissbathy3d_lagomaggiore",
+    "url": "https://data.geo.admin.ch/ch.swisstopo.swissbathy3d/swissbathy3d_lagomaggiore/swissbathy3d_lagomaggiore_2056_5728.esriasciigrid.zip",
+    "sha256": "2a308aaa98d9990588c91cc934b3f00bbdfc86460fa663536e27b18c539ae79b",
+    "bbox": [
+      8.3146605,
+      45.6798443,
+      8.9106406,
+      46.2593148
+    ],
+    "dataset": "swissbathy3d-v1",
+    "file": "swiss/swissbathy3d_lagomaggiore.zip",
+    "verticalReference": "LN02 bed elevation, metres"
+  },
+  {
+    "id": "swissbathy3d_lungernsee",
+    "url": "https://data.geo.admin.ch/ch.swisstopo.swissbathy3d/swissbathy3d_lungernsee/swissbathy3d_lungernsee_2056_5728.esriasciigrid.zip",
+    "sha256": "ee4e2cba6b85c135f1c5eae05fae262cbbbac550fcc245c8063394d722fcda17",
+    "bbox": [
+      8.1499999,
+      46.7827371,
+      8.1756669,
+      46.8134074
+    ],
+    "dataset": "swissbathy3d-v1",
+    "file": "swiss/swissbathy3d_lungernsee.zip",
+    "verticalReference": "LN02 bed elevation, metres"
+  },
+  {
+    "id": "swissbathy3d_murtensee",
+    "url": "https://data.geo.admin.ch/ch.swisstopo.swissbathy3d/swissbathy3d_murtensee/swissbathy3d_murtensee_2056_5728.esriasciigrid.zip",
+    "sha256": "140fec66b759b56e8ac030ebcf006bc9d83ec293b8c215947d533e5d8c9cbe42",
+    "bbox": [
+      7.031348,
+      46.9053798,
+      7.1367569,
+      46.9596767
+    ],
+    "dataset": "swissbathy3d-v1",
+    "file": "swiss/swissbathy3d_murtensee.zip",
+    "verticalReference": "LN02 bed elevation, metres"
+  },
+  {
+    "id": "swissbathy3d_rotsee",
+    "url": "https://data.geo.admin.ch/ch.swisstopo.swissbathy3d/swissbathy3d_rotsee/swissbathy3d_rotsee_2056_5728.esriasciigrid.zip",
+    "sha256": "5da7f4e7bbb5b3f042c427a06e0134e929ef5e0b3cc91824396ec59719db2674",
+    "bbox": [
+      8.2999589,
+      47.063085,
+      8.328455,
+      47.0762798
+    ],
+    "dataset": "swissbathy3d-v1",
+    "file": "swiss/swissbathy3d_rotsee.zip",
+    "verticalReference": "LN02 bed elevation, metres"
+  },
+  {
+    "id": "swissbathy3d_sarnersee",
+    "url": "https://data.geo.admin.ch/ch.swisstopo.swissbathy3d/swissbathy3d_sarnersee/swissbathy3d_sarnersee_2056_5728.esriasciigrid.zip",
+    "sha256": "ae0efa131f61ddbe728e19f7bdf269e58d23d123dff108c4e39f7792d768f4c3",
+    "bbox": [
+      8.188842,
+      46.84545,
+      8.2439971,
+      46.8899154
+    ],
+    "dataset": "swissbathy3d-v1",
+    "file": "swiss/swissbathy3d_sarnersee.zip",
+    "verticalReference": "LN02 bed elevation, metres"
+  },
+  {
+    "id": "swissbathy3d_sempachersee",
+    "url": "https://data.geo.admin.ch/ch.swisstopo.swissbathy3d/swissbathy3d_sempachersee/swissbathy3d_sempachersee_2056_5728.esriasciigrid.zip",
+    "sha256": "4db6de3036d60c662199c082e7f3d71e604a57c33d3ee109d54dcbd22376ca1d",
+    "bbox": [
+      8.1213474,
+      47.1178584,
+      8.1921049,
+      47.1738592
+    ],
+    "dataset": "swissbathy3d-v1",
+    "file": "swiss/swissbathy3d_sempachersee.zip",
+    "verticalReference": "LN02 bed elevation, metres"
+  },
+  {
+    "id": "swissbathy3d_silsersee",
+    "url": "https://data.geo.admin.ch/ch.swisstopo.swissbathy3d/swissbathy3d_silsersee/swissbathy3d_silsersee_2056_5728.esriasciigrid.zip",
+    "sha256": "c749e4697ffc119ad6fe37a8b3cd68c84377dd3da1bdd6679fd537418c0f6722",
+    "bbox": [
+      9.6953673,
+      46.4025611,
+      9.7656087,
+      46.4415345
+    ],
+    "dataset": "swissbathy3d-v1",
+    "file": "swiss/swissbathy3d_silsersee.zip",
+    "verticalReference": "LN02 bed elevation, metres"
+  },
+  {
+    "id": "swissbathy3d_silvaplanersee",
+    "url": "https://data.geo.admin.ch/ch.swisstopo.swissbathy3d/swissbathy3d_silvaplanersee/swissbathy3d_silvaplanersee_2056_5728.esriasciigrid.zip",
+    "sha256": "ce6d00eeb3941c46490a86e4c6254d24dab469a8b5e3e19cb93139d75c1b832f",
+    "bbox": [
+      9.7685879,
+      46.4329541,
+      9.807729,
+      46.4604459
+    ],
+    "dataset": "swissbathy3d-v1",
+    "file": "swiss/swissbathy3d_silvaplanersee.zip",
+    "verticalReference": "LN02 bed elevation, metres"
+  },
+  {
+    "id": "swissbathy3d_thunersee",
+    "url": "https://data.geo.admin.ch/ch.swisstopo.swissbathy3d/swissbathy3d_thunersee/swissbathy3d_thunersee_2056_5728.esriasciigrid.zip",
+    "sha256": "367d332fd462aa475f4ed7311b88a34a975ee465ff12e7e5edab813141197088",
+    "bbox": [
+      7.6215318,
+      46.6535189,
+      7.8443565,
+      46.7530403
+    ],
+    "dataset": "swissbathy3d-v1",
+    "file": "swiss/swissbathy3d_thunersee.zip",
+    "verticalReference": "LN02 bed elevation, metres"
+  },
+  {
+    "id": "swissbathy3d_vierwaldstaettersee",
+    "url": "https://data.geo.admin.ch/ch.swisstopo.swissbathy3d/swissbathy3d_vierwaldstaettersee/swissbathy3d_vierwaldstaettersee_2056_5728.esriasciigrid.zip",
+    "sha256": "117b6a1216b721e7b932cefd7032ff8755c4bdac6bd138e9ed4a0689b030655f",
+    "bbox": [
+      8.2787695,
+      46.888442,
+      8.6250207,
+      47.0821962
+    ],
+    "dataset": "swissbathy3d-v1",
+    "file": "swiss/swissbathy3d_vierwaldstaettersee.zip",
+    "verticalReference": "LN02 bed elevation, metres"
+  },
+  {
+    "id": "swissbathy3d_walensee",
+    "url": "https://data.geo.admin.ch/ch.swisstopo.swissbathy3d/swissbathy3d_walensee/swissbathy3d_walensee_2056_5728.esriasciigrid.zip",
+    "sha256": "b8f5d2ab5a0df91db609df2144f94bc9b701c69563ef2ed6222bd945d3d91c67",
+    "bbox": [
+      9.0953564,
+      47.0798396,
+      9.3217651,
+      47.1574777
+    ],
+    "dataset": "swissbathy3d-v1",
+    "file": "swiss/swissbathy3d_walensee.zip",
+    "verticalReference": "LN02 bed elevation, metres"
+  },
+  {
+    "id": "swissbathy3d_zuerichsee",
+    "url": "https://data.geo.admin.ch/ch.swisstopo.swissbathy3d/swissbathy3d_zuerichsee/swissbathy3d_zuerichsee_2056_5728.esriasciigrid.zip",
+    "sha256": "3ed1727c6f3422394c7b5873fe4933f2ee7c497871c966b95a38a905e78682ff",
+    "bbox": [
+      8.5207983,
+      47.1946069,
+      8.8287195,
+      47.368739
+    ],
+    "dataset": "swissbathy3d-v1",
+    "file": "swiss/swissbathy3d_zuerichsee.zip",
+    "verticalReference": "LN02 bed elevation, metres"
+  },
+  {
+    "id": "swissbathy3d_zugersee",
+    "url": "https://data.geo.admin.ch/ch.swisstopo.swissbathy3d/swissbathy3d_zugersee/swissbathy3d_zugersee_2056_5728.esriasciigrid.zip",
+    "sha256": "075fc64f00795621e7c79b8712a378c83167d4610b64323b5c93f241315053ad",
+    "bbox": [
+      8.4389328,
+      47.0538316,
+      8.5338096,
+      47.189583
+    ],
+    "dataset": "swissbathy3d-v1",
+    "file": "swiss/swissbathy3d_zugersee.zip",
+    "verticalReference": "LN02 bed elevation, metres"
+  },
+  {
+    "id": "finland-contours",
+    "dataset": "syke-finland-lakes-v1",
+    "file": "finland-contours.zip",
+    "url": "https://wwwd3.ymparisto.fi/d3/gis_data/spesific/syvyyskayra.zip",
+    "sha256": "6a7d273ea0d4ebca732cd43abbc0f350b07c4608a36ee2c8be416cdbe1f0a1cd",
+    "verticalReference": "Depth contours in metres below survey waterline"
+  },
+  {
+    "id": "finland-areas",
+    "dataset": "syke-finland-lakes-v1",
+    "file": "finland-areas.zip",
+    "url": "https://wwwd3.ymparisto.fi/d3/gis_data/spesific/syvyysalue.zip",
+    "sha256": "cc6207a8fd611f645cbb23da0e7b3bc91aa45f0c52117dcb9bcc14442aa930aa",
+    "verticalReference": "Depth-area polygons provide lake identifiers and coverage masks"
+  }
+]

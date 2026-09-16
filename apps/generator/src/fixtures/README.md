@@ -20,3 +20,10 @@ build. Its source is [NOAA/NCEI Lake Erie and Lake St. Clair bathymetry](https:/
 RGB encodes positive depth using Terrarium's formula; transparent pixels have no
 coverage. `noaa-erie-z11.json` records a small interior sample for testing pixel
 center alignment. Source hashes are in `scripts/data/noaa-great-lakes-sources.json`.
+
+`usgs-crater-z14` and `swiss-zug-z14` are numeric PNG tiles from the pinned survey
+archives built by `scripts/build-survey-bathymetry.py`. Their adjacent JSON files
+record dataset IDs, tile coordinates, sample bounds, and nine independently
+decoded pixel values. Crater values are depths in meters; Swiss values are LN02
+bed elevations in meters. Sources: USGS DDS-72 (public domain) and swisstopo
+swissBATHY3D (open government data, © swisstopo).

@@ -1,0 +1,269 @@
+{
+  "builtDate": "2026-09-15",
+  "archives": [
+    {
+      "dataset": "mn-dnr-lakes-v1",
+      "sha256": "140f910218a3767d96e1b68480d92c9d209ab8fc3ceeaf5447d1ec4e8404b809",
+      "bytes": 59043036,
+      "tiles": 6067,
+      "processedGrids": 2000
+    },
+    {
+      "dataset": "swissbathy3d-v1",
+      "sha256": "408494692f4b17d1f9a6bb49e1c572a2ca1b77ea06e882514f38c4e3d07161fe",
+      "bytes": 85421338,
+      "tiles": 1824,
+      "processedGrids": 22
+    },
+    {
+      "dataset": "syke-finland-lakes-v1",
+      "sha256": "49800d00c960bfafa92b3b85c50e909947d9fd25040e7a390d426ae531339000",
+      "bytes": 98358662,
+      "tiles": 9232,
+      "processedGrids": 1821
+    },
+    {
+      "dataset": "usgs-crater-lake-v1",
+      "sha256": "c33c35f0945f37c28b774e96f4634a4fe8a776a363d377e9eed1b2c392d2324f",
+      "bytes": 2579741,
+      "tiles": 52,
+      "processedGrids": 1
+    },
+    {
+      "dataset": "usgs-lake-tahoe-v1",
+      "sha256": "7aaca0d2c6fb33fb4edef9aeda87ef17674f6e05022bae7866d548689b10857e",
+      "bytes": 18395798,
+      "tiles": 293,
+      "processedGrids": 1
+    },
+    {
+      "dataset": "usgs-mono-lake-v1",
+      "sha256": "7d26311e8104c244bd2d27ea7284e2d9cd91f7e7c8e5f40e12be586611329567",
+      "bytes": 3786904,
+      "tiles": 123,
+      "processedGrids": 1
+    }
+  ],
+  "skipped": {
+    "minnesota": [
+      {
+        "id": "02000800",
+        "reason": "Insufficient depth contours"
+      },
+      {
+        "id": "11027500",
+        "reason": "Insufficient depth contours"
+      },
+      {
+        "id": "18038701",
+        "reason": "Insufficient depth contours"
+      },
+      {
+        "id": "18038703",
+        "reason": "Insufficient depth contours"
+      },
+      {
+        "id": "18043500",
+        "reason": "Insufficient depth contours"
+      },
+      {
+        "id": "25001400",
+        "reason": "Insufficient depth contours"
+      },
+      {
+        "id": "25001900",
+        "reason": "Insufficient depth contours"
+      },
+      {
+        "id": "60002703",
+        "reason": "Insufficient depth contours"
+      },
+      {
+        "id": "70007800",
+        "reason": "Insufficient depth contours"
+      },
+      {
+        "id": "86013402",
+        "reason": "Insufficient depth contours"
+      }
+    ],
+    "finland": [
+      {
+        "id": "01.012.1.007",
+        "reason": "No underwater depth contours"
+      },
+      {
+        "id": "01.021.1.007",
+        "reason": "No underwater depth contours"
+      },
+      {
+        "id": "01.035.1.003",
+        "reason": "No underwater depth contours"
+      },
+      {
+        "id": "01.035.1.006",
+        "reason": "No underwater depth contours"
+      },
+      {
+        "id": "01.043.1.010",
+        "reason": "No underwater depth contours"
+      },
+      {
+        "id": "01.043.1.017",
+        "reason": "No underwater depth contours"
+      },
+      {
+        "id": "01.044.1.016",
+        "reason": "No underwater depth contours"
+      },
+      {
+        "id": "01.045.1.001",
+        "reason": "No underwater depth contours"
+      },
+      {
+        "id": "01.045.1.009",
+        "reason": "No underwater depth contours"
+      },
+      {
+        "id": "01.075.1.010",
+        "reason": "No underwater depth contours"
+      },
+      {
+        "id": "01.075.1.013",
+        "reason": "No underwater depth contours"
+      },
+      {
+        "id": "01.076.1.008",
+        "reason": "No underwater depth contours"
+      },
+      {
+        "id": "01.076.1.010",
+        "reason": "No underwater depth contours"
+      },
+      {
+        "id": "04.348.1.002",
+        "reason": "No underwater depth contours"
+      },
+      {
+        "id": "04.348.1.003",
+        "reason": "No underwater depth contours"
+      },
+      {
+        "id": "04.349.1.001",
+        "reason": "No underwater depth contours"
+      },
+      {
+        "id": "04.361.1.012",
+        "reason": "No underwater depth contours"
+      },
+      {
+        "id": "04.361.1.013",
+        "reason": "No underwater depth contours"
+      },
+      {
+        "id": "04.362.1.012",
+        "reason": "No underwater depth contours"
+      },
+      {
+        "id": "04.374.1.017",
+        "reason": "No underwater depth contours"
+      },
+      {
+        "id": "04.374.1.021",
+        "reason": "No underwater depth contours"
+      },
+      {
+        "id": "04.374.1.022",
+        "reason": "No underwater depth contours"
+      },
+      {
+        "id": "04.374.1.024",
+        "reason": "No underwater depth contours"
+      },
+      {
+        "id": "04.374.1.033",
+        "reason": "No underwater depth contours"
+      },
+      {
+        "id": "04.442.1.020",
+        "reason": "No underwater depth contours"
+      },
+      {
+        "id": "04.625.1.010",
+        "reason": "No underwater depth contours"
+      },
+      {
+        "id": "04.926.1.002",
+        "reason": "No underwater depth contours"
+      },
+      {
+        "id": "06.013.1.010",
+        "reason": "No underwater depth contours"
+      },
+      {
+        "id": "12.003.1.026",
+        "reason": "No underwater depth contours"
+      },
+      {
+        "id": "14.117.1.001",
+        "reason": "No underwater depth contours"
+      },
+      {
+        "id": "14.511.1.001",
+        "reason": "No underwater depth contours"
+      },
+      {
+        "id": "14.522.1.005",
+        "reason": "No underwater depth contours"
+      },
+      {
+        "id": "35.483.1.040",
+        "reason": "Insufficient depth contours"
+      },
+      {
+        "id": "59.634.1.001",
+        "reason": "Insufficient depth contours"
+      },
+      {
+        "id": "59.642.1.001",
+        "reason": "Insufficient depth contours"
+      },
+      {
+        "id": "59.694.1.005",
+        "reason": "Insufficient depth contours"
+      },
+      {
+        "id": "59.826.1.002",
+        "reason": "Insufficient depth contours"
+      },
+      {
+        "id": "59.842.1.002",
+        "reason": "Insufficient depth contours"
+      },
+      {
+        "id": "59.915.1.024",
+        "reason": "Insufficient depth contours"
+      },
+      {
+        "id": "59.927.1.012",
+        "reason": "Insufficient depth contours"
+      },
+      {
+        "id": "59.942.1.011",
+        "reason": "Insufficient depth contours"
+      },
+      {
+        "id": "59.948.1.006",
+        "reason": "Insufficient depth contours"
+      },
+      {
+        "id": "59.963.1.010",
+        "reason": "Insufficient depth contours"
+      },
+      {
+        "id": "61.771.1.010",
+        "reason": "Insufficient depth contours"
+      }
+    ]
+  }
+}

@@ -264,7 +264,7 @@ export function carveWaterDepth(
         surveyedCount += 1;
       }
       if (surveyedCount > 0) {
-        // Depths are relative to NOAA low water, not absolute elevations. Anchor
+        // Depths are relative to their dataset waterline, not absolute elevations. Anchor
         // them to the flat terrain waterline. If the DEM already has a basin,
         // use the lake's published surface elevation instead of its bed median.
         const surfaceElevationM = interiorSpreadM > BATHYMETRIC_RELIEF_M && Number.isFinite(area.surfaceElevationM)
@@ -305,7 +305,7 @@ export function carveWaterDepth(
         });
         if (fallbackCount) warnings.push({
           code: "BATHYMETRY_FALLBACK",
-          message: `${area.name ?? "A lake"} has incomplete NOAA coverage. Uncovered cells use existing terrain or modeled depths; cells without enough information remain at the waterline.`,
+          message: `${area.name ?? "A lake"} has incomplete survey coverage. Uncovered cells use existing terrain or modeled depths; cells without enough information remain at the waterline.`,
         });
         continue;
       }
@@ -409,6 +409,41 @@ export function carveWaterDepth(
     if (value > max) max = value;
   }
   return { grid: { ...grid, values, min, max }, surfaces, warnings, waterMask };
+}
+
+/** Compress over-budget lakes uniformly around their own waterlines before contouring. */
+export function fitLakesToLadder(carved: CarvedWater, config: ProjectConfigV1, floorM: number): CarvedWater {
+  const values = Float32Array.from(carved.grid.values);
+  const surfaces = carved.surfaces.map((surface) => {
+    const depth = surface.surfaceElevationM - surface.bedElevationM;
+    const available = surface.surfaceElevationM - floorM;
+    // No usable depth cannot be fixed by scaling. Keep the clipping warning in that case.
+    if (surface.kind !== "lake" || !(depth > available && available > 0)) return surface;
+    const factor = available / depth;
+    for (let row = 0; row < carved.grid.height; row += 1) {
+      for (let column = 0; column < carved.grid.width; column += 1) {
+        const index = row * carved.grid.width + column;
+        const original = carved.grid.values[index]!;
+        if (original >= surface.surfaceElevationM) continue;
+        const point = cellPoint(column, row, carved.grid, config);
+        if (!surface.polygons.some((polygon) => pointInPolygon(point, polygon))) continue;
+        // Round upward to a representable Float32 floor to avoid a spurious clipping warning.
+        values[index] = surface.surfaceElevationM - (surface.surfaceElevationM - original) * factor;
+        if (values[index]! < floorM) values[index] = floorM + Math.max(1, Math.abs(floorM)) * 2 ** -23;
+      }
+    }
+    return {
+      ...surface,
+      bedElevationM: floorM,
+      unfittedBedElevationM: surface.bedElevationM,
+      depthFitScale: factor,
+      appliedDepthExaggeration: config.waterDepthExaggeration * factor,
+    };
+  });
+  let min = Infinity;
+  let max = -Infinity;
+  for (const value of values) { min = Math.min(min, value); max = Math.max(max, value); }
+  return { ...carved, grid: { ...carved.grid, values, min, max }, surfaces };
 }
 
 /**

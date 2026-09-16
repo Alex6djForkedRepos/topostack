@@ -51,7 +51,7 @@ try {
   await page.locator(".status-line").filter({ hasText: "Real terrain ready" }).waitFor();
   assert.equal(await page.getByRole("switch", { name: "Water depth", exact: true }).getAttribute("aria-checked"), "false");
   await page.getByRole("switch", { name: "Water depth", exact: true }).click();
-  await page.getByText("NOAA lake-floor data is used where available.", { exact: false }).waitFor();
+  await page.getByText("Surveyed lake-floor data is used where available.", { exact: false }).waitFor();
   await page.getByText("Ready to export", { exact: true }).waitFor();
 
   async function downloadProject(label) {
@@ -84,7 +84,7 @@ try {
   await page.route("**/v1/bathymetry/**", (route) => route.abort("internetdisconnected"));
   await page.getByRole("button", { name: /generate terrain/i }).click();
   await page.locator(".status-line").filter({ hasText: "Real terrain ready" }).waitFor();
-  await page.getByText("NOAA lake-floor data is unavailable.", { exact: false }).waitFor();
+  await page.getByText("Some surveyed lake-floor data is unavailable.", { exact: false }).waitFor();
   const fallback = await downloadProject("noaa-fallback");
   assert(JSON.stringify(fallback).includes("BATHYMETRY_FALLBACK"), "Export records unavailable NOAA data");
   assert(!JSON.stringify(fallback).includes("noaa-great-lakes-v1"), "Fallback does not claim NOAA dataset usage");

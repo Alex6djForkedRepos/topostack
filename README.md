@@ -204,7 +204,7 @@ The homepage, workflow guides, and Crater Lake example are prerendered for searc
 
 - **Elevation:** Mapzen Terrarium tiles, cached in R2 with imagery-source attribution.
 - **Roads, trails, water, and boundaries:** the pinned Protomaps/OpenStreetMap PMTiles archive at `osm/current.pmtiles`.
-- **Lake depth:** NOAA/NCEI Great Lakes bathymetry where available, with HydroLAKES/GLOBathy modeled basins elsewhere. The global lake archive is `lakes/current.pmtiles`; surveyed depth tiles are `bathymetry/noaa-great-lakes-v1.pmtiles`. See [NOAA setup and coverage](docs/noaa-bathymetry.md).
+- **Lake depth:** Survey grids from NOAA/NCEI, USGS, Minnesota DNR, swisstopo, and the Finnish Environment Institute where available, with HydroLAKES/GLOBathy modeled basins for gaps. The global lake archive is `lakes/current.pmtiles`; survey archives use versioned `bathymetry/<dataset-id>.pmtiles` keys. See [survey coverage, references, and provisioning](docs/lake-bathymetry.md).
 - **Place search:** Geoapify, proxied through the Worker.
 - **Reference map:** OpenFreeMap; reference-map imagery is not included in fabrication exports.
 

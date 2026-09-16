@@ -1,8 +1,8 @@
 # NOAA Great Lakes bathymetry
 
 TopoStack uses NOAA/NCEI bathymetric grids for Lakes Superior, Michigan, Huron,
-Erie, Ontario, and St. Clair. HydroLAKES supplies the water polygons. Lakes outside
-this coverage retain the existing HydroLAKES/GLOBathy basin model.
+Erie, Ontario, and St. Clair. HydroLAKES supplies the water polygons. Additional surveyed coverage is documented in [lake-bathymetry.md](lake-bathymetry.md).
+Lakes without survey coverage retain the HydroLAKES/GLOBathy basin model.
 
 Sources: [NOAA Great Lakes bathymetry](https://www.ncei.noaa.gov/products/great-lakes-bathymetry),
 with individual dataset DOIs in `scripts/data/noaa-great-lakes.json`.

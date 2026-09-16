@@ -80,6 +80,82 @@ describe("TopoStack Svelte shell", () => {
     }
   });
 
+  it("fits lake depth from the clipping warning and restores manual depth from the preview", async () => {
+    const source = createSyntheticSource(DEFAULT_PROJECT, 32);
+    const values = new Float32Array(32 * 32);
+    const depthsM = new Float32Array(32 * 32);
+    for (let row = 0; row < 32; row++) for (let column = 0; column < 32; column++) {
+      const x = (column / 31 - 0.5) * DEFAULT_PROJECT.widthMm;
+      const y = (row / 31 - 0.5) * DEFAULT_PROJECT.heightMm;
+      const inside = Math.abs(x) < 40 && Math.abs(y) < 40;
+      values[row * 32 + column] = inside ? 180 : 180 + Math.hypot(x, y);
+      depthsM[row * 32 + column] = inside ? 600 * (1 - Math.max(Math.abs(x), Math.abs(y)) / 40) : NaN;
+    }
+    loadTerrainMock.mockResolvedValue({ source: {
+      ...source, sourceKind: "real", vectorStatus: "available", lakeDataStatus: "available", bathymetryStatus: "available", markings: [],
+      elevation: { width: 32, height: 32, values, min: 180, max: Math.max(...values) },
+      waterAreas: [{ id: "test-lake", kind: "lake", name: "Deep test lake",
+        polygon: { outer: [{ x: -40, y: -40 }, { x: 40, y: -40 }, { x: 40, y: 40 }, { x: -40, y: 40 }, { x: -40, y: -40 }], holes: [] },
+        bathymetry: { width: 32, height: 32, depthsM },
+      }],
+    }, fallback: false });
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await tick();
+    target.querySelector<HTMLButtonElement>(".generate-button")!.click();
+    const fitButton = () => [...target.querySelectorAll<HTMLButtonElement>(".preview-warning button")].find((button) => button.textContent === "Fit depth");
+    await vi.waitFor(() => expect(fitButton()).toBeDefined());
+    fitButton()!.click();
+    const fitSwitch = () => target.querySelector<HTMLButtonElement>('button[role="switch"][aria-label="Fit lake depth to available layers"]')!;
+    await vi.waitFor(() => expect(fitSwitch().getAttribute("aria-checked")).toBe("true"));
+    await vi.waitFor(() => expect(target.textContent).toContain("% of requested depth"));
+    expect(fitButton()).toBeUndefined();
+    expect(target.textContent).not.toContain("so its floor is flattened");
+    [...target.querySelectorAll<HTMLButtonElement>(".warning-action")].find((button) => button.textContent === "Use manual depth")!.click();
+    await vi.waitFor(() => expect(fitSwitch().getAttribute("aria-checked")).toBe("false"));
+    await vi.waitFor(() => expect(fitButton()).toBeDefined());
+    expect(target.textContent).not.toContain("% of requested depth");
+    expect(loadTerrainMock).toHaveBeenCalledTimes(1);
+    expect(loadLakeAreasMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps manual depth accessible after restoring a fitted project and saves the change", async () => {
+    const { loadProject, saveProject } = await import("../storage");
+    vi.mocked(saveProject).mockClear();
+    vi.mocked(loadProject).mockResolvedValueOnce({ ...DEFAULT_PROJECT, fitLakeDepth: true });
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    const manualButton = () => [...target.querySelectorAll<HTMLButtonElement>(".warning-action")].find((button) => button.textContent === "Use manual depth");
+    await vi.waitFor(() => expect(manualButton()).toBeDefined());
+    expect(target.textContent).toContain("Lake depth fitting is on.");
+    manualButton()!.click();
+    await vi.waitFor(() => expect(target.querySelector('[aria-label="Fit lake depth to available layers"]')?.getAttribute("aria-checked")).toBe("false"));
+    await vi.waitFor(() => expect(saveProject).toHaveBeenLastCalledWith(expect.objectContaining({ fitLakeDepth: false })));
+    expect(manualButton()).toBeUndefined();
+    const saved = vi.mocked(saveProject).mock.lastCall![0];
+    await unmount(component!);
+    component = undefined;
+    vi.mocked(loadProject).mockResolvedValueOnce(saved);
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await vi.waitFor(() => expect(target.textContent).toContain("Local project restored"));
+    expect(target.querySelector('[aria-label="Fit lake depth to available layers"]')?.getAttribute("aria-checked")).toBe("false");
+    expect(manualButton()).toBeUndefined();
+  });
+
+  it("keeps the fit action visible when other warnings fill the preview", async () => {
+    const preview = structuredClone(initialPreview);
+    preview.warnings = [
+      { code: "BATHYMETRY_FALLBACK", message: "Partial survey coverage." },
+      { code: "LABEL_OMITTED", message: "Some labels do not fit." },
+      { code: "WATER_DEPTH_CLAMPED", message: "The lake is too deep for the stack.", action: "fit-lake-depth" },
+    ];
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: preview } });
+    await tick();
+    expect(target.querySelectorAll(".preview-warning")).toHaveLength(2);
+    expect(target.querySelector(".preview-warning .warning-action")?.textContent).toBe("Fit depth");
+  });
+
   it("edits and undoes the project name and switches preview modes", async () => {
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
@@ -721,7 +797,7 @@ describe("TopoStack Svelte shell", () => {
     expect(noaaArchive.getZxy).not.toHaveBeenCalled();
     depth.click();
     await vi.waitFor(() => expect(noaaArchive.getZxy).toHaveBeenCalled());
-    await vi.waitFor(() => expect(target.textContent).toContain(unavailable ? "NOAA lake-floor data is unavailable" : "NOAA lake-floor data is used where available"));
+    await vi.waitFor(() => expect(target.textContent).toContain(unavailable ? "Some surveyed lake-floor data is unavailable" : "Surveyed lake-floor data is used where available"));
     expect(target.querySelector(".context-export-status")?.textContent).toContain("Ready to export");
     if (!unavailable) {
       const calls = noaaArchive.getZxy.mock.calls.length;
