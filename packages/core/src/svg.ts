@@ -7,9 +7,9 @@ import { displayElevation, displayLength, elevationUnit, lengthUnit } from "./un
 import { waterPatternStrokes } from "./water-pattern.js";
 import type { ExportFile, FabricationNest, FabricationPackageV1, GeometryIRV1, LayerIR, LineStyleV1, Point2D, ProjectConfigV1 } from "./types.js";
 
-const CUT = "#ff0035";
-const SCORE = "#2563eb";
-const ENGRAVE = "#111827";
+const CUT = "#FE0002";
+const SCORE = "#2366FF";
+const ENGRAVE = "#2366FF";
 const MAX_EXPORT_PACKAGE_BYTES = 100_000_000;
 
 function safeName(name: string): string {
@@ -317,6 +317,13 @@ export function buildFabricationPackage(generated: GeometryIRV1, config: Project
       warnings: ir.warnings,
       vectorStatus: ir.vectorStatus,
       lakeDataStatus: ir.lakeDataStatus,
+      lakeDepths: ir.waterSurfaces.filter((surface) => surface.kind === "lake").map((surface) => ({
+        id: surface.id, name: surface.name, hylakId: surface.hylakId,
+        depthSource: surface.depthSource, surfaceElevationM: surface.surfaceElevationM,
+        bedElevationM: surface.bedElevationM, unfittedBedElevationM: surface.unfittedBedElevationM,
+        depthFitScale: surface.depthFitScale ?? 1,
+        appliedDepthExaggeration: surface.appliedDepthExaggeration ?? config.waterDepthExaggeration,
+      })),
       imagerySources: ir.imagerySources,
     },
     attribution: ir.attribution,
@@ -329,11 +336,13 @@ export function buildFabricationPackage(generated: GeometryIRV1, config: Project
   const stack = planTerrainStack(config, ir.maxElevationM - ir.minElevationM, ir.bounds);
   // Layer count is derived, so the README states the scale relationship it came from.
   const scale = stack.horizontalScale > 0 ? ` (horizontal scale 1:${Math.round(1 / stack.horizontalScale).toLocaleString("en-US")})` : "";
+  const fittedDepths = ir.waterSurfaces.filter((surface) => surface.depthFitScale !== undefined)
+    .map((surface) => `${surface.name ?? "Lake"}: fitted to ${(surface.depthFitScale! * 100).toFixed(1)}% of requested depth; ${surface.appliedDepthExaggeration!.toFixed(3)}x terrain depth scale.\n`).join("");
   const vertical = `Vertical exaggeration: ${ir.verticalExaggeration.toFixed(1)}x${scale}\n`;
   const roadAppearance = config.lineStyle.roadStyle === "centerline" ? "centerlines" : `outlined major roads spaced ${format(config.lineStyle.majorRoadSpacingMm)} mm`;
   const linework = `Road appearance: ${roadAppearance}, ${config.lineStyle.roadCap} endpoints. Engraved line widths: major roads ${format(config.lineStyle.majorRoadMm)} mm, local roads ${format(config.lineStyle.localRoadMm)} mm, trails ${format(config.lineStyle.trailMm)} mm (${config.lineStyle.trailPattern}), water ${format(config.lineStyle.waterMm)} mm, state/province boundaries ${format(config.lineStyle.boundaryMm)} mm (dashed), latitude/longitude grid ${format(config.lineStyle.coordinateGridMm)} mm (dotted), labels and guides ${format(config.lineStyle.annotationMm)} mm.\n`;
   const nesting = ir.fabricationNests.length ? `Material nesting reduced ${ir.layers.length} layer panels to ${panels.length} fabrication panels. Smaller layers share cut lines inside lower layers while preserving at least ${shownLength(config.glueMarginMm)} of covered glue land. Keep every loose cutout: nested pieces belong to the layer IDs listed in each panel filename and SVG data-layers attribute.\n\n` : config.optimizeMaterialUse ? `No safe material nests fit the requested ${shownLength(config.glueMarginMm)} glue margin, so every layer remains on its own panel.\n\n` : "Material-saving nesting is disabled.\n\n";
-  const readme = `${ir.projectName}\n\n${ir.layers.length} layers at ${shownLength(config.materialThicknessMm)} each\nFinished stack height: ${shownLength(ir.layers.length * config.materialThicknessMm)}\n${vertical}${linework}Fabrication panels: ${panels.length}\n\nCUT ${CUT}\nSCORE ${SCORE}\nENGRAVE ${ENGRAVE}\n\nEvery complete panel and the master SVG place all engraved paths in a black ENGRAVE color layer, separate from red CUT and blue SCORE paths. Each panel also has a registered -engrave.svg companion containing the same ENGRAVE paths only. Use either the complete panel SVG, or pair its engraving-only companion with a cut workflow; do not process both engraving copies in the same job.\n\n${alignment}${kerf}${nesting}Import the master SVG into xTool Studio, or use the fabrication-panel SVGs. Assign and verify each color layer's processing type, dimensions, and material settings before fabrication. Terrain data is decorative and is not survey or engineering data.\n`;
+  const readme = `${ir.projectName}\n\n${ir.layers.length} layers at ${shownLength(config.materialThicknessMm)} each\nFinished stack height: ${shownLength(ir.layers.length * config.materialThicknessMm)}\n${vertical}${fittedDepths}${linework}Fabrication panels: ${panels.length}\n\nCUT ${CUT}\nSCORE ${SCORE}\nENGRAVE ${ENGRAVE}\n\nEvery complete panel and the master SVG place engraved and scored paths in named ENGRAVE and SCORE groups, both using Atomm blue for line engraving, separate from red CUT paths. Each panel also has a registered -engrave.svg companion containing the same ENGRAVE paths only. Use either the complete panel SVG, or pair its engraving-only companion with a cut workflow; do not process both engraving copies in the same job.\n\n${alignment}${kerf}${nesting}Import the master SVG into xTool Studio, or use the fabrication-panel SVGs. Assign and verify each color layer's processing type, dimensions, and material settings before fabrication. Terrain data is decorative and is not survey or engineering data.\n`;
   const files: ExportFile[] = [
     ...panelFiles.flatMap(({ file, engravingFile }) => [file, engravingFile]),
     master,
@@ -390,7 +399,7 @@ export function buildEngravingPackage(generated: GeometryIRV1, config: ProjectCo
   ].filter(Boolean);
   const roadAppearance = config.lineStyle.roadStyle === "centerline" ? "centerlines" : `outlined major roads spaced ${format(config.lineStyle.majorRoadSpacingMm)} mm`;
   const linework = `Road appearance: ${roadAppearance}, ${config.lineStyle.roadCap} endpoints. Line widths: minor contours ${format(config.lineStyle.contourMm)} mm, index contours ${format(config.lineStyle.indexContourMm)} mm, major roads ${format(config.lineStyle.majorRoadMm)} mm, local roads ${format(config.lineStyle.localRoadMm)} mm, trails ${format(config.lineStyle.trailMm)} mm (${config.lineStyle.trailPattern}), water ${format(config.lineStyle.waterMm)} mm, state/province boundaries ${format(config.lineStyle.boundaryMm)} mm (dashed), latitude/longitude grid ${format(config.lineStyle.coordinateGridMm)} mm (dotted), annotations ${format(config.lineStyle.annotationMm)} mm, border ${format(config.lineStyle.borderMm)} mm.\n`;
-  const readme = `${ir.projectName}\n\nFlat topographic engraving\nArtwork size: ${size}\nContour lines: ${config.engravingContourCount}\nIndex contour: every ${config.engravingIndexInterval} lines\nWater fill: ${config.showWater ? config.waterFillPattern : "none"}\n${linework}Map details: ${details.length ? details.join(", ") : "none"}\nBorder: ${config.showEngravingBorder ? "engraved" : "none"}\n\nThe SVG contains one black ENGRAVE operation group and no CUT or SCORE paths. Minor and index contours are separated into named subgroups so their line weights can be assigned independently. Verify physical dimensions, focus, power, speed, and material settings with a small test engraving before processing the final item. Terrain data is decorative and is not survey, navigation, or engineering data.\n`;
+  const readme = `${ir.projectName}\n\nFlat topographic engraving\nArtwork size: ${size}\nContour lines: ${config.engravingContourCount}\nIndex contour: every ${config.engravingIndexInterval} lines\nWater fill: ${config.showWater ? config.waterFillPattern : "none"}\n${linework}Map details: ${details.length ? details.join(", ") : "none"}\nBorder: ${config.showEngravingBorder ? "engraved" : "none"}\n\nThe SVG contains one blue ENGRAVE operation group and no CUT or SCORE paths. Minor and index contours are separated into named subgroups so their line weights can be assigned independently. Verify physical dimensions, focus, power, speed, and material settings with a small test engraving before processing the final item. Terrain data is decorative and is not survey, navigation, or engineering data.\n`;
   const files: ExportFile[] = [
     master,
     { filename: `${base}-project.json`, blob: new Blob([JSON.stringify(manifest, null, 2)], { type: "application/json" }) },

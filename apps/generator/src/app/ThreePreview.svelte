@@ -5,13 +5,29 @@
 </script>
 
 <script lang="ts">
-  import { onMount, untrack } from "svelte";
+  import { onMount, untrack, getContext } from "svelte";
   import * as THREE from "three";
   import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
   import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
   import { labelLineSegments, type GeometryIRV1, type Point2D, type Polygon2D, type TextStyleV1 } from "@topostack/core";
 
   let { geometry, exploded, onUnavailable }: { geometry: GeometryIRV1; exploded: number; onUnavailable?: () => void } = $props();
+  import AtommZoom from "./AtommZoom.svelte";
+  const isEmbedded = getContext<() => boolean>("atomm-embedded") ?? (() => false);
+  let zoom = $state(1);
+  let fitDistance = 320;
+  let fitTarget = new THREE.Vector3();
+  function setZoom(value: number) {
+    if (!runtime) return;
+    const direction = runtime.camera.position.clone().sub(runtime.controls.target).normalize();
+    runtime.camera.position.copy(runtime.controls.target).addScaledVector(direction, fitDistance / value);
+    runtime.controls.update(); runtime.requestRender();
+  }
+  function fitView() {
+    if (!runtime) return;
+    runtime.controls.target.copy(fitTarget);
+    setZoom(1);
+  }
   let container: HTMLButtonElement;
   let runtime: Runtime | undefined;
 
@@ -103,7 +119,7 @@
   }
 
   onMount(() => {
-    const scene = new THREE.Scene(); scene.background = new THREE.Color("#20231d");
+    const scene = new THREE.Scene(); scene.background = new THREE.Color(isEmbedded() ? getComputedStyle(container).getPropertyValue("--color-bg-editor").trim() || "#e7e8ea" : "#20231d");
     const camera = new THREE.PerspectiveCamera(34, 1, 10, 4_000);
     let renderer: THREE.WebGLRenderer;
     try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false }); }
@@ -135,6 +151,8 @@
       renderer.render(scene, camera);
     };
     controls.addEventListener("change", requestRender);
+    const updateZoom = () => { zoom = fitDistance / controls.getDistance(); };
+    controls.addEventListener("change", updateZoom);
     const resizeObserver = new ResizeObserver(([entry]) => { const width = entry?.contentRect.width ?? 0; const height = entry?.contentRect.height ?? 0; if (width <= 0 || height <= 0) return; camera.aspect = width / height; camera.updateProjectionMatrix(); renderer.setSize(width, height, false); requestRender(); }); resizeObserver.observe(container);
     const stopFrame = () => { if (runtime) { cancelAnimationFrame(runtime.frame); runtime.frame = 0; } };
     const onVisibilityChange = () => { if (document.hidden) stopFrame(); else requestRender(); };
@@ -148,6 +166,7 @@
       renderer.domElement.removeEventListener("webglcontextrestored", onContextRestored);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       controls.removeEventListener("change", requestRender);
+      controls.removeEventListener("change", updateZoom);
     };
     runtime = { renderer, camera, controls, rig, content, resizeObserver, frame: 0, environmentTarget, texture, keyLight, detachContextHandlers, requestRender };
     requestRender();
@@ -260,6 +279,8 @@
         const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * Math.max(runtime.camera.aspect, 0.1));
         const modelRadius = Math.hypot(activeGeometry.widthMm / 2, activeGeometry.heightMm / 2, stackHeight / 2);
         const distance = modelRadius / Math.sin(Math.min(verticalFov, horizontalFov) / 2) * 1.15;
+        fitDistance = Math.min(runtime.controls.maxDistance, Math.max(runtime.controls.minDistance, distance));
+        fitTarget = target.clone();
         runtime.controls.target.copy(target);
         runtime.camera.position.copy(target).addScaledVector(direction, distance);
         runtime.fitSignature = fitSignature;
@@ -286,3 +307,5 @@
 </script>
 
 <button type="button" class="three-stage" bind:this={container} onkeydown={handleKeyDown} aria-label="Interactive 3D preview. Drag or use left and right arrows to orbit; scroll or use up and down arrows to zoom."></button>
+
+{#if isEmbedded()}<AtommZoom value={zoom} min={0.25} max={4} onZoom={setZoom} onFit={fitView} />{/if}

@@ -16,6 +16,11 @@ export const PUBLIC_PAGES: Record<string, { title: string; description: string; 
     description: "Create a flat contour map for laser engraving. Set contour density, add roads and water, and export a single SVG at your chosen physical size.",
     label: "Engraving guide",
   },
+  "/guides/lake-depth-data": {
+    title: "Search Lakes with Surveyed Depth Data | TopoStack",
+    description: "Search TopoStack's lake-depth catalog by name, region or source. Find surveyed grids and depth contours, then open a lake in the terrain studio.",
+    label: "Lake depth directory",
+  },
   "/examples/crater-lake": {
     title: "Crater Lake Topographic Map: A Terrain Project | TopoStack",
     description: "Explore the Crater Lake terrain preview in TopoStack, follow the project setup, and learn how to generate fresh terrain for layered or engraved SVG exports.",

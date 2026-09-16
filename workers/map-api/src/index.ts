@@ -1,10 +1,19 @@
+import { measureBucket } from "./data-metrics";
+import { archiveHead } from "./archive-release";
+import rawSurveyCatalog from "../../../scripts/data/lake-bathymetry.json";
+import { validateSurveyCatalog } from "../../../packages/core/src/source-catalog";
 import { collectUsage } from "./usage-events";
+import { readCache, writeCache } from "./cache";
+import { decodeTerrainPng } from "../../../packages/core/src/terrain-png";
+
+const bathymetryCatalog = validateSurveyCatalog(rawSurveyCatalog);
 
 const MAX_TERRAIN_BYTES = 2_000_000;
 const MAX_GEOCODER_BYTES = 256_000;
 const MAX_ARCHIVE_RANGE_BYTES = 16 * 1024 * 1024;
 const UPSTREAM_TIMEOUT_MS = 10_000;
-const TERRAIN_CACHE_SECONDS = 60 * 60 * 24 * 30;
+// R2 keys are versioned; public tile URLs are mutable across deployments.
+const TERRAIN_CACHE_SECONDS = 60 * 60;
 // The vector archive key is overwritten in place on dataset updates, so client
 // and edge caching must stay short and revalidate by etag; a long `immutable`
 // TTL would let PMTiles readers mix byte ranges from different archive
@@ -13,6 +22,8 @@ const VECTOR_CACHE_SECONDS = 60 * 60;
 const GEOCODE_CACHE_SECONDS = 60 * 60 * 24;
 const VECTOR_ARCHIVE_KEY = "osm/current.pmtiles";
 const LAKE_ARCHIVE_KEY = "lakes/current.pmtiles";
+const BATHYMETRY_ARCHIVES = new Map(bathymetryCatalog.sources.map((source) => [`/v1/bathymetry/${source.id}.pmtiles`, `bathymetry/${source.id}.pmtiles`]));
+const UPSTREAM_HEALTH_KEY = "health/upstreams-v1.json";
 const DEFAULT_ALLOWED_ORIGIN_SUFFIXES = ".atomm.com";
 
 async function readBounded(body: ReadableStream<Uint8Array> | null, maximumBytes: number): Promise<Uint8Array<ArrayBuffer>> {
@@ -28,6 +39,9 @@ async function readBounded(body: ReadableStream<Uint8Array> | null, maximumBytes
       if (size > maximumBytes) throw new Error("UPSTREAM_BODY_TOO_LARGE");
       chunks.push(value);
     }
+  } catch (error) {
+    await reader.cancel().catch(() => {});
+    throw error;
   } finally { reader.releaseLock(); }
   const result = new Uint8Array(size);
   let offset = 0;
@@ -84,8 +98,8 @@ function corsHeaders(request: Request, env: Env): Headers {
   const origin = request.headers.get("origin");
   const headers = new Headers({
     "access-control-allow-methods": new URL(request.url).pathname === "/v1/events" ? "POST,OPTIONS" : "GET,HEAD,OPTIONS",
-    "access-control-allow-headers": "range,content-type",
-    "access-control-expose-headers": "content-length,content-range,etag,x-topostack-dataset,x-topostack-cache,x-topostack-imagery-sources",
+    "access-control-allow-headers": "range,content-type,if-none-match",
+    "access-control-expose-headers": "content-length,content-range,etag,x-topostack-dataset,x-topostack-cache,x-topostack-imagery-sources,x-topostack-r2-reads",
     "access-control-max-age": "86400",
     "vary": "Origin",
   });
@@ -103,6 +117,11 @@ function withCors(response: Response, request: Request, env: Env): Response {
   headers.set("strict-transport-security", "max-age=31536000; includeSubDomains");
   headers.set("x-content-type-options", "nosniff");
   headers.set("x-frame-options", "DENY");
+  if (response.status >= 400) headers.set("cache-control", "no-store");
+  if (request.method === "HEAD") {
+    void response.body?.cancel().catch(() => {});
+    return new Response(null, { status: response.status, statusText: response.statusText, headers });
+  }
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
@@ -135,10 +154,12 @@ function isGeocoderConfigured(env: Pick<Env, "GEOCODER_API_KEY">): boolean {
 }
 
 async function readinessResponse(env: Env): Promise<Response> {
-  const [vectorArchive, lakeArchive] = await Promise.all([
-    env.VECTOR_DATA.head(VECTOR_ARCHIVE_KEY),
-    env.VECTOR_DATA.head(LAKE_ARCHIVE_KEY),
+  const [vectorCheck, lakeCheck] = await Promise.allSettled([
+    archiveHead(env.VECTOR_DATA, VECTOR_ARCHIVE_KEY),
+    archiveHead(env.VECTOR_DATA, LAKE_ARCHIVE_KEY),
   ]);
+  const vectorArchive = vectorCheck.status === "fulfilled" ? vectorCheck.value.head : null;
+  const lakeArchive = lakeCheck.status === "fulfilled" ? lakeCheck.value.head : null;
   const geocoderConfigured = isGeocoderConfigured(env);
   const ready = Boolean(vectorArchive && lakeArchive && geocoderConfigured);
   return json({
@@ -149,14 +170,16 @@ async function readinessResponse(env: Env): Promise<Response> {
       terrain: { status: "configured" },
       geocoder: { status: geocoderConfigured ? "configured" : "unconfigured" },
       vectorData: {
-        status: vectorArchive ? "available" : "missing",
+        status: vectorCheck.status === "rejected" ? "unavailable" : vectorArchive ? "available" : "missing",
         key: VECTOR_ARCHIVE_KEY,
+        ...(vectorCheck.status === "fulfilled" && vectorCheck.value.release ? { release: vectorCheck.value.release } : {}),
         ...(vectorArchive ? { bytes: vectorArchive.size, etag: vectorArchive.httpEtag } : {}),
       },
       // Default projects request water depth, so readiness requires both archives.
       lakeData: {
-        status: lakeArchive ? "available" : "missing",
+        status: lakeCheck.status === "rejected" ? "unavailable" : lakeArchive ? "available" : "missing",
         key: LAKE_ARCHIVE_KEY,
+        ...(lakeCheck.status === "fulfilled" && lakeCheck.value.release ? { release: lakeCheck.value.release } : {}),
         ...(lakeArchive ? { bytes: lakeArchive.size, etag: lakeArchive.httpEtag } : {}),
       },
     },
@@ -208,23 +231,43 @@ function etagMatches(ifNoneMatch: string | null, etag: string): boolean {
   return ifNoneMatch.split(",").some((candidate) => normalize(candidate) === normalize(etag));
 }
 
-function terrainCachedResponse(object: R2ObjectBody, dataset: string): Response {
+function terrainCachedResponse(object: R2ObjectBody, dataset: string, body: BodyInit = object.body): Response {
   const headers = new Headers();
   object.writeHttpMetadata(headers);
   headers.set("etag", object.httpEtag);
   headers.set("x-topostack-cache", "HIT");
   headers.set("x-topostack-dataset", dataset);
   if (object.customMetadata?.imagerySources) headers.set("x-topostack-imagery-sources", object.customMetadata.imagerySources);
-  // Terrain keys embed the dataset version, so their content is stable and may
-  // cache long. Range requests are not honored here, so do not advertise them.
-  headers.set("cache-control", `public, max-age=${TERRAIN_CACHE_SECONDS}, immutable`);
-  return new Response(object.body, { headers });
+  headers.set("cache-control", `public, max-age=${TERRAIN_CACHE_SECONDS}, must-revalidate`);
+  return new Response(body, { headers });
 }
 
-async function terrainResponse(request: Request, env: Env, ctx: ExecutionContext, tile: { z: number; x: number; y: number }): Promise<Response> {
+async function terrainResponse(request: Request, env: Env, ctx: ExecutionContext, tile: { z: number; x: number; y: number }, bypassCache = false): Promise<Response> {
   const key = `terrain/${env.DATASET_VERSION}/terrarium/${tile.z}/${tile.x}/${tile.y}.png`;
-  const cached = await env.MAP_CACHE.get(key);
-  if (cached) return terrainCachedResponse(cached, cached.customMetadata?.dataset ?? env.DATASET_VERSION);
+  const cached = bypassCache ? null : await readCache(env.MAP_CACHE, key, "terrain");
+  if (cached) {
+    try {
+      let body: Uint8Array<ArrayBuffer> | undefined;
+      if (cached.customMetadata?.terrainValidation !== "png-v1") {
+        // Validate legacy cache entries once; malformed tiles must be repairable.
+        body = await readBounded(cached.body, MAX_TERRAIN_BYTES);
+        decodeTerrainPng(body);
+        const validated = body;
+        writeCache(ctx, "terrain", () => env.MAP_CACHE.put(key, validated, {
+          httpMetadata: { contentType: "image/png" },
+          customMetadata: { ...cached.customMetadata, terrainValidation: "png-v1" },
+        }));
+      }
+      const response = terrainCachedResponse(cached, cached.customMetadata?.dataset ?? env.DATASET_VERSION, body);
+      if (etagMatches(request.headers.get("if-none-match"), cached.httpEtag)) {
+        await response.body?.cancel();
+        return new Response(null, { status: 304, headers: response.headers });
+      }
+      return response;
+    } catch {
+      console.warn(JSON.stringify({ message: "cache_invalid", source: "terrain" }));
+    }
+  }
 
   let upstream: Response;
   try {
@@ -235,10 +278,14 @@ async function terrainResponse(request: Request, env: Env, ctx: ExecutionContext
   } catch (error) {
     return upstreamFailure(error, "Terrain origin");
   }
-  if (!upstream.ok || !upstream.body) return json({ error: "Terrain tile unavailable", status: upstream.status }, { status: 502 });
+  if (upstream.status !== 200 || !upstream.body) {
+    await upstream.body?.cancel();
+    return json({ error: "Terrain tile unavailable", status: upstream.status }, { status: 502 });
+  }
   const contentLength = Number(upstream.headers.get("content-length") ?? 0);
   const contentType = upstream.headers.get("content-type") ?? "";
   if ((contentLength > 0 && contentLength > MAX_TERRAIN_BYTES) || !contentType.includes("image/png")) {
+    await upstream.body.cancel();
     return json({ error: "Terrain origin returned an invalid tile" }, { status: 502 });
   }
 
@@ -249,16 +296,18 @@ async function terrainResponse(request: Request, env: Env, ctx: ExecutionContext
     if (error instanceof Error && error.message === "UPSTREAM_BODY_TOO_LARGE") return json({ error: "Terrain origin returned an oversized tile" }, { status: 502 });
     return upstreamFailure(error, "Terrain origin");
   }
-  ctx.waitUntil(env.MAP_CACHE.put(key, body, {
+  try { decodeTerrainPng(body); }
+  catch { return json({ error: "Terrain origin returned an invalid tile" }, { status: 502 }); }
+  if (!bypassCache) writeCache(ctx, "terrain", () => env.MAP_CACHE.put(key, body, {
     httpMetadata: { contentType: "image/png", cacheControl: `public, max-age=${TERRAIN_CACHE_SECONDS}` },
-    customMetadata: { dataset: env.DATASET_VERSION, cachedAt: new Date().toISOString(), imagerySources: imagerySources.slice(0, 1900) },
+    customMetadata: { terrainValidation: "png-v1", dataset: env.DATASET_VERSION, cachedAt: new Date().toISOString(), imagerySources: imagerySources.slice(0, 1900) },
   }));
   return new Response(body, {
     headers: {
       "content-type": "image/png",
       "content-length": String(body.byteLength),
-      "cache-control": `public, max-age=${TERRAIN_CACHE_SECONDS}, immutable`,
-      "x-topostack-cache": "MISS",
+      "cache-control": `public, max-age=${TERRAIN_CACHE_SECONDS}, must-revalidate`,
+      "x-topostack-cache": bypassCache ? "BYPASS" : "MISS",
       "x-topostack-dataset": env.DATASET_VERSION,
       ...(imagerySources ? { "x-topostack-imagery-sources": imagerySources } : {}),
     },
@@ -270,6 +319,7 @@ interface GeoapifyResult { lat?: unknown; lon?: unknown; formatted?: unknown; pl
 function normalizeGeoapify(payload: unknown): Array<{ place_id: string; display_name: string; lat: number; lon: number; type?: string }> {
   const results = payload && typeof payload === "object" && Array.isArray((payload as { results?: unknown }).results) ? (payload as { results: GeoapifyResult[] }).results : [];
   return results.flatMap((item, index) => {
+    if (!item || typeof item !== "object") return [];
     const lat = item.lat;
     const lon = item.lon;
     const label = typeof item.formatted === "string" ? item.formatted.trim() : "";
@@ -284,13 +334,13 @@ function geocodeLimit(value: string | null): number {
   return Number.isFinite(parsed) ? Math.max(1, Math.min(8, Math.trunc(parsed))) : 5;
 }
 
-async function geocodeResponse(request: Request, env: Env, ctx: ExecutionContext, url: URL): Promise<Response> {
+async function geocodeResponse(request: Request, env: Env, ctx: ExecutionContext, url: URL, bypassCache = false): Promise<Response> {
   const query = (url.searchParams.get("q") ?? "").trim().slice(0, 160);
   const limit = geocodeLimit(url.searchParams.get("limit"));
   if (query.length < 2) return json({ error: "Query must contain at least two characters." }, { status: 400 });
-  const keyHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${query.toLowerCase()}|${limit}`));
+  const keyHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${env.GEOCODER_ORIGIN}|geoapify-v1|${query.toLowerCase()}|${limit}`));
   const key = `geocode/${Array.from(new Uint8Array(keyHash)).map((byte) => byte.toString(16).padStart(2, "0")).join("")}.json`;
-  const cached = await env.MAP_CACHE.get(key);
+  const cached = bypassCache ? null : await readCache(env.MAP_CACHE, key, "geocoder");
   const ageSeconds = cached ? Math.max(0, (Date.now() - cached.uploaded.getTime()) / 1000) : Infinity;
   if (cached && ageSeconds < GEOCODE_CACHE_SECONDS) {
     const remainingSeconds = Math.max(0, Math.floor(GEOCODE_CACHE_SECONDS - ageSeconds));
@@ -313,9 +363,15 @@ async function geocodeResponse(request: Request, env: Env, ctx: ExecutionContext
   } catch (error) {
     return upstreamFailure(error, "Geocoder");
   }
-  if (!upstream.ok) return json({ error: "Geocoder unavailable", status: upstream.status }, { status: 502 });
+  if (!upstream.ok) {
+    await upstream.body?.cancel();
+    return json({ error: "Geocoder unavailable", status: upstream.status }, { status: 502 });
+  }
   const contentLength = Number(upstream.headers.get("content-length") ?? 0);
-  if (contentLength > MAX_GEOCODER_BYTES) return json({ error: "Geocoder response too large" }, { status: 502 });
+  if (contentLength > MAX_GEOCODER_BYTES) {
+    await upstream.body?.cancel();
+    return json({ error: "Geocoder response too large" }, { status: 502 });
+  }
   let body: Uint8Array;
   try { body = await readBounded(upstream.body, MAX_GEOCODER_BYTES); }
   catch (error) {
@@ -324,14 +380,18 @@ async function geocodeResponse(request: Request, env: Env, ctx: ExecutionContext
   }
   let payload: unknown;
   try { payload = JSON.parse(new TextDecoder().decode(body)); } catch { return json({ error: "Geocoder returned invalid JSON" }, { status: 502 }); }
+  if (!payload || typeof payload !== "object" || !Array.isArray((payload as { results?: unknown }).results)) {
+    return json({ error: "Geocoder returned an unexpected response" }, { status: 502 });
+  }
   const normalized = normalizeGeoapify(payload);
   const normalizedBody = JSON.stringify(normalized);
-  ctx.waitUntil(env.MAP_CACHE.put(key, normalizedBody, { httpMetadata: { contentType: "application/json", cacheControl: `public, max-age=${GEOCODE_CACHE_SECONDS}` } }));
-  return new Response(normalizedBody, { headers: { "content-type": "application/json; charset=utf-8", "cache-control": `public, max-age=${GEOCODE_CACHE_SECONDS}`, "x-topostack-cache": "MISS" } });
+  if (!bypassCache) writeCache(ctx, "geocoder", () => env.MAP_CACHE.put(key, normalizedBody, { httpMetadata: { contentType: "application/json", cacheControl: `public, max-age=${GEOCODE_CACHE_SECONDS}` } }));
+  return new Response(normalizedBody, { headers: { "content-type": "application/json; charset=utf-8", "cache-control": `public, max-age=${GEOCODE_CACHE_SECONDS}`, "x-topostack-cache": bypassCache ? "BYPASS" : "MISS" } });
 }
 
-async function pmtilesResponse(request: Request, env: Env, archiveKey: string, label: string): Promise<Response> {
-  const head = await env.VECTOR_DATA.head(archiveKey);
+async function pmtilesResponse(request: Request, env: Env, archiveKey: string, label: string, retried = false): Promise<Response> {
+  const resolved = await archiveHead(env.VECTOR_DATA, archiveKey);
+  const head = resolved.head;
   if (!head) return json({ error: `${label} archive has not been provisioned.` }, { status: 404 });
   const headers = new Headers({
     "etag": head.httpEtag,
@@ -354,12 +414,32 @@ async function pmtilesResponse(request: Request, env: Env, archiveKey: string, l
     headers.set("content-range", `bytes */${head.size}`);
     return json({ error: range.kind === "too_large" ? `Requested range exceeds ${MAX_ARCHIVE_RANGE_BYTES} bytes.` : "Requested range is not satisfiable." }, { status: 416, headers });
   }
-  const object = await env.VECTOR_DATA.get(archiveKey, { range: { offset: range.offset, length: range.length } });
+  const object = await env.VECTOR_DATA.get(resolved.key, {
+    range: { offset: range.offset, length: range.length },
+    onlyIf: { etagMatches: head.etag },
+  });
   if (!object) return json({ error: `${label} archive has not been provisioned.` }, { status: 404 });
+  // Never combine one generation's size/range with another generation's body.
+  if (!("body" in object)) {
+    if (!retried) return pmtilesResponse(request, env, archiveKey, label, true);
+    return json({ error: `${label} archive is being updated. Try again shortly.` }, { status: 503, headers: { "retry-after": "1" } });
+  }
   headers.set("etag", object.httpEtag);
   headers.set("content-range", `bytes ${range.offset}-${range.offset + range.length - 1}/${head.size}`);
   headers.set("content-length", String(range.length));
   return new Response(object.body, { status: 206, headers });
+}
+
+async function upstreamHealth(env: Env): Promise<Response> {
+  const stored = await env.MAP_CACHE.get(UPSTREAM_HEALTH_KEY);
+  if (!stored) return json({ status: "unknown", error: "No upstream probe has completed." }, { status: 503 });
+  if (stored.size > 4096) { await stored.body.cancel(); return json({ status: "invalid" }, { status: 503 }); }
+  const result = await stored.json<{ checkedAt: string; ok: boolean; environment: string }>();
+  const age = Date.now() - Date.parse(result.checkedAt);
+  const fresh = Number.isFinite(age) && age >= 0 && age < 2 * 60 * 60 * 1000;
+  return json({ ...result, status: fresh && result.ok === true ? "healthy" : "unhealthy", fresh }, {
+    status: fresh && result.ok === true ? 200 : 503, headers: { "cache-control": "no-store" },
+  });
 }
 
 async function route(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -379,13 +459,16 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
 
   if (url.pathname === "/" || url.pathname === "/health") return json({ service: "topostack-map-api", status: "ok", environment: env.ENVIRONMENT });
   if (url.pathname === "/ready") return readinessResponse(env);
+  if (url.pathname === "/v1/upstream-health") return upstreamHealth(env);
   if (url.pathname === "/v1/manifest") return json({
     schemaVersion: 1,
+    capabilities: { archiveReleases: 1, upstreamProbes: 1 },
     datasetVersion: env.DATASET_VERSION,
     coverage: { projection: "Web Mercator", minLatitude: -85.0511, maxLatitude: 85.0511, landOnly: true, vectorMaxZoom: 12 },
     sources: [
       { name: "Mapzen Terrain Tiles", url: "https://registry.opendata.aws/terrain-tiles/", attribution: "See Mapzen source attribution" },
       { name: "HydroLAKES v1.0", url: "https://www.hydrosheds.org/products/hydrolakes", attribution: "CC BY 4.0 — Messager et al. (2016)" },
+      ...bathymetryCatalog.sources.map((source) => ({ name: source.name, url: source.url, attribution: source.license, archive: `/v1/bathymetry/${source.id}.pmtiles` })),
       { name: "GLOBathy", url: "https://doi.org/10.1038/s41597-022-01132-9", attribution: "CC0 1.0 — Khazaei et al. (2022)" },
       { name: "Protomaps Basemap 20260905", url: "https://build.protomaps.com/20260905.pmtiles", version: "4.15.2", license: "ODbL Produced Work" },
       { name: "OpenStreetMap contributors", url: "https://www.openstreetmap.org/copyright", license: "ODbL" },
@@ -394,6 +477,8 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
   if (url.pathname === "/v1/geocode") return geocodeResponse(request, env, ctx, url);
   if (url.pathname === "/v1/osm.pmtiles") return pmtilesResponse(request, env, VECTOR_ARCHIVE_KEY, "OSM");
   if (url.pathname === "/v1/lakes.pmtiles") return pmtilesResponse(request, env, LAKE_ARCHIVE_KEY, "Lake bathymetry");
+  const bathymetryKey = BATHYMETRY_ARCHIVES.get(url.pathname);
+  if (bathymetryKey) return pmtilesResponse(request, env, bathymetryKey, "Lake survey bathymetry");
   const terrainMatch = url.pathname.match(/^\/v1\/terrain\/(\d+)\/(\d+)\/(\d+)\.png$/);
   if (terrainMatch) {
     const tile = validTile(terrainMatch[1] ?? "", terrainMatch[2] ?? "", terrainMatch[3] ?? "");
@@ -404,13 +489,36 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
 }
 
 export default {
+  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    const checks = [
+      { source: "terrain", run: () => terrainResponse(new Request("https://probe.invalid/v1/terrain/0/0/0.png"), env, ctx, { z: 0, x: 0, y: 0 }, true) },
+      { source: "geocoder", run: () => { const url = new URL("https://probe.invalid/v1/geocode?q=Crater%20Lake&limit=1"); return geocodeResponse(new Request(url), env, ctx, url, true); } },
+    ];
+    const results = await Promise.all(checks.map(async ({ source, run }) => {
+      const start = Date.now();
+      try {
+        const response = await run();
+        let ok = response.ok;
+        if (ok && source === "geocoder") ok = (await response.json<unknown[]>()).length > 0;
+        else await response.body?.cancel();
+        return { source, ok, status: response.status, durationMs: Date.now() - start };
+      } catch { return { source, ok: false, status: 0, durationMs: Date.now() - start }; }
+    }));
+    const snapshot = { checkedAt: new Date().toISOString(), environment: env.ENVIRONMENT, ok: results.every((result) => result.ok), results };
+    console.log(JSON.stringify({ message: "upstream_probe", ...snapshot }));
+    await env.MAP_CACHE.put(UPSTREAM_HEALTH_KEY, JSON.stringify(snapshot), { httpMetadata: { contentType: "application/json", cacheControl: "no-store" } });
+    if (!snapshot.ok) throw new Error("An uncached upstream probe failed.");
+  },
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     try {
       const startedAt = Date.now();
-      const response = await route(request, env, ctx);
+      const metrics = { r2Reads: 0, r2Writes: 0 };
+      const measuredEnv = { ...env, MAP_CACHE: measureBucket(env.MAP_CACHE, metrics), VECTOR_DATA: measureBucket(env.VECTOR_DATA, metrics) };
+      const response = await route(request, measuredEnv, ctx);
+      response.headers.set("x-topostack-r2-reads", String(metrics.r2Reads));
       // Cache-miss failures must be visible even when fixed canaries hit R2.
-      console.log(JSON.stringify({ message: "request_completed", method: request.method, path: url.pathname, environment: env.ENVIRONMENT, status: response.status, cache: response.headers.get("x-topostack-cache"), durationMs: Date.now() - startedAt }));
+      console.log(JSON.stringify({ message: "request_completed", method: request.method, path: url.pathname, environment: env.ENVIRONMENT, status: response.status, cache: response.headers.get("x-topostack-cache"), durationMs: Date.now() - startedAt, ...metrics }));
       return withCors(response, request, env);
     } catch (error) {
       console.error(JSON.stringify({ message: "request_failed", path: url.pathname, error: error instanceof Error ? error.message : String(error) }));

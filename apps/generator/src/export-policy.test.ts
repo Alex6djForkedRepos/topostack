@@ -48,4 +48,27 @@ describe("Atomm export policy", () => {
     expect("filename" in studio && studio.filename.endsWith("-engraving.svg")).toBe(true);
     expect(Array.isArray(download) && download).toHaveLength(4);
   });
+  it("uses Atomm processing colors and physical dimensions for layered and flat artwork", async () => {
+    for (const outputMode of ["stack", "engraving"] as const) {
+      const project = { ...DEFAULT_PROJECT, outputMode, name: "Map / expedition\\draft" };
+      const result = generateGeometry(project, { ...createSyntheticSource(project, 32), sourceKind: "real" });
+      const output = createAtommExport(result, project, "openInStudio");
+      if (Array.isArray(output)) throw new Error("Studio must receive one editable SVG");
+      const svg = await output.blob.text();
+      expect(output.filename).toMatch(/^[a-z0-9-]+\.svg$/);
+      expect(output.blob.type).toBe("image/svg+xml");
+      expect(svg).toMatch(/width="[\d.]+mm" height="[\d.]+mm" viewBox=/);
+      expect(svg).toContain('stroke="#2366FF"');
+      expect(svg.includes('stroke="#FE0002"')).toBe(outputMode === "stack");
+      expect(svg).not.toMatch(/<use\b|#ff0035|#111827|#2563eb/);
+      const files = createAtommExport(result, project, "download");
+      if (!Array.isArray(files)) throw new Error("Download must receive the project files");
+      for (const file of files) {
+        expect(file.filename).not.toMatch(/[\\/]/);
+        expect(file.filename).toMatch(/\.[a-z]+$/);
+      }
+      expect(files.reduce((sum, file) => sum + file.blob.size, 0)).toBeLessThanOrEqual(100_000_000);
+    }
+  });
+
 });

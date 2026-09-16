@@ -1,0 +1,158 @@
+{
+  "sources": [
+    {
+      "id": "noaa-great-lakes-v1",
+      "name": "NOAA NCEI Great Lakes Bathymetry",
+      "url": "https://www.ncei.noaa.gov/products/great-lakes-bathymetry",
+      "license": "Public domain; acknowledge source.",
+      "bounds": [
+        -93,
+        40,
+        -75,
+        50
+      ],
+      "encoding": "depth-terrarium-v1",
+      "maxZoom": 11
+    },
+    {
+      "id": "usgs-crater-lake-v1",
+      "name": "USGS Crater Lake multibeam bathymetry",
+      "url": "https://pubs.usgs.gov/dds/dds-72/",
+      "license": "Public domain; acknowledge source.",
+      "bounds": [
+        -122.18,
+        42.89,
+        -122.04,
+        42.99
+      ],
+      "encoding": "depth-terrarium-v1",
+      "maxZoom": 14
+    },
+    {
+      "id": "usgs-lake-tahoe-v1",
+      "name": "USGS Lake Tahoe multibeam bathymetry",
+      "url": "https://pubs.usgs.gov/dds/dds-55/pacmaps/lt_index.htm",
+      "license": "Public domain; acknowledge source.",
+      "bounds": [
+        -120.17,
+        38.92,
+        -119.9,
+        39.26
+      ],
+      "encoding": "depth-terrarium-v1",
+      "maxZoom": 14
+    },
+    {
+      "id": "usgs-mono-lake-v1",
+      "name": "USGS Mono Lake bathymetric model",
+      "url": "https://pubs.usgs.gov/mf/2002/2393/",
+      "license": "Public domain; acknowledge source.",
+      "bounds": [
+        -119.2,
+        37.92,
+        -118.87,
+        38.08
+      ],
+      "encoding": "depth-terrarium-v1",
+      "maxZoom": 14
+    },
+    {
+      "id": "mn-dnr-lakes-v1",
+      "name": "Minnesota DNR lake bathymetry",
+      "url": "https://resources.gisdata.mn.gov/pub/gdrs/data/pub/us_mn_state_dnr/water_lake_bathymetry/metadata/metadata.html",
+      "license": "Minnesota DNR General Geographic Data License; survey contours interpolated by TopoStack. https://www.dnr.state.mn.us/sitetools/data_software_license.html",
+      "bounds": [
+        -97.3,
+        43.4,
+        -89.4,
+        49.4
+      ],
+      "encoding": "depth-terrarium-v1",
+      "maxZoom": 13
+    },
+    {
+      "id": "swissbathy3d-v1",
+      "name": "swisstopo swissBATHY3D",
+      "url": "https://www.swisstopo.admin.ch/en/height-model-swissbathy3d",
+      "license": "© swisstopo; open government data. LN02 bed elevations aligned approximately to HydroLAKES surface elevations; no vertical-datum transformation.",
+      "bounds": [
+        5.9,
+        45.8,
+        10.1,
+        47.9
+      ],
+      "encoding": "elevation-terrarium-v1",
+      "maxZoom": 14
+    },
+    {
+      "id": "syke-finland-lakes-v1",
+      "name": "Syke Finland lake bathymetry",
+      "url": "https://ckan.ymparisto.fi/dataset/jarvien-ja-jokien-syvyysaineisto",
+      "license": "Source: Syke, CC BY 4.0. Survey contours interpolated by TopoStack; gaps remain unmeasured.",
+      "bounds": [
+        19,
+        59,
+        32,
+        70.5
+      ],
+      "encoding": "depth-terrarium-v1",
+      "maxZoom": 13
+    },
+    {
+      "id": "ontario-lakes-v1",
+      "name": "Ontario lake bathymetry",
+      "url": "https://data.ontario.ca/dataset/bathymetry-lines",
+      "license": "Contains information licensed under the Open Government Licence – Ontario. Survey contours interpolated by TopoStack; not for navigation.",
+      "bounds": [
+        -95.2,
+        41.6,
+        -74.2,
+        57
+      ],
+      "encoding": "depth-terrarium-v1",
+      "maxZoom": 13
+    },
+    {
+      "id": "nve-norway-lakes-v1",
+      "name": "NVE Norway lake bathymetry",
+      "url": "https://kartkatalog.nve.no/",
+      "license": "Source: NVE, Norwegian Licence for Open Government Data (NLOD). Digital survey contours interpolated by TopoStack. https://www.nve.no/kart/kartdata/",
+      "bounds": [
+        4,
+        57,
+        32,
+        72
+      ],
+      "encoding": "depth-terrarium-v1",
+      "maxZoom": 13
+    },
+    {
+      "id": "twdb-texas-reservoirs-v1",
+      "name": "Texas Water Development Board reservoir surveys",
+      "url": "https://www.twdb.texas.gov/surfacewater/surveys/completed/index.asp",
+      "license": "Source: Texas Water Development Board. Copying and distribution permitted by TWDB site policy; contours interpolated by TopoStack. https://www.twdb.texas.gov/policies/site/index.asp",
+      "bounds": [
+        -101.3,
+        30.2,
+        -97.5,
+        33.2
+      ],
+      "encoding": "depth-terrarium-v1",
+      "maxZoom": 13
+    },
+    {
+      "id": "usbr-reservoirs-v1",
+      "name": "Bureau of Reclamation reservoir surveys",
+      "url": "https://www.usbr.gov/tsc/techreferences/reservoir.html",
+      "license": "U.S. Bureau of Reclamation; public domain. Survey contours interpolated by TopoStack at documented historical reference levels.",
+      "bounds": [
+        -105.52,
+        40.34,
+        -105.22,
+        40.4
+      ],
+      "encoding": "depth-terrarium-v1",
+      "maxZoom": 13
+    }
+  ]
+}

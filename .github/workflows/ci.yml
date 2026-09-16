@@ -50,6 +50,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Test provisioning and lifecycle safeguards
+        run: npm run test:scripts
+
       - name: Test unit and component suites with coverage thresholds
         run: npm run test:coverage
 
@@ -214,7 +217,7 @@ jobs:
         run: npm ci
 
       - name: Build production Atomm release
-        run: npm run release:atomm
+        run: npm run release:atomm && npm run package:atomm-listing
         env:
           VITE_MAP_API_URL: ${{ env.PRODUCTION_URL }}
           VITE_SITE_ENV: atomm
@@ -227,7 +230,6 @@ jobs:
             apps/generator/topostack-atomm.zip
             apps/generator/topostack-atomm.zip.sha256
             apps/generator/topostack-atomm.release.json
-            atomm/assets/topostack-cover.png
-            atomm/listing.md
+            atomm/topostack-listing-upload.zip
           if-no-files-found: error
           retention-days: 30

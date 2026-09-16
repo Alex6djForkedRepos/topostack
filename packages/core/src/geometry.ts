@@ -22,7 +22,7 @@ import { offsetClosedRing } from "./offset.js";
 import { northArrowFootprint, northArrowMarkings } from "./north-arrow.js";
 import { displayElevation, elevationUnit, FEET_PER_METER } from "./units.js";
 import { CUSTOM_LINE_KINDS, MAP_MARKER_CLEARANCE_MM, MAP_MARKER_SIZE_MM, MARKER_SYMBOLS, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_DEPTH_LAYER_COUNT, MAX_LAYER_COUNT, MAX_MAP_MARKERS, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_WATER_DEPTH_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, MAX_VERTICAL_EXAGGERATION, MIN_LAYER_COUNT, MIN_VERTICAL_EXAGGERATION, NORTH_ARROW_ANCHORS, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, NORTH_ARROW_STYLES, SEA_LEVEL_M } from "./types.js";
-import { carveWaterDepth, clampCarveToLadder } from "./water.js";
+import { carveWaterDepth, clampCarveToLadder, fitLakesToLadder } from "./water.js";
 import type {
   ElevationGrid,
   GeoBounds,
@@ -669,6 +669,10 @@ export function generateGeometry(config: ProjectConfigV1, source: SourceBundleV1
     code: "LAKE_DATA_UNAVAILABLE",
     message: "Lake depth data is unavailable. Disable water depth or regenerate after the service is restored before exporting.",
   });
+  if ((source.bathymetryStatus === "unavailable" || source.bathymetryStatus === "partial") && usesWaterDepth) warnings.push({
+    code: "BATHYMETRY_FALLBACK",
+    message: "Some surveyed lake-floor data is unavailable. Gaps use existing terrain or modeled basins instead.",
+  });
   // Carve modeled lake beds into the grid before anything reads it. Everything
   // downstream then produces the recess on its own: the contour rings become
   // holes, and holes are already honoured by clipping, nesting, and labelling.
@@ -718,9 +722,11 @@ export function generateGeometry(config: ProjectConfigV1, source: SourceBundleV1
 
   // Water deeper than the ladder reaches is flattened at its floor rather than
   // silently punching through the base sheet.
-  const { grid: modelGrid, clamped } = clampCarveToLadder(carved.grid, ladderBase);
+  const fitted = config.fitLakeDepth && !flatEngraving ? fitLakesToLadder(carved, config, ladderBase) : carved;
+  const { grid: modelGrid, clamped } = clampCarveToLadder(fitted.grid, ladderBase);
   if (clamped && !flatEngraving) warnings.push({
     code: "WATER_DEPTH_CLAMPED",
+    ...(!config.fitLakeDepth && carved.surfaces.some((surface) => surface.kind === "lake" && surface.bedElevationM < ladderBase && surface.surfaceElevationM > ladderBase) ? { action: "fit-lake-depth" as const } : {}),
     message: `Water here is deeper than the ${stack.depthLayerCount} sheet${stack.depthLayerCount === 1 ? "" : "s"} below the shoreline can hold, so its floor is flattened. Lower the water depth exaggeration, or use thinner material to buy more sheets.`,
   });
 
@@ -779,7 +785,7 @@ export function generateGeometry(config: ProjectConfigV1, source: SourceBundleV1
 
   // Surfaces are virtual - never cut, only drawn - so they are clipped to the
   // crop here and carried on the IR for the previews to float over the basin.
-  const waterSurfaces: WaterSurfaceIR[] = carved.surfaces.flatMap((surface) => {
+  const waterSurfaces: WaterSurfaceIR[] = fitted.surfaces.flatMap((surface) => {
     const polygons = surface.polygons.flatMap((polygon) => clipContours(
       [[toRing(polygon.outer), ...polygon.holes.map(toRing)]] as MultiPolygon,
       clip,
@@ -1138,6 +1144,7 @@ export function validateProject(config: ProjectConfigV1): void {
   if (config.heightMm <= 0) throw new Error("Project height must be greater than zero.");
   if (config.widthMm > MAX_PROJECT_DIMENSION_MM || config.heightMm > MAX_PROJECT_DIMENSION_MM) throw new Error("Project dimensions must not exceed 10000 mm.");
   if (config.verticalExaggeration < MIN_VERTICAL_EXAGGERATION || config.verticalExaggeration > MAX_VERTICAL_EXAGGERATION) throw new Error(`Vertical exaggeration must be between ${MIN_VERTICAL_EXAGGERATION} and ${MAX_VERTICAL_EXAGGERATION}.`);
+  if (typeof config.fitLakeDepth !== "boolean") throw new Error("Fit lake depth must be a boolean.");
   if (!Number.isFinite(config.waterDepthExaggeration) || config.waterDepthExaggeration < MIN_WATER_DEPTH_EXAGGERATION || config.waterDepthExaggeration > MAX_WATER_DEPTH_EXAGGERATION) throw new Error(`Water depth exaggeration must be between ${MIN_WATER_DEPTH_EXAGGERATION} and ${MAX_WATER_DEPTH_EXAGGERATION}.`);
   if (config.materialThicknessMm < 0.5 || config.materialThicknessMm > 25) throw new Error("Material thickness must be between 0.5 and 25 mm.");
   if (config.location.lat < -85.0511 || config.location.lat > 85.0511) throw new Error("This version supports Web Mercator latitudes only.");

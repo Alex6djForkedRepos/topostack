@@ -63,6 +63,11 @@ describe("project import validation", () => {
     expect(() => parseProject({ ...DEFAULT_PROJECT, lineStyle: { ...lineStyle, roadStyle: "bordered" } })).toThrow(/road style/i);
     expect(() => parseProject({ ...DEFAULT_PROJECT, lineStyle: { ...lineStyle, roadCap: "butt" } })).toThrow(/road cap/i);
   });
+  it("restores lake depth fitting and keeps older projects at manual depth", () => {
+    expect(parseProject({ ...DEFAULT_PROJECT, fitLakeDepth: true }).fitLakeDepth).toBe(true);
+    expect(parseProject({ ...DEFAULT_PROJECT, fitLakeDepth: undefined }).fitLakeDepth).toBe(false);
+    expect(() => parseProject({ ...DEFAULT_PROJECT, fitLakeDepth: "true" })).toThrow(/fitLakeDepth/i);
+  });
   it("rejects non-finite and out-of-range values", () => {
     expect(() => parseProject({ ...DEFAULT_PROJECT, widthMm: "not-a-number" })).toThrow(/finite/i);
     expect(() => parseProject({ ...DEFAULT_PROJECT, location: { ...DEFAULT_PROJECT.location, lat: 90 } })).toThrow(/Mercator/i);

@@ -17,3 +17,4 @@ test-results-live/
 .DS_Store
 *.provisioning.json
 apps/generator/topostack-atomm.release.json
+__pycache__/

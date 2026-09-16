@@ -13,7 +13,7 @@
     "dev:web": "npm run dev -w @topostack/generator",
     "dev:api": "npm run dev -w @topostack/map-api",
     "build": "npm run build -w @topostack/core && npm run build -w @topostack/generator && npm run build -w @topostack/map-api",
-    "test": "npm run test -w @topostack/core && npm run test -w @topostack/generator && npm run test -w @topostack/map-api",
+    "test": "npm run test -w @topostack/core && npm run test -w @topostack/generator && npm run test -w @topostack/map-api && npm run test:scripts",
     "test:coverage": "npm run coverage -w @topostack/core && npm run coverage -w @topostack/generator && npm run coverage -w @topostack/map-api",
     "test:e2e": "playwright test",
     "test:e2e:live": "playwright test --config playwright.live.config.ts",
@@ -21,8 +21,12 @@
     "lint": "eslint . --max-warnings=0",
     "budget:web": "node scripts/check-web-budget.mjs",
     "data:provision": "node scripts/provision-vector-data.mjs",
-    "package:atomm": "node scripts/validate-submission-env.mjs && npm run build -w @topostack/generator && node scripts/verify-atomm-dist.mjs && cd apps/generator/dist && zip -FSqr ../topostack-atomm.zip .",
-    "release:atomm": "npm run package:atomm && node scripts/checksum-atomm.mjs"
+    "package:atomm": "node scripts/validate-submission-env.mjs && VITE_SITE_ENV=atomm npm run build -w @topostack/generator && node scripts/verify-atomm-dist.mjs --require-sdk-entry && cd apps/generator/dist && zip -FSqr ../topostack-atomm.zip .",
+    "release:atomm": "npm run package:atomm && node scripts/checksum-atomm.mjs",
+    "test:scripts": "node --test scripts/test/*.test.mjs",
+    "data:cache-audit": "node scripts/manage-cache-lifecycle.mjs",
+    "data:benchmark": "node scripts/benchmark-data-layer.mjs",
+    "package:atomm-listing": "node scripts/package-atomm-listing.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -30,6 +34,7 @@
     "@types/node": "^26.5.1",
     "@vitest/coverage-istanbul": "^4.1.11",
     "@vitest/coverage-v8": "^4.1.11",
+    "aws4fetch": "^1.0.20",
     "eslint": "^10.10.0",
     "eslint-plugin-svelte": "^3.23.0",
     "globals": "^17.12.0",

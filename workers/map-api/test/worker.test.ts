@@ -1,3 +1,4 @@
+import { terrainPng } from "./terrain-fixture";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { env as workerEnv, exports } from "cloudflare:workers";
 import mapWorker, { geocodeLimit, isAllowedOrigin, isGeocoderConfigured, normalizeGeoapify, parseRangeHeader, validTile } from "../src/index";
@@ -157,7 +158,7 @@ describe("geocoder proxy", () => {
   });
 
   it("refreshes expired cached results and limits browser freshness to the remaining age", async () => {
-    const keyHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("cache age regression|5"));
+    const keyHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${configuredEnv.GEOCODER_ORIGIN}|geoapify-v1|cache age regression|5`));
     const key = `geocode/${Array.from(new Uint8Array(keyHash)).map((byte) => byte.toString(16).padStart(2, "0")).join("")}.json`;
     await workerEnv.MAP_CACHE.put(key, "[]");
     const cached = await workerEnv.MAP_CACHE.head(key);
@@ -205,7 +206,7 @@ describe("terrain proxy", () => {
   });
 
   it("fetches, labels, and stores an uncached terrain tile under the dataset-versioned key", async () => {
-    const png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+    const png = terrainPng;
     const upstream = vi.fn(async (_input: RequestInfo | URL) => new Response(png.slice(), {
       headers: { "content-type": "image/png", "x-imagery-sources": "mapzen/test-source" },
     }));
@@ -227,7 +228,7 @@ describe("terrain proxy", () => {
   });
 
   it("serves cached tiles with their stored dataset label without calling upstream", async () => {
-    const bytes = new Uint8Array([1, 2, 3, 4]);
+    const bytes = terrainPng;
     await workerEnv.MAP_CACHE.put(`terrain/${workerEnv.DATASET_VERSION}/terrarium/11/321/703.png`, bytes.slice(), {
       httpMetadata: { contentType: "image/png" },
       customMetadata: { dataset: "mapzen-terrarium+protomaps-legacy", imagerySources: "mapzen/stored-source" },
@@ -368,5 +369,25 @@ describe("lake bathymetry archive", () => {
     await workerEnv.VECTOR_DATA.put("lakes/current.pmtiles", archive.slice());
     const ready = await mapWorker.fetch(new Request("http://example.com/ready", { headers: origin }), configured, context);
     expect(ready.status).toBe(200);
+  });
+});
+
+
+describe.each(["noaa-great-lakes-v1", "usgs-crater-lake-v1", "usgs-lake-tahoe-v1", "usgs-mono-lake-v1", "mn-dnr-lakes-v1", "swissbathy3d-v1", "syke-finland-lakes-v1"])("%s bathymetry archive", (dataset) => {
+  const url = `http://example.com/v1/bathymetry/${dataset}.pmtiles`;
+  const key = `bathymetry/${dataset}.pmtiles`;
+  const origin = { origin: "http://localhost:5273" };
+  it("serves bounded byte ranges with cache validators and handles missing data", async () => {
+    await workerEnv.VECTOR_DATA.delete(key);
+    expect((await exports.default.fetch(url, { headers: origin })).status).toBe(404);
+    await workerEnv.VECTOR_DATA.put(key, new Uint8Array([1, 2, 3, 4]));
+    const response = await exports.default.fetch(url, { headers: { ...origin, range: "bytes=1-2" } });
+    expect(response.status).toBe(206);
+    expect(response.headers.get("content-range")).toBe("bytes 1-2/4");
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array([2, 3]));
+    expect(response.headers.get("etag")).toBeTruthy();
+    expect((await exports.default.fetch(url, { headers: origin })).status).toBe(400);
+    expect((await exports.default.fetch(url, { method: "HEAD", headers: origin })).headers.get("content-length")).toBe("4");
+    await workerEnv.VECTOR_DATA.delete(key);
   });
 });

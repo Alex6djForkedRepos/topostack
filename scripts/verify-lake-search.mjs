@@ -1,0 +1,78 @@
+/** Browser check for the complete surveyed-lake catalog in studio location search. */
+import assert from 'node:assert/strict';
+import { mkdir, readFile } from 'node:fs/promises';
+import { chromium, expect } from '@playwright/test';
+const origin=process.env.LAKE_SEARCH_TEST_URL ?? 'http://localhost:5298';
+if(!['localhost','127.0.0.1','dev-topostack.echofoxtrot.works'].includes(new URL(origin).hostname)) throw new Error('Use a local preview or the development app.');
+const output=process.env.LAKE_SEARCH_TEST_OUTPUT ?? '/tmp/topostack-lake-search';
+await mkdir(output,{recursive:true});
+const directory=JSON.parse(await readFile(new URL('../apps/generator/static/data/lake-depth-directory.json',import.meta.url),'utf8'));
+const browser=await chromium.launch();
+const page=await browser.newPage({viewport:{width:1440,height:1000}});
+page.setDefaultTimeout(30000);
+const errors=[];page.on('pageerror',e=>errors.push(e.message));
+let catalogRequests=0;
+page.on('request',r=>{if(new URL(r.url()).pathname.endsWith('/data/lake-depth-directory.json'))catalogRequests++;});
+const openSearch=async()=>{await page.locator('.location-card').first().click();await expect(page.getByRole('dialog',{name:'Choose anywhere'})).toBeVisible();};
+const readSaved=()=>page.evaluate(()=>new Promise((resolve,reject)=>{
+ const request=indexedDB.open('keyval-store');request.onerror=()=>reject(request.error);
+ request.onsuccess=()=>{const db=request.result;const tx=db.transaction('keyval');const get=tx.objectStore('keyval').get('topostack:project:v1');get.onsuccess=()=>resolve(get.result);tx.oncomplete=()=>db.close();};
+}));
+try{
+ await page.route('**/v1/geocode?**',route=>route.fulfill({status:503,body:'Unavailable'}));
+ await page.goto(`${origin}/studio`,{waitUntil:'domcontentloaded'});
+ await expect(page.locator('.location-card').first()).toBeVisible();
+ assert.equal(catalogRequests,0,'Catalog must remain out of studio startup');
+ await openSearch();
+ await expect(page.locator('.lake-search-summary')).toContainText(directory.lakes.length.toLocaleString('en-US'));
+ await expect(page.locator('[data-lake-id]')).toHaveCount(10);
+ const first=await page.locator('[data-lake-id]').first().getAttribute('data-lake-id');
+ await page.getByRole('button',{name:'Next lakes',exact:true}).click();
+ await expect(page.getByRole('navigation',{name:'Surveyed lake pages'})).toContainText('Page 2 of');
+ assert.notEqual(await page.locator('[data-lake-id]').first().getAttribute('data-lake-id'),first);
+ const search=page.getByRole('textbox',{name:'Search places'});
+ for(const source of directory.sources){
+  const lake=directory.lakes.find(l=>l.sourceId===source.id);assert(lake);
+  await search.fill(`${lake.name} ${lake.surveyId}`);
+  await expect(page.locator(`[data-lake-id="${lake.id}"]`)).toBeVisible();
+ }
+ await expect(page.getByText('Other place search is unavailable.',{exact:false})).toBeVisible();
+ await search.fill('tinnsja');
+ await expect(page.locator('[data-lake-id] strong')).toContainText(['Tinnsjå']);
+ await search.fill('Switzerland');
+ await expect(page.locator('.lake-search-summary')).toContainText('22 lakes and basins');
+ await page.getByRole('button',{name:'Next lakes',exact:true}).click();
+ await page.getByRole('button',{name:'Next lakes',exact:true}).click();
+ await expect(page.locator('[data-lake-id]')).toHaveCount(2);
+ await expect(page.getByRole('button',{name:'Next lakes',exact:true})).toBeDisabled();
+ await search.fill('Kawagama');
+ await expect(page.locator('[data-lake-id]')).toHaveCount(1);
+ await page.screenshot({path:`${output}/desktop.png`,fullPage:true});
+ await page.setViewportSize({width:390,height:844});
+ await expect(page.locator('[data-lake-id]')).toBeVisible();
+ assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'No mobile overflow');
+ await page.screenshot({path:`${output}/mobile.png`,fullPage:true});
+ const selected=directory.lakes.find(l=>l.name==='Kawagama Lake');assert(selected);
+ await page.locator(`[data-lake-id="${selected.id}"]`).click();
+ await expect(page.getByRole('dialog',{name:'Choose anywhere'})).not.toBeVisible();
+ await expect.poll(async()=>(await readSaved())?.location.label).toBe(selected.name);
+ const saved=await readSaved();assert(saved.showWaterDepth&&saved.outputMode==='stack');
+ assert(saved.location.bounds.west<selected.bounds[0]&&saved.location.bounds.east>selected.bounds[2]);
+ assert(saved.location.bounds.south<=selected.bounds[1]&&saved.location.bounds.north>=selected.bounds[3]);
+ await page.reload();await expect(page.locator('.location-card').first()).toContainText(selected.name);
+ await page.setViewportSize({width:1440,height:1000});
+ await page.route('**/data/lake-depth-directory.json',route=>route.abort());
+ await page.unroute('**/v1/geocode?**');
+ await page.route('**/v1/geocode?**',route=>route.fulfill({json:[{place_id:'town',display_name:'Example Town, Colorado',lat:39,lon:-105,type:'city'}]}));
+ await openSearch();await expect(page.getByRole('alert')).toContainText('surveyed lake list could not load');
+ await search.fill('Example Town');await expect(page.getByRole('button',{name:'Example Town Colorado'})).toBeVisible();
+ await page.unroute('**/data/lake-depth-directory.json');
+ await page.getByRole('button',{name:'Retry lake search'}).click();
+ await search.fill('Kawagama');await expect(page.locator('[data-lake-id]')).toHaveCount(1);
+ await search.fill('Example Town');await page.getByRole('button',{name:'Example Town Colorado'}).click();
+ await expect.poll(async()=>(await readSaved())?.location.label).toBe('Example Town, Colorado');
+ assert.equal((await readSaved()).location.bounds,undefined,'Ordinary places clear old lake bounds');
+ assert.deepEqual(errors,[]);
+ console.log(`Passed: ${directory.lakes.length} catalog records; all ${directory.sources.length} sources searchable; pagination, accents, selection bounds, persistence, independent provider failures, retry, and mobile layout.`);
+}catch(error){await page.screenshot({path:`${output}/failure.png`,fullPage:true}).catch(()=>{});throw error;}
+finally{await browser.close();}

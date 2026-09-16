@@ -1,0 +1,167 @@
+[
+  {
+    "name": "Kauniinjärvi",
+    "sourceLakeId": "01.076.1.012",
+    "dataset": "syke-finland-lakes-v1",
+    "bounds": {
+      "west": 30.802114855325826,
+      "south": 62.58430601681027,
+      "east": 30.8421632901718,
+      "north": 62.60664076398488
+    }
+  },
+  {
+    "name": "Kaustajärvi",
+    "sourceLakeId": "01.091.1.003",
+    "dataset": "syke-finland-lakes-v1",
+    "bounds": {
+      "west": 30.73785636128315,
+      "south": 62.2328821994041,
+      "east": 30.781161395646937,
+      "north": 62.25476647809178
+    }
+  },
+  {
+    "name": "Hyypii",
+    "sourceLakeId": "02.022.1.007",
+    "dataset": "syke-finland-lakes-v1",
+    "bounds": {
+      "west": 30.178564790230077,
+      "south": 62.0591117888206,
+      "east": 30.225637361572208,
+      "north": 62.078978458743435
+    }
+  },
+  {
+    "name": "Songavatnet",
+    "sourceLakeId": "10",
+    "dataset": "nve-norway-lakes-v1",
+    "bounds": {
+      "west": 7.430245414505147,
+      "south": 59.81138627654206,
+      "east": 7.589164210288192,
+      "north": 59.93137282298133
+    }
+  },
+  {
+    "name": "Heimre Bessevatn",
+    "sourceLakeId": "102",
+    "dataset": "nve-norway-lakes-v1",
+    "bounds": {
+      "west": 7.8619924294544825,
+      "south": 59.48961439965797,
+      "east": 7.88037734035396,
+      "north": 59.507707347721485
+    }
+  },
+  {
+    "name": "Tinnsjå",
+    "sourceLakeId": "2",
+    "dataset": "nve-norway-lakes-v1",
+    "bounds": {
+      "west": 8.741567504628442,
+      "south": 59.67880243624897,
+      "east": 9.0557577321421,
+      "north": 60.00271510442786
+    }
+  },
+  {
+    "name": "Alan Henry Reservoir",
+    "sourceLakeId": "twdb-alan-henry-2017",
+    "dataset": "twdb-texas-reservoirs-v1",
+    "bounds": {
+      "west": -101.18347273948493,
+      "south": 33.00492576160036,
+      "east": -101.02757256003534,
+      "north": 33.06495507923358
+    }
+  },
+  {
+    "name": "Lake Austin",
+    "sourceLakeId": "twdb-austin-2009",
+    "dataset": "twdb-texas-reservoirs-v1",
+    "bounds": {
+      "west": -97.93605277138103,
+      "south": 30.29385195930308,
+      "east": -97.76920307359129,
+      "north": 30.393198196508138
+    }
+  },
+  {
+    "name": "Lady Bird Lake",
+    "sourceLakeId": "twdb-lady-bird-2008",
+    "dataset": "twdb-texas-reservoirs-v1",
+    "bounds": {
+      "west": -97.78881904294977,
+      "south": 30.243458872299524,
+      "east": -97.71293499970494,
+      "north": 30.294068928380863
+    }
+  },
+  {
+    "name": "Lake Estes",
+    "sourceLakeId": "usbr-estes-2001",
+    "dataset": "usbr-reservoirs-v1",
+    "bounds": {
+      "west": -105.50936452116274,
+      "south": 40.37355231576277,
+      "east": -105.48753513912085,
+      "north": 40.37869121300371
+    }
+  },
+  {
+    "name": "Flatiron Reservoir",
+    "sourceLakeId": "usbr-flatiron-2012",
+    "dataset": "usbr-reservoirs-v1",
+    "bounds": {
+      "west": -105.23611373243877,
+      "south": 40.36478120738574,
+      "east": -105.22807266156362,
+      "north": 40.37398661637919
+    }
+  },
+  {
+    "name": "Pinewood Reservoir",
+    "sourceLakeId": "usbr-pinewood-2012",
+    "dataset": "usbr-reservoirs-v1",
+    "bounds": {
+      "west": -105.2918609184917,
+      "south": 40.357053696382636,
+      "east": -105.27850562539055,
+      "north": 40.36816773624398
+    }
+  },
+  {
+    "name": "Lake Simcoe",
+    "sourceLakeId": "17-6327-49193",
+    "dataset": "ontario-lakes-v1",
+    "bounds": {
+      "west": -79.70823516975737,
+      "south": 44.17362768123502,
+      "east": -79.14153214020686,
+      "north": 44.61552354236327
+    }
+  },
+  {
+    "name": "Kawagama Lake",
+    "sourceLakeId": "17-6767-50182",
+    "dataset": "ontario-lakes-v1",
+    "bounds": {
+      "west": -78.83487496342909,
+      "south": 45.23671702855732,
+      "east": -78.64668099638739,
+      "north": 45.33613744117709
+    }
+  },
+  {
+    "name": "Ragged Lake",
+    "sourceLakeId": "17-2874-52170",
+    "dataset": "ontario-lakes-v1",
+    "bounds": {
+      "west": -83.8336786369734,
+      "south": 47.06854992824201,
+      "east": -83.784075155079,
+      "north": 47.07971884502497
+    }
+  }
+]

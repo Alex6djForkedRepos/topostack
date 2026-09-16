@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { deflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { decodeTerrainPng } from "./terrain-png";
@@ -69,6 +70,12 @@ describe("numeric Terrarium PNG decoding", () => {
 
   it.each([{ width: 512 }, { filter: 5 }, { rgba: true, alpha: 0 }, { rgba: true, alpha: 128 }, { transparency: true }, { noData: true }, { extraBytes: 5 }])("rejects unsupported or missing data: %j", (options) => {
     expect(() => decodeTerrainPng(terrainPng(options))).toThrow(/elevation PNG/);
+  });
+
+  it("preserves transparent bathymetry as missing without weakening terrain validation", () => {
+    const bytes = terrainPng({ rgba: true, alpha: 0 });
+    expect(() => decodeTerrainPng(bytes)).toThrow();
+    expect(decodeTerrainPng(bytes, true).every(Number.isNaN)).toBe(true);
   });
 
   it("rejects damaged and truncated PNGs", () => {

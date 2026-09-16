@@ -120,7 +120,7 @@ describe("TopoStack geometry", () => {
     expect(foregroundCross).toHaveLength(2);
     expect(foregroundCross.every((marking) => marking.points.length === 5)).toBe(true);
     const svg = engravingToSvg(result, project);
-    expect(svg).toMatch(/id="map-marker-[^"]+"[^>]+fill="#111827"/);
+    expect(svg).toMatch(/id="map-marker-[^"]+"[^>]+fill="#2366FF"/);
     expect(svg).toMatch(/id="map-marker-[^"]+-halo-[^"]+"[^>]+fill="#ffffff"[^>]+data-knockout="true"/);
     expect(() => validateProject({ ...DEFAULT_PROJECT, markers: [{ ...markers[0]!, lat: 90 }] })).toThrow(/marker latitude/i);
     expect(() => validateProject({ ...DEFAULT_PROJECT, markers: [{ ...markers[0]!, symbol: "flag" as never }] })).toThrow(/marker symbol/i);
@@ -1229,6 +1229,31 @@ describe("TopoStack geometry", () => {
       const withLake: SourceBundleV1 = { ...scaled, waterAreas: [lakeArea({ maxDepthM: 9000, meanDepthM: 3000 })] };
       const result = generateGeometry(project, withLake);
       expect(result.warnings.some((warning) => warning.code === "WATER_DEPTH_CLAMPED")).toBe(true);
+    });
+
+    it("fits a deep lake into the same stack, preserves source depth, and exports its applied scale", async () => {
+      const base: ProjectConfigV1 = { ...DEFAULT_PROJECT, showWater: false, optimizeMaterialUse: false };
+      const [project, scaled] = scaledForLayers(base, flatLake(base), 4);
+      const withLake: SourceBundleV1 = { ...scaled, sourceKind: "real", vectorStatus: "available", lakeDataStatus: "available", waterAreas: [lakeArea({ maxDepthM: 9000, meanDepthM: 3000 })] };
+      const clipped = generateGeometry(project, withLake);
+      expect(clipped.warnings.find((warning) => warning.code === "WATER_DEPTH_CLAMPED")?.action).toBe("fit-lake-depth");
+      const fitting = { ...project, fitLakeDepth: true };
+      const result = generateGeometry(fitting, withLake);
+      expect(result.layers.length).toBe(clipped.layers.length);
+      expect(result.warnings.some((warning) => warning.code === "WATER_DEPTH_CLAMPED")).toBe(false);
+      expect(result.layers.map((layer) => layer.polygons)).not.toEqual(clipped.layers.map((layer) => layer.polygons));
+      expect(result.waterSurfaces[0]?.surfaceElevationM).toBe(clipped.waterSurfaces[0]?.surfaceElevationM);
+      expect(result.waterSurfaces[0]?.maxDepthM).toBe(9000);
+      expect(result.waterSurfaces[0]?.depthFitScale).toBeGreaterThan(0);
+      expect(result.waterSurfaces[0]?.depthFitScale).toBeLessThan(1);
+      const fabrication = buildFabricationPackage(result, fitting);
+      const manifest = JSON.parse(await fabrication.files.find((file) => file.filename.endsWith("project.json"))!.blob.text());
+      expect(manifest.project.fitLakeDepth).toBe(true);
+      expect(manifest.result.lakeDepths[0].appliedDepthExaggeration).toBe(result.waterSurfaces[0]?.appliedDepthExaggeration);
+      expect(await fabrication.files.find((file) => file.filename === "README.txt")!.blob.text()).toContain("% of requested depth");
+      const restored = generateGeometry({ ...fitting, fitLakeDepth: false }, withLake);
+      expect(restored.layers).toEqual(clipped.layers);
+      expect(generateGeometry({ ...fitting, showWaterDepth: false }, withLake).waterSurfaces).toEqual([]);
     });
 
     it("scales modeled and surveyed water alike, and 1x changes nothing", () => {
