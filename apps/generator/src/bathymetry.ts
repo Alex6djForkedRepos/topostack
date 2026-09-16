@@ -17,9 +17,9 @@ export const NOAA_ATTRIBUTION = {
 const names = new Set(catalog.lakes.flatMap((lake) => lake.names.map((name) => name.toLowerCase())));
 const lakeIds = new Set(catalog.lakes.flatMap((lake) => lake.hylakIds));
 export function hasNoaaCoverage(area: WaterAreaV1): boolean {
-  return area.kind === "lake" && (area.hylakId === undefined
+  return area.kind === "lake" && (area.outlineSource === "osm" || (area.hylakId === undefined
     ? names.has(area.name?.trim().toLowerCase() ?? "")
-    : lakeIds.has(area.hylakId));
+    : lakeIds.has(area.hylakId)));
 }
 const worldX = (lon: number, z: number) => (lon + 180) / 360 * 256 * 2 ** z;
 const worldY = (lat: number, z: number) => (1 - Math.asinh(Math.tan(lat * Math.PI / 180)) / Math.PI) / 2 * 256 * 2 ** z;
@@ -183,8 +183,10 @@ export async function loadLakeBathymetry(apiBase: string, bounds: GeoBounds, gri
 /** Replace previous survey provenance on retries so failed loads cannot retain stale claims. */
 export function applySurveyProvenance(source: SourceBundleV1, result: SurveyResult): SourceBundleV1 {
   const ids = new Set(registry.sources.map((item) => item.id));
-  const names = new Set(registry.sources.map((item) => item.name));
+  const names = new Set(registry.sources.flatMap((item) => [item.name, `${item.name} — water outlines`]));
+  const outlineSources = new Set(result.areas.map((area) => area.outlineSourceId));
+  const outlineAttribution = registry.sources.filter((item) => outlineSources.has(item.id)).map((item) => ({ name: `${item.name} — water outlines`, url: item.url, license: item.license }));
   return { ...source, bathymetryStatus: result.status,
     datasetVersion: [...source.datasetVersion.split("+").filter((id) => !ids.has(id)), ...result.datasetVersions].join("+"),
-    attribution: [...source.attribution.filter((item) => !names.has(item.name)), ...result.attribution] };
+    attribution: [...source.attribution.filter((item) => !names.has(item.name)), ...outlineAttribution, ...result.attribution] };
 }

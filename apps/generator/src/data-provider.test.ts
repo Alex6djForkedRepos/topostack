@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_PROJECT, type MarkingFeature } from "@topostack/core";
-import { boundsForProject, classifyTransportation, cleanBoundaryMarkings, cleanWaterwayMarkings, clipVectorTileLine, combineWaterAreas, dissolveWaterAreas, dissolveWaterPolygons, fittingDataZoom, isStateProvinceBoundary, limitVectorMarkingGroups, loadVectorMarkings, stitchTransportationMarkings, transportationLabel } from "./data-provider";
+import { createSyntheticSource, DEFAULT_PROJECT, type MarkingFeature } from "@topostack/core";
+import { applyLakeShorelines, boundsForProject, classifyTransportation, cleanBoundaryMarkings, cleanWaterwayMarkings, clipVectorTileLine, combineWaterAreas, dissolveWaterAreas, dissolveWaterPolygons, fittingDataZoom, isStateProvinceBoundary, limitVectorMarkingGroups, loadVectorMarkings, stitchTransportationMarkings, transportationLabel } from "./data-provider";
 
 
 describe("vector feature budgets", () => {
@@ -309,5 +309,22 @@ describe("vector marking zoom", () => {
     const colorado = { west: -109.06, east: -102.04, south: 36.99, north: 41.01 };
     expect(fittingDataZoom(colorado, 11)).toBeLessThan(11);
     expect(fittingDataZoom(boundsForProject(DEFAULT_PROJECT), 11)).toBe(11);
+  });
+});
+
+
+describe("canonical lake shorelines", () => {
+  const polygon = { outer: [{ x: -10, y: -10 }, { x: 10, y: -10 }, { x: 10, y: 10 }, { x: -10, y: 10 }, { x: -10, y: -10 }], holes: [] };
+  it("keeps inland shorelines when engraving a selection that also includes the ocean", () => {
+    const source = { ...createSyntheticSource(DEFAULT_PROJECT), waterAreas: [{ id: "ocean", kind: "ocean" as const, polygon }], inlandWaterAreas: [polygon] };
+    const result = applyLakeShorelines(source, { ...DEFAULT_PROJECT, outputMode: "engraving", showWater: true });
+    expect(result.waterPatternAreas).toHaveLength(2);
+    expect(result.markings.filter((m) => m.id.startsWith("water-area-"))).toHaveLength(2);
+  });
+  it("shows a provider shore even without a modeled or surveyed floor", () => {
+    const source = { ...createSyntheticSource(DEFAULT_PROJECT), waterAreas: [{ id: "survey", kind: "lake" as const, polygon }], markings: [] };
+    const result = applyLakeShorelines(source, { ...DEFAULT_PROJECT, showWater: true });
+    expect(result.markings[0]?.points).toEqual(polygon.outer);
+    expect(result.waterPatternAreas).toEqual([polygon]);
   });
 });

@@ -125,7 +125,7 @@ while (true) {
   const hylakId = Number(properties.Hylak_id);
   const maxDepthM = depths.get(hylakId);
   const areaKm2 = Number(properties.Lake_area);
-  if (!Number.isFinite(hylakId) || !maxDepthM || !(areaKm2 >= MIN_LAKE_AREA_KM2)) { skipped += 1; continue; }
+  if (!Number.isFinite(hylakId) || !(areaKm2 >= MIN_LAKE_AREA_KM2)) { skipped += 1; continue; }
 
   const geometry = feature.geometry;
   const polygons = geometry?.type === "MultiPolygon" ? geometry.coordinates : geometry?.type === "Polygon" ? [geometry.coordinates] : [];
@@ -156,7 +156,6 @@ while (true) {
   }
   if (!widest) { skipped += 1; continue; }
   const lmaxM = maximumInscribedRadiusM(toLocalMeters(widest, originLat, originLon));
-  if (!(lmaxM > 0)) { skipped += 1; continue; }
 
   const meanDepthM = Number(properties.Depth_avg);
   const elevationM = Number(properties.Elevation);
@@ -166,8 +165,8 @@ while (true) {
     geometry,
     properties: {
       hylak_id: hylakId,
-      dmax_m: Number(maxDepthM.toFixed(1)),
-      lmax_m: Number(lmaxM.toFixed(1)),
+      ...(maxDepthM ? { dmax_m: Number(maxDepthM.toFixed(1)) } : {}),
+      ...(lmaxM > 0 ? { lmax_m: Number(lmaxM.toFixed(1)) } : {}),
       area_km2: Number(areaKm2.toFixed(4)),
       ...(Number.isFinite(meanDepthM) && meanDepthM > 0 ? { davg_m: Number(meanDepthM.toFixed(2)) } : {}),
       ...(Number.isFinite(elevationM) ? { elev_m: Math.round(elevationM) } : {}),

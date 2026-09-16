@@ -1,3 +1,5 @@
+import { base } from "$app/paths";
+import { loadProviderOutlines, resolveLakeOutlines } from "./lake-outlines";
 import { mapTiles } from "./tile-requests";
 import { fitCutBounds } from "./selection-bounds";
 import { createFeatureBudget, yieldForCancellation } from "./feature-budget";
@@ -635,6 +637,18 @@ export async function loadVectorMarkings(bounds: GeoBounds, requestedZoom: numbe
  * handed a false shoreline running straight down the margin.
  */
 export async function loadLakeAreas(bounds: GeoBounds, requestedZoom: number, config: ProjectConfigV1, signal?: AbortSignal): Promise<WaterAreaV1[]> {
+  const results = await Promise.allSettled([
+    loadProviderOutlines(base, bounds, config, signal),
+    loadHydroLakeAreas(bounds, requestedZoom, config, signal),
+  ]);
+  signal?.throwIfAborted();
+  if (results.every((result) => result.status === "rejected")) throw new Error("Lake outlines could not be loaded.");
+  const areas = resolveLakeOutlines(results[0].status === "fulfilled" ? results[0].value : [], results[1].status === "fulfilled" ? results[1].value : [], []);
+  if (!areas.length && results.some((result) => result.status === "rejected")) throw new Error("Lake outline coverage could not be checked.");
+  return areas;
+}
+
+async function loadHydroLakeAreas(bounds: GeoBounds, requestedZoom: number, config: ProjectConfigV1, signal?: AbortSignal): Promise<WaterAreaV1[]> {
   signal?.throwIfAborted();
   const lakeArchive = createArchive(`${apiBase}/v1/lakes.pmtiles`, signal);
   const header = await lakeArchive.getHeader();
@@ -759,6 +773,19 @@ export function combineWaterAreas(lakes: WaterAreaV1[], ocean: Polygon2D[], mini
   return [...trimmed, ...lakes];
 }
 
+/** Keep visible shorelines aligned with the polygons used for lake depths. */
+export function applyLakeShorelines(source: SourceBundleV1, config: ProjectConfigV1): SourceBundleV1 {
+  if (!source.waterAreas?.length) return source;
+  const lakes = resolveLakeOutlines([], source.waterAreas.filter((area) => area.kind === "lake"), source.inlandWaterAreas ?? []);
+  const polygons = [...source.waterAreas.filter((area) => area.kind === "ocean").map((area) => area.polygon), ...lakes.map((area) => area.polygon)];
+  const limited = limitVectorMarkingGroups([
+    source.markings.filter((marking) => !marking.id.startsWith("water-area-")),
+    config.showWater ? shorelineMarkings(polygons) : [],
+  ]);
+  return { ...source, markings: limited.markings, waterPatternAreas: polygons,
+    vectorStatus: limited.truncated && source.vectorStatus === "available" ? "partial" : source.vectorStatus };
+}
+
 export async function loadTerrain(config: ProjectConfigV1, signal?: AbortSignal): Promise<{ source: SourceBundleV1; fallback: boolean }> {
   const bounds = boundsForProject(config);
   // Compiled only into the Playwright build (vite build --mode e2e) so browser
@@ -794,7 +821,7 @@ export async function loadTerrain(config: ProjectConfigV1, signal?: AbortSignal)
             return { markings: [], inland: [], ocean: [], truncated: false, status: "unavailable" as const };
           })
         : Promise.resolve({ markings: [], inland: [], ocean: [], truncated: false, status: "not-requested" as const }),
-      usesWaterDepth
+      (usesWaterDepth || config.showWater)
         ? loadLakeAreas(bounds, zoom, config, signal)
           .then((areas) => ({ areas, status: "available" as const }))
           .catch((error) => {
@@ -803,9 +830,12 @@ export async function loadTerrain(config: ProjectConfigV1, signal?: AbortSignal)
           })
         : Promise.resolve({ areas: [] as WaterAreaV1[], status: "not-requested" as const }),
     ]);
-    const bathymetry = await loadSurveyedLakeDepths(bounds, elevation, zoom, lakes.areas, signal, config);
+    const areas = resolveLakeOutlines([], lakes.areas, usesWaterDepth || config.showWater ? vector.inland : []);
+    const bathymetry = usesWaterDepth
+      ? await loadSurveyedLakeDepths(bounds, elevation, zoom, areas, signal, config)
+      : { areas, status: "not-covered" as const, datasetVersions: [], attribution: [] };
     const waterAreas = combineWaterAreas(bathymetry.areas, vector.ocean, config.minimumFeatureMm);
-    return { fallback: false, source: applySurveyProvenance({ schemaVersion: 1, elevation, elevationRepairCount, markings: vector.markings, waterAreas, waterPatternAreas: [...vector.ocean, ...vector.inland], vectorStatus: vector.status, lakeDataStatus: lakes.status, datasetVersion, sourceKind: "real", bounds, imagerySources, resolutionM: groundWidthM(bounds) / elevation.width, attribution: MAP_DATA_ATTRIBUTION }, bathymetry) };
+    return { fallback: false, source: applyLakeShorelines(applySurveyProvenance({ schemaVersion: 1, elevation, elevationRepairCount, markings: vector.markings, waterAreas, waterPatternAreas: [...vector.ocean, ...vector.inland], inlandWaterAreas: vector.inland, vectorStatus: vector.status, lakeDataStatus: bathymetry.areas.length ? "available" : lakes.status, datasetVersion, sourceKind: "real", bounds, imagerySources, resolutionM: groundWidthM(bounds) / elevation.width, attribution: MAP_DATA_ATTRIBUTION }, bathymetry), config) };
   } catch (error) {
     if (userSignal?.aborted) throw error;
     const source = createSyntheticSource({ ...config, location: { ...config.location, bounds } });

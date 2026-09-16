@@ -1,12 +1,13 @@
 <script lang="ts">
   import { onMount, untrack, setContext } from "svelte";
+  import { resolveLakeOutlines } from "../lake-outlines";
   import { base } from "$app/paths";
   import { House } from "@lucide/svelte";
   import { Box, ChevronDown, Circle, Compass, Download, Grid3X3, Layers3, Map as MapIcon, MapPin, Minus, Mountain, PenTool, Plus, Route, Search, Sparkles, Square, Trash2, Undo2, Redo2, Upload, Waves, X } from "@lucide/svelte";
   import { AppShell, Brand, Button, ContextBar, Field, IconButton, Input, Section, Sidebar, ThemeToggle, Topbar, Workspace } from "@loidolt/theme-svelte";
   import { applySurveyProvenance } from "../bathymetry";
   import { sourceRequirements, buildProjectPackage, createSyntheticSource, DEFAULT_PROJECT, displayElevation, displayLength, elevationUnit, generateGeometry, labelPathData, lengthUnit, markerSymbolPaths, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, MAX_WATER_DEPTH_EXAGGERATION, millimetersFromDisplay, MIN_VERTICAL_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, northArrowMarkings, planTerrainStack, validateProject, type CustomLineFeatureV1, type CustomLineKind, type GeoBounds, type GeoPoint, type GeometryIRV1, type LineStyleV1, type MapMarkerV1, type MarkerSymbol, type NorthArrowAnchor, type NorthArrowStyle, type OperationPath, type Point2D, type ProjectConfigV1, type RoadCap, type RoadStyle, type SourceBundleV1, type TextFont, type TrailPattern, type WaterFillPattern } from "@topostack/core";
-  import { boundsForProject, combineWaterAreas, loadLakeAreas, loadSurveyedLakeDepths, loadTerrain, loadVectorMarkings, type PlaceResult } from "../data-provider";
+  import { applyLakeShorelines, boundsForProject, combineWaterAreas, loadLakeAreas, loadSurveyedLakeDepths, loadTerrain, loadVectorMarkings, type PlaceResult } from "../data-provider";
   import { theme } from "../lib/theme";
   import { trackUsage } from "../lib/usage";
   import { MAP_DATA_ATTRIBUTION } from "../map-attribution";
@@ -640,6 +641,7 @@
       ...source,
       markings: source.markings.map((marking) => ({ ...marking, points: scalePoints(marking.points) })),
       ...(source.waterAreas ? { waterAreas: source.waterAreas.map((area) => ({ ...area, polygon: { outer: scalePoints(area.polygon.outer), holes: area.polygon.holes.map(scalePoints) } })) } : {}),
+      ...(source.inlandWaterAreas ? { inlandWaterAreas: source.inlandWaterAreas.map((polygon) => ({ outer: scalePoints(polygon.outer), holes: polygon.holes.map(scalePoints) })) } : {}),
       ...(source.waterPatternAreas ? { waterPatternAreas: source.waterPatternAreas.map((polygon) => ({ outer: scalePoints(polygon.outer), holes: polygon.holes.map(scalePoints) })) } : {}),
     };
   }
@@ -661,6 +663,7 @@
     const { lakes: usesWaterDepth } = sourceRequirements(config);
     const needsVectors = sourceRequirements(config).vectors;
     let next = source;
+    let inland = source.inlandWaterAreas ?? [];
     let ocean = (source.waterAreas ?? []).filter((area) => area.kind === "ocean").map((area) => area.polygon);
     let lakes = (source.waterAreas ?? []).filter((area) => area.kind === "lake");
 
@@ -668,25 +671,29 @@
       try {
         const vector = await loadVectorMarkings(source.bounds, config.location.zoom, config, signal);
         ocean = vector.ocean;
+        inland = vector.inland;
         next = {
           ...next,
           markings: vector.markings,
           waterPatternAreas: [...vector.ocean, ...vector.inland],
+          inlandWaterAreas: vector.inland,
           vectorStatus: vector.truncated ? "partial" : "available",
         };
       } catch (error) {
         if (signal.aborted) throw error;
         ocean = [];
+        inland = [];
         next = {
           ...next,
           markings: next.markings.filter((marking) => marking.kind !== "road" && marking.kind !== "trail" && marking.kind !== "water" && marking.kind !== "boundary"),
           waterPatternAreas: [],
+          inlandWaterAreas: [],
           vectorStatus: "unavailable",
         };
       }
     }
 
-    if (usesWaterDepth && source.lakeDataStatus !== "available") {
+    if ((usesWaterDepth || config.showWater) && source.lakeDataStatus !== "available") {
       try {
         lakes = await loadLakeAreas(source.bounds, config.location.zoom, config, signal);
         next = { ...next, lakeDataStatus: "available", bathymetryStatus: undefined };
@@ -697,12 +704,21 @@
       }
     }
 
-    if (usesWaterDepth && next.lakeDataStatus === "available" && (next.bathymetryStatus === undefined || next.bathymetryStatus === "unavailable" || next.bathymetryStatus === "partial")) {
+    if (usesWaterDepth || config.showWater) {
+      const resolved = resolveLakeOutlines([], lakes.filter((lake) => lake.outlineSource !== "osm"), inland);
+      if (resolved.length !== lakes.length || resolved.some((area) => !lakes.some((lake) => lake.id === area.id))) next = { ...next, bathymetryStatus: undefined };
+      if (resolved.length && next.lakeDataStatus !== "available") next = { ...next, lakeDataStatus: "available" };
+      lakes = resolved.map((area) => ({ ...area, bathymetry: lakes.find((lake) => lake.id === area.id)?.bathymetry }));
+    }
+
+    if (usesWaterDepth && (next.bathymetryStatus === undefined || next.bathymetryStatus === "unavailable" || next.bathymetryStatus === "partial")) {
       const bathymetry = await loadSurveyedLakeDepths(source.bounds, source.elevation, config.location.zoom, lakes, signal, config);
       lakes = bathymetry.areas;
       next = applySurveyProvenance(next, bathymetry);
+    } else if (!usesWaterDepth) {
+      next = applySurveyProvenance(next, { areas: lakes, status: "not-covered", datasetVersions: [], attribution: [] });
     }
-    return { ...next, waterAreas: combineWaterAreas(lakes, ocean, config.minimumFeatureMm) };
+    return applyLakeShorelines({ ...next, waterAreas: combineWaterAreas(lakes, ocean, config.minimumFeatureMm) }, config);
   }
 
   async function updateMapDetails(patch: Partial<ProjectConfigV1>): Promise<void> {

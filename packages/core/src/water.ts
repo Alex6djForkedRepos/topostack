@@ -330,6 +330,10 @@ export function carveWaterDepth(
       }
     }
 
+    // A fallback shoreline is not evidence that DEM relief is a surveyed bed.
+    // Keep unknown-depth lakes as outlines unless actual depths are available.
+    if (area.outlineSource && !area.maxDepthM) continue;
+
     // The DEM already knows this basin, so its shape is left alone - but its
     // depth is still scaled, so surveyed and modeled water answer to the same
     // control. At 1x nothing is written and the survey passes through exactly.

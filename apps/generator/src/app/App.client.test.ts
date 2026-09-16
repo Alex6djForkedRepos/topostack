@@ -854,7 +854,7 @@ describe("TopoStack Svelte shell", () => {
     await vi.waitFor(() => expect(target.querySelector<HTMLButtonElement>('button[role="radio"][aria-label="Layered relief"]')!.getAttribute("aria-checked")).toBe("true"));
   });
 
-  it.each([false, true])("loads NOAA on enabling depth and handles unavailable=%s", async (unavailable) => {
+  it.each([[false, false], [true, false], [false, true]])("loads NOAA on enabling depth (unavailable=%s, OSM fallback=%s)", async (unavailable, osmFallback) => {
     noaaArchive.getHeader.mockResolvedValue({ tileType: 2, minZoom: 0, maxZoom: 11 });
     noaaArchive.getMetadata.mockResolvedValue({ topostack_dataset: "noaa-great-lakes-v1", topostack_encoding: "depth-terrarium-v1" });
     const png = readFileSync("src/fixtures/noaa-erie-z11.png");
@@ -865,10 +865,11 @@ describe("TopoStack Svelte shell", () => {
       elevation: { width: 16, height: 16, values: new Float32Array(256).fill(180), min: 180, max: 180 },
       sourceKind: "real" as const, vectorStatus: "available" as const, lakeDataStatus: "not-requested" as const, waterAreas: [],
     };
-    loadTerrainMock.mockResolvedValue({ source, fallback: false });
-    loadLakeAreasMock.mockResolvedValue([{
-      id: "erie", hylakId: 9, kind: "lake", name: "Erie", maxDepthM: 64, lmaxM: 10000,
-      polygon: { outer: [{ x: -80, y: -60 }, { x: 80, y: -60 }, { x: 80, y: 60 }, { x: -80, y: 60 }, { x: -80, y: -60 }], holes: [] },
+    const polygon = { outer: [{ x: -80, y: -60 }, { x: 80, y: -60 }, { x: 80, y: 60 }, { x: -80, y: 60 }, { x: -80, y: -60 }], holes: [] };
+    loadTerrainMock.mockResolvedValue({ source: { ...source, inlandWaterAreas: osmFallback ? [polygon] : [] }, fallback: false });
+    if (osmFallback) loadLakeAreasMock.mockRejectedValue(new Error("Lake archive offline"));
+    else loadLakeAreasMock.mockResolvedValue([{
+      id: "erie", hylakId: 9, kind: "lake", name: "Erie", maxDepthM: 64, lmaxM: 10000, polygon,
     }]);
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
