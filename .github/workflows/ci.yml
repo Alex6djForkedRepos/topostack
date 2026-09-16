@@ -36,7 +36,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --no-audit --no-fund
 
       - name: Check release version consistency
         run: npm run version:check
@@ -79,7 +79,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --no-audit --no-fund
 
       - name: Build
         run: npm run build
@@ -105,12 +105,16 @@ jobs:
         env:
           VITE_SITE_ENV: development
 
-  browser-e2e:
-    name: Browser E2E
+  browser-tests:
+    name: Browser E2E (${{ matrix.browser }})
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
-      group: browser-${{ github.workflow }}-${{ github.ref }}
+      group: browser-${{ matrix.browser }}-${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true
     env:
       VITE_MAP_API_URL: https://ci.invalid
@@ -125,22 +129,35 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --no-audit --no-fund
 
       - name: Install browsers
-        run: npx playwright install --with-deps chromium firefox webkit
+        run: npx playwright install --with-deps ${{ matrix.browser }}
 
       - name: Test browser generation and export
-        run: xvfb-run --auto-servernum npm run test:e2e
+        run: xvfb-run --auto-servernum npm run test:e2e -- --project=${{ matrix.browser }}
 
       - name: Upload browser diagnostics
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: playwright-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          name: playwright-diagnostics-${{ matrix.browser }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: test-results
           if-no-files-found: ignore
           retention-days: 7
+
+  # Keep the existing required check name while every browser runs independently.
+  browser-e2e:
+    name: Browser E2E
+    needs: browser-tests
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Require every browser to pass
+        env:
+          BROWSER_RESULT: ${{ needs.browser-tests.result }}
+        run: test "$BROWSER_RESULT" = success
 
   deploy-worker:
     name: Deploy Worker
@@ -165,7 +182,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --no-audit --no-fund
 
       - name: Build frontend for same-origin deployment
         run: npm run build -w @topostack/generator
@@ -217,7 +234,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --no-audit --no-fund
 
       - name: Build production Atomm release
         run: npm run release:atomm && npm run package:atomm-listing
