@@ -14,7 +14,7 @@
   <p>Layer count is calculated from the landscape's elevation range, map scale, vertical exaggeration and material thickness. Adjust the exaggeration to change the relief. A thicker sheet generally needs fewer layers for the same model height. Read the resulting count in the studio; it is not a separate layer-count setting.</p>
   <h2>3. Choose the map details</h2>
   <p>Add roads, trails, water, labels, a compass or a scale bar as useful context. Preview the fine details at the size you intend to make. Features that look attractive on screen may be too small for your material or laser.</p>
-  <p>Search the <a href={`${base}/guides/lake-depth-data`}>lake depth directory</a> for lakes with surveyed grids or depth contours. Elsewhere, TopoStack can model depths using lake data and distance from shore. Check the source notes for your chosen area; source credits are included with your export.</p>
+  <p>Search the <a href={`${base}/guides/lake-depth-data`}>lake depth directory</a> for lakes with surveyed grids or depth contours. Elsewhere, TopoStack can model depths using lake data and surrounding shoreline slopes. <a href={`${base}/guides/how-lake-depths-work`}>Learn how lake depths are generated</a>. Check the source notes for your chosen area; source credits are included with your export.</p>
   <h2>4. Generate and inspect</h2>
   <p>Select <strong>Generate terrain</strong>. Inspect the cut layers and the stacked or exploded 3D preview. Resolve export-blocking messages about stale settings or missing data. The preview identifies warnings such as labels that could not fit safely.</p>
   <h2>5. Export and import the artwork</h2>

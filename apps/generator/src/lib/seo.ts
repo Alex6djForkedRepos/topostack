@@ -21,6 +21,11 @@ export const PUBLIC_PAGES: Record<string, { title: string; description: string; 
     description: "Search TopoStack's lake-depth catalog by name, region or source. Find surveyed grids and depth contours, then open a lake in the terrain studio.",
     label: "Lake depth directory",
   },
+  "/guides/how-lake-depths-work": {
+    title: "How Lake Depths Work: Surveys, Predictions and Layers | TopoStack",
+    description: "Learn how TopoStack combines lake surveys, shoreline terrain and depth estimates, handles missing data, and turns lake floors into cut layers.",
+    label: "How lake depths work",
+  },
   "/examples/crater-lake": {
     title: "Crater Lake Topographic Map: A Terrain Project | TopoStack",
     description: "Explore the Crater Lake terrain preview in TopoStack, follow the project setup, and learn how to generate fresh terrain for layered or engraved SVG exports.",

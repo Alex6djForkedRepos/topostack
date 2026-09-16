@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile, readdir } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 import { JSDOM } from "jsdom";
 
 const environment = process.argv[process.argv.indexOf("--environment") + 1];
@@ -7,7 +7,8 @@ assert.ok(["production", "development", "atomm"].includes(environment), "Pass --
 const production = environment === "production";
 const origin = "https://topostack.echofoxtrot.works";
 const dist = new URL("../apps/generator/dist/", import.meta.url);
-const files = (await readdir(dist, { recursive: true })).filter((path) => path.endsWith(".html"));
+const builtPaths = await readdir(dist, { recursive: true });
+const files = builtPaths.filter((path) => path.endsWith(".html"));
 const indexable = [];
 const titles = new Set();
 for (const file of files) {
@@ -15,7 +16,7 @@ for (const file of files) {
   const document = new JSDOM(html).window.document;
   if (file === "about.html") continue; // Static adapter's portable refresh fallback.
   const path = file === "index.html" ? "/" : "/" + file.replace(/\.html$/, "");
-  assert.equal(document.querySelectorAll("title").length, 1, file + ": unique title");
+  assert.equal(document.head.querySelectorAll("title").length, 1, file + ": unique title");
   const robots = document.querySelector('meta[name="robots"]')?.content;
   assert.ok(robots, file + ": robots policy");
   const noindex = !production || ["/studio", "/404"].includes(path);
@@ -38,7 +39,9 @@ for (const file of files) {
     if (href.startsWith("#") || /^(https?:|mailto:)/.test(href)) continue;
     const target = new URL(href, origin + path).pathname;
     const expectedFile = target === "/" ? "index.html" : target.slice(1) + ".html";
-    assert.ok(files.includes(expectedFile), file + ": broken internal link " + href);
+    const assetPath = target.slice(1);
+    const assetExists = builtPaths.includes(assetPath) && (await stat(new URL(assetPath, dist))).isFile();
+    assert.ok(files.includes(expectedFile) || assetExists, file + ": broken internal link " + href);
   }
 }
 const sitemap = new JSDOM(await readFile(new URL("sitemap.xml", dist), "utf8"), { contentType: "application/xml" }).window.document;

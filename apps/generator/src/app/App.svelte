@@ -216,9 +216,13 @@
   const platformExportAvailable = $derived(atommReady && embeddedInPlatform);
   const lakeDepthFittingOn = $derived(project.outputMode === "stack" && project.showWaterDepth && project.fitLakeDepth
     && geometry.waterSurfaces.some((surface) => surface.kind === "lake" && surface.depthFitScale !== undefined && surface.depthFitScale < 1));
+  // Keep the depth provenance notice visible alongside a depth-fitting action,
+  // even when lower-priority messages exceed the preview's two-warning limit.
+  const warningPriority = (warning: GeometryIRV1["warnings"][number]) =>
+    warning.action === "fit-lake-depth" ? 2 : warning.code === "LAKE_DEPTH_PREDICTED" ? 1 : 0;
   const visibleWarnings = $derived(geometry.warnings
     .filter((warning) => !dismissedWarnings.includes(`${warning.code}-${warning.message}`))
-    .sort((a, b) => Number(b.action === "fit-lake-depth") - Number(a.action === "fit-lake-depth"))
+    .sort((a, b) => warningPriority(b) - warningPriority(a))
     .slice(0, 2));
 
   function dismissPreviewWarning(event: MouseEvent, warningKey?: string): void {
@@ -1064,9 +1068,10 @@
                         <Field label={lake.name} class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label={`${lake.name} maximum depth`} value={shownDepth(lake.maxDepthM)} min={1} max={Math.round(displayElevation(12000, project.units))} onValueChange={(depth) => void setLakeDepth(lake.hylakId, depth)} /><em>{shownElevationUnit}</em></span>{/snippet}</Field>
                       {/each}
                     </div>
-                    <small class="depth-note">Modeled from GLOBathy and HydroLAKES, which prefer surveyed depths where they exist.</small>
+                    <small class="depth-note">Estimated from shoreline terrain slopes and GLOBathy/HydroLAKES depths. This is a modeled lake floor.</small>
                   </div>
                 {/if}
+                <small class="depth-note"><a href={`${base}/guides/how-lake-depths-work`} target="_blank" rel="noopener noreferrer">How lake depths work<span class="ldt-visually-hidden"> (opens in a new tab)</span></a></small>
               </div>
               {/if}
             </div>
@@ -1382,7 +1387,7 @@
             {#each visibleWarnings as warning (`${warning.code}-${warning.message}`)}
               <div class="preview-warning">
                 <span class="warning-icon" aria-hidden="true">!</span>
-                <p>{warning.message}{#if warning.action === "fit-lake-depth" && !project.fitLakeDepth} <button type="button" class="warning-action" disabled={previewBusy} onclick={() => void updateFabrication({ fitLakeDepth: true })}>Fit depth</button>{/if}</p>
+                <p>{warning.message}{#if warning.code === "LAKE_DEPTH_PREDICTED"} <a href={`${base}/guides/how-lake-depths-work`} target="_blank" rel="noopener noreferrer">How lake depths work<span class="ldt-visually-hidden"> (opens in a new tab)</span></a>{/if}{#if warning.action === "fit-lake-depth" && !project.fitLakeDepth} <button type="button" class="warning-action" disabled={previewBusy} onclick={() => void updateFabrication({ fitLakeDepth: true })}>Fit depth</button>{/if}</p>
                 <button type="button" class="warning-dismiss" aria-label={`Dismiss warning: ${warning.message}`} title="Dismiss warning" onclick={(event) => dismissPreviewWarning(event, `${warning.code}-${warning.message}`)}><X size={14} aria-hidden="true" /></button>
               </div>
             {/each}

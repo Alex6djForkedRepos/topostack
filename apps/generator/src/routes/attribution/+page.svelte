@@ -83,6 +83,7 @@
     <h2 id="surveys-title">Surveyed lake depth</h2>
     <p>Where coverage is available and water depth is enabled, TopoStack uses published lake-floor grids or interpolates measured depth contours. Survey gaps may use existing terrain or modeled depths. Your depth scale and layer settings can further alter the shape for fabrication.</p>
     <p><a href={`${base}/guides/lake-depth-data`}>Find a lake in the depth directory</a>. Catalog updated {data.updated}.</p>
+    <p><a href={`${base}/guides/how-lake-depths-work`}>How we turn surveys and terrain into lake depths</a> explains the process, predictions, and fabrication limits.</p>
     {#each data.surveySources as source}
       <div class="source">
         <h3><a href={source.url}>{source.name}</a></h3>

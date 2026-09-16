@@ -160,6 +160,28 @@ describe("TopoStack Svelte shell", () => {
     expect(manualButton()).toBeUndefined();
   });
 
+  it("shows the predicted-depth notice alongside Fit depth and allows dismissal", async () => {
+    const preview = structuredClone(initialPreview);
+    const prediction = "Some lake depths are estimated rather than surveyed.";
+    preview.warnings = [
+      { code: "LABEL_OMITTED", message: "Some labels do not fit." },
+      { code: "BATHYMETRY_FALLBACK", message: "Partial survey coverage." },
+      { code: "LAKE_DEPTH_PREDICTED", message: prediction },
+      { code: "WATER_DEPTH_CLAMPED", message: "The lake is too deep for the stack.", action: "fit-lake-depth" },
+    ];
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: preview } });
+    await tick();
+    expect(target.querySelectorAll(".preview-warning")).toHaveLength(2);
+    expect(target.querySelector(".preview-warning .warning-action")?.textContent).toBe("Fit depth");
+    expect(target.querySelector(".warning-stack")?.textContent).toContain(prediction);
+    expect(target.querySelector<HTMLAnchorElement>('.warning-stack a[href$="/guides/how-lake-depths-work"]')?.target).toBe("_blank");
+    target.querySelector<HTMLButtonElement>(`button[aria-label="Dismiss warning: ${prediction}"]`)!.click();
+    await tick();
+    expect(target.querySelector(".warning-stack")?.textContent).not.toContain(prediction);
+    expect(preview.warnings.some((warning) => warning.code === "LAKE_DEPTH_PREDICTED")).toBe(true);
+  });
+
   it("keeps the fit action visible when other warnings fill the preview", async () => {
     const preview = structuredClone(initialPreview);
     preview.warnings = [

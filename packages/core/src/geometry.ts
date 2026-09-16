@@ -374,21 +374,20 @@ export function planTerrainStack(config: ProjectConfigV1, reliefM: number, bound
   const trueReliefMm = reliefM * (config.widthMm / groundWidthM);
   if (!(trueReliefMm > 0)) return { ...flat, horizontalScale };
 
-  const landLayerCount = clamp(Math.round((trueReliefMm * requested) / config.materialThicknessMm), MIN_LAYER_COUNT, MAX_LAYER_COUNT);
-  const metersPerLayer = reliefM / landLayerCount;
-  // Depth is spent at the same vertical scale as the land, so the sea floor
-  // steps in step with the hills. The cap is what stops a coastal map from
-  // spending its whole budget below the waterline.
-  // Round up, not to nearest: a ladder half a sheet short of the water it was
-  // sized for would flatten the deepest part and report it as over budget, when
-  // one more sheet covers it exactly.
-  const depthBudget = Math.min(
-    Math.max(MAX_DEPTH_LAYER_COUNT, Math.ceil(MAX_DEPTH_LAYER_COUNT * Math.max(1, config.waterDepthExaggeration))),
-    MAX_LAYER_COUNT - landLayerCount,
-  );
-  const depthLayerCount = Number.isFinite(depthBelowLandM) && depthBelowLandM > 0 && metersPerLayer > 0
-    ? clamp(Math.ceil(depthBelowLandM / metersPerLayer), 0, Math.max(0, depthBudget))
+  let landLayerCount = clamp(Math.round((trueReliefMm * requested) / config.materialThicknessMm), MIN_LAYER_COUNT, MAX_LAYER_COUNT);
+  const depthLimit = Math.max(MAX_DEPTH_LAYER_COUNT, Math.ceil(MAX_DEPTH_LAYER_COUNT * Math.max(1, config.waterDepthExaggeration)));
+  const hasDepth = Number.isFinite(depthBelowLandM) && depthBelowLandM > 0;
+  const requiredDepthLayers = (landLayers: number): number => hasDepth
+    ? Math.min(depthLimit, Math.ceil(depthBelowLandM / (reliefM / landLayers)))
     : 0;
+  // Reserve room for water before the land consumes all 24 sheets. Refit both
+  // to the same vertical interval: otherwise a mountain lake can be carved
+  // correctly and then flattened away by a zero-sheet depth budget.
+  while (landLayerCount > MIN_LAYER_COUNT && landLayerCount + requiredDepthLayers(landLayerCount) > MAX_LAYER_COUNT) {
+    landLayerCount -= 1;
+  }
+  const metersPerLayer = reliefM / landLayerCount;
+  const depthLayerCount = Math.min(requiredDepthLayers(landLayerCount), MAX_LAYER_COUNT - landLayerCount);
   const layerCount = landLayerCount + depthLayerCount;
   return {
     layerCount,
@@ -795,6 +794,13 @@ export function generateGeometry(config: ProjectConfigV1, source: SourceBundleV1
     return [{ ...surface, polygons, layerIndex: layerForElevation(surface.surfaceElevationM, thresholds) }];
   });
 
+  // Report provenance for lakes actually included in the output. A user-set
+  // maximum or partial survey does not make the rest of a lake floor measured.
+  if (waterSurfaces.some((surface) => surface.kind === "lake" && surface.depthSource !== "surveyed")) warnings.push({
+    code: "LAKE_DEPTH_PREDICTED",
+    message: "Some lake depths are estimated rather than surveyed. Modeled lake floors may differ from the actual underwater terrain.",
+  });
+
   const waterPatternAreas = flatEngraving && config.showWater && config.waterFillPattern !== "none"
     ? (source.waterPatternAreas ?? source.waterAreas?.map((area) => area.polygon) ?? waterPatternAreasFromShorelines(source.markings)).flatMap((polygon) => clipContours(
         [[toRing(polygon.outer), ...polygon.holes.map(toRing)]] as MultiPolygon,
@@ -1044,7 +1050,11 @@ export function generateGeometry(config: ProjectConfigV1, source: SourceBundleV1
   config.markers.forEach((marker, markerIndex) => {
     if (!longitudeInBounds(marker.lon, source.bounds) || marker.lat < source.bounds.south || marker.lat > source.bounds.north) return;
     const anchor = geoPointToMapPoint(marker.lat, marker.lon, source.bounds, config.widthMm, config.heightMm);
-    const layer = flatEngraving ? baseLayer : layers[layerForElevation(sampleElevation(modelGrid, anchor, config), thresholds)];
+    // Contour smoothing and minimum-feature filtering can move the cut edge
+    // away from the sampled elevation, especially on a modeled lake floor.
+    // Place the marker on the highest sheet that actually retains its anchor.
+    const layer = flatEngraving ? baseLayer : [...layers].reverse().find((candidate) =>
+      candidate.polygons.some((polygon) => pointInPolygon(anchor, polygon)));
     if (!layer || !layer.polygons.some((polygon) => pointInPolygon(anchor, polygon))) return;
     const symbolCenter = markerSymbolCenterForAnchor(marker.symbol, anchor, MAP_MARKER_SIZE_MM);
     const paths = markerSymbolPaths(marker.symbol, symbolCenter, MAP_MARKER_SIZE_MM)

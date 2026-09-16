@@ -55,6 +55,7 @@
     <strong>Real surveys, with different levels of detail.</strong>
     <p>Surveyed grids describe the lake floor from published bathymetric data. Survey contours use measured depth lines with the spaces between them interpolated. A listing may cover only part of a lake; gaps use existing terrain or modeled depths. Check the source notes after generating.</p>
   </div>
+  <p>Wondering how the lake floor is made? <a href={`${base}/guides/how-lake-depths-work`}>Learn how surveys, predictions, and depth settings work</a>.</p>
   <section class="directory" aria-label="Search surveyed lakes" aria-busy={loading}>
     <div class="search-field">
       <label for="lake-search">Search lakes</label>
