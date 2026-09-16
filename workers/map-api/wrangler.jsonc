@@ -39,6 +39,7 @@
   "env": {
     "development": {
       "name": "topostack-dev",
+      "triggers": { "crons": ["7 * * * *"] },
       "workers_dev": false,
       "preview_urls": false,
       "routes": [
@@ -64,6 +65,7 @@
     },
     "production": {
       "name": "topostack",
+      "triggers": { "crons": ["7 * * * *"] },
       "workers_dev": false,
       "preview_urls": false,
       "routes": [

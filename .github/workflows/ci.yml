@@ -50,6 +50,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Test provisioning and lifecycle safeguards
+        run: npm run test:scripts
+
       - name: Test unit and component suites with coverage thresholds
         run: npm run test:coverage
 

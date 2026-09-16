@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { deflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { decodeTerrainPng } from "./terrain-png";

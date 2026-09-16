@@ -20,9 +20,9 @@ pmtiles extract https://build.protomaps.com/20260905.pmtiles ./current.pmtiles -
 pmtiles verify ./current.pmtiles
 ```
 
-The result is above Wrangler's 315 MB object-upload limit and R2's 5 GiB single-part limit. The provisioning script computes the extracted archive's SHA-256, verifies the archive, mints 24-hour credentials scoped to only `osm/current.pmtiles`, performs multipart uploads, and reads each result back. It uses the existing account-owned Cloudflare API token without storing S3 credentials.
+The result is above Wrangler's 315 MB object-upload limit and R2's 5 GiB single-part limit. The provisioning script computes the extracted archive's SHA-256, verifies the archive, mints 24-hour credentials scoped to a unique immutable archive key and its small release pointer, performs multipart uploads, and streams the entire uploaded archive back through SHA-256 verification. It uses the existing account-owned Cloudflare API token without storing S3 credentials.
 
-The script refuses to upload unless the computed SHA-256 matches a pinned digest supplied via `--expected-sha256=<hex>` or the `EXPECTED_ARCHIVE_SHA256` environment variable. When extracting a new snapshot for the first time, use `--skip-digest-check` for a development-only upload, record the printed SHA-256 in the release record, and use that pin for every subsequent run. `--skip-digest-check` cannot be combined with `--prod`; production always requires a valid 64-character SHA-256 pin. By default only the development bucket is written, and the production key is only overwritten when `--prod` is passed explicitly:
+The script refuses to upload unless the computed SHA-256 matches a pinned digest supplied via `--expected-sha256=<hex>` or the `EXPECTED_ARCHIVE_SHA256` environment variable. When extracting a new snapshot for the first time, use `--skip-digest-check` for a development-only upload, record the printed SHA-256 in the release record, and use that pin for every subsequent run. `--skip-digest-check` cannot be combined with `--prod`; production always requires a valid 64-character SHA-256 pin. By default only the development bucket is written, and production staging is included only when `--prod` is passed explicitly. Add `--promote` to conditionally activate the verified release after deploying the release-aware gateway:
 
 ```bash
 # Development only (default):
@@ -36,7 +36,7 @@ PMTILES_BIN=/path/to/pmtiles EXPECTED_ARCHIVE_SHA256=<pinned-hex> \
 
 The API token must allow R2 object writes and temporary-credential creation. Do not commit the token, temporary credentials, or generated archive. Keep the pinned source, maximum zoom, extracted-archive SHA-256, `DATASET_VERSION`, manifest response, and attribution synchronized when updating the data. The Protomaps archive is an ODbL Produced Work based on OpenStreetMap data.
 
-Because `osm/current.pmtiles` is overwritten in place on dataset updates, the Worker serves bounded byte-range requests (16 MiB maximum) with a short one-hour `cache-control` and etag revalidation (`If-None-Match` returns `304`) instead of exposing a multi-gigabyte full-object download. Terrain tiles cache under dataset-versioned keys (`terrain/<DATASET_VERSION>/terrarium/...`) and keep a 30-day immutable TTL; bump `DATASET_VERSION` when terrain data changes.
+Because public archive URLs can select a new release on dataset updates, the Worker serves bounded byte-range requests (16 MiB maximum) with a short one-hour `cache-control` and etag revalidation (`If-None-Match` returns `304`) instead of exposing a multi-gigabyte full-object download. Terrain tiles remain in R2 under dataset-versioned keys (`terrain/<DATASET_VERSION>/terrarium/...`); bump `DATASET_VERSION` when terrain data changes. Public tile URLs use a one-hour TTL with revalidation, and the generator revalidates before using them. Tiles are validated before caching; invalid legacy cache entries are repaired from upstream. Conditional R2 range reads prevent archive replacement from mixing metadata and bytes.
 
 ## Develop and validate
 
@@ -86,7 +86,7 @@ Geocoder cache reads enforce the age of the R2 object's upload timestamp. Result
 
 `/ready` requires both PMTiles archives and a configured geocoder, matching a default project's water-depth requirements. `/health` remains the process liveness check. Gateway completion logs include status, cache outcome, environment, and elapsed milliseconds without search text or provider credentials. Alert on elevated 5xx responses on `/v1/terrain/` and `/v1/geocode`, including cache-miss paths; a fixed canary served from R2 alone cannot establish upstream health.
 
-Both provisioning scripts save `<archive>.provisioning.json` after successful uploads, recording the dataset, target buckets/key, bytes, zoom, and SHA-256. Retain the actual archives and receipts outside the repository so the mutable `current.pmtiles` keys can be restored. See [release acceptance and rollback](../../docs/release-acceptance.md). A production browser monitor failure uploads `test-results-live` diagnostics for seven days.
+Both provisioning scripts save `<archive>.provisioning.json` after remote verification, recording the immutable object, byte count, SHA-256, previous release, and promotion state per bucket. The receipt is saved before pointer activation and updated afterward; keep it even after a partially completed multi-bucket run. Retain the actual archives and receipts outside the repository so the mutable `current.pmtiles` keys can be restored. See [release acceptance and rollback](../../docs/release-acceptance.md). A production browser monitor failure uploads `test-results-live` diagnostics for seven days.
 
 ## NOAA bathymetry
 
@@ -101,3 +101,15 @@ and does not change the existing required dependencies for `/ready`.
 Additional lake-survey archives are allowlisted in `scripts/data/lake-bathymetry.json`
 and served at `/v1/bathymetry/<dataset-id>.pmtiles` using the same bounded range
 handler. See [survey coverage and provisioning](../../docs/lake-bathymetry.md).
+
+## Data-layer contract
+
+See the [data layer and cache review](../../docs/data-layer-review.md) for cache ownership, failure behavior, source registration, regression coverage, and remaining operational checks. Survey registrations are validated by the same typed contract in the browser, gateway, and provisioning script.
+
+## Verified release rollout and monitoring
+
+Deploy this gateway before using `--promote`; provisioning verifies the public manifest's `archiveReleases` capability. Without a release pointer the Worker reads the existing archive. With a pointer, it checks the target's byte count and ETag against its verified release identity, then performs conditional bounded range reads. Archive bytes are never copied over a live multi-GB object during promotion. Existing public archive URLs and the one-hour browser TTL are preserved.
+
+The hourly cron at minute 7 validates terrain and geocoder origins without consulting their caches. The monitor at minute 17 checks `/v1/upstream-health`; snapshots become stale after two hours. After first deployment, the endpoint intentionally reports 503 until a probe completes. Live canaries and benchmark artifacts complement readiness rather than depending on a fixed R2 cache hit.
+
+See [data operations](../../docs/data-layer-operations.md) for staging, promotion, lifecycle audit, rollback, and benchmark commands.

@@ -1,3 +1,4 @@
+import { terrainPng } from "./terrain-fixture";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { env as workerEnv, exports } from "cloudflare:workers";
 import mapWorker, { geocodeLimit, isAllowedOrigin, isGeocoderConfigured, normalizeGeoapify, parseRangeHeader, validTile } from "../src/index";
@@ -157,7 +158,7 @@ describe("geocoder proxy", () => {
   });
 
   it("refreshes expired cached results and limits browser freshness to the remaining age", async () => {
-    const keyHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("cache age regression|5"));
+    const keyHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${configuredEnv.GEOCODER_ORIGIN}|geoapify-v1|cache age regression|5`));
     const key = `geocode/${Array.from(new Uint8Array(keyHash)).map((byte) => byte.toString(16).padStart(2, "0")).join("")}.json`;
     await workerEnv.MAP_CACHE.put(key, "[]");
     const cached = await workerEnv.MAP_CACHE.head(key);
@@ -205,7 +206,7 @@ describe("terrain proxy", () => {
   });
 
   it("fetches, labels, and stores an uncached terrain tile under the dataset-versioned key", async () => {
-    const png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+    const png = terrainPng;
     const upstream = vi.fn(async (_input: RequestInfo | URL) => new Response(png.slice(), {
       headers: { "content-type": "image/png", "x-imagery-sources": "mapzen/test-source" },
     }));
@@ -227,7 +228,7 @@ describe("terrain proxy", () => {
   });
 
   it("serves cached tiles with their stored dataset label without calling upstream", async () => {
-    const bytes = new Uint8Array([1, 2, 3, 4]);
+    const bytes = terrainPng;
     await workerEnv.MAP_CACHE.put(`terrain/${workerEnv.DATASET_VERSION}/terrarium/11/321/703.png`, bytes.slice(), {
       httpMetadata: { contentType: "image/png" },
       customMetadata: { dataset: "mapzen-terrarium+protomaps-legacy", imagerySources: "mapzen/stored-source" },

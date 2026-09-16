@@ -21,6 +21,7 @@ describe("West Point terrain loading", () => {
     const result = await loadTerrain(project);
     expect(result.fallback).toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[1]?.cache).toBe("no-cache");
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain(`/v1/terrain/${zoom}/${x}/${y}.png`);
     expect(blocked).not.toHaveBeenCalled();
     expect(result.source.elevationRepairCount).toBeGreaterThan(100);
@@ -32,6 +33,14 @@ describe("West Point terrain loading", () => {
     expect(geometry.warnings).toContainEqual(expect.objectContaining({ code: "ELEVATION_REPAIRED" }));
     const manifest = buildProjectPackage(geometry, project).files.find((file) => file.filename.endsWith("-project.json"));
     expect(JSON.parse(await manifest!.blob.text()).result.warnings).toContainEqual(expect.objectContaining({ code: "ELEVATION_REPAIRED" }));
+  });
+
+  it("requires explicit dataset provenance before marking terrain as real", async () => {
+    const png = readFileSync(new URL("./fixtures/west-point-z12.png", import.meta.url));
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(png)));
+    const result = await loadTerrain(terrainOnly);
+    expect(result.fallback).toBe(true);
+    expect(result.source.sourceKind).toBe("synthetic");
   });
 
   it("does not mark malformed elevation data as real exportable terrain", async () => {

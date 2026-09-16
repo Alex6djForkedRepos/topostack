@@ -23,7 +23,7 @@ describe("NOAA bathymetry loading", () => {
     const result = await load();
     expect(result.status).toBe("available");
     expect(mocks.createArchive).toHaveBeenCalledWith("https://example.test/v1/bathymetry/noaa-great-lakes-v1.pmtiles", undefined);
-    expect(mocks.getZxy).toHaveBeenCalledExactlyOnceWith(fixture.tile.z, fixture.tile.x, fixture.tile.y, undefined);
+    expect(mocks.getZxy).toHaveBeenCalledExactlyOnceWith(fixture.tile.z, fixture.tile.x, fixture.tile.y, expect.any(AbortSignal));
     const bathymetry = result.areas[0]!.bathymetry!;
     expect(bathymetry).toMatchObject({ width: 3, height: 3 });
     bathymetry.depthsM.forEach((value, index) => expect(value).toBeCloseTo(fixture.expectedDepthsM[index]!, 4));

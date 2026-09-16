@@ -10,7 +10,7 @@
 - Place search: Geoapify, proxied by the Worker so its API key is never shipped to the browser. Responses are cached for 24 hours under a hashed query key.
 - Interactive reference map: OpenFreeMap. Its imagery is preview-only and never enters fabrication exports.
 
-Both PMTiles archives are built and uploaded offline: `scripts/build-lake-data.mjs` then `scripts/provision-lake-data.mjs` for lake depth (requires `tippecanoe`; the shapefile is read in-process, so GDAL is not needed), mirroring `scripts/provision-vector-data.mjs` for the OSM archive. A missing lake archive is not an outage — `/v1/lakes.pmtiles` returns 404, the client falls back, and every lake simply renders flat.
+Both PMTiles archives are built and uploaded offline: `scripts/build-lake-data.mjs` then `scripts/provision-lake-data.mjs` for lake depth (requires `tippecanoe`; the shapefile is read in-process, so GDAL is not needed), mirroring `scripts/provision-vector-data.mjs` for the OSM archive. A missing global lake archive returns 404 and makes `/ready` fail. Requested lake-depth data being unavailable blocks fabrication export. Optional survey archives may fall back to modeled depths with a warning. See the [data layer review](data-layer-review.md) for cache policy and source extension requirements.
 
 The operator is responsible for keeping the Worker manifest, PMTiles snapshot, dataset version, provider terms, and attribution notices synchronized. Mapzen's per-tile `X-Imagery-Sources` value is preserved in R2 metadata and included in each project manifest.
 

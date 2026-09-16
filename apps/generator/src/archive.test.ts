@@ -34,6 +34,22 @@ describe("archive request lifecycle", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it("requires a strong archive validator for generation consistency", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(archiveBytes(), { status: 206 })));
+    await expect(createArchive("https://example.test/map.pmtiles").getHeader()).rejects.toThrow("strong ETag");
+  });
+
+  it("rejects archive replacement within an operation but permits a fresh generation", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(response())
+      .mockImplementation(async () => new Response(archiveBytes(), { status: 206, headers: { etag: '"replacement"' } })));
+    const archive = createArchive("https://example.test/map.pmtiles");
+    await archive.getHeader();
+    // An independently completed lookup must not be combined with earlier data.
+    await expect(archive.getZxy(0, 0, 0)).rejects.toThrow("Archive changed");
+    await expect(createArchive("https://example.test/map.pmtiles").getHeader()).resolves.toMatchObject({ specVersion: 3 });
+  });
+
   it.each(["header", "directory", "tile"])("cancels during the %s request", async (phase) => {
     const controller = new AbortController();
     const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {

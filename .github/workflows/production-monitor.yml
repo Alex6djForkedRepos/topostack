@@ -32,3 +32,8 @@ jobs:
           WORKER_URL: https://topostack.echofoxtrot.works
           PUBLIC_APP_URL: https://topostack.echofoxtrot.works
           EXPECTED_WORKER_ENVIRONMENT: production
+
+      - name: Verify uncached upstream probe freshness
+        run: node scripts/verify-upstream-health.mjs
+        env:
+          WORKER_URL: https://topostack.echofoxtrot.works

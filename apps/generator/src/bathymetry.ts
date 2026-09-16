@@ -1,8 +1,12 @@
+import { mapTiles } from "./tile-requests";
 import type { ElevationGrid, GeoBounds, ProjectConfigV1, SourceAttribution, SourceBundleV1, WaterAreaV1 } from "@topostack/core";
 import { createArchive } from "./archive";
 import { decodeTerrainPng } from "./terrain-png";
-import registry from "../../../scripts/data/lake-bathymetry.json";
+import rawSurveyCatalog from "../../../scripts/data/lake-bathymetry.json";
+import { validateSurveyCatalog, type SurveySource } from "../../../packages/core/src/source-catalog";
 import catalog from "../../../scripts/data/noaa-great-lakes.json";
+
+const registry = validateSurveyCatalog(rawSurveyCatalog);
 
 export const NOAA_DATASET_VERSION = catalog.dataset;
 export const NOAA_ATTRIBUTION = {
@@ -34,7 +38,7 @@ export function sampleDepth(sample: (x: number, y: number) => number, x: number,
 }
 
 /** Fetch a bounded tile window and align positive-down depths to the DEM's sample locations. */
-async function loadRaster(apiBase: string, bounds: GeoBounds, width: number, height: number, requestedZoom: number, areas: WaterAreaV1[], signal?: AbortSignal, dataset = registry.sources[0]!): Promise<{ areas: WaterAreaV1[]; status: "available" | "unavailable" | "not-covered" }> {
+async function loadRaster(apiBase: string, bounds: GeoBounds, width: number, height: number, requestedZoom: number, areas: WaterAreaV1[], dataset: SurveySource, signal?: AbortSignal): Promise<{ areas: WaterAreaV1[]; status: "available" | "unavailable" | "not-covered" }> {
   signal?.throwIfAborted();
   if (!areas.length) return { areas, status: "not-covered" };
   try {
@@ -54,25 +58,23 @@ async function loadRaster(apiBase: string, bounds: GeoBounds, width: number, hei
     let window = tileBounds();
     while ((window.right - window.left + 1) * (window.bottom - window.top + 1) > 24 && z > 0) { z -= 1; window = tileBounds(); }
     const tiles = new Map<string, Float32Array>();
-    const requests: Array<Promise<void>> = [];
+    const coordinates: Array<{ x: number; y: number }> = [];
     for (let y = window.top; y <= window.bottom; y += 1) {
-      for (let x = window.left; x <= window.right; x += 1) {
-        requests.push((async () => {
-          const tile = await archive.getZxy(z, x, y, signal);
-          signal?.throwIfAborted();
-          if (tile) {
-            const values = decodeTerrainPng(new Uint8Array(tile.data), true);
-            for (let i = 0; i < values.length; i += 1) {
-              const value = values[i]!;
-              if (Number.isNaN(value)) continue;
-              if (!Number.isFinite(value) || (dataset.encoding === "elevation-terrarium-v1" ? value < -500 || value > 9000 : value < 0 || value > 1500)) throw new Error("Invalid survey sample.");
-            }
-            tiles.set(`${x}/${y}`, values);
-          }
-        })());
-      }
+      for (let x = window.left; x <= window.right; x += 1) coordinates.push({ x, y });
     }
-    await Promise.all(requests);
+    await mapTiles(coordinates, async ({ x, y }, signal) => {
+      const tile = await archive.getZxy(z, x, y, signal);
+      signal?.throwIfAborted();
+      if (tile) {
+        const values = decodeTerrainPng(new Uint8Array(tile.data), true);
+        for (let i = 0; i < values.length; i += 1) {
+          const value = values[i]!;
+          if (Number.isNaN(value)) continue;
+          if (!Number.isFinite(value) || (dataset.encoding === "elevation-terrarium-v1" ? value < -500 || value > 9000 : value < 0 || value > 1500)) throw new Error("Invalid survey sample.");
+        }
+        tiles.set(`${x}/${y}`, values);
+      }
+    }, signal);
     const sample = (x: number, y: number) => tiles.get(`${Math.floor(x / 256)}/${Math.floor(y / 256)}`)?.[(y % 256) * 256 + x % 256] ?? Number.NaN;
     const depthsM = new Float32Array(width * height);
     let covered = false;
@@ -99,7 +101,9 @@ async function loadRaster(apiBase: string, bounds: GeoBounds, width: number, hei
 export async function loadNoaaBathymetry(apiBase: string, bounds: GeoBounds, width: number, height: number, zoom: number, areas: WaterAreaV1[], signal?: AbortSignal) {
   const matching = areas.filter(hasNoaaCoverage);
   if (!matching.length) return { areas, status: "not-covered" as const };
-  const result = await loadRaster(apiBase, bounds, width, height, zoom, matching, signal);
+  const dataset = registry.sources.find((source) => source.id === NOAA_DATASET_VERSION);
+  if (!dataset) return { areas, status: "unavailable" as const };
+  const result = await loadRaster(apiBase, bounds, width, height, zoom, matching, dataset, signal);
   return { ...result, areas: areas.map((area) => result.areas.find((item) => item.id === area.id) ?? area) };
 }
 
@@ -136,7 +140,7 @@ export async function loadLakeBathymetry(apiBase: string, bounds: GeoBounds, gri
     if (!matching.length) continue;
     let used = false;
     {
-      const result = await loadRaster(apiBase, bounds, grid.width, grid.height, zoom, matching, signal, dataset);
+      const result = await loadRaster(apiBase, bounds, grid.width, grid.height, zoom, matching, dataset, signal);
       if (result.status === "unavailable") { failed = true; continue; }
       if (result.status !== "available") continue;
       for (const area of result.areas) {
