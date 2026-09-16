@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import directoryJson from "../../static/data/lake-depth-directory.json";
+import surveyCatalog from "../../../../scripts/data/lake-bathymetry.json";
 import builds from "../../../../scripts/data/lake-survey-builds.json";
 import { indexLakeDirectory, lakeStudioLink, searchLakes, type LakeDirectory } from "./lake-directory";
 import { lakeLocationFromSearch } from "./lake-location";
@@ -9,12 +10,13 @@ const lakes = indexLakeDirectory(directory);
 
 describe("surveyed lake directory", () => {
   it("lists each integrated survey grid, excludes skipped basins, and includes all six NOAA lakes", () => {
+    expect(directory.sources.map((source) => source.id)).toEqual(surveyCatalog.sources.map((source) => source.id));
     for (const archive of builds.archives) {
       expect(lakes.filter((lake) => lake.sourceId === archive.dataset)).toHaveLength(archive.processedGrids);
     }
     expect(lakes.filter((lake) => lake.sourceId === "noaa-great-lakes-v1")).toHaveLength(6);
     expect(new Set(lakes.map((lake) => lake.id)).size).toBe(lakes.length);
-    for (const [region, dataset] of [["minnesota", "mn-dnr-lakes-v1"], ["finland", "syke-finland-lakes-v1"]] as const) {
+    for (const [region, dataset] of [["minnesota", "mn-dnr-lakes-v1"], ["finland", "syke-finland-lakes-v1"], ["norway", "nve-norway-lakes-v1"], ["ontario", "ontario-lakes-v1"]] as const) {
       for (const skipped of builds.skipped[region]) expect(lakes.some((lake) => lake.sourceId === dataset && lake.surveyId === skipped.id)).toBe(false);
     }
     for (const lake of lakes) {
@@ -25,6 +27,12 @@ describe("surveyed lake directory", () => {
     }
   });
 
+  it("finds every integrated lake by its name and survey identifier", () => {
+    for (const lake of lakes) {
+      expect(searchLakes(lakes, `${lake.name} ${lake.surveyId}`).some((result) => result.id === lake.id), lake.id).toBe(true);
+    }
+  }, 30000);
+
   it("finds common aliases, accents, source names, county names, and survey IDs", () => {
     expect(searchLakes(lakes, "lake geneva").some((lake) => lake.name === "Lac Léman")).toBe(true);
     expect(searchLakes(lakes, "zurich").some((lake) => lake.name === "Zürichsee")).toBe(true);
@@ -32,6 +40,10 @@ describe("surveyed lake directory", () => {
     expect(searchLakes(lakes, "Pine Aitkin").length).toBeGreaterThan(0);
     expect(searchLakes(lakes, "01000100")[0]?.name).toBe("Pine");
     expect(searchLakes(lakes, "crater USGS")).toHaveLength(1);
+    expect(searchLakes(lakes, "Tinnsja NVE").some((lake) => lake.name === "Tinnsjå")).toBe(true);
+    expect(searchLakes(lakes, "Alan Henry Texas")).toHaveLength(1);
+    expect(searchLakes(lakes, "Kawagama Ontario")).toHaveLength(1);
+    expect(searchLakes(lakes, "Pinewood Reclamation")).toHaveLength(1);
     expect(searchLakes(lakes, "missing lake xxxxxxxxx")).toEqual([]);
   });
 

@@ -49,6 +49,22 @@ describe("TopoStack Svelte shell", () => {
   });
   afterEach(async () => { if (component) await unmount(component); component = undefined; loadTerrainMock.mockReset(); loadVectorMarkingsMock.mockReset(); loadLakeAreasMock.mockReset(); Object.values(noaaArchive).forEach((mock) => mock.mockReset()); theme.preference = "system"; localStorage.removeItem("topostack-theme"); localStorage.removeItem("topostack-menu-sections-v1"); delete window.atomm; });
 
+  it("deduplicates repeated survey-gap warnings without hiding distinct warnings", async () => {
+    const preview = structuredClone(initialPreview);
+    const gap = { code: "BATHYMETRY_FALLBACK" as const, message: "A lake has incomplete survey coverage." };
+    preview.warnings = [gap, { ...gap }, { code: "LOW_RELIEF", message: "Very little elevation change." }];
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: preview } });
+    await tick();
+    expect(target.querySelectorAll(".preview-warning")).toHaveLength(2);
+    expect([...target.querySelectorAll(".preview-warning")].filter((warning) => warning.textContent?.includes(gap.message))).toHaveLength(1);
+    const dismiss = [...target.querySelectorAll<HTMLButtonElement>(".warning-dismiss")].find((button) => button.getAttribute("aria-label")?.includes(gap.message))!;
+    dismiss.click();
+    await tick();
+    expect(target.textContent).not.toContain(gap.message);
+    expect(target.textContent).toContain("Very little elevation change.");
+  });
+
   it("dismisses preview warnings without clearing export restrictions and restores warnings for fresh terrain", async () => {
     loadTerrainMock.mockResolvedValue({ source: createSyntheticSource(DEFAULT_PROJECT, 32), fallback: true });
     const target = document.createElement("div");
@@ -546,7 +562,8 @@ describe("TopoStack Svelte shell", () => {
     window.atomm = {
       lifecycle: { on: vi.fn() },
       ui: { toast: vi.fn(() => new Promise<string>(() => undefined)), closeToast: vi.fn(async () => undefined) },
-      app: { getLocale: vi.fn(async () => "en-US") },
+      app: { getLocale: vi.fn(async () => "en-US"), getSupportedLocales: vi.fn(async () => [{ code: "en", name: "English" }]) },
+      user: { isLoggedIn: vi.fn(async () => false), login: vi.fn(async () => false) },
     };
     loadTerrainMock.mockImplementation(() => new Promise(() => undefined));
     const target = document.createElement("div");

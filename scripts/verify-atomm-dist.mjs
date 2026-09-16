@@ -8,11 +8,16 @@ const skipEndpointScan = process.argv.includes("--skip-endpoint-scan");
 
 const indexPath = new URL("../apps/generator/dist/index.html", import.meta.url);
 const index = await readFile(indexPath, "utf8");
+if (process.argv.includes("--require-sdk-entry")) {
+  const sdkCount = (index.match(/src="https:\/\/static-res\.makextool\.com\/scripts\/js\/generator-sdk\/platform-sdk\.js"/g) ?? []).length;
+  if (sdkCount !== 1) throw new Error("The Atomm entry page must include exactly one platform SDK script.");
+  if (index.includes('class="landing-page"')) throw new Error("The Atomm entry page must open the workbench, not the marketing homepage.");
+}
 const studio = await readFile(new URL("../apps/generator/dist/studio.html", import.meta.url), "utf8");
 const headers = await readFile(new URL("../apps/generator/dist/_headers", import.meta.url), "utf8");
 if (headers.includes("__TOPOSTACK_SCRIPT_HASHES__") || /script-src[^;]*unsafe-inline/.test(headers) || !/script-src[^;]*sha256-/.test(headers)) throw new Error("Production security headers do not contain finalized inline-script hashes.");
 if (!studio.includes("https://static-res.makextool.com/scripts/js/generator-sdk/platform-sdk.js")) throw new Error("Atomm SDK is missing from the terrain studio.");
-if (!/href=["'][^"']*studio["']/.test(index)) throw new Error("The homepage does not link to the terrain studio.");
+if (!index.includes("https://static-res.makextool.com/scripts/js/generator-sdk/platform-sdk.js") && !/href=["'][^"']*studio["']/.test(index)) throw new Error("The homepage does not link to the terrain studio.");
 const distDirectory = new URL("../apps/generator/dist/", import.meta.url);
 async function filesBelow(directory) {
   const entries = await readdir(directory, { withFileTypes: true });

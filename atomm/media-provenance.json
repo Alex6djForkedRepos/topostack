@@ -1,0 +1,293 @@
+{
+  "capturedAt": "2026-09-16T05:10:42.764172+00:00",
+  "method": "Fresh Generate terrain in the local app; direct WebGL canvas cover and real embedded UI screenshots.",
+  "source": {
+    "datasetVersion": "mapzen-terrarium+protomaps-20260905-z12-v1+usgs-crater-lake-v1",
+    "bathymetryStatus": "available",
+    "sourceKind": "real",
+    "attribution": [
+      {
+        "name": "Mapzen Terrain Tiles",
+        "url": "https://registry.opendata.aws/terrain-tiles/",
+        "license": "Composite terrain dataset; source-specific notices follow"
+      },
+      {
+        "name": "ArcticDEM",
+        "url": "https://www.pgc.umn.edu/data/arcticdem/",
+        "license": "Created from DigitalGlobe imagery and funded under NSF awards 1043681, 1559691, and 1542736"
+      },
+      {
+        "name": "Geoscience Australia",
+        "url": "https://www.ga.gov.au/",
+        "license": "\u00a9 Commonwealth of Australia (Geoscience Australia) 2017"
+      },
+      {
+        "name": "Open Data Austria",
+        "url": "https://www.data.gv.at/",
+        "license": "\u00a9 offene Daten \u00d6sterreichs \u2013 Digitales Gel\u00e4ndemodell (DGM) \u00d6sterreich"
+      },
+      {
+        "name": "Government of Canada",
+        "url": "https://open.canada.ca/",
+        "license": "Contains information licensed under the Open Government Licence \u2013 Canada"
+      },
+      {
+        "name": "EU-DEM",
+        "url": "https://land.copernicus.eu/",
+        "license": "Produced using Copernicus data and information funded by the European Union"
+      },
+      {
+        "name": "NOAA ETOPO1",
+        "url": "https://www.ncei.noaa.gov/products/etopo-global-relief-model",
+        "license": "Terrain data courtesy of NOAA/NCEI"
+      },
+      {
+        "name": "INEGI",
+        "url": "https://www.inegi.org.mx/",
+        "license": "Source: INEGI, Continental relief, 2016"
+      },
+      {
+        "name": "Land Information New Zealand",
+        "url": "https://www.linz.govt.nz/",
+        "license": "Copyright 2011 Crown copyright \u00a9 LINZ and the New Zealand Government"
+      },
+      {
+        "name": "Kartverket",
+        "url": "https://www.kartverket.no/",
+        "license": "\u00a9 Kartverket"
+      },
+      {
+        "name": "UK Environment Agency",
+        "url": "https://www.gov.uk/government/organisations/environment-agency",
+        "license": "\u00a9 Environment Agency copyright and/or database right 2015"
+      },
+      {
+        "name": "U.S. Geological Survey",
+        "url": "https://www.usgs.gov/",
+        "license": "3DEP, GMTED2010, and SRTM terrain data courtesy of the U.S. Geological Survey"
+      },
+      {
+        "name": "HydroLAKES v1.0",
+        "url": "https://www.hydrosheds.org/products/hydrolakes",
+        "license": "CC BY 4.0 \u2014 Messager, M.L., Lehner, B., Grill, G., Nedeva, I., Schmitt, O. (2016)"
+      },
+      {
+        "name": "GLOBathy",
+        "url": "https://doi.org/10.1038/s41597-022-01132-9",
+        "license": "CC0 1.0 \u2014 Khazaei, B., Read, L.K., Casali, M., Sampson, K.M., Yates, D.N. (2022)"
+      },
+      {
+        "name": "Protomaps Basemap 20260905",
+        "url": "https://protomaps.com",
+        "license": "ODbL Produced Work based on OpenStreetMap data"
+      },
+      {
+        "name": "OpenStreetMap contributors",
+        "url": "https://www.openstreetmap.org/copyright",
+        "license": "ODbL"
+      },
+      {
+        "name": "USGS Crater Lake multibeam bathymetry",
+        "url": "https://pubs.usgs.gov/dds/dds-72/",
+        "license": "Public domain; acknowledge source."
+      }
+    ]
+  },
+  "layerCount": 12,
+  "waterSurfaces": [
+    {
+      "id": "lake-9092-0",
+      "kind": "lake",
+      "name": "Crater Lake",
+      "hylakId": 9092,
+      "surfaceElevationM": 1882.00390625,
+      "bedElevationM": 1288.6747436523438,
+      "maxDepthM": 594,
+      "layerIndex": 5,
+      "depthSource": "mixed"
+    }
+  ],
+  "initialProject": {
+    "schemaVersion": 1,
+    "id": "topostack-demo",
+    "name": "Crater Lake",
+    "location": {
+      "lat": 42.9446,
+      "lon": -122.109,
+      "label": "Crater Lake, Oregon",
+      "zoom": 11,
+      "bounds": {
+        "west": -122.2531955566406,
+        "east": -121.96480444335936,
+        "north": 43.01492844108113,
+        "south": 42.87419112307365
+      }
+    },
+    "cropShape": "rectangle",
+    "units": "metric",
+    "outputMode": "stack",
+    "widthMm": 300,
+    "heightMm": 200,
+    "engravingContourCount": 12,
+    "engravingIndexInterval": 5,
+    "showEngravingBorder": true,
+    "lineStyle": {
+      "contourMm": 0.16,
+      "indexContourMm": 0.32,
+      "majorRoadMm": 0.38,
+      "localRoadMm": 0.26,
+      "trailMm": 0.22,
+      "waterMm": 0.3,
+      "boundaryMm": 0.24,
+      "coordinateGridMm": 0.16,
+      "annotationMm": 0.2,
+      "borderMm": 0.34,
+      "trailPattern": "dashed",
+      "roadStyle": "centerline",
+      "majorRoadSpacingMm": 0.8,
+      "roadCap": "round"
+    },
+    "materialThicknessMm": 3,
+    "verticalExaggeration": 2,
+    "minimumFeatureMm": 0.8,
+    "smoothing": 1,
+    "showRoads": true,
+    "showTrails": true,
+    "showTransportationLabels": false,
+    "showWater": true,
+    "waterFillPattern": "none",
+    "showBoundaries": false,
+    "showCoordinateGrid": false,
+    "showWaterDepth": true,
+    "waterDepthExaggeration": 1,
+    "fitLakeDepth": false,
+    "waterDepthOverrides": {},
+    "showAlignmentGuides": true,
+    "optimizeMaterialUse": true,
+    "glueMarginMm": 8,
+    "laserKerfMm": 0.15,
+    "showElevationLabels": true,
+    "elevationLabelPosition": {
+      "x": -0.55,
+      "y": 0.55
+    },
+    "textStyle": {
+      "font": "technical",
+      "sizeMm": 3.1
+    },
+    "showNorthArrow": true,
+    "northArrowStyle": "classic",
+    "northArrowSizeMm": 24,
+    "northArrowPlacement": {
+      "anchor": "bottom-right",
+      "offset": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    "showScaleBar": true,
+    "markers": [],
+    "customLines": [],
+    "explodedPreview": 0.35
+  },
+  "coverageNote": "USGS survey samples are applied; uncovered cells use existing terrain or modeled depths. Mixed coverage is reported by the app.",
+  "media": [
+    {
+      "file": "assets/topostack-cover-4x3.png",
+      "width": 1600,
+      "height": 1200,
+      "bytes": 1432337,
+      "sha256": "1c32f4014d3061169e2a390d192566a8c779cca02f4a83704580ea4e69f489e8"
+    },
+    {
+      "file": "assets/topostack-gallery-01-3d.png",
+      "width": 1600,
+      "height": 1200,
+      "bytes": 350609,
+      "sha256": "3fa69c95d141de850549e8cb5b7e51665f18c70d822263473440994c92a8534c"
+    },
+    {
+      "file": "assets/topostack-gallery-02-cut-layers.png",
+      "width": 1600,
+      "height": 1200,
+      "bytes": 138396,
+      "sha256": "fe13020c54b4f13797b1f1b389a038ebd9186d5096343d9f23332876575c028a"
+    },
+    {
+      "file": "assets/topostack-gallery-03-flat-engraving.png",
+      "width": 1600,
+      "height": 1200,
+      "bytes": 277577,
+      "sha256": "4d0d21f1d3347b797f5347604304dee3f512648ca5d677ec8784d00b1cb08550"
+    },
+    {
+      "file": "assets/topostack-gallery-04-exploded.png",
+      "width": 1600,
+      "height": 1200,
+      "bytes": 316813,
+      "sha256": "5190fdc6445a61c0429983ee4eb9febda704ac699a3d2844dfca9956a7c36d4a"
+    },
+    {
+      "file": "assets/topostack-gallery-05-surveyed-depth.png",
+      "width": 1600,
+      "height": 1200,
+      "bytes": 402945,
+      "sha256": "41a1ccc36972e7ec7c3f913ff29c11ee44695b2d4b194649c3dfc25363e48fe3"
+    },
+    {
+      "file": "assets/topostack-gallery-06-terrain-settings.png",
+      "width": 1600,
+      "height": 1200,
+      "bytes": 358624,
+      "sha256": "4aa2ea0e5294a7bbca6cc3e73822ad8b714637d1300c75f96488765b4714927c"
+    },
+    {
+      "file": "assets/topostack-gallery-07-map-location.png",
+      "width": 1600,
+      "height": 1200,
+      "bytes": 199044,
+      "sha256": "99d945219d512b3151c256b7578bc86cf631c9d34e958b830f3b8406d399fa6e"
+    },
+    {
+      "file": "assets/topostack-gallery-08-custom-marker.png",
+      "width": 1600,
+      "height": 1200,
+      "bytes": 304293,
+      "sha256": "9f36881d1da44272a2f9fbe30fc6e31150fe5cd4289f052053281d8004408929"
+    },
+    {
+      "file": "assets/topostack-gallery-09-circular-design.png",
+      "width": 1600,
+      "height": 1200,
+      "bytes": 312128,
+      "sha256": "f61950abd54e303083fb100214f4e83e4659b5346be25b46b24191a4d850284e"
+    },
+    {
+      "file": "assets/topostack-cover-workshop-4x3.png",
+      "width": 1448,
+      "height": 1086,
+      "bytes": 2244522,
+      "sha256": "52b9e717cefdc3171930eb7f89d2891a8c55813c6ce52a08d793024da568d3ed"
+    },
+    {
+      "file": "assets/topostack-cover-workshop-v2-4x3.png",
+      "width": 1448,
+      "height": 1086,
+      "bytes": 2285005,
+      "sha256": "4e030954c426b2a2edfcffe90bd8c0e427dcfe98a756d473fc690a77e8d56b1f"
+    }
+  ],
+  "coverPresentation": {
+    "file": "assets/topostack-cover-workshop-v2-4x3.png",
+    "reference": "assets/topostack-cover-workshop-4x3.png",
+    "method": "Built-in imagegen edit: enlarged apparent tabletop scale and adjusted plywood presentation. AI-assisted image, not a manufactured sample photograph.",
+    "intendedVisualScale": "Approximately 16 x 10.7 inches; 1/8-inch (3.175 mm) plywood sheets. These are visual targets, not measured image dimensions or changes to the app project.",
+    "prompt": "cover-prompt-v2.txt"
+  },
+  "previousCoverPresentation": {
+    "file": "assets/topostack-cover-workshop-4x3.png",
+    "reference": "assets/topostack-cover-4x3.png",
+    "method": "Built-in imagegen screenshot edit: generated workshop background with subject-preservation instructions. AI-assisted presentation, not a manufactured sample photograph or pixel-exact original.",
+    "prompt": "cover-prompt.txt"
+  }
+}

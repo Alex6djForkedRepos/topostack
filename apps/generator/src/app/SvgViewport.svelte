@@ -1,6 +1,8 @@
 <script lang="ts">
-  import { onDestroy, onMount, type Snippet } from "svelte";
+  import { onDestroy, onMount, getContext, type Snippet } from "svelte";
   import { IconButton } from "@loidolt/theme-svelte";
+  import AtommZoom from "./AtommZoom.svelte";
+  const isEmbedded = getContext<() => boolean>("atomm-embedded") ?? (() => false);
   import { Minus, Plus, RotateCcw } from "@lucide/svelte";
 
   let { widthMm, heightMm, label, svgLabel, controlsLabel, resetLabel, children }: {
@@ -30,6 +32,12 @@
   let dragOffsetX = 0;
   let dragOffsetY = 0;
   let dragStart: { pointerId: number; x: number; y: number; panX: number; panY: number; unitsPerPixel: number } | undefined;
+  const touches = new Map<number, { x: number; y: number }>();
+  let pinch: { distance: number; x: number; y: number } | undefined;
+  function touchPair() {
+    const [a, b] = [...touches.values()];
+    return a && b ? { distance: Math.hypot(a.x - b.x, a.y - b.y), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : undefined;
+  }
   let dragFrame: number | undefined;
   let zoomCommitTimer: ReturnType<typeof setTimeout> | undefined;
   let canvasWidth = 0;
@@ -122,6 +130,7 @@
   function resetView(): void {
     if (dragStart && viewport.hasPointerCapture(dragStart.pointerId)) viewport.releasePointerCapture(dragStart.pointerId);
     dragStart = undefined;
+    touches.clear(); pinch = undefined;
     dragging = false;
     cancelZoomCommit();
     zoom = MIN_ZOOM;
@@ -133,10 +142,23 @@
 
   function handleWheel(event: WheelEvent): void {
     event.preventDefault();
+    commitVectorZoom();
+    const previous = zoom;
+    const bounds = canvas.getBoundingClientRect();
+    const units = panUnitsPerPixel() ?? 0;
+    const dx = (event.clientX - bounds.left - bounds.width / 2) * units;
+    const dy = (event.clientY - bounds.top - bounds.height / 2) * units;
     setZoom(zoom * Math.exp(-event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? viewport.clientHeight : 1) * 0.0015));
+    setPan(panX + dx * (1 - previous / zoom), panY + dy * (1 - previous / zoom), zoom);
   }
 
   function startPan(event: PointerEvent): void {
+    if (event.pointerType === "touch") {
+      touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      viewport.setPointerCapture(event.pointerId);
+      const pair = touchPair();
+      if (pair) { pinch = pair; dragStart = undefined; resetDragLayer(); commitVectorZoom(); return; }
+    }
     if (event.button !== 0 || zoom <= MIN_ZOOM || dragStart) return;
     cancelZoomCommit();
     const scale = panUnitsPerPixel();
@@ -148,6 +170,23 @@
   }
 
   function movePan(event: PointerEvent): void {
+    if (touches.has(event.pointerId)) {
+      touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      const pair = touchPair();
+      if (pinch && pair && pinch.distance > 0) {
+        event.preventDefault();
+        commitVectorZoom();
+        const previous = zoom;
+        const bounds = canvas.getBoundingClientRect();
+        const units = panUnitsPerPixel() ?? 0;
+        const dx = (pinch.x - bounds.left - bounds.width / 2) * units;
+        const dy = (pinch.y - bounds.top - bounds.height / 2) * units;
+        setZoom(zoom * pair.distance / pinch.distance);
+        setPan(panX - (pair.x - pinch.x) * units + dx * (1 - previous / zoom), panY - (pair.y - pinch.y) * units + dy * (1 - previous / zoom), zoom);
+        pinch = pair;
+        return;
+      }
+    }
     if (!dragStart || dragStart.pointerId !== event.pointerId) return;
     dragOffsetX = event.clientX - dragStart.x;
     dragOffsetY = event.clientY - dragStart.y;
@@ -155,6 +194,8 @@
   }
 
   function finishPan(event: PointerEvent): void {
+    touches.delete(event.pointerId);
+    if (pinch) { pinch = undefined; dragging = false; commitVectorZoom(); }
     if (!dragStart || dragStart.pointerId !== event.pointerId) return;
     const finalOffsetX = event.type === "pointerup" ? event.clientX - dragStart.x : dragOffsetX;
     const finalOffsetY = event.type === "pointerup" ? event.clientY - dragStart.y : dragOffsetY;
@@ -204,12 +245,14 @@
 </script>
 
 <div class="svg-viewer">
+  {#if isEmbedded()}<AtommZoom value={zoom} min={MIN_ZOOM} max={MAX_ZOOM} onZoom={setZoom} onFit={resetView} />{:else}
   <div class="svg-zoom-controls" aria-label={controlsLabel}>
     <IconButton label="Zoom out" size="sm" disabled={zoom <= MIN_ZOOM} onclick={() => setZoom(zoom - ZOOM_STEP)}><Minus size={15} /></IconButton>
     <span class="svg-zoom-value" aria-live="polite">{Math.round(zoom * 100)}%</span>
     <IconButton label="Zoom in" size="sm" disabled={zoom >= MAX_ZOOM} onclick={() => setZoom(zoom + ZOOM_STEP)}><Plus size={15} /></IconButton>
     <IconButton label={resetLabel} size="sm" disabled={zoom === MIN_ZOOM && panX === 0 && panY === 0} onclick={resetView}><RotateCcw size={14} /></IconButton>
   </div>
+  {/if}
   <button
     type="button"
     bind:this={viewport}

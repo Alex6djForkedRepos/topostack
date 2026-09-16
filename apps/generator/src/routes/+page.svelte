@@ -7,10 +7,15 @@
   import { MAP_DATA_ATTRIBUTION } from "../map-attribution";
   import TerrainIllustration from "../app/TerrainIllustration.svelte";
 
+  const atommBuild = import.meta.env.VITE_SITE_ENV === "atomm";
+
   const studioUrl = `${base}/studio`;
   const repositoryUrl = "https://github.com/Echo-Foxtrot-Works/topostack";
 </script>
 
+{#if atommBuild}
+  {#await import("./studio/+page.svelte")}<main class="atomm-startup" role="status">Preparing terrain studio…</main>{:then studio}<studio.default />{:catch}<main class="atomm-startup" role="alert">The studio could not load. Reload to try again.</main>{/await}
+{:else}
 <div class="landing-page">
   <a class="skip-link" href="#landing-content">Skip to content</a>
   <Topbar class="landing-topbar">
@@ -137,7 +142,10 @@
   <footer><span>TopoStack <span class="footer-note">/ Terrain studio</span></span><a href={`${base}/guides/lake-depth-data`}>Lake depth directory</a><a href={`${base}/privacy`}>Privacy</a><a href={studioUrl}>Open terrain studio <ArrowUpRight size={14} aria-hidden="true" /></a></footer>
 </div>
 
+{/if}
+
 <style>
+  .atomm-startup { min-height: 100dvh; display: grid; place-content: center; background: var(--loidolt-surface); color: var(--loidolt-text); }
   .landing-page { min-height: 100dvh; background: var(--loidolt-background); color: var(--loidolt-text); }
   .landing-page :global(.landing-topbar) { padding-inline: clamp(20px, 5vw, 80px); }
   .secondary-link, .primary-link, .support-link, footer a { display: inline-flex; align-items: center; justify-content: center; gap: 10px; text-decoration: none; }

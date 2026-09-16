@@ -42,6 +42,34 @@
       "bytes": 3786904,
       "tiles": 123,
       "processedGrids": 1
+    },
+    {
+      "dataset": "nve-norway-lakes-v1",
+      "sha256": "f95110bf670a63ddc1c6561d77e5a6ea9bd936fd41561c05ddaa1301e598fd90",
+      "bytes": 78695483,
+      "tiles": 5428,
+      "processedGrids": 521
+    },
+    {
+      "dataset": "twdb-texas-reservoirs-v1",
+      "sha256": "669aaf64e391fa36b64aabc7e9c4d5850116d76657a93a0a178a4e11524c384f",
+      "bytes": 279653,
+      "tiles": 55,
+      "processedGrids": 3
+    },
+    {
+      "dataset": "usbr-reservoirs-v1",
+      "sha256": "6aec64e370c23a811e6faba7805af680a1cc1999596d09cc59808976ce72888a",
+      "bytes": 27258,
+      "tiles": 14,
+      "processedGrids": 3
+    },
+    {
+      "dataset": "ontario-lakes-v1",
+      "sha256": "decebcdde125ebd4a5506c757af04540c1498a2e75eca1cd65c69e0d9e7f7de0",
+      "bytes": 216167771,
+      "tiles": 19240,
+      "processedGrids": 3396
     }
   ],
   "skipped": {
@@ -263,6 +291,315 @@
       {
         "id": "61.771.1.010",
         "reason": "Insufficient depth contours"
+      }
+    ],
+    "norway": [
+      {
+        "id": "10772",
+        "name": "Begervannet",
+        "reason": "Insufficient unambiguous underwater contours"
+      },
+      {
+        "id": "117",
+        "name": "Mylla",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "20366",
+        "name": "Søylandsvatnet",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "51079",
+        "name": "Lillevatnet",
+        "reason": "Insufficient unambiguous underwater contours"
+      },
+      {
+        "id": "51080",
+        "name": "Storvatnet",
+        "reason": "Insufficient unambiguous underwater contours"
+      },
+      {
+        "id": "5205",
+        "name": "Dausjøen",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "893",
+        "name": "Nesjøen",
+        "reason": "Insufficient contour samples"
+      }
+    ],
+    "ontario": [
+      {
+        "id": "15-3654-55075",
+        "name": "Granite Lake",
+        "reason": "Insufficient unambiguous underwater contours"
+      },
+      {
+        "id": "15-7025-57093",
+        "name": "Cruz Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "16-3086-53259",
+        "name": "Bearpad Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "16-3103-54530",
+        "name": "Lac des Iles",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "16-3634-54687",
+        "name": "Black Sturgeon Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "16-4869-54848",
+        "name": "Gamsby Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "16-6497-54012",
+        "name": "Strickland Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "16-6648-52693",
+        "name": "Baby Lake",
+        "reason": "Insufficient unambiguous underwater contours"
+      },
+      {
+        "id": "16-6739-52806",
+        "name": "Mirimoki Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "16-7159-51704",
+        "name": "Reserve Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "16-7175-51737",
+        "name": "Jarvis Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "17-3340-53046",
+        "name": "Emerald Lake (lac Emerald)",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "17-3397-51640",
+        "name": "Westman Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "17-3507-52629",
+        "name": "Memoir Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "17-3731-51699",
+        "name": "Moon Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "17-3788-53266",
+        "name": "Ivanhoe Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "17-4038-51715",
+        "name": "Spider Creek",
+        "reason": "No gridded underwater coverage"
+      },
+      {
+        "id": "17-4282-52662",
+        "name": "Clam Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "17-4304-53073",
+        "name": "Kasasway Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "17-4543-51760",
+        "name": "Loon Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "17-4665-48812",
+        "name": "Silver Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "17-5103-53177",
+        "name": "Deak Lake",
+        "reason": "Insufficient unambiguous underwater contours"
+      },
+      {
+        "id": "17-5187-52362",
+        "name": "Scarecrow Lake",
+        "reason": "Insufficient unambiguous underwater contours"
+      },
+      {
+        "id": "17-5331-54730",
+        "name": "Little Abitibi Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "17-5355-50876",
+        "name": "Beaver Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "17-5677-53705",
+        "name": "Neelands Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "17-5930-50285",
+        "name": "Isabella Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "17-6010-53265",
+        "name": "Larder Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "17-6031-50262",
+        "name": "Jelso Lake",
+        "reason": "Insufficient unambiguous underwater contours"
+      },
+      {
+        "id": "17-6031-52053",
+        "name": "Rabbit Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "17-6234-49731",
+        "name": "Muldrew Lakes",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "17-6713-50125",
+        "name": "White Trout Bay",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "17-6718-50425",
+        "name": "Dace Lake",
+        "reason": "Insufficient unambiguous underwater contours"
+      },
+      {
+        "id": "17-6741-49945",
+        "name": "Kushog Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "17-6779-50032",
+        "name": "Big Hawk Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "17-6802-50021",
+        "name": "Little Hawk Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "17-6900-50067",
+        "name": "Cruiser Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "17-6904-50047",
+        "name": "Bitter Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "17-6948-49070",
+        "name": "Omemee Pond",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "17-6951-49635",
+        "name": "Union Lake",
+        "reason": "Insufficient unambiguous underwater contours"
+      },
+      {
+        "id": "17-7075-49817",
+        "name": "Glamor Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "17-7162-49553",
+        "name": "Gold Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "17-7169-49787",
+        "name": "Lowry Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "17-7202-49484",
+        "name": "Mountain Lake",
+        "reason": "Insufficient unambiguous underwater contours"
+      },
+      {
+        "id": "17-7233-51100",
+        "name": "Little Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "17-7252-51202",
+        "name": "Mousseau Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "17-7333-50217",
+        "name": "Lake St. Peter",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "18-2750-51111",
+        "name": "Soldier Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "18-2756-49689",
+        "name": "Wollaston Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "18-2825-49286",
+        "name": "Crowe Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "18-3139-50699",
+        "name": "Flat Iron Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "18-3313-49730",
+        "name": "Shabomeka Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "18-3577-50641",
+        "name": "Porter Lake",
+        "reason": "Insufficient contour samples"
+      },
+      {
+        "id": "18-4156-49286",
+        "name": "Highley Lake",
+        "reason": "Insufficient contour samples"
       }
     ]
   }

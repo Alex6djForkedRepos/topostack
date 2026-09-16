@@ -16,6 +16,11 @@ worldwide survey coverage. HydroLAKES still supplies the lake outlines.
 | [swisstopo swissBATHY3D](https://www.swisstopo.admin.ch/en/height-model-swissbathy3d) | All 22 lake grids in the retrieved catalog | Native 1–3 m LN02 bed elevations averaged to 10 m for serving. Extent varies by lake. |
 | [Finnish Environment Institute (Syke)](https://ckan.ymparisto.fi/dataset/jarvien-ja-jokien-syvyysaineisto) | 1,821 processed lakes with usable depth contours and depth-area masks | Linear interpolation of survey depth contours in meters onto a 20 m grid; no extrapolation outside the measured contour hull or depth-area mask. |
 
+| [Ontario](https://data.ontario.ca/dataset/bathymetry-lines) | 3,396 processed waterbodies; 54 records skipped | Negative metre contours converted to positive depths; latest indexed survey, 20 m grid, lake mask and measured contour hull. |
+| [Norway NVE](https://data.norge.no/nb/datasets/fa42a236-7881-4a15-a4f9-a69b3970f440/dybdekart) | 521 processed lakes; 7 records skipped | Digital depth contours joined to survey polygons, interpolated onto a masked 20 m grid. |
+| [Texas Water Development Board](https://www.twdb.texas.gov/surfacewater/surveys/completed/index.asp) | Alan Henry, Lake Austin, Lady Bird Lake | Verified contour elevations and report reference levels; masked 10 m grid. Other reservoirs remain to be validated. |
+| [Bureau of Reclamation](https://www.usbr.gov/tsc/techreferences/reservoir.html) | Estes, Flatiron, Pinewood | Verified historical reference levels and conservative closed-contour masks; 10 m grid. Other reservoirs remain to be validated. |
+
 Swiss coverage includes Ägeri, Baldegg, Biel, Constance, Brienz, Hallwil, Joux,
 Geneva, Neuchâtel, Maggiore (Swiss portion), Lungern, Morat, Rotsee, Sarnen,
 Sempach, Sils, Silvaplana, Thun, Lucerne, Walensee, Zürich (main lake), and Zug.
@@ -34,8 +39,8 @@ include reference-level error. A missing surface reference produces a fallback
 warning rather than a guessed depth.
 
 All surveys are historical. The USGS reference levels and HydroLAKES outlines
-are not live water levels. Minnesota and Finnish rasters are **survey-derived
-interpolations**, not new sonar measurements. Resolution and numeric encoding
+are not live water levels. Contour-derived rasters are **survey-derived interpolations**, not new sonar
+measurements. Resolution and numeric encoding
 precision do not imply equivalent survey accuracy.
 
 ## Loading and fallback
@@ -172,4 +177,111 @@ Regenerate the static catalog after rebuilding or adding survey archives:
   --archives /tmp/topostack-survey-archives
 ```
 
-The generator checks the regional download checksums and matches receipts to `scripts/data/lake-survey-builds.json`. It reads Minnesota DNR outline names/counties and Syke depth-area names, preserves regional survey identifiers, and includes curated Swiss names/aliases. Update the committed build receipts and name mappings when sources change. The resulting `apps/generator/static/data/lake-depth-directory.json` is fetched only on the directory page; it is excluded from the studio's startup JavaScript.
+The generator checks the regional download checksums and matches receipts to `scripts/data/lake-survey-builds.json`. It reads Minnesota DNR outline names/counties and Syke depth-area names, preserves regional survey identifiers, and includes curated Swiss names/aliases. Update the committed build receipts and name mappings when sources change. The resulting `apps/generator/static/data/lake-depth-directory.json` is fetched on the directory page or when the studio’s location search opens; it is excluded from the studio’s startup JavaScript.
+
+## Additional regional sources (September 2026)
+
+The registry also includes Ontario, Norway's NVE digital bathymetry, selected
+Texas Water Development Board reservoirs, and selected Bureau of Reclamation
+reservoirs. These additions use the existing priority, masking, attribution,
+range-request and fallback paths. Counts come from build receipts; inclusion of
+an agency does not mean every survey in its catalog has been imported.
+
+- **Ontario:** the complete Bathymetry Line and Bathymetry Index service snapshots
+  are pinned. Negative `DEPTH` values become positive metres; positive values
+  are excluded. Only index polygons marked as having contour data are used.
+  Records are grouped by waterbody ID; the latest indexed survey year is used,
+  and known nonmatching contour years are excluded. Missing years remain
+  unspecified. Interpolation is clipped to the lake mask and measured contour
+  hull. The [Ontario user guide](https://www.publicdocs.mnr.gov.on.ca/mirb/Bathymetry-UserGuide-EN.docx)
+  defines the depth units. Very large grids, missing contours, and degenerate
+  records are listed in the skipped-record receipt. Existing NOAA coverage keeps
+  priority in the Great Lakes.
+- **Norway:** the NVE `DybdeKurve` and `Innsjo_ved_dybdemaling` digital layers are
+  joined by `vatnlnr`; `dybde_m` already holds positive metres. The current
+  [NVE data policy](https://www.nve.no/kart/kartdata/) and
+  [national dataset catalog](https://data.norge.no/nb/datasets/fa42a236-7881-4a15-a4f9-a69b3970f440/dybdekart)
+  publish digital data under NLOD. The older scanned-map page's non-commercial
+  restriction is not used as authorization for those scans; no scans are imported.
+- **Texas:** Alan Henry (2017), Lake Austin (2008–09), and Lady Bird Lake (2008–09).
+  Published contours and explicit lake polygons are used. Depths reference the
+  reports' conservation pools in NGVD29 feet: 2220, 492.8 and 429 respectively.
+  TWDB's [site policy](https://www.twdb.texas.gov/policies/site/index.asp) permits
+  copying and distribution. Other TWDB surveys still need individual input and
+  datum validation; they are not represented as integrated coverage.
+- **Reclamation:** Lake Estes (2001), Flatiron (2012), and Pinewood (2012).
+  Estes depths reference 7475 ft project datum, inside the closed 7470 ft contour.
+  Flatiron's NAVD88 contours use conservation pool `5472.8 + 5.54` ft and the
+  closed 5478 ft contour. Pinewood uses `6580 + 5.5` ft NAVD88 and the closed
+  6582 ft contour. These conservative masks omit unsampled margins; they retain
+  the largest closed reservoir polygon and its islands. The reports describe
+  composite surfaces incorporating survey, shoreline, and other topographic
+  inputs. They are labeled **survey contours**, not uniformly measured sonar
+  grids. Additional Reclamation reservoirs need the same per-survey validation.
+
+Reservoir contour coordinates are transformed to metres before interpolation.
+A 1 m geometry simplification tolerance removes redundant vertices before the
+10 m grid is built. Regional grids use 20 m cells. Neither cell size implies
+survey accuracy. Conflicting depths at identical positions are excluded;
+interpolation never extends past the remaining sample hull. Source pins include
+report URLs, exact reference levels, source units and footprint sanity checks.
+
+### British Columbia: reference maps available; numeric import deferred
+
+The [open PDF collection](https://open.canada.ca/data/en/dataset/1427d389-cd21-4fe2-8ed9-282d9bdcb7e2)
+uses the Open Government Licence – British Columbia. It is linked from the
+public guide, but requires georeferencing and contour digitization before it can
+supply numerical depths. A separate
+[numeric contour-polygon dataset](https://catalogue.data.gov.bc.ca/dataset/493fb840-1909-489e-91c8-1c9ce9ccee9c)
+is currently licensed **Access Only**. The province's
+[license guidance](https://bcgov.github.io/data-publication/pages/dps_licences.html)
+requires written permission for reproduction or distribution. It is deliberately
+absent from the runtime registry until redistribution permission or a compatible
+open release is available.
+
+### Capturing and validating service snapshots
+
+`snapshot-survey-service.py` enumerates IDs, captures every feature with checked
+pagination, retries oversized responses in smaller batches, and rejects missing
+or duplicate records. It rechecks the ID set before finalizing a deterministic
+gzipped GeoJSON snapshot and receipt. Failed downloads remain partial and are
+not accepted by the builder. An ArcGIS pin instructs the normal builder to run
+this capture when its cached snapshot is missing, then verify the pinned digest.
+A changed upstream dataset requires a reviewed new pin; it is never silently
+accepted. Retain snapshots for exact offline rebuilds because public services
+may change their contents in place.
+
+```sh
+/tmp/topostack-surveys-venv/bin/python scripts/test_survey_regions.py
+/tmp/topostack-surveys-venv/bin/python scripts/build-survey-bathymetry.py \
+  --cache /tmp/topostack-expanded-surveys --out-dir /tmp/topostack-survey-archives \
+  --dataset ontario-lakes-v1
+```
+
+To validate new archive bytes in the browser **before provisioning**, start the
+local app and run the existing integration check with `--local-archives`. This
+intercepts archive range requests using the local files; lake polygons still
+come from the configured development data service. It does not validate a remote
+upload or release pointer.
+
+```sh
+SURVEY_TEST_APP_URL=http://localhost:5273 node scripts/verify-surveys-live.mjs \
+  --coverage-only --local-archives=/tmp/topostack-survey-archives \
+  --dataset=ontario-lakes-v1,nve-norway-lakes-v1,twdb-texas-reservoirs-v1,usbr-reservoirs-v1
+```
+
+## Searching all integrated lakes
+
+The studio’s **Choose anywhere** search includes every lake and basin in the
+survey directory, alongside the regular place search. All matches remain
+accessible through pagination; names, aliases, regions, sources, and survey IDs
+are searchable. Surveyed lakes remain searchable if the external geocoder fails.
+Selecting a surveyed lake frames its complete survey bounds for the current cut
+size and enables layered water depth. The directory covers integrated numeric
+archives, not unimported surveys or reference-only PDF maps.
+
+`lake-directory.test.ts` checks searchability for every catalog record. Run
+`node scripts/verify-lake-search.mjs` against the local preview at port 5298, or set
+`LAKE_SEARCH_TEST_URL=https://dev-topostack.echofoxtrot.works` to verify development.
+The browser check covers all source groups, pagination, independent provider
+failures, retries, mobile layout, framed selection, and saved project state.

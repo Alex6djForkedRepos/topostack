@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { onMount, untrack } from "svelte";
+  import { onMount, untrack, setContext } from "svelte";
   import { base } from "$app/paths";
   import { House } from "@lucide/svelte";
   import { Box, ChevronDown, Circle, Compass, Download, Grid3X3, Layers3, Map as MapIcon, MapPin, Minus, Mountain, PenTool, Plus, Route, Search, Sparkles, Square, Trash2, Undo2, Redo2, Upload, Waves, X } from "@lucide/svelte";
-  import { AppShell, Brand, Button, ContextBar, Field, IconButton, Input, NumberField, Section, Sidebar, Switch, ThemeToggle, Topbar, Workspace } from "@loidolt/theme-svelte";
+  import { AppShell, Brand, Button, ContextBar, Field, IconButton, Input, Section, Sidebar, ThemeToggle, Topbar, Workspace } from "@loidolt/theme-svelte";
   import { applySurveyProvenance } from "../bathymetry";
   import { sourceRequirements, buildProjectPackage, createSyntheticSource, DEFAULT_PROJECT, displayElevation, displayLength, elevationUnit, generateGeometry, labelPathData, lengthUnit, markerSymbolPaths, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, MAX_WATER_DEPTH_EXAGGERATION, millimetersFromDisplay, MIN_VERTICAL_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, northArrowMarkings, planTerrainStack, validateProject, type CustomLineFeatureV1, type CustomLineKind, type GeoBounds, type GeoPoint, type GeometryIRV1, type LineStyleV1, type MapMarkerV1, type MarkerSymbol, type NorthArrowAnchor, type NorthArrowStyle, type OperationPath, type Point2D, type ProjectConfigV1, type RoadCap, type RoadStyle, type SourceBundleV1, type TextFont, type TrailPattern, type WaterFillPattern } from "@topostack/core";
   import { boundsForProject, combineWaterAreas, loadLakeAreas, loadSurveyedLakeDepths, loadTerrain, loadVectorMarkings, type PlaceResult } from "../data-provider";
@@ -16,6 +16,9 @@
   import { connectAtomm, type ExportUpdate } from "./atomm-bridge";
   import { prepareProjectSettings, prepareSelectedDownload, startBrowserDownload, type DownloadOption } from "./native-export";
   import ExportDialog from "./ExportDialog.svelte";
+  import { readAtommLocale } from "./atomm-locale";
+  import NumberField from "./StudioNumberField.svelte";
+  import Switch from "./StudioSwitch.svelte";
 
   let { initialPreview }: { initialPreview?: GeometryIRV1 } = $props();
 
@@ -132,8 +135,11 @@
     linework: false,
     advanced: false,
   });
+  let AtommWorkbench = $state.raw<typeof import("./AtommWorkbench.svelte").default>();
+  let atommLayoutFailed = $state(false);
   let atommReady = $state(false);
   let embeddedInPlatform = $state(false);
+  setContext("atomm-embedded", () => embeddedInPlatform);
   let exportOpen = $state(false);
   let exportPhase = $state<ExportPhase>("idle");
   let exportTitle = $state("");
@@ -216,7 +222,9 @@
   const platformExportAvailable = $derived(atommReady && embeddedInPlatform);
   const lakeDepthFittingOn = $derived(project.outputMode === "stack" && project.showWaterDepth && project.fitLakeDepth
     && geometry.waterSurfaces.some((surface) => surface.kind === "lake" && surface.depthFitScale !== undefined && surface.depthFitScale < 1));
-  const visibleWarnings = $derived(geometry.warnings
+  // Several unnamed lakes can emit the same coverage warning. Render and
+  // dismiss that message once so keyed rows remain unique.
+  const visibleWarnings = $derived([...new Map(geometry.warnings.map((warning) => [`${warning.code}-${warning.message}`, warning])).values()]
     .filter((warning) => !dismissedWarnings.includes(`${warning.code}-${warning.message}`))
     .sort((a, b) => Number(b.action === "fit-lake-depth") - Number(a.action === "fit-lake-depth"))
     .slice(0, 2));
@@ -473,7 +481,11 @@
     }
     menuStateReady = true;
     embeddedInPlatform = window.parent !== window;
-    const disconnectAtomm = connectAtomm(() => ({ geometry, project }), () => atommReady = true, (update) => {
+    if (embeddedInPlatform) void import("./AtommWorkbench.svelte").then((module) => { if (!cancelled) AtommWorkbench = module.default; }).catch(() => { if (!cancelled) atommLayoutFailed = true; });
+    const disconnectAtomm = connectAtomm(() => ({ geometry, project }), () => {
+      atommReady = true;
+      if (embeddedInPlatform && window.atomm) void readAtommLocale(window.atomm).then((locale) => { if (!cancelled) document.documentElement.lang = locale; });
+    }, (update) => {
       handleExportUpdate(update);
       if (update.phase === "ready") trackUsage("export_prepared", project.outputMode, "atomm");
       if (update.phase === "error") trackUsage("export_failed", project.outputMode, "atomm");
@@ -582,7 +594,9 @@
   function choosePlace(place: PlaceResult): void {
     invalidatePendingPreview();
     pushHistoryEntry();
-    project = { ...project, name: place.label.split(",")[0] ?? "Terrain project", location: { ...project.location, lat: place.lat, lon: place.lon, label: place.label, zoom: 11, bounds: undefined } };
+    project = { ...project, name: (place.surveyedLake ? place.label : place.label.split(",")[0] ?? "Terrain project").slice(0, MAX_PROJECT_NAME_LENGTH),
+      ...(place.surveyedLake ? { outputMode: "stack" as const, showWaterDepth: true } : {}),
+      location: { ...project.location, lat: place.lat, lon: place.lon, label: place.label, zoom: place.zoom ?? 11, bounds: place.bounds } };
     status = "Map area changed · regenerate terrain data";
     searchOpen = false;
   }
@@ -838,12 +852,7 @@
   <meta name="theme-color" content={themeColor} />
 </svelte:head>
 
-<AppShell class="app-shell">
-  {#snippet header()}
-    <div class="app-header">
-      <Topbar class="topbar">
-        {#snippet brand()}<Brand name="TopoStack" meta="Terrain studio" />{/snippet}
-        {#snippet navigation()}
+{#snippet projectControls()}
           <label class="project-name"><span>Project name</span><Input aria-label="Project name" maxlength={MAX_PROJECT_NAME_LENGTH} value={project.name} oninput={(event) => updateProject({ name: event.currentTarget.value })} /></label>
           <div class="history-actions">
             <IconButton label="Undo" onclick={undo} disabled={!history.length}><Undo2 size={17} /></IconButton>
@@ -851,16 +860,9 @@
             <IconButton label="Import project JSON" onclick={() => importInput.click()}><Upload size={17} /></IconButton>
             <input bind:this={importInput} class="ldt-visually-hidden" type="file" accept="application/json,.json" onchange={(event) => void importProject(event.currentTarget.files?.[0])} />
           </div>
-        {/snippet}
-        {#snippet actions()}
-          <div class="bar-meta">{#if project.outputMode === "engraving"}<span>{project.engravingContourCount} contours</span><span>1 engrave SVG</span><span>No cut paths</span>{:else}<span>{geometry.layers.length} layers</span><span>{fabricationPanelCount} cut panels</span><span>{shownLength(totalHeight)} {shownLengthUnit} tall</span>{/if}</div>
-          <Button class="export-trigger" aria-label="Export" title="Export" aria-haspopup="dialog" onclick={(event: MouseEvent) => { if (event.currentTarget instanceof HTMLElement) event.currentTarget.focus(); exportOpen = true; }}><Download size={18} aria-hidden="true" /><span class="export-trigger-label">Export</span></Button>
-          <ThemeToggle {theme} class="theme-toggle" />
-          <a class="about-link" href={`${base}/`} target="_blank" rel="noopener noreferrer" aria-label="TopoStack home and getting started (opens in a new tab)" title="TopoStack home and getting started (opens in a new tab)"><House size={18} aria-hidden="true" /></a>
-        {/snippet}
-      </Topbar>
-      <ContextBar class="terrain-contextbar" section="Terrain" title={project.location.label.split(",")[0]} detail={project.location.label.split(",").slice(1).join(",") || "Selected coordinates"}>
-        {#snippet actions()}
+{/snippet}
+
+{#snippet outputControls()}
           <div class="ldt-toggle-group ldt-toggle-group--sm output-mode-switch" role="radiogroup" aria-label="Output type">
             <button type="button" class="ldt-toggle-group__item" role="radio" aria-label="Layered relief" aria-checked={project.outputMode === "stack"} data-state={project.outputMode === "stack" ? "on" : "off"} tabindex={project.outputMode === "stack" ? 0 : -1} onclick={() => { mode = threeUnavailable ? "2d" : "3d"; void updateFabrication({ outputMode: "stack" }); }} onkeydown={navigateChoice}>
               <span class="output-mode-switch__icon" aria-hidden="true"><Layers3 size={16} strokeWidth={2.2} /></span>
@@ -872,26 +874,11 @@
             </button>
           </div>
           <span class="context-export-status" class:ready={exportReady && exportPhase !== "error"} class:error={!exportReady || exportPhase === "error"}>{exportPhase === "preparing" ? "Preparing files" : exportPhase === "ready" ? "Export ready" : exportPhase === "error" ? "Export failed" : exportReady ? "Ready to export" : "Generate before export"}</span>
-        {/snippet}
-      </ContextBar>
-    </div>
-  {/snippet}
+{/snippet}
 
-  <Workspace class="workspace">
-    {#snippet sidebar()}
-    <Sidebar class="config-panel">
-      <div class="panel-scroll">
-        <div class="panel-intro">
-          <span class="section-kicker panel-eyebrow">Project controls</span>
-          <h1>{project.outputMode === "engraving" ? "Draw the landscape." : "Build the landscape."}</h1>
-          <p>Work through the essentials, then open details only when you need them.</p>
-          <div class="section-tools" aria-label="Section display controls">
-            <button type="button" onclick={() => setAllSections(true)} disabled={CONFIG_SECTION_IDS.every((section) => openSections[section])}>Expand all</button>
-            <button type="button" onclick={() => setAllSections(false)} disabled={CONFIG_SECTION_IDS.every((section) => !openSections[section])}>Collapse all</button>
-          </div>
-        </div>
-        <Section class="config-section">
-          <button type="button" class="section-disclosure" aria-expanded={openSections.setup} aria-controls="section-setup" onclick={() => toggleSection("setup")}>
+{#snippet setupControls()}
+        <Section class="config-section" aria-labelledby="atomm-setup-title">
+          <button type="button" class="section-disclosure" id="atomm-setup-title" aria-expanded={openSections.setup} aria-controls="section-setup" onclick={() => toggleSection("setup")}>
             <span class="section-number">01–02</span>
             <span class="section-title">Project setup<small>{sectionSummary("setup")}</small></span>
             <ChevronDown size={16} class={openSections.setup ? "kicker-chevron kicker-chevron--open" : "kicker-chevron"} />
@@ -922,19 +909,17 @@
           </p>
           </div>
         </Section>
+{/snippet}
 
-        <Section class="config-section">
-          <button type="button" class="section-disclosure" aria-expanded={openSections.size} aria-controls="section-size" onclick={() => toggleSection("size")}>
+{#snippet parameterControls()}
+        <Section class="config-section" aria-labelledby="atomm-size-title">
+          <button type="button" class="section-disclosure" id="atomm-size-title" aria-expanded={openSections.size} aria-controls="section-size" onclick={() => toggleSection("size")}>
             <span class="section-number">03</span>
             <span class="section-title">{project.outputMode === "engraving" ? "Artwork size" : "Cut size"}<small>{sectionSummary("size")}</small></span>
             <ChevronDown size={16} class={openSections.size ? "kicker-chevron kicker-chevron--open" : "kicker-chevron"} />
           </button>
           <div id="section-size" class="section-content" hidden={!openSections.size}>
-          <div class="ldt-toggle-group unit-switch" role="radiogroup" aria-label="Display units">
-            {#each UNIT_OPTIONS as option}
-              <button type="button" class="ldt-toggle-group__item" role="radio" aria-checked={project.units === option.value} data-state={project.units === option.value ? "on" : "off"} tabindex={project.units === option.value ? 0 : -1} onclick={() => void updateFabrication({ units: option.value as ProjectConfigV1["units"] })} onkeydown={navigateChoice}>{option.label}</button>
-            {/each}
-          </div>
+          {#if !embeddedInPlatform}{@render unitControls()}{/if}
           <div class="ldt-toggle-group shape-switch" role="radiogroup" aria-label="Crop shape">
             {#each SHAPE_OPTIONS as option}
               <button type="button" class="ldt-toggle-group__item" role="radio" aria-checked={project.cropShape === option.value} data-state={project.cropShape === option.value ? "on" : "off"} tabindex={project.cropShape === option.value ? 0 : -1} onclick={() => void updateFabrication({ cropShape: option.value as ProjectConfigV1["cropShape"], ...(option.value === "circle" ? { heightMm: project.widthMm } : {}) })} onkeydown={navigateChoice}>{#if option.value === "rectangle"}<Square size={15} />{:else}<Circle size={15} />{/if}{option.label}</button>
@@ -947,8 +932,8 @@
           </div>
         </Section>
 
-        <Section class="config-section">
-          <button type="button" class="section-disclosure" aria-expanded={openSections.terrain} aria-controls="section-terrain" onclick={() => toggleSection("terrain")}>
+        <Section class="config-section" aria-labelledby="atomm-terrain-title">
+          <button type="button" class="section-disclosure" id="atomm-terrain-title" aria-expanded={openSections.terrain} aria-controls="section-terrain" onclick={() => toggleSection("terrain")}>
             <span class="section-number">04</span>
             <span class="section-title">{project.outputMode === "engraving" ? "Contour design" : "Terrain layers"}<small>{sectionSummary("terrain")}</small></span>
             <ChevronDown size={16} class={openSections.terrain ? "kicker-chevron kicker-chevron--open" : "kicker-chevron"} />
@@ -996,8 +981,8 @@
           </div>
         </Section>
 
-        <Section class="config-section">
-          <button type="button" class="section-disclosure" aria-expanded={openSections.details} aria-controls="section-details" onclick={() => toggleSection("details")}>
+        <Section class="config-section" aria-labelledby="atomm-details-title">
+          <button type="button" class="section-disclosure" id="atomm-details-title" aria-expanded={openSections.details} aria-controls="section-details" onclick={() => toggleSection("details")}>
             <span class="section-number">05</span>
             <span class="section-title">Map details<small>{sectionSummary("details")}</small></span>
             <ChevronDown size={16} class={openSections.details ? "kicker-chevron kicker-chevron--open" : "kicker-chevron"} />
@@ -1162,8 +1147,8 @@
           </div>
         </Section>
 
-        <Section class="config-section custom-data-section">
-          <button type="button" class="section-disclosure" aria-expanded={openSections.customData} aria-controls="section-custom-data" onclick={() => toggleSection("customData")}>
+        <Section class="config-section custom-data-section" aria-labelledby="atomm-customData-title">
+          <button type="button" class="section-disclosure" id="atomm-customData-title" aria-expanded={openSections.customData} aria-controls="section-custom-data" onclick={() => toggleSection("customData")}>
             <span class="section-number">06</span>
             <span class="section-title">Custom Data<small>{sectionSummary("customData")}</small></span>
             <ChevronDown size={16} class={openSections.customData ? "kicker-chevron kicker-chevron--open" : "kicker-chevron"} />
@@ -1250,8 +1235,8 @@
           </div>
         </Section>
 
-        <Section class="config-section linework-section">
-          <button type="button" class="section-disclosure" aria-expanded={openSections.linework} aria-controls="section-linework" onclick={() => toggleSection("linework")}>
+        <Section class="config-section linework-section" aria-labelledby="atomm-linework-title">
+          <button type="button" class="section-disclosure" id="atomm-linework-title" aria-expanded={openSections.linework} aria-controls="section-linework" onclick={() => toggleSection("linework")}>
             <span class="section-number">07</span>
             <span class="section-title">Linework<small>{sectionSummary("linework")}</small></span>
             <ChevronDown size={16} class={openSections.linework ? "kicker-chevron kicker-chevron--open" : "kicker-chevron"} />
@@ -1334,8 +1319,8 @@
           </div>
         </Section>
 
-        <Section class="config-section advanced-section">
-          <button type="button" class="section-disclosure" aria-expanded={openSections.advanced} aria-controls="section-advanced" onclick={() => toggleSection("advanced")}>
+        <Section class="config-section advanced-section" aria-labelledby="atomm-advanced-title">
+          <button type="button" class="section-disclosure" id="atomm-advanced-title" aria-expanded={openSections.advanced} aria-controls="section-advanced" onclick={() => toggleSection("advanced")}>
             <span class="section-number">08</span>
             <span class="section-title">{project.outputMode === "engraving" ? "Artwork settings" : "Fabrication settings"}<small>{sectionSummary("advanced")}</small></span>
             <ChevronDown size={16} class={openSections.advanced ? "kicker-chevron kicker-chevron--open" : "kicker-chevron"} />
@@ -1354,17 +1339,19 @@
             </div>
           </div>
         </Section>
-      </div>
+{/snippet}
+
+{#snippet generationControls()}
       <div class="generate-dock">
         <div class={`status-line status-${previewBusy ? "loading" : generationState}`} role="status" aria-live="polite"><span></span>{generationState === "loading" ? status : !detailsUpdating && terrainDataStale ? terrainDataAction === "regenerate" ? "Map area changed · regenerate terrain data before export" : "Map area changed · generate terrain data before export" : !detailsUpdating && verticalExaggerationStale ? "Vertical exaggeration changed · regenerate terrain before export" : !detailsUpdating && !exportReady && geometry.sourceKind === "real" ? exportBlockedBy ?? "Design changed · refresh before export" : status}</div>
         <Button variant="primary" class="generate-button" onclick={() => generationState === "loading" ? cancelGeneration() : void generate()}>{#if generationState === "loading"}<X size={18} /> Cancel generation{:else}<Sparkles size={18} /> {geometry.sourceKind === "real" ? terrainDataStale ? "Regenerate terrain data" : "Regenerate terrain" : "Generate terrain"}{/if}</Button>
       </div>
-    </Sidebar>
-    {/snippet}
+{/snippet}
 
+{#snippet previewContent()}
     <section class="preview-panel" class:engraving-preview-panel={project.outputMode === "engraving"}>
-      <div class="preview-toolbar"><div class="ldt-toggle-group mode-switch" role="radiogroup" aria-label="Preview mode">{#each previewModeOptions as option}<button type="button" class="ldt-toggle-group__item" role="radio" aria-checked={mode === option.value} data-state={mode === option.value ? "on" : "off"} tabindex={mode === option.value ? 0 : -1} onclick={() => { if (option.value === "2d" && selectedLayer === 0) selectedLayer = featuredLayerIndex(geometry); previewNotice = ""; if (option.value === "3d") threeUnavailable = false; mode = option.value as PreviewMode; }} onkeydown={navigateChoice}>{#if option.value === "map"}<MapIcon size={15} />{:else if option.value === "engraving"}<PenTool size={15} />{:else if option.value === "2d"}<Layers3 size={15} />{:else}<Box size={15} />{/if}{option.label}</button>{/each}</div><div class="preview-readout"><span>{shownLength(project.widthMm)} × {shownLength(project.heightMm)} {shownLengthUnit}</span><span>{Math.round(displayElevation(geometry.minElevationM, project.units)).toLocaleString()}–{Math.round(displayElevation(geometry.maxElevationM, project.units)).toLocaleString()} {shownElevationUnit}</span></div></div>
-      <div class="preview-stage" aria-busy={previewBusy} data-road-markings={detailCounts.road} data-trail-markings={detailCounts.trail} data-transportation-label-markings={detailCounts.transportationLabel} data-water-markings={detailCounts.water} data-contour-markings={detailCounts.contour} data-alignment-markings={detailCounts.alignment} data-elevation-markings={detailCounts.elevation} data-north-markings={detailCounts.north} data-scale-markings={detailCounts.scale} data-marker-markings={detailCounts.marker} data-custom-line-markings={detailCounts.customLine}>{#if mode === "map"}{#if MapCanvas}<MapCanvas {project} onUnavailable={() => { mode = project.outputMode === "engraving" ? "engraving" : "2d"; previewNotice = "Map is unavailable in this browser · choose a location using search or coordinates"; }} onLocationChange={(lat: number, lon: number, zoom: number, bounds: GeoBounds) => updateLocation({ lat, lon, zoom, bounds, label: `${lat.toFixed(4)}, ${lon.toFixed(4)}` })} />{:else}<div class="preview-loading">Loading map…</div>{/if}{:else if mode === "engraving"}{#if EngravingPreview}<EngravingPreview {geometry} {project} />{:else}<div class="preview-loading">Loading engraving…</div>{/if}{:else if mode === "2d"}{#if TwoDPreview}<TwoDPreview {geometry} {selectedLayer} />{:else}<div class="preview-loading">Loading cut preview…</div>{/if}{:else if ThreePreview}<ThreePreview {geometry} exploded={project.explodedPreview} onUnavailable={() => { threeUnavailable = true; mode = "2d"; previewNotice = "3D is unavailable in this browser · showing cut layers"; }} />{:else}<div class="preview-loading">Loading 3D preview…</div>{/if}{#if mode !== "map"}<div class="preview-attribution">Map data © <a href={OSM_ATTRIBUTION.url} target="_blank" rel="noreferrer">{OSM_ATTRIBUTION.name}</a></div>{/if}{#if previewBusy}<div class:preview-update-overlay={detailsUpdating && generationState !== "loading"} class="generation-overlay" role="status" aria-live="polite" style:pointer-events={detailsUpdating && generationState !== "loading" ? "none" : undefined}><div class="contour-loader"><span></span><span></span><span></span></div><strong>{previewBusyLabel}</strong><small>{status}</small></div>{/if}{#if visibleWarnings.length || previewNotice || lakeDepthFittingOn}
+      <div class="preview-toolbar"><div class="ldt-toggle-group mode-switch" role="radiogroup" aria-label="Preview mode">{#each previewModeOptions as option}<button type="button" class="ldt-toggle-group__item" role="radio" aria-checked={mode === option.value} data-state={mode === option.value ? "on" : "off"} tabindex={mode === option.value ? 0 : -1} onclick={() => { if (option.value === "2d" && selectedLayer === 0) selectedLayer = featuredLayerIndex(geometry); previewNotice = ""; if (option.value === "3d") threeUnavailable = false; mode = option.value as PreviewMode; }} onkeydown={navigateChoice}>{#if option.value === "map"}<MapIcon size={15} />{:else if option.value === "engraving"}<PenTool size={15} />{:else if option.value === "2d"}<Layers3 size={15} />{:else}<Box size={15} />{/if}{embeddedInPlatform ? option.value === "2d" ? "2D" : option.value === "3d" ? "3D" : option.label : option.label}</button>{/each}</div><div class="preview-readout"><span>{shownLength(project.widthMm)} × {shownLength(project.heightMm)} {shownLengthUnit}</span><span>{Math.round(displayElevation(geometry.minElevationM, project.units)).toLocaleString()}–{Math.round(displayElevation(geometry.maxElevationM, project.units)).toLocaleString()} {shownElevationUnit}</span></div></div>
+      <div class="preview-stage" aria-busy={previewBusy} data-road-markings={detailCounts.road} data-trail-markings={detailCounts.trail} data-transportation-label-markings={detailCounts.transportationLabel} data-water-markings={detailCounts.water} data-contour-markings={detailCounts.contour} data-alignment-markings={detailCounts.alignment} data-elevation-markings={detailCounts.elevation} data-north-markings={detailCounts.north} data-scale-markings={detailCounts.scale} data-marker-markings={detailCounts.marker} data-custom-line-markings={detailCounts.customLine}>{#if mode === "map"}{#if MapCanvas}<MapCanvas {project} onUnavailable={() => { mode = project.outputMode === "engraving" ? "engraving" : "2d"; previewNotice = "Map is unavailable in this browser · choose a location using search or coordinates"; }} onLocationChange={(lat: number, lon: number, zoom: number, bounds: GeoBounds) => updateLocation({ lat, lon, zoom, bounds, label: `${lat.toFixed(4)}, ${lon.toFixed(4)}` })} />{:else}<div class="preview-loading">Loading map…</div>{/if}{:else if mode === "engraving"}{#if EngravingPreview}<EngravingPreview {geometry} {project} />{:else}<div class="preview-loading">Loading engraving…</div>{/if}{:else if mode === "2d"}{#if TwoDPreview}<TwoDPreview {geometry} {selectedLayer} />{:else}<div class="preview-loading">Loading cut preview…</div>{/if}{:else if ThreePreview}<ThreePreview {geometry} exploded={project.explodedPreview} onUnavailable={() => { threeUnavailable = true; mode = "2d"; previewNotice = "3D is unavailable in this browser · showing cut layers"; }} />{:else}<div class="preview-loading">Loading 3D preview…</div>{/if}{#if mode !== "map"}<div class="preview-attribution">Map data © <a href={OSM_ATTRIBUTION.url} target="_blank" rel="noreferrer">{OSM_ATTRIBUTION.name}</a></div>{/if}{#if previewBusy}<div class:preview-update-overlay={detailsUpdating && generationState !== "loading"} class="generation-overlay" role="status" aria-live="polite" style:pointer-events={detailsUpdating && generationState !== "loading" ? "none" : undefined}><div class="contour-loader"><span></span><span></span><span></span></div><strong>{previewBusyLabel}</strong><small>{status}</small>{#if embeddedInPlatform && generationState === "loading"}<span class="atomm-generation-step">Step {status.startsWith("Fetching") ? 1 : 2} of 2</span><button type="button" class="btn btn-secondary" onclick={cancelGeneration}>Cancel generation</button>{/if}</div>{/if}{#if visibleWarnings.length || previewNotice || lakeDepthFittingOn}
           <div class="warning-stack">
             {#if lakeDepthFittingOn}
               <div class="preview-warning preview-notice" role="status">
@@ -1388,9 +1375,84 @@
             {/each}
           </div>
         {/if}</div>
-      {#if project.outputMode === "stack"}<div class="layer-dock"><div class="layer-heading"><span><Layers3 size={16} /><b>Layer {selectedLayer + 1}</b> of {geometry.layers.length}</span><strong>{layerTicks[selectedLayer]?.toLocaleString()} {shownElevationUnit}</strong></div><input class="layer-range" type="range" min="0" max={Math.max(0, geometry.layers.length - 1)} value={selectedLayer} oninput={(event) => { selectedLayer = Number(event.currentTarget.value); if (mode === "3d") mode = "2d"; }} /><div class="layer-scale"><span>{layerTicks[0]?.toLocaleString()} {shownElevationUnit}</span><span>{layerTicks[Math.floor(layerTicks.length / 2)]?.toLocaleString()} {shownElevationUnit}</span><span>{layerTicks.at(-1)?.toLocaleString()} {shownElevationUnit}</span></div>{#if mode === "3d"}<label class="explode-control"><span>Stack</span><input type="range" min="0" max="1" step="0.05" value={project.explodedPreview} oninput={(event) => updateProject({ explodedPreview: Number(event.currentTarget.value) })} /><span>Exploded</span></label>{/if}</div>{/if}
+      {#if !embeddedInPlatform}{@render layerControls()}{/if}
     </section>
+{/snippet}
+
+{#snippet layerControls()}
+      {#if project.outputMode === "stack"}<div class="layer-dock"><div class="layer-heading"><span><Layers3 size={16} /><b>Layer {selectedLayer + 1}</b> of {geometry.layers.length}</span><strong>{layerTicks[selectedLayer]?.toLocaleString()} {shownElevationUnit}</strong></div><input class="layer-range" type="range" min="0" max={Math.max(0, geometry.layers.length - 1)} value={selectedLayer} oninput={(event) => { selectedLayer = Number(event.currentTarget.value); if (mode === "3d") mode = "2d"; }} /><div class="layer-scale"><span>{layerTicks[0]?.toLocaleString()} {shownElevationUnit}</span><span>{layerTicks[Math.floor(layerTicks.length / 2)]?.toLocaleString()} {shownElevationUnit}</span><span>{layerTicks.at(-1)?.toLocaleString()} {shownElevationUnit}</span></div>{#if mode === "3d"}<label class="explode-control"><span>Stack</span><input type="range" min="0" max="1" step="0.05" value={project.explodedPreview} oninput={(event) => updateProject({ explodedPreview: Number(event.currentTarget.value) })} /><span>Exploded</span></label>{/if}</div>{/if}
+{/snippet}
+
+{#snippet unitControls()}
+          <div class="ldt-toggle-group unit-switch" role="radiogroup" aria-label="Display units">
+            {#each UNIT_OPTIONS as option}
+              <button type="button" class="ldt-toggle-group__item" role="radio" aria-checked={project.units === option.value} data-state={project.units === option.value ? "on" : "off"} tabindex={project.units === option.value ? 0 : -1} onclick={() => void updateFabrication({ units: option.value as ProjectConfigV1["units"] })} onkeydown={navigateChoice}>{option.label}</button>
+            {/each}
+          </div>
+{/snippet}
+
+{#if embeddedInPlatform}
+  {#if AtommWorkbench}<AtommWorkbench ready={atommReady} blockedReason={exportBlockedBy} preparing={exportPhase === "preparing"} {exportPhase} {exportTitle} {exportDetail}>
+    {#snippet leadHeader()}{@render projectControls()}{/snippet}
+    {#snippet lead()}{@render outputControls()}{@render setupControls()}{/snippet}
+    {#snippet generate()}{@render generationControls()}{/snippet}
+    {#snippet parameterHeader()}
+      {@render unitControls()}
+      <button type="button" class="btn btn-secondary" onclick={() => void updateFabrication({ ...DEFAULT_PROJECT, id: project.id, name: project.name, location: project.location, outputMode: project.outputMode })}>Reset</button>
+    {/snippet}
+    {#snippet parameters()}{@render parameterControls()}{@render layerControls()}{/snippet}
+    {#snippet preview()}{@render previewContent()}{/snippet}
+    {#snippet dialogs()}{#if searchOpen && LocationDialog}<LocationDialog {project} presets={PRESETS} onChoose={choosePlace} onCoordinates={(lat, lon) => updateLocation({ lat, lon, label: "Custom coordinates" })} onClose={closeLocationDialog} />{/if}{/snippet}
+  </AtommWorkbench>{:else}<main role="status">{atommLayoutFailed ? "The platform layout could not load. Reload to try again." : "Preparing terrain studio…"}</main>{/if}
+{:else}
+<AppShell class="app-shell">
+  {#snippet header()}
+    <div class="app-header">
+      <Topbar class="topbar">
+        {#snippet brand()}<Brand name="TopoStack" meta="Terrain studio" />{/snippet}
+        {#snippet navigation()}
+          {@render projectControls()}
+        {/snippet}
+        {#snippet actions()}
+          <div class="bar-meta">{#if project.outputMode === "engraving"}<span>{project.engravingContourCount} contours</span><span>1 engrave SVG</span><span>No cut paths</span>{:else}<span>{geometry.layers.length} layers</span><span>{fabricationPanelCount} cut panels</span><span>{shownLength(totalHeight)} {shownLengthUnit} tall</span>{/if}</div>
+          <Button class="export-trigger" aria-label="Export" title="Export" aria-haspopup="dialog" onclick={(event: MouseEvent) => { if (event.currentTarget instanceof HTMLElement) event.currentTarget.focus(); exportOpen = true; }}><Download size={18} aria-hidden="true" /><span class="export-trigger-label">Export</span></Button>
+          <ThemeToggle {theme} class="theme-toggle" />
+          <a class="about-link" href={`${base}/`} target="_blank" rel="noopener noreferrer" aria-label="TopoStack home and getting started (opens in a new tab)" title="TopoStack home and getting started (opens in a new tab)"><House size={18} aria-hidden="true" /></a>
+        {/snippet}
+      </Topbar>
+      <ContextBar class="terrain-contextbar" section="Terrain" title={project.location.label.split(",")[0]} detail={project.location.label.split(",").slice(1).join(",") || "Selected coordinates"}>
+        {#snippet actions()}
+          {@render outputControls()}
+        {/snippet}
+      </ContextBar>
+    </div>
+  {/snippet}
+
+  <Workspace class="workspace">
+    {#snippet sidebar()}
+    <Sidebar class="config-panel">
+      <div class="panel-scroll">
+        <div class="panel-intro">
+          <span class="section-kicker panel-eyebrow">Project controls</span>
+          <h1>{project.outputMode === "engraving" ? "Draw the landscape." : "Build the landscape."}</h1>
+          <p>Work through the essentials, then open details only when you need them.</p>
+          <div class="section-tools" aria-label="Section display controls">
+            <button type="button" onclick={() => setAllSections(true)} disabled={CONFIG_SECTION_IDS.every((section) => openSections[section])}>Expand all</button>
+            <button type="button" onclick={() => setAllSections(false)} disabled={CONFIG_SECTION_IDS.every((section) => !openSections[section])}>Collapse all</button>
+          </div>
+        </div>
+        {@render setupControls()}
+
+        {@render parameterControls()}
+      </div>
+      {@render generationControls()}
+    </Sidebar>
+    {/snippet}
+
+    {@render previewContent()}
   </Workspace>
   <ExportDialog open={exportOpen} {project} blockedReason={exportBlockedBy} preparing={exportPhase === "preparing"} platformAvailable={platformExportAvailable} phase={exportPhase} title={exportTitle} detail={exportDetail} onDownload={(option) => void downloadProject(option)} onClose={() => exportOpen = false} />
   {#if searchOpen}{#if LocationDialog}<LocationDialog {project} presets={PRESETS} onChoose={choosePlace} onCoordinates={(lat, lon) => updateLocation({ lat, lon, label: "Custom coordinates" })} onClose={closeLocationDialog} />{/if}{/if}
 </AppShell>
+
+{/if}

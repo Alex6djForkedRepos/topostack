@@ -30,7 +30,7 @@ Layered projects also support modeled lake depth, alignment guides, and material
 3. Set the physical dimensions and details, then **Generate terrain** and inspect the result.
 4. Open **Export** to download the complete project, individual artwork, or project settings.
 
-The initial preview uses a bundled snapshot of real terrain and map data. Generate fresh terrain before fabrication export. SVGs use physical millimeter coordinates; layered artwork separates red cuts, blue scores, and black engravings. Exports include project metadata and source attribution. Review the artwork and machine settings in your laser software before making a piece.
+The initial preview uses a bundled snapshot of real terrain and map data. Generate fresh terrain before fabrication export. SVGs use physical millimeter coordinates; layered artwork separates red cuts (`#FE0002`) and blue score/engraving paths (`#2366FF`), with named operation groups. Exports include project metadata and source attribution. Review the artwork and machine settings in your laser software before making a piece.
 
 Project settings are saved in your browser's IndexedDB. Export a project-settings JSON backup to keep a copy or move to another device; import it using the studio's import control. Restored or imported projects need fresh terrain generation before fabrication export. Settings backups are available even when fabrication export is blocked.
 
@@ -183,8 +183,10 @@ The [hourly production monitor](.github/workflows/production-monitor.yml) checks
 To preview the local studio in Atomm, use the running frontend URL as its `local` parameter. With the default port:
 
 ```text
-https://www.atomm.com/creativetools/community/generator/topographic-map-generator?local=http://localhost:5273/studio
+https://www.atomm.com/creativetools/community/generator/topostack?local=http://localhost:5273/studio
 ```
+
+In Atomm, the embedded studio uses the platform’s generate-and-tune layout and pinned Export button. Chrome needs local-network access allowed for Atomm. Safari may block the HTTP iframe as mixed content; use a trusted HTTPS frontend and API for Safari local testing.
 
 Build a release against the deployed production API:
 
@@ -192,9 +194,11 @@ Build a release against the deployed production API:
 VITE_MAP_API_URL=https://topostack.echofoxtrot.works npm run release:atomm
 ```
 
-This produces `apps/generator/topostack-atomm.zip`, its `.zip.sha256` checksum, and `topostack-atomm.release.json` with the source revision, API origin, dataset/archive identities, and dirty-tree flag. Packaging requires a real HTTPS API origin and rejects local, placeholder, and `*.workers.dev` URLs. Use `npm run package:atomm` with the same API variable for the ZIP and validation without the checksum/receipt step.
+The packaging command selects `VITE_SITE_ENV=atomm`, so the ZIP opens the studio directly at its root. This produces `apps/generator/topostack-atomm.zip`, its `.zip.sha256` checksum, and `topostack-atomm.release.json` with the source revision, API origin, dataset/archive identities, and dirty-tree flag. Packaging requires a real HTTPS API origin and rejects local, placeholder, and `*.workers.dev` URLs. Use `npm run package:atomm` with the same API variable for the ZIP and validation without the checksum/receipt step.
 
-After a successful production deployment and smoke test, CI uploads the ZIP, checksum, receipt, cover image, and [listing](atomm/listing.md) as a `topostack-atomm-<commit>` artifact retained for 30 days. Publish from a clean commit and keep the release evidence with the data-provisioning receipts.
+After a successful production deployment and smoke test, CI retains the ZIP, checksum, receipt, and listing-media bundle as a `topostack-atomm-<commit>` artifact for 30 days. To keep a version permanently accessible, run **Actions → Publish Atomm release → Run workflow** on `main`, supplying the successful production CI run ID and a new tag such as `atomm-v0.1.0`. The workflow verifies the run, clean commit, production API, archive size, and SHA-256 before publishing the exact CI files as GitHub Release assets. It does not rebuild the package or replace an existing tag.
+
+Download **topostack-atomm.zip** from the [GitHub Releases page](https://github.com/Echo-Foxtrot-Works/topostack/releases) for upload to Atomm; GitHub’s automatic “Source code” archives are not the generator package. Download **topostack-listing-upload.zip** for the cover, screenshots, and descriptions. Run `npm run package:atomm-listing` to reproduce that media bundle locally. Keep release evidence with the data-provisioning receipts.
 
 ## Search and discoverability
 

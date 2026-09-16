@@ -1,6 +1,7 @@
 /** Manual integration check against a local Vite app + Worker with development R2. */
 import assert from "node:assert/strict";
 import { mkdir, writeFile, readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, firefox, webkit } from "@playwright/test";
 import { unzipSync } from "fflate";
@@ -21,6 +22,25 @@ page.setDefaultTimeout(120_000);
 const errors = [];
 page.on("pageerror", (error) => errors.push(error.message));
 const reports = [];
+const localArchives = process.argv.find((arg) => arg.startsWith("--local-archives="))?.slice(17);
+if (localArchives) {
+  // Exercise the real browser decoder with built bytes before external promotion.
+  await page.route("**/v1/bathymetry/*.pmtiles", async (route) => {
+    const dataset = new URL(route.request().url()).pathname.split("/").at(-1);
+    if (!/^[a-z0-9-]+\.pmtiles$/.test(dataset ?? "")) return route.abort();
+    const bytes = await readFile(resolve(localArchives, dataset)).catch(() => null);
+    if (!bytes) return route.continue();
+    const range = /^bytes=(\d+)-(\d*)$/.exec(route.request().headers().range ?? "");
+    const start = range ? Number(range[1]) : 0;
+    const end = range && range[2] ? Math.min(Number(range[2]), bytes.length - 1) : bytes.length - 1;
+    if (start > end || start >= bytes.length) return route.fulfill({ status: 416 });
+    await route.fulfill({ status: range ? 206 : 200, body: bytes.subarray(start, end + 1), headers: {
+      "content-type": "application/octet-stream", "accept-ranges": "bytes", "access-control-allow-origin": "*",
+      "access-control-expose-headers": "content-range,etag", etag: '"local-survey-test"',
+      ...(range ? { "content-range": `bytes ${start}-${end}/${bytes.length}` } : {}),
+    } });
+  });
+}
 try {
   await page.goto(`${baseURL}/studio`, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: "Build the landscape." }).waitFor();
@@ -37,7 +57,9 @@ try {
   }
   cases.push(...JSON.parse(await readFile(new URL("./data/lake-survey-validation.json", import.meta.url), "utf8")));
   const selected = process.argv.find((arg) => arg.startsWith("--dataset="))?.slice(10);
-  for (const test of cases.filter((item) => !selected || item.dataset === selected)) {
+  const selectedCases = cases.filter((item) => !selected || selected.split(",").includes(item.dataset));
+  assert(selectedCases.length > 0, "No survey verification cases selected");
+  for (const test of selectedCases) {
     const result = await page.evaluate(async ({ test, coreUrl }) => {
       const { loadSurveyedLakeDepths, loadLakeAreas } = await import("/src/data-provider.ts");
       const { DEFAULT_PROJECT } = await import(coreUrl);
