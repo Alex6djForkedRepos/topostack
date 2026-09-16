@@ -214,7 +214,8 @@
   const exportBlockedBy = $derived(exportBlockReason(geometry, project));
   const exportReady = $derived(!exportBlockedBy);
   const platformExportAvailable = $derived(atommReady && embeddedInPlatform);
-  const lakeDepthFittingOn = $derived(project.outputMode === "stack" && project.showWaterDepth && project.fitLakeDepth);
+  const lakeDepthFittingOn = $derived(project.outputMode === "stack" && project.showWaterDepth && project.fitLakeDepth
+    && geometry.waterSurfaces.some((surface) => surface.kind === "lake" && surface.depthFitScale !== undefined && surface.depthFitScale < 1));
   const visibleWarnings = $derived(geometry.warnings
     .filter((warning) => !dismissedWarnings.includes(`${warning.code}-${warning.message}`))
     .sort((a, b) => Number(b.action === "fit-lake-depth") - Number(a.action === "fit-lake-depth"))

@@ -117,18 +117,35 @@ describe("TopoStack Svelte shell", () => {
     expect(target.textContent).not.toContain("% of requested depth");
     expect(loadTerrainMock).toHaveBeenCalledTimes(1);
     expect(loadLakeAreasMock).not.toHaveBeenCalled();
+
+    // Keeping the preference enabled must not show a notice for a shallower lake.
+    fitButton()!.click();
+    await vi.waitFor(() => expect(target.textContent).toContain("Lake depth fitting is on."));
+    await vi.waitFor(() => expect(target.querySelector(".preview-stage")?.getAttribute("aria-busy")).toBe("false"));
+    depthsM.fill(1);
+    target.querySelector<HTMLButtonElement>(".generate-button")!.click();
+    await vi.waitFor(() => expect(loadTerrainMock).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(target.querySelector(".preview-stage")?.getAttribute("aria-busy")).toBe("false"));
+    expect(fitSwitch().getAttribute("aria-checked")).toBe("true");
+    expect(target.textContent).not.toContain("Lake depth fitting is on.");
+    expect(target.textContent).not.toContain("% of requested depth");
+    expect([...target.querySelectorAll(".warning-action")].some((button) => button.textContent === "Use manual depth")).toBe(false);
+    expect(fitButton()).toBeUndefined();
   });
 
-  it("keeps manual depth accessible after restoring a fitted project and saves the change", async () => {
+  it("hides the fitting notice for a restored preference without fitted lakes and saves manual depth", async () => {
     const { loadProject, saveProject } = await import("../storage");
     vi.mocked(saveProject).mockClear();
     vi.mocked(loadProject).mockResolvedValueOnce({ ...DEFAULT_PROJECT, fitLakeDepth: true });
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
     const manualButton = () => [...target.querySelectorAll<HTMLButtonElement>(".warning-action")].find((button) => button.textContent === "Use manual depth");
-    await vi.waitFor(() => expect(manualButton()).toBeDefined());
-    expect(target.textContent).toContain("Lake depth fitting is on.");
-    manualButton()!.click();
+    await vi.waitFor(() => expect(target.textContent).toContain("Local project restored"));
+    expect(target.textContent).not.toContain("Lake depth fitting is on.");
+    expect(manualButton()).toBeUndefined();
+    const fitSwitch = target.querySelector<HTMLButtonElement>('[aria-label="Fit lake depth to available layers"]')!;
+    expect(fitSwitch.getAttribute("aria-checked")).toBe("true");
+    fitSwitch.click();
     await vi.waitFor(() => expect(target.querySelector('[aria-label="Fit lake depth to available layers"]')?.getAttribute("aria-checked")).toBe("false"));
     await vi.waitFor(() => expect(saveProject).toHaveBeenLastCalledWith(expect.objectContaining({ fitLakeDepth: false })));
     expect(manualButton()).toBeUndefined();
