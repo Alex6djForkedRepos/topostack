@@ -2,7 +2,7 @@
 
 TopoStack supplements its HydroLAKES/GLOBathy basin models with public lake
 surveys. This is a curated collection of usable datasets, not a claim of complete
-worldwide survey coverage. HydroLAKES still supplies the lake outlines.
+worldwide survey coverage. Lake outlines come from pinned provider water masks, HydroLAKES, and an OSM fallback.
 
 ## Sources
 
@@ -167,7 +167,7 @@ The depth exaggeration control remains the requested multiplier. Each fitted lak
 
 `/guides/lake-depth-data` lists the integrated lakes and basins, with search by source names, aliases, county/region and survey IDs. Each record links to a padded survey extent in the studio. Opening a lake retains fabrication preferences, selects layered output with water depth on, and requires fresh generation before export. The link is consumed once so subsequent reloads restore the edited project.
 
-The directory includes every contributing regional grid in the verified archive receipts, plus the three USGS lakes and six NOAA lakes (including St. Clair). Counts refer to lake/basin records: a lake can have several named basins, and a survey can cover only a portion of a lake. Very small lakes may lack a matching HydroLAKES outline in the studio. Regional contours are labeled separately from surveyed grids. No GLOBathy-only basins are included.
+The directory includes every contributing regional grid in the verified archive receipts, plus the three USGS lakes and six NOAA lakes (including St. Clair). Counts refer to lake/basin records: a lake can have several named basins, and a survey can cover only a portion of a lake. Regional entries have separately published provider water masks; lakes absent from HydroLAKES can use these masks or OSM shorelines. Regional contours are labeled separately from surveyed grids. No GLOBathy-only basins are included.
 
 Regenerate the static catalog after rebuilding or adding survey archives:
 
@@ -285,3 +285,52 @@ archives, not unimported surveys or reference-only PDF maps.
 `LAKE_SEARCH_TEST_URL=https://dev-topostack.echofoxtrot.works` to verify development.
 The browser check covers all source groups, pagination, independent provider
 failures, retries, mobile layout, framed selection, and saved project state.
+
+
+## Shoreline coverage and fallback
+
+Lake geometry is independent of depth estimates. `build-lake-data.mjs` retains
+HydroLAKES polygons even when GLOBathy has no maximum-depth entry. That archive
+change takes effect when the lake archive is rebuilt and provisioned.
+
+The app also ships spatially sharded provider water masks built from the same
+checksum-pinned Minnesota, Finland, Ontario, Norway, TWDB, and Reclamation inputs
+as the survey rasters. These assets need no raster rebuild or new API endpoint.
+All 7,744 regional directory entries have a provider mask. The remaining 31
+NOAA, USGS, and Swiss grid entries have no shoreline in their pinned inputs;
+they use HydroLAKES or OSM. The audit does not claim verified external coverage.
+
+Regenerate after updating the directory or pinned sources:
+
+```sh
+/tmp/topostack-surveys-venv/bin/python scripts/build-lake-outlines.py \
+  --cache /tmp/topostack-lake-surveys --cache /tmp/topostack-expanded-surveys
+/tmp/topostack-surveys-venv/bin/python scripts/test_lake_outlines.py
+node --test scripts/test/lake-outlines.test.mjs
+# With a local Vite server: verify all six regional sources with HydroLAKES blocked.
+SURVEY_TEST_APP_URL=http://localhost:5297 node scripts/verify-lake-outlines.mjs \
+  --local-archives=/tmp/topostack-survey-archives
+```
+
+Commit `apps/generator/static/data/lake-outlines/` and
+`scripts/data/lake-outline-coverage.json` together. Each shard is named by its
+content digest; the index lists its geographic extent. Only intersecting shards
+are fetched, with bounded concurrency, request counts, geometry, and timeouts.
+A directory audit fails when any regional entry loses its provider mask.
+
+Provider masks preserve islands, including separate Minnesota island records,
+and use a five-metre topology-preserving simplification. Some masks describe
+survey coverage rather than the entire lake. When a provider mask covers less
+than 80% of a matching HydroLAKES or OSM polygon, the complete shoreline is kept.
+Matching requires more than 50% overlap of the smaller polygon, rather than a
+name match. Duplicate lower-priority shores are suppressed. Whole-lake depth
+estimates are not copied to multiple independent survey basins.
+
+OSM inland polygons can now receive surveyed depths without a HydroLAKES ID or a
+GLOBathy estimate. Raster validity and island masks still limit actual survey
+coverage. An outline alone never supplies a maximum depth or proves that DEM
+relief is surveyed bathymetry. Swiss elevation grids still require a reference
+surface elevation; missing metadata does not produce an invented water level.
+Outlines load for flat engraving and depth-disabled water displays too, without
+requesting depth rasters. Visible outlines and water fills follow the same
+resolved polygons as lake basins. Refreshes retain the inland geometry needed to retry survey loading.

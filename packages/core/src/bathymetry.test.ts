@@ -26,6 +26,21 @@ describe("NOAA lake-floor carving", () => {
     expect(grid.values[13]).toBe(180);
   });
 
+  it("carves surveyed fallback outlines without modeled-depth metadata", () => {
+    const area = { ...lake(), outlineSource: "provider" as const, hylakId: undefined, maxDepthM: undefined };
+    const result = carveWaterDepth(grid, config, [area], 5000);
+    expect(result.grid.values[12]).toBe(160);
+    expect(result.surfaces[0]?.depthSource).toBe("surveyed");
+  });
+
+  it("does not infer a surveyed basin from relief inside an unknown-depth OSM outline", () => {
+    const area = { ...lake(), outlineSource: "osm" as const, bathymetry: undefined, maxDepthM: undefined };
+    const terrain = { ...grid, values: Float32Array.from(grid.values, (_, i) => 100 + i * 4) };
+    const result = carveWaterDepth(terrain, { ...config, waterDepthExaggeration: 2 }, [area], 5000);
+    expect(result.grid.values).toEqual(terrain.values);
+    expect(result.surfaces).toEqual([]);
+  });
+
   it("carves clipped lake interiors without needing a visible shoreline", () => {
     const area = lake();
     area.polygon.outer = ring(-100, 100);

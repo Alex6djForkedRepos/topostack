@@ -9,7 +9,7 @@
 
   const uses: Record<string, { section: string; description: string }> = {
     "Mapzen Terrain Tiles": { section: "terrain", description: "Elevation tiles are sampled, cropped to your selected area, and converted into terrain layers, contour lines, and 3D previews. Vertical exaggeration and contour spacing are applied by TopoStack." },
-    "HydroLAKES v1.0": { section: "lakes", description: "Lake outlines, identifiers, and surface elevations locate lakes and connect them to depth data. TopoStack clips and simplifies the outlines and joins them to GLOBathy estimates and available surveys." },
+    "HydroLAKES v1.0": { section: "lakes", description: "Lake outlines, identifiers, and surface elevations supplement provider water masks and OSM shorelines to locate lakes and connect them to depth data. TopoStack clips and simplifies the outlines and joins them to GLOBathy estimates and available surveys." },
     "GLOBathy": { section: "lakes", description: "Estimated maximum depths help TopoStack construct a modeled lake floor where survey coverage is unavailable. The resulting shape is a TopoStack approximation, not a measured bathymetric survey." },
     "Protomaps Basemap 20260905": { section: "features", description: "The pinned OpenStreetMap-derived basemap supplies roads, trails, water features, and boundaries for generated artwork. TopoStack selects, classifies, clips, and simplifies these features into engraving paths." },
     "OpenStreetMap contributors": { section: "features", description: "Community mapping supplies the underlying geographic features used through Protomaps, the location map, and place search. Map data © OpenStreetMap contributors." },

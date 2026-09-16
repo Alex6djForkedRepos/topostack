@@ -249,9 +249,9 @@ export interface MarkingFeature {
 /**
  * A water body with whatever depth metadata its source could supply. Oceans
  * arrive from the OSM water layer and carry no depth - the DEM already holds
- * their bed. Lakes arrive from the HydroLAKES/GLOBathy archive and carry the
- * numbers `carveWaterDepth` needs to model one, optionally supplemented by
- * a surveyed depth grid.
+ * their bed. Lakes use provider masks, HydroLAKES, or OSM shorelines. Optional
+ * GLOBathy parameters and surveyed depth grids provide depth independently
+ * of outline availability.
  */
 export interface WaterAreaV1 {
   id: string;
@@ -259,6 +259,9 @@ export interface WaterAreaV1 {
   polygon: Polygon2D;
   name?: string;
   hylakId?: number;
+  outlineSource?: "provider" | "osm";
+  outlineSourceId?: string;
+  surveyId?: string;
   /** HydroLAKES `Elevation`; the DEM median inside the polygon is the fallback. */
   surfaceElevationM?: number;
   /** GLOBathy `Dmax_use_m`. */
@@ -314,6 +317,8 @@ export interface SourceBundleV1 {
   waterAreas?: WaterAreaV1[];
   /** OSM water polygons retained independently of depth-modeling metadata. */
   waterPatternAreas?: Polygon2D[];
+  /** Inland OSM polygons retained for shoreline fallback and depth retries. */
+  inlandWaterAreas?: Polygon2D[];
   vectorStatus: "available" | "partial" | "unavailable" | "not-requested";
   /** Status of the optional HydroLAKES/GLOBathy depth archive. */
   lakeDataStatus: "available" | "unavailable" | "not-requested";

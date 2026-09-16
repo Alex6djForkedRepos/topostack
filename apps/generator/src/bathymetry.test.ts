@@ -102,6 +102,15 @@ describe("multiple lake survey providers", () => {
     expect(result.attribution[0]!.name).toContain("USGS Crater Lake");
   });
 
+  it("loads real survey depths for an OSM fallback lake without HydroLAKES or GLOBathy metadata", async () => {
+    surveyArchive(craterFixture.dataset, "usgs-crater-z14");
+    const fallback = { ...surveyLake, outlineSource: "osm" as const, hylakId: undefined, maxDepthM: undefined };
+    const result = await loadLakeBathymetry("", craterFixture.bounds, grid, 14, [fallback], undefined, dimensions);
+    expect(result.status).toBe("available");
+    expect(result.areas[0]?.bathymetry?.depthsM.some(Number.isFinite)).toBe(true);
+    expect(result.datasetVersions).toContain(craterFixture.dataset);
+  });
+
   it("converts Swiss bed elevations using each lake's surface without extra tile requests", async () => {
     surveyArchive(swissFixture.dataset, "swiss-zug-z14", true);
     const lakes = [{ ...surveyLake, surfaceElevationM: 414 }, { ...surveyLake, id: "second", surfaceElevationM: 420 }];
