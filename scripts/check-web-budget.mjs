@@ -5,19 +5,22 @@ const dist = new URL("../apps/generator/dist/", import.meta.url);
 // Budget the lightweight homepage separately from the editor and its default
 // 3D preview. Moving the editor must not hide its cost behind a smaller entry page.
 const budgets = {
-  // Search metadata and fixed-category usage attribution add ~2 kB gzip.
-  landingJavaScriptGzip: 52_000,
+  // Search metadata and attribution share the UI chunk with platform controls.
+  // The integrated release measures ~52.7 kB gzip for the homepage.
+  landingJavaScriptGzip: 54_000,
   landingHtmlGzip: 10_000,
   initialJavaScriptGzip: 180_000,
   // Directory-to-studio links add location restoration and router integration.
   // Survey selection framing and duplicate coverage-warning handling add <1 kB.
-  startupJavaScriptGzip: 404_000,
+  // Atomm control adapters and surveyed-lake selection measure ~405 kB total.
+  startupJavaScriptGzip: 406_000,
   // Includes the MapLibre 6 worker (~144 kB gzip), fetched only in Map mode.
   // The searchable lake directory adds a separate guide route. Allow 8 kB
   // for its JS while keeping the homepage and initial-entry limits.
   // Its full lake catalog is fetched separately and budgeted below.
   // Full-catalog location search adds ~2.2 kB, loaded with the search dialog.
-  totalJavaScriptGzip: 838_000,
+  // Full integrated release measures ~838.1 kB across all routes.
+  totalJavaScriptGzip: 840_000,
   largestJavaScriptGzip: 300_000,
   // The fetched Atomm template is loaded only inside the platform iframe.
   // Keep the original standalone CSS allowance and bound the extra surface.
