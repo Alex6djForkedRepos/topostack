@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, untrack } from "svelte";
+  import { onMount, untrack, getContext } from "svelte";
   import { base } from "$app/paths";
   import { LocateFixed } from "@lucide/svelte";
   import * as maplibregl from "maplibre-gl";
@@ -8,6 +8,13 @@
   import { markerSymbolCenterForAnchor, markerSymbolPaths, unwrapLongitude, type CustomLineFeatureV1, type GeoBounds, type MapMarkerV1, type MarkerSymbol, type ProjectConfigV1 } from "@topostack/core";
   import { boundsForProject } from "../data-provider";
   let { project, onLocationChange, onUnavailable }: { project: ProjectConfigV1; onUnavailable?: () => void; onLocationChange: (lat: number, lon: number, zoom: number, bounds: GeoBounds) => void } = $props();
+  import AtommZoom from "./AtommZoom.svelte";
+  const isEmbedded = getContext<() => boolean>("atomm-embedded") ?? (() => false);
+  let zoomScale = $state(1);
+  let initialZoom = 10;
+  let initialCenter: [number, number] = [0, 0];
+  function setZoomScale(value: number) { map?.jumpTo({ zoom: initialZoom + Math.log2(value) }); }
+  function resetMapView() { map?.jumpTo({ center: initialCenter, zoom: initialZoom }); }
   let container: HTMLDivElement;
   let guide: HTMLDivElement;
   let map: MapLibreMap | undefined;
@@ -107,7 +114,9 @@
       map = new maplibregl.Map({ container, style: "https://tiles.openfreemap.org/styles/liberty", center: [project.location.lon, project.location.lat], zoom: project.location.zoom, attributionControl: false, cooperativeGestures: true, dragRotate: false, touchPitch: false, trackResize: false });
     } catch { onUnavailable?.(); return; }
     map.touchZoomRotate.disableRotation();
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
+    if (!isEmbedded()) map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
+    initialZoom = map.getZoom(); initialCenter = [project.location.lon, project.location.lat];
+    map.on("zoom", () => { if (map) zoomScale = 2 ** (map.getZoom() - initialZoom); });
     map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: `<a href="${base}/attribution" target="_blank" rel="noopener noreferrer">All sources</a>` }), "bottom-left");
     map.on("load", () => syncCustomLines(project.customLines));
     const emitSelection = () => {
@@ -172,6 +181,7 @@
   <div bind:this={container} class="map-canvas"></div>
   <div bind:this={guide} class="crop-guide" class:crop-circle={isCircle} aria-hidden="true">{#if isCircle}<div class="circle-outline" style:width={`${100 * Math.min(project.widthMm, project.heightMm) / project.widthMm}%`} style:height={`${100 * Math.min(project.widthMm, project.heightMm) / project.heightMm}%`}></div>{:else}<span class="crop-corner crop-corner-a"></span><span class="crop-corner crop-corner-b"></span><span class="crop-corner crop-corner-c"></span><span class="crop-corner crop-corner-d"></span>{/if}</div>
   <div class="map-crosshair"><span></span><span></span></div>
+  {#if isEmbedded()}<AtommZoom value={zoomScale} min={0.125} max={16} onZoom={setZoomScale} onFit={resetMapView} />{/if}
   <div class="map-caption"><LocateFixed size={14} /> Drag the map to choose your terrain</div>
 </div>
 

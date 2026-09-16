@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 import { JSDOM } from "jsdom";
+import { PUBLIC_PAGES, SITE_ORIGIN } from "../apps/generator/src/lib/seo.ts";
 
 export async function verifyHttpSeo(origin, environment) {
   assert.ok(["production", "development"].includes(environment));
@@ -15,8 +16,9 @@ export async function verifyHttpSeo(origin, environment) {
   assert.match(sitemap.headers.get("content-type"), /xml/);
   const sitemapDocument = new JSDOM(await sitemap.text(), { contentType: "application/xml" }).window.document;
   const urls = [...sitemapDocument.querySelectorAll("loc")].map((node) => node.textContent);
-  assert.equal(urls.length, production ? 5 : 0);
-  for (const path of ["/", "/studio", "/guides/laser-cut-topographic-map", "/guides/topographic-map-engraving", "/examples/crater-lake", "/privacy"]) {
+  const publicPaths = Object.keys(PUBLIC_PAGES);
+  assert.deepEqual(urls.sort(), production ? publicPaths.map((path) => SITE_ORIGIN + path).sort() : [], "Sitemap must list exactly the public pages");
+  for (const path of [...publicPaths, "/studio"]) {
     const response = await get(path);
     assert.equal(response.status, 200, path);
     const document = new JSDOM(await response.text()).window.document;

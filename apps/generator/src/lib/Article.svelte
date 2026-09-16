@@ -11,7 +11,7 @@
 <div class="article-page">
   <a class="skip" href="#article">Skip to content</a>
   <Topbar>
-    {#snippet brand()}<Brand name="TopoStack" meta="Terrain studio" href={`${base}/`} />{/snippet}
+    {#snippet brand()}<Brand name="TopoStack" meta="Studio" href={`${base}/`} />{/snippet}
     {#snippet actions()}<a class="start" href={`${base}/studio`}>Open studio</a><ThemeToggle {theme} />{/snippet}
   </Topbar>
   <main id="article">

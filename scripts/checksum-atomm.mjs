@@ -1,6 +1,9 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
+import assert from "node:assert/strict";
+import { fileURLToPath } from "node:url";
+import { readVersions } from "./versions.mjs";
 
 const archiveUrl = new URL("../apps/generator/topostack-atomm.zip", import.meta.url);
 const archive = await readFile(archiveUrl);
@@ -15,7 +18,14 @@ async function readApi(path) {
   return response.json();
 }
 const [manifest, readiness] = await Promise.all([readApi("/v1/manifest"), readApi("/ready")]);
+const versions = await readVersions();
+const build = JSON.parse(execFileSync("unzip", ["-p", fileURLToPath(archiveUrl), "version.json"], { encoding: "utf8" }));
+assert.equal(build.environment, "atomm");
+assert.equal(build.version, versions.version);
+assert.equal(build.atommVersion, versions.atommVersion);
+assert.equal(build.commit, execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim());
 const receipt = {
+  ...versions,
   schemaVersion: 1,
   createdAt: new Date().toISOString(),
   commit: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),

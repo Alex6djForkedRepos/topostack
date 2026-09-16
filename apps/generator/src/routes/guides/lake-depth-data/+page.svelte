@@ -105,6 +105,7 @@
     <p>These are the survey datasets integrated into TopoStack. Survey dates, resolutions and water-level references vary. NOAA’s Lake Superior grid is a draft; Swiss lake-floor elevations use an approximate alignment to the lake surface. Source credits and applied depth scaling are included in exports.</p>
     {#if directory}<ul>{#each directory.sources as source}<li><a href={source.url}>{source.name}</a> — {depthKindLabel(source.kind)}. {source.license}</li>{/each}</ul>{/if}
   </details>
+  <p>For British Columbia, the <a href="https://open.canada.ca/data/en/dataset/1427d389-cd21-4fe2-8ed9-282d9bdcb7e2">open bathymetric map collection</a> provides PDF depth maps for reference. These maps are not yet available as lake-floor geometry in the studio.</p>
 </Article>
 
 <style>

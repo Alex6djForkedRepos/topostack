@@ -120,7 +120,7 @@ describe("TopoStack geometry", () => {
     expect(foregroundCross).toHaveLength(2);
     expect(foregroundCross.every((marking) => marking.points.length === 5)).toBe(true);
     const svg = engravingToSvg(result, project);
-    expect(svg).toMatch(/id="map-marker-[^"]+"[^>]+fill="#111827"/);
+    expect(svg).toMatch(/id="map-marker-[^"]+"[^>]+fill="#2366FF"/);
     expect(svg).toMatch(/id="map-marker-[^"]+-halo-[^"]+"[^>]+fill="#ffffff"[^>]+data-knockout="true"/);
     expect(() => validateProject({ ...DEFAULT_PROJECT, markers: [{ ...markers[0]!, lat: 90 }] })).toThrow(/marker latitude/i);
     expect(() => validateProject({ ...DEFAULT_PROJECT, markers: [{ ...markers[0]!, symbol: "flag" as never }] })).toThrow(/marker symbol/i);

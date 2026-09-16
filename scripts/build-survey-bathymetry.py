@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build versioned lake survey PMTiles. See docs/lake-bathymetry.md.
 
-Inputs are checksum-pinned USGS, Minnesota DNR, and swisstopo downloads.
+Inputs are checksum-pinned survey downloads and verified ArcGIS snapshots.
 Uses an isolated Python environment with scripts/survey-requirements.txt.
 """
 import argparse
@@ -39,6 +39,10 @@ def digest(path):
 def download(item, cache):
     path = cache / item['file']
     path.parent.mkdir(parents=True, exist_ok=True)
+    if not path.exists() and item.get('arcgis'):
+        from importlib import import_module
+        snapshot = import_module('snapshot-survey-service').snapshot
+        snapshot(item['url'], path, item.get('where', '1=1'))
     if not path.exists():
         partial = path.with_suffix(path.suffix + '.part')
         subprocess.run(['curl', '-fLsS', '--retry', '2', '--max-time', '600', item['url'], '-o', str(partial)], check=True)
@@ -146,6 +150,22 @@ class TileWriter:
                         count += 1
             self.db.commit()
             self.grids.append({'name': name, 'bounds': list(transform_bounds(src.crs, 'EPSG:4326', *src.bounds)), 'tilesWritten': count})
+
+    def merge_tiles(self, database, grid):
+        """Merge an independently prepared grid's tiles in original priority order."""
+        with sqlite3.connect(f'file:{database}?mode=ro', uri=True) as source:
+            for z, x, y, data in source.execute('SELECT zoom_level,tile_column,tile_row,tile_data FROM tiles ORDER BY zoom_level,tile_column,tile_row'):
+                old = self.db.execute('SELECT tile_data FROM tiles WHERE zoom_level=? AND tile_column=? AND tile_row=?', (z,x,y)).fetchone()
+                if old:
+                    rgba = np.array(Image.open(io.BytesIO(data)))
+                    previous = np.array(Image.open(io.BytesIO(old[0])))
+                    rgba[previous[..., 3] > 0] = previous[previous[..., 3] > 0]
+                    buffer = io.BytesIO()
+                    Image.fromarray(rgba).save(buffer, format='PNG', optimize=True)
+                    data = buffer.getvalue()
+                self.db.execute('INSERT OR REPLACE INTO tiles VALUES(?,?,?,?)', (z,x,y,data))
+        self.db.commit()
+        self.grids.append(grid)
 
     def finish(self, pins):
         metadata = {'name':self.source['name'], 'format':'png', 'type':'overlay', 'version':'1', 'minzoom':str(self.db.execute('SELECT min(zoom_level) FROM tiles').fetchone()[0]),
@@ -369,6 +389,14 @@ def main():
             minnesota(pins[0],args.cache,writer)
         elif source['id']=='syke-finland-lakes-v1':
             finland(pins,args.cache,writer)
+        elif source['id'] in ('ontario-lakes-v1', 'nve-norway-lakes-v1'):
+            from survey_regions import regional
+            regional(pins,args.cache,writer,download,write_grid,'norway' if source['id'].startswith('nve-') else 'ontario')
+        elif source['id'] in ('twdb-texas-reservoirs-v1', 'usbr-reservoirs-v1'):
+            from survey_regions import reservoirs
+            reservoirs(pins,args.cache,writer,download,unzip,write_grid)
+        else:
+            raise ValueError(f"No builder for {source['id']}")
         writer.finish(pins)
 
 if __name__=='__main__':

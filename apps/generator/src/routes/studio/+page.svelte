@@ -25,7 +25,7 @@
 </script>
 
 <svelte:head>
-  <script async src="https://static-res.makextool.com/scripts/js/generator-sdk/platform-sdk.js"></script>
+  {#if import.meta.env.VITE_SITE_ENV !== "atomm"}<script async src="https://static-res.makextool.com/scripts/js/generator-sdk/platform-sdk.js"></script>{/if}
 </svelte:head>
 
 {#if preview && App}

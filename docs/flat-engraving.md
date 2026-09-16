@@ -37,7 +37,7 @@ without downloading another vector layer.
 ## SVG contract
 
 The primary file is named `<project>-engraving.svg` and is 1:1 at the selected
-physical size. It contains one black `ENGRAVE` operation group and no `CUT`
+physical size. It contains one blue (`#2366FF`) `ENGRAVE` operation group and no `CUT`
 or `SCORE` groups. Named subgroups separate minor contours, index contours,
 map details, the optional water-fill linework, and the optional border. State/province boundaries have their own
 dashed group so they remain distinguishable from transportation and contour

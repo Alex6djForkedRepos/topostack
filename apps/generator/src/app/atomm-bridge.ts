@@ -18,10 +18,11 @@ const registeredSdks = new WeakSet<AtommSdk>();
 export function connectAtomm(getCurrent: CurrentExport, onReady: () => void, onExportUpdate: (update: ExportUpdate) => void = () => undefined): () => void {
   currentExport = getCurrent;
   currentExportUpdate = onExportUpdate;
+  let connectedSdk: AtommSdk | undefined;
   const setup = () => {
     const sdk = window.atomm;
     if (!sdk) return;
-    onReady();
+    if (sdk !== connectedSdk) { connectedSdk = sdk; onReady(); }
     if (registeredSdks.has(sdk)) return;
     registeredSdks.add(sdk);
     sdk.lifecycle.on("export", async ({ intent }) => {

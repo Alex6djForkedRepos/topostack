@@ -18,7 +18,7 @@ export const PUBLIC_PAGES: Record<string, { title: string; description: string; 
   },
   "/guides/lake-depth-data": {
     title: "Search Lakes with Surveyed Depth Data | TopoStack",
-    description: "Search TopoStack's lake-depth catalog by name, region or source. Find surveyed grids and depth contours, then open a lake in the terrain studio.",
+    description: "Search TopoStack's lake-depth catalog by name, region or source. Find surveyed grids and depth contours, then open a lake in the studio.",
     label: "Lake depth directory",
   },
   "/guides/how-lake-depths-work": {
@@ -43,7 +43,7 @@ export const PUBLIC_PAGES: Record<string, { title: string; description: string; 
   },
 };
 export const STUDIO_META = {
-  title: "Terrain Studio: Create Your Topographic Map | TopoStack",
-  description: "Choose a place, customize layered relief or flat engraving, and generate SVG artwork in the free TopoStack terrain studio.",
-  label: "Terrain studio",
+  title: "Studio: Create Your Topographic Map | TopoStack",
+  description: "Choose a place, customize layered relief or flat engraving, and generate SVG artwork in the free TopoStack studio.",
+  label: "studio",
 };

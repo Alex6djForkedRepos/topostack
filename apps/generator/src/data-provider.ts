@@ -11,7 +11,7 @@ import { decodeTerrainPng } from "./terrain-png";
 import { loadLakeBathymetry, applySurveyProvenance } from "./bathymetry";
 import { repairElevationSpikes } from "./elevation-cleanup";
 
-export interface PlaceResult { id: string; label: string; lat: number; lon: number; type?: string }
+export interface PlaceResult { id: string; label: string; lat: number; lon: number; type?: string; bounds?: GeoBounds; zoom?: number; surveyedLake?: boolean }
 
 function normalizeApiBase(value: string | undefined): string | undefined {
   if (!value?.trim()) return undefined;

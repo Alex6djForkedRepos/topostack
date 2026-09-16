@@ -5,20 +5,30 @@ const dist = new URL("../apps/generator/dist/", import.meta.url);
 // Budget the lightweight homepage separately from the editor and its default
 // 3D preview. Moving the editor must not hide its cost behind a smaller entry page.
 const budgets = {
-  // Search metadata and fixed-category usage attribution add ~2 kB gzip.
-  landingJavaScriptGzip: 52_000,
+  // Search metadata and attribution share the UI chunk with platform controls.
+  // The integrated release measures ~52.7 kB gzip for the homepage.
+  landingJavaScriptGzip: 54_000,
   landingHtmlGzip: 10_000,
   initialJavaScriptGzip: 180_000,
   // Directory-to-studio links add location restoration and router integration.
-  startupJavaScriptGzip: 402_000,
+  // Survey selection framing and duplicate coverage-warning handling add <1 kB.
+  // Integrated Node 22/Linux CI build measures ~406.2 kB (gzip differs by runtime).
+  startupJavaScriptGzip: 408_000,
   // Includes the MapLibre 6 worker (~144 kB gzip), fetched only in Map mode.
   // The searchable lake directory adds a separate guide route. Allow 8 kB
   // for its JS while keeping the homepage and initial-entry limits.
   // Its full lake catalog is fetched separately and budgeted below.
-  totalJavaScriptGzip: 833_000,
+  // Full-catalog location search adds ~2.2 kB, loaded with the search dialog.
+  // Full Node 22/Linux CI release measures ~841.2 kB across all routes.
+  totalJavaScriptGzip: 844_000,
   largestJavaScriptGzip: 300_000,
-  totalCssGzip: 31_000, // Includes the directory page controls and result list.
-  lakeDirectoryGzip: 150_000,
+  // The fetched Atomm template is loaded only inside the platform iframe.
+  // Keep the original standalone CSS allowance and bound the extra surface.
+  standaloneCssGzip: 31_000,
+  atommCssGzip: 10_000,
+  totalCssGzip: 41_000,
+  // 7,775 records across 11 sources (~306 kB); fetched only when browsing/searching.
+  lakeDirectoryGzip: 320_000,
   studioHtmlBytes: 10_000,
 };
 
@@ -64,6 +74,12 @@ const initialJavaScriptGzip = await gzipTotal(initialJavaScriptFiles);
 const landingJavaScriptGzip = await gzipTotal(preloads(indexHtmlBody, indexHtml));
 const landingHtmlGzip = gzipSync(indexHtmlBody).byteLength;
 const manifest = JSON.parse(await readFile(new URL("../apps/generator/.svelte-kit/output/client/.vite/manifest.json", import.meta.url), "utf8"));
+const atommStyles = new Set(Object.entries(manifest)
+  .filter(([key]) => /AtommWorkbench\.svelte$/.test(key))
+  .flatMap(([, entry]) => entry.css ?? [])
+  .map((path) => path.split("/").at(-1)));
+const atommCssGzip = css.filter((entry) => atommStyles.has(entry.file)).reduce((sum, entry) => sum + entry.gzip, 0);
+const standaloneCssGzip = totalCssGzip - atommCssGzip;
 const startupFiles = new Set(initialJavaScriptFiles.map((file) => file.href));
 const visited = new Set();
 function includeModule(key) {
@@ -93,6 +109,8 @@ const report = {
   largestJavaScriptGzip: largestJavaScript?.gzip ?? 0,
   largestJavaScriptFile: largestJavaScript?.file ?? "none",
   totalCssGzip,
+  standaloneCssGzip,
+  atommCssGzip,
   lakeDirectoryGzip,
   studioHtmlBytes,
 };
@@ -106,6 +124,8 @@ const failures = [
   [report.totalJavaScriptGzip, budgets.totalJavaScriptGzip, "Total JavaScript gzip size"],
   [report.largestJavaScriptGzip, budgets.largestJavaScriptGzip, "Largest JavaScript chunk gzip size"],
   [report.totalCssGzip, budgets.totalCssGzip, "Total CSS gzip size"],
+  [report.standaloneCssGzip, budgets.standaloneCssGzip, "Standalone CSS gzip size"],
+  [report.atommCssGzip, budgets.atommCssGzip, "Atomm CSS gzip size"],
   [report.studioHtmlBytes, budgets.studioHtmlBytes, "studio.html size"],
   [report.lakeDirectoryGzip, budgets.lakeDirectoryGzip, "Lake directory data gzip size"],
 ].filter(([actual, maximum]) => actual > maximum);

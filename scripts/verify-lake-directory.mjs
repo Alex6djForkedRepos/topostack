@@ -1,7 +1,10 @@
 /** Local browser check for the lake directory and studio place links. */
 import assert from "node:assert/strict";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { chromium, expect } from "@playwright/test";
+
+const directory = JSON.parse(await readFile(new URL("../apps/generator/static/data/lake-depth-directory.json", import.meta.url), "utf8"));
+const totalLakes = new Intl.NumberFormat("en-US").format(directory.lakes.length);
 
 const origin = process.env.DIRECTORY_TEST_APP_URL ?? "http://localhost:5273";
 if (!["localhost", "127.0.0.1"].includes(new URL(origin).hostname)) throw new Error("Use a local preview for this check.");
@@ -29,7 +32,7 @@ async function readSaved() {
 }
 try {
   await page.goto(directoryPath);
-  await expect(page.locator(".result-summary")).toContainText("3,852");
+  await expect(page.locator(".result-summary")).toContainText(totalLakes);
   await expect(page.locator(".lake-list > li")).toHaveCount(25);
   await page.getByRole("button", { name: "Next", exact: true }).click();
   await expect(page.locator(".pagination")).toContainText("Page 2 of");
@@ -75,7 +78,7 @@ try {
   await expect(recovery.getByRole("alert")).toContainText("couldn’t load");
   await recovery.unroute("**/data/lake-depth-directory.json");
   await recovery.getByRole("button", { name: "Retry" }).click();
-  await expect(recovery.locator(".result-summary")).toContainText("3,852");
+  await expect(recovery.locator(".result-summary")).toContainText(totalLakes);
   await recovery.close();
   assert.deepEqual(errors, []);
   console.log("Lake directory passed: search, accents/aliases, filters, pagination, mobile layout, studio selection, saved edits, and load recovery.");

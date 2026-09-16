@@ -1,0 +1,43 @@
+name: Publish Atomm release
+
+on:
+  workflow_dispatch:
+    inputs:
+      ci_run_id:
+        description: Successful main CI run ID containing the production Atomm package
+        type: string
+        required: true
+      tag:
+        description: Tag matching the artifact Atomm version, for example atomm-v0.1.0
+        type: string
+        required: true
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: publish-atomm-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out release tooling
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22.22.2'
+      - name: Verify production artifact and publish versioned release
+        run: node scripts/publish-atomm-release.mjs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          ATOMM_CI_RUN_ID: ${{ inputs.ci_run_id }}
+          ATOMM_RELEASE_TAG: ${{ inputs.tag }}

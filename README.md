@@ -30,7 +30,7 @@ Layered projects also support modeled lake depth, alignment guides, and material
 3. Set the physical dimensions and details, then **Generate terrain** and inspect the result.
 4. Open **Export** to download the complete project, individual artwork, or project settings.
 
-The initial preview uses a bundled snapshot of real terrain and map data. Generate fresh terrain before fabrication export. SVGs use physical millimeter coordinates; layered artwork separates red cuts, blue scores, and black engravings. Exports include project metadata and source attribution. Review the artwork and machine settings in your laser software before making a piece.
+The initial preview uses a bundled snapshot of real terrain and map data. Generate fresh terrain before fabrication export. SVGs use physical millimeter coordinates; layered artwork separates red cuts (`#FE0002`) and blue score/engraving paths (`#2366FF`), with named operation groups. Exports include project metadata and source attribution. Review the artwork and machine settings in your laser software before making a piece.
 
 Project settings are saved in your browser's IndexedDB. Export a project-settings JSON backup to keep a copy or move to another device; import it using the studio's import control. Restored or imported projects need fresh terrain generation before fabrication export. Settings backups are available even when fabrication export is blocked.
 
@@ -161,6 +161,25 @@ If local lint reports files under `.wrangler/tmp`, exclude those generated files
 
 ## Deployment and releases
 
+### Application and Atomm versions
+
+The main codebase uses one SemVer version, sourced from the root `package.json` and synchronized across all workspaces and their lockfile entries. The Atomm distribution has its own SemVer version in `atomm/version.json`, so packaging or host-specific changes can ship independently. Both start at `0.1.0`; dataset identifiers and project-file schema versions remain separate.
+
+```sh
+npm run version:check
+npm run version:main -- patch
+npm run version:atomm -- patch
+# Also accepts minor, major, or an explicit version:
+npm run version:main -- 1.0.0-rc.1
+```
+
+Use patch for fixes, minor for features, and major for breaking changes. During `0.x`, use minor for breaking changes. An explicit version supports prereleases; `patch` on a prerelease promotes it to the corresponding stable version. Main version bumps update all workspace manifests and the lockfile without changing dependencies. Bump Atomm whenever publishing a new Atomm package, including when incorporating a main-codebase update. These commands only edit files: review and commit the changes through the normal `dev` → `main` process. CI rejects mismatched versions.
+
+Every frontend build includes `version.json` with the main version, source commit, environment, and dirty-tree flag; Atomm ZIPs additionally include `atommVersion`. Read `/version.json` on a deployed site or extract it from the ZIP to identify a build. Source-only builds without Git report null source metadata. Atomm release receipts record both versions, and publishing requires the tag to match the embedded Atomm version.
+
+Use `v<main-version>` for main-codebase release tags (for example `v0.1.0`) and `atomm-v<atomm-version>` for Atomm releases. After successful production CI, tag the tested main commit with `git tag -a v<main-version> <tested-commit> -m "TopoStack <main-version>"` and push that tag explicitly. Publish Atomm using the workflow below. Existing release tags must never be moved or reused; bump the relevant version for another release. Version changes do not automatically tag, publish, or deploy.
+
+
 [GitHub Actions](.github/workflows/ci.yml) validates pull requests targeting `dev` or `main`. Successful pushes to those branches, or manual runs on them, deploy the matching environment after quality, build, and browser checks pass.
 
 | Branch | GitHub environment | Worker | Website |
@@ -183,8 +202,10 @@ The [hourly production monitor](.github/workflows/production-monitor.yml) checks
 To preview the local studio in Atomm, use the running frontend URL as its `local` parameter. With the default port:
 
 ```text
-https://www.atomm.com/creativetools/community/generator/topographic-map-generator?local=http://localhost:5273/studio
+https://www.atomm.com/creativetools/community/generator/topostack?local=http://localhost:5273/studio
 ```
+
+In Atomm, the embedded studio uses the platform’s generate-and-tune layout and pinned Export button. Chrome needs local-network access allowed for Atomm. Safari may block the HTTP iframe as mixed content; use a trusted HTTPS frontend and API for Safari local testing.
 
 Build a release against the deployed production API:
 
@@ -192,9 +213,11 @@ Build a release against the deployed production API:
 VITE_MAP_API_URL=https://topostack.echofoxtrot.works npm run release:atomm
 ```
 
-This produces `apps/generator/topostack-atomm.zip`, its `.zip.sha256` checksum, and `topostack-atomm.release.json` with the source revision, API origin, dataset/archive identities, and dirty-tree flag. Packaging requires a real HTTPS API origin and rejects local, placeholder, and `*.workers.dev` URLs. Use `npm run package:atomm` with the same API variable for the ZIP and validation without the checksum/receipt step.
+The packaging command selects `VITE_SITE_ENV=atomm`, so the ZIP opens the studio directly at its root. This produces `apps/generator/topostack-atomm.zip`, its `.zip.sha256` checksum, and `topostack-atomm.release.json` with both release versions, the source revision, API origin, dataset/archive identities, and dirty-tree flag. Packaging requires a real HTTPS API origin and rejects local, placeholder, and `*.workers.dev` URLs. Use `npm run package:atomm` with the same API variable for the ZIP and validation without the checksum/receipt step.
 
-After a successful production deployment and smoke test, CI uploads the ZIP, checksum, receipt, cover image, and [listing](atomm/listing.md) as a `topostack-atomm-<commit>` artifact retained for 30 days. Publish from a clean commit and keep the release evidence with the data-provisioning receipts.
+After a successful production deployment and smoke test, CI retains the ZIP, checksum, receipt, and listing-media bundle as a `topostack-atomm-<commit>` artifact for 30 days. To keep a version permanently accessible, run **Actions → Publish Atomm release → Run workflow** on `main`, supplying the successful production CI run ID and a new tag matching the artifact’s `atommVersion`, such as `atomm-v0.1.0`. Artifacts built before version metadata was introduced must be rebuilt by production CI. The workflow verifies the run, clean commit, production API, archive size, and SHA-256 before publishing the exact CI files as GitHub Release assets. It does not rebuild the package or replace an existing tag.
+
+Download **topostack-atomm.zip** from the [GitHub Releases page](https://github.com/Echo-Foxtrot-Works/topostack/releases) for upload to Atomm; GitHub’s automatic “Source code” archives are not the generator package. Download **topostack-listing-upload.zip** for the cover, screenshots, and descriptions. Run `npm run package:atomm-listing` to reproduce that media bundle locally. Keep release evidence with the data-provisioning receipts.
 
 ## Search and discoverability
 

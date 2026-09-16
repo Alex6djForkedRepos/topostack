@@ -15,8 +15,13 @@ interface AtommSdk {
     toast(options: { type?: "success" | "warning" | "error" | "info"; message: string; duration?: number }): Promise<string>;
     closeToast(id: string): Promise<void>;
   };
+  user: {
+    isLoggedIn(): Promise<boolean>;
+    login(): Promise<boolean>;
+  };
   app: {
     getLocale(): Promise<string>;
+    getSupportedLocales(): Promise<Array<{ code: string; name: string }>>;
   };
 }
 

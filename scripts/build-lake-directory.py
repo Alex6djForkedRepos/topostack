@@ -31,8 +31,10 @@ SWISS_NAMES = {
 REGIONS = {'noaa-great-lakes-v1': 'Great Lakes, USA / Canada', 'usgs-crater-lake-v1': 'Oregon, USA',
            'usgs-lake-tahoe-v1': 'California / Nevada, USA', 'usgs-mono-lake-v1': 'California, USA',
            'mn-dnr-lakes-v1': 'Minnesota, USA', 'swissbathy3d-v1': 'Switzerland & border lakes',
-           'syke-finland-lakes-v1': 'Finland'}
-GROUPS = {key: ('Finland' if key.startswith('syke') else 'Switzerland & border lakes' if key.startswith('swiss') else 'Great Lakes' if key.startswith('noaa') else 'United States') for key in REGIONS}
+           'syke-finland-lakes-v1': 'Finland', 'ontario-lakes-v1': 'Ontario, Canada',
+           'nve-norway-lakes-v1': 'Norway', 'twdb-texas-reservoirs-v1': 'Texas, USA',
+           'usbr-reservoirs-v1': 'Colorado, USA'}
+GROUPS = {key: ('Canada' if key.startswith('ontario') else 'Norway' if key.startswith('nve-') else 'Finland' if key.startswith('syke') else 'Switzerland & border lakes' if key.startswith('swiss') else 'Great Lakes' if key.startswith('noaa') else 'United States') for key in REGIONS}
 
 
 def build(cache, archives):
@@ -63,7 +65,7 @@ def build(cache, archives):
     sources, lakes = [], []
     for source in catalog:
         dataset = source['id']
-        contours = dataset in ('mn-dnr-lakes-v1', 'syke-finland-lakes-v1')
+        contours = dataset in ('mn-dnr-lakes-v1', 'syke-finland-lakes-v1', 'ontario-lakes-v1', 'nve-norway-lakes-v1', 'twdb-texas-reservoirs-v1', 'usbr-reservoirs-v1')
         sources.append({'id': dataset, 'name': source['name'], 'url': source['url'], 'license': source['license'],
                         'kind': 'contours' if contours else 'grid', 'region': REGIONS[dataset], 'group': GROUPS[dataset]})
         if dataset == 'noaa-great-lakes-v1':
