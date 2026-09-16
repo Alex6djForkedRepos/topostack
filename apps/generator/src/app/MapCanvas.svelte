@@ -250,7 +250,7 @@
     <span>Drag handles to resize · Hold Shift to lock · Esc to cancel</span>
   </div>
   <div bind:this={guide} class="crop-guide" class:crop-circle={isCircle}>
-    {#if isCircle}<div class="circle-outline"></div>{/if}
+    {#if isCircle}<div class="circle-outline" style:width={`${100 * Math.min(project.widthMm, project.heightMm) / project.widthMm}%`} style:height={`${100 * Math.min(project.widthMm, project.heightMm) / project.heightMm}%`}></div>{/if}
     {#each handles as handle}
       <button type="button" class="resize-handle" aria-label={`Resize selection ${handle.name}`} title={`Resize ${handle.name} (arrow keys supported)`}
         style:left={`${(handle.x + 1) * 50}%`} style:top={`${(handle.y + 1) * 50}%`}
@@ -279,7 +279,6 @@
   .resize-handle { position: absolute; transform: translate(-50%, -50%); width: 20px; height: 20px; min-width: 0; padding: 0; border: 2px solid var(--loidolt-accent); border-radius: 3px; background: white; pointer-events: auto; touch-action: none; }
   .resize-handle:focus-visible { outline: 3px solid var(--loidolt-accent); outline-offset: 3px; }
   .circle-outline {
-    width: 100%; height: 100%;
     position: absolute;
     top: 50%; left: 50%;
     transform: translate(-50%, -50%);
