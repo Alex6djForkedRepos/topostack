@@ -18,7 +18,9 @@ test("Atomm uses the platform export hook and template layout across desktop, RT
   await page.route("**/atomm-test", route => route.fulfill({ contentType: "text/html", body: '<html><body style="margin:0"><iframe title="Atomm generator" src="/studio" style="width:100%;height:100vh;border:0;display:block"></iframe></body></html>' }));
   await page.goto("/atomm-test");
   const studio = page.frameLocator("iframe");
-  await expect(studio.locator(".atomm-workbench")).toBeVisible();
+  // The embedded layout loads after hydration and the first WebGL render.
+  // Software-rendered Chromium in CI can take longer than the default 5s.
+  await expect(studio.locator(".atomm-workbench")).toBeVisible({ timeout: 30_000 });
   await expect(studio.locator(".app-header")).toHaveCount(0);
   await expect(studio.locator("[data-atomm-export-button]")).toHaveCount(1);
   await expect(studio.getByRole("button", { name: "Platform Export" })).toBeVisible();
