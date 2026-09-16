@@ -132,7 +132,10 @@ def main():
     subprocess.run(["pmtiles", "verify", str(args.out)], check=True)
     with args.out.open("rb") as archive:
         digest = hashlib.file_digest(archive, "sha256").hexdigest()
-    args.out.with_suffix(".sources.json").write_text(json.dumps({"dataset": CATALOG["dataset"], "sha256": digest, "sources": sources}, indent=2) + "\n")
+    receipt = args.out.with_suffix(".sources.json")
+    partial = receipt.with_name(receipt.name + ".part")
+    partial.write_text(json.dumps({"dataset": CATALOG["dataset"], "sha256": digest, "sources": sources}, indent=2) + "\n")
+    partial.replace(receipt)
     print(f"Built {args.out}: SHA-256 {digest}", flush=True)
 
 

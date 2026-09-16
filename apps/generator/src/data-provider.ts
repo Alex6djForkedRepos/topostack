@@ -15,6 +15,7 @@ import { repairElevationSpikes } from "./elevation-cleanup";
 import { fittingTileWindow, groundWidthM, latToWorldY, lonToWorldX, tilePointProjector, TILE_SIZE, worldSize, worldXToLon, worldYToLat, type TileWindow } from "./tile-math";
 import { cleanBoundaryMarkings, cleanWaterwayMarkings, clipVectorTileLine, dissolveWaterAreas, limitVectorMarkingGroups, MAX_VECTOR_MARKINGS, shorelineMarkings, stitchTransportationMarkings } from "./vector-cleanup";
 import { assembleWater } from "./water-assembly";
+import { isSupportedCoordinate } from "./coordinates";
 
 // Pure geometry helpers moved to focused modules; re-exported for existing callers.
 export { cleanBoundaryMarkings, cleanWaterwayMarkings, clipVectorTileLine, dissolveWaterAreas, dissolveWaterPolygons, joinPaths, limitVectorMarkingGroups, shorelineMarkings, stitchTransportationMarkings } from "./vector-cleanup";
@@ -58,10 +59,6 @@ export function boundsForProject(config: ProjectConfigV1): GeoBounds {
   return fitCutBounds({ west: worldXToLon(centerX - widthPx / 2, zoom), east: worldXToLon(centerX + widthPx / 2, zoom), north: worldYToLat(northY, zoom), south: worldYToLat(northY + heightPx, zoom) }, config.widthMm, config.heightMm);
 }
 
-
-export function fittingDataZoom(bounds: GeoBounds, requestedZoom: number): number {
-  return fittingTileWindow(bounds, requestedZoom).zoom;
-}
 
 export function classifyTransportation(properties: Record<string, unknown>): TransportationClass | undefined {
   const kind = typeof properties.kind === "string" ? properties.kind : "";
@@ -501,7 +498,7 @@ export async function searchPlaces(query: string, signal?: AbortSignal): Promise
     const lat = record.lat;
     const lon = record.lon;
     const label = typeof record.display_name === "string" ? record.display_name.trim() : "";
-    if (typeof lat !== "number" || !Number.isFinite(lat) || lat < -85.0511 || lat > 85.0511 || typeof lon !== "number" || !Number.isFinite(lon) || lon < -180 || lon > 180 || !label) return [];
+    if (typeof lat !== "number" || typeof lon !== "number" || !isSupportedCoordinate(lat, lon) || !label) return [];
     return [{ id: String(record.place_id ?? (String(lat) + "," + String(lon))), label, lat, lon, type: typeof record.type === "string" ? record.type : undefined }];
   });
 }

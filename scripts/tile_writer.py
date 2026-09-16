@@ -33,11 +33,22 @@ def encode(values, elevation=False):
     return rgba
 
 
+def write_text_atomic(path, text):
+    """Replace path only with complete contents; builders reuse files that exist."""
+    partial = path.with_name(path.name + '.part')
+    partial.write_text(text)
+    partial.replace(path)
+    return path
+
+
 def write_grid(path, values, transform, crs):
     path.parent.mkdir(parents=True, exist_ok=True)
-    with rasterio.open(path, 'w', driver='GTiff', height=values.shape[0], width=values.shape[1], count=1,
+    # Prepared grids are reused whenever they exist, so never expose a partial GeoTIFF.
+    partial = path.with_suffix('.part.tif')
+    with rasterio.open(partial, 'w', driver='GTiff', height=values.shape[0], width=values.shape[1], count=1,
                        dtype='float32', crs=crs, transform=transform, nodata=np.nan, compress='deflate', tiled=True) as dst:
         dst.write(values.astype(np.float32), 1)
+    partial.replace(path)
     return path
 
 
@@ -112,5 +123,5 @@ class TileWriter:
         subprocess.run(['pmtiles','verify',str(self.output)], check=True)
         receipt = {'dataset':self.source['id'], 'sha256':digest(self.output), 'bytes':self.output.stat().st_size, 'tiles':count,
                    'sources':pins, 'grids':self.grids}
-        self.output.with_suffix('.sources.json').write_text(json.dumps(receipt,indent=2)+'\n')
+        write_text_atomic(self.output.with_suffix('.sources.json'), json.dumps(receipt,indent=2)+'\n')
         print(f"Built {self.source['id']}: {count} tiles; SHA256 {receipt['sha256']}", flush=True)

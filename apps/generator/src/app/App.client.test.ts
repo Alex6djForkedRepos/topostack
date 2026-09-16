@@ -685,6 +685,68 @@ describe("TopoStack Svelte shell", () => {
     expect(target.querySelector<HTMLInputElement>(".explode-control input")?.value).toBe("0.75");
   });
 
+  it("keeps terrain generation running when undo only restores the project name", async () => {
+    let finishTerrain: (() => void) | undefined;
+    let terrainSignal: AbortSignal | undefined;
+    loadTerrainMock.mockImplementation((requested: typeof DEFAULT_PROJECT, signal: AbortSignal) => new Promise((resolve) => {
+      terrainSignal = signal;
+      finishTerrain = () => resolve({ source: { ...createSyntheticSource(requested, 32), sourceKind: "real" as const, vectorStatus: "available" as const }, fallback: false });
+    }));
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await tick();
+    const name = target.querySelector<HTMLInputElement>('input[aria-label="Project name"]')!;
+    name.value = "Renamed first";
+    name.dispatchEvent(new Event("input", { bubbles: true }));
+    await tick();
+    const generate = target.querySelector<HTMLButtonElement>(".generate-button")!;
+    generate.click();
+    await vi.waitFor(() => expect(loadTerrainMock).toHaveBeenCalledOnce());
+
+    target.querySelector<HTMLButtonElement>('button[aria-label="Undo"]')!.click();
+    await tick();
+    expect(name.value).toBe(DEFAULT_PROJECT.name);
+    expect(terrainSignal?.aborted).toBe(false);
+    expect(generate.textContent).toContain("Cancel generation");
+
+    finishTerrain?.();
+    await vi.waitFor(() => expect(target.querySelector(".status-line")?.textContent).toContain("Real terrain ready"));
+    expect(name.value).toBe(DEFAULT_PROJECT.name);
+  });
+
+  it("keeps terrain generation running through text-size edits and renders the latest size", async () => {
+    let finishTerrain: (() => void) | undefined;
+    let terrainSignal: AbortSignal | undefined;
+    loadTerrainMock.mockImplementation((requested: typeof DEFAULT_PROJECT, signal: AbortSignal) => new Promise((resolve) => {
+      terrainSignal = signal;
+      finishTerrain = () => resolve({ source: { ...createSyntheticSource(requested, 32), sourceKind: "real" as const, vectorStatus: "available" as const }, fallback: false });
+    }));
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await tick();
+    const generate = target.querySelector<HTMLButtonElement>(".generate-button")!;
+    generate.click();
+    await vi.waitFor(() => expect(loadTerrainMock).toHaveBeenCalledOnce());
+
+    const size = target.querySelector<HTMLInputElement>('input[aria-label="Text size"]')!;
+    size.value = "5";
+    size.dispatchEvent(new Event("input", { bubbles: true }));
+    await tick();
+    expect(terrainSignal?.aborted).toBe(false);
+    expect(generate.textContent).toContain("Cancel generation");
+    // Undoing the style edit mid-run keeps the run alive too.
+    target.querySelector<HTMLButtonElement>('button[aria-label="Undo"]')!.click();
+    await tick();
+    target.querySelector<HTMLButtonElement>('button[aria-label="Redo"]')!.click();
+    await tick();
+    expect(terrainSignal?.aborted).toBe(false);
+
+    finishTerrain?.();
+    await vi.waitFor(() => expect(target.querySelector(".status-line")?.textContent).toContain("Real terrain ready"));
+    expect(target.querySelector<HTMLInputElement>('input[aria-label="Text size slider"]')?.value).toBe("5");
+    expect(target.querySelector(".context-export-status")?.textContent).toContain("Ready to export");
+  });
+
   it("does not let an unresolved platform toast block generation", async () => {
     window.atomm = {
       lifecycle: { on: vi.fn() },

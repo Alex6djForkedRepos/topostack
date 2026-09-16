@@ -132,8 +132,35 @@ export interface TerrainOptions {
   admitUpstream?: () => Promise<boolean>;
 }
 
+/**
+ * HEAD is answered from R2 metadata only, so probes never cost an origin fetch,
+ * PNG decode or cache write. On a miss the tile still exists upstream, so the
+ * answer stays 200; RFC 9110 section 9.3.2 lets HEAD omit fields (etag, length)
+ * that are only known after generating the content, and no-store keeps shared
+ * caches from pinning that validator-less answer.
+ */
+async function terrainHeadResponse(request: Request, env: Env, key: string): Promise<Response> {
+  let object: R2Object | null = null;
+  try {
+    object = await env.MAP_CACHE.head(key);
+  } catch {
+    console.warn(JSON.stringify({ message: "cache_failed", operation: "read", source: "terrain" }));
+  }
+  if (object && isCurrentEntry(object.customMetadata)) {
+    const headers = cachedHeaders(object, env, "HIT");
+    return etagMatches(request.headers.get("if-none-match"), object.httpEtag) ? notModified(headers) : new Response(null, { headers });
+  }
+  return new Response(null, { headers: {
+    "content-type": "image/png",
+    "cache-control": "no-store",
+    "x-topostack-cache": "MISS",
+    "x-topostack-dataset": env.DATASET_VERSION,
+  } });
+}
+
 export async function terrainResponse(request: Request, env: Env, ctx: ExecutionContext, tile: Tile, options: TerrainOptions = {}): Promise<Response> {
   const key = terrainKey(env, tile);
+  if (request.method === "HEAD") return terrainHeadResponse(request, env, key);
   const cached = options.bypassCache ? null : await readTerrainCache(request, env, key);
   if (cached && isCurrentEntry(cached.customMetadata)) {
     if (!hasBody(cached)) return notModified(cachedHeaders(cached, env, "HIT"));

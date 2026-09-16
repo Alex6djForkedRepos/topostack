@@ -116,8 +116,10 @@ export function pointInPreparedPolygons(point: Point2D, prepared: PreparedPolygo
   return prepared.polygons.some((polygon, index) => pointNearBounds(point, prepared.outerBounds[index]!) && pointInPolygon(point, polygon));
 }
 
+const NO_POLYGONS = preparePolygons([]);
+
 function asPrepared(polygons: Polygon2D[] | PreparedPolygons): PreparedPolygons {
-  return Array.isArray(polygons) ? preparePolygons(polygons) : polygons;
+  return Array.isArray(polygons) ? polygons.length ? preparePolygons(polygons) : NO_POLYGONS : polygons;
 }
 
 /**

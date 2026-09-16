@@ -159,7 +159,7 @@ On macOS, the Playwright configuration stores Firefox startup metadata in
 while keeping test data separate from your personal Firefox data. Playwright still
 creates a fresh browser profile for each launch.
 
-The browser suite builds its own deterministic test version and covers Chromium, Firefox, and WebKit. CI runs each browser on a separate runner, with one test worker per runner. Each runner installs only its selected browser; all three must pass the aggregate `Browser E2E` check before deployment. Failed runs retain browser-specific diagnostics for seven days. Dependency installation skips the implicit npm audit because the Quality job runs the full audit explicitly. `npm run test:coverage` runs the unit/component/Worker suites with the thresholds used in CI. Run the live browser canary against a deployed environment with:
+The browser suite builds its own deterministic test version and covers Chromium, Firefox, and WebKit. CI runs each browser on a separate runner, with one test worker per runner. Each runner installs only its selected browser; all three must pass the aggregate `Browser E2E` check before deployment. Failed runs retain browser-specific diagnostics for seven days. Dependency installation skips the implicit npm audit because CI audits explicitly: the deployment gate fails on high-severity production advisories, and a separate non-blocking job reports the full audit. `npm run test:coverage` runs the unit/component/Worker suites with the thresholds used in CI. Run the live browser canary against a deployed environment with:
 
 ```sh
 PUBLIC_APP_URL=https://dev-topostack.echofoxtrot.works npm run test:e2e:live

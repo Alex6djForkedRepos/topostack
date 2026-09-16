@@ -80,7 +80,7 @@ describe("NOAA bathymetry loading", () => {
 // These PNGs come from the independently built, checksum-pinned survey archives.
 import craterFixture from "./fixtures/usgs-crater-z14.json";
 import swissFixture from "./fixtures/swiss-zug-z14.json";
-import { applySurveyProvenance, loadLakeBathymetry } from "./bathymetry";
+import { applySurveyProvenance, loadLakeBathymetry, pixelBox } from "./bathymetry";
 import { createSyntheticSource, DEFAULT_PROJECT } from "@topostack/core";
 
 const dimensions = { widthMm: 2, heightMm: 2 };
@@ -157,5 +157,50 @@ describe("multiple lake survey providers", () => {
     expect(result.status).toBe("partial");
     expect(result.datasetVersions).toEqual(["noaa-great-lakes-v1"]);
     expect(result.areas[0]!.bathymetry).toBeDefined();
+  });
+});
+
+describe("survey lake pixel bounds", () => {
+  const inside = (x: number, y: number, ring: { x: number; y: number }[]) => {
+    let result = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const a = ring[i]!, b = ring[j]!;
+      if ((a.y > y) !== (b.y > y) && x < (b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x) result = !result;
+    }
+    return result;
+  };
+
+  it("visits every grid pixel the point-in-polygon test accepts", () => {
+    let seed = 7;
+    const random = () => { seed = (seed * 1_103_515_245 + 12_345) % 2 ** 31; return seed / 2 ** 31; };
+    const grid = { width: 97, height: 61 };
+    const dimensions = { widthMm: 240, heightMm: 150 };
+    for (let trial = 0; trial < 40; trial += 1) {
+      const cx = (random() - 0.5) * 300, cy = (random() - 0.5) * 200, radius = 1 + random() * 60;
+      const vertices = 3 + Math.floor(random() * 12);
+      const ring = Array.from({ length: vertices }, (_, index) => {
+        const angle = index / vertices * Math.PI * 2;
+        const r = radius * (0.3 + random());
+        return { x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r };
+      });
+      const box = pixelBox(ring, grid, dimensions);
+      for (let row = 0; row < grid.height; row += 1) {
+        for (let col = 0; col < grid.width; col += 1) {
+          const x = (col / (grid.width - 1) - 0.5) * dimensions.widthMm;
+          const y = (row / (grid.height - 1) - 0.5) * dimensions.heightMm;
+          if (inside(x, y, ring)) {
+            expect(row).toBeGreaterThanOrEqual(box.rowStart);
+            expect(row).toBeLessThanOrEqual(box.rowEnd);
+            expect(col).toBeGreaterThanOrEqual(box.colStart);
+            expect(col).toBeLessThanOrEqual(box.colEnd);
+          }
+        }
+      }
+    }
+    // A lake on a pixel boundary keeps that pixel.
+    const edge = pixelBox([{ x: 0, y: 0 }, { x: 2.5, y: 0 }, { x: 2.5, y: 2.5 }, { x: 0, y: 2.5 }], grid, dimensions);
+    expect(edge.colStart).toBeLessThanOrEqual(48);
+    expect(edge.rowStart).toBeLessThanOrEqual(30);
+    expect(pixelBox([], grid, dimensions).rowEnd).toBe(-1);
   });
 });

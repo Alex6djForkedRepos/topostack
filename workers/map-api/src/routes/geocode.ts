@@ -8,8 +8,11 @@ const GEOCODE_CACHE_SECONDS = 60 * 60 * 24;
 // them out of R2 and let browsers hold them only briefly.
 const EMPTY_GEOCODE_CACHE_SECONDS = 5 * 60;
 // Missing Origin headers are allowed and CORS is not access control, so a
-// shared budget caps provider spend across every client. Ratelimit bindings
-// count per Cloudflare location, so this is a per-colo ceiling.
+// shared budget caps provider spend across every client. It has its own
+// GEOCODE_GLOBAL_LIMITER binding so generic request traffic cannot drain it.
+// Ratelimit bindings count per Cloudflare location, not account-wide: this is
+// a per-colo ceiling, and the provider-side daily cap configured in the
+// Geoapify dashboard remains the real spend limit.
 export const GEOCODE_GLOBAL_LIMIT_KEY = "geocode-global";
 
 interface GeoapifyResult { lat?: unknown; lon?: unknown; formatted?: unknown; place_id?: unknown; result_type?: unknown }
@@ -36,8 +39,13 @@ export function isGeocoderConfigured(env: Pick<Env, "GEOCODER_API_KEY">): boolea
   return Boolean(env.GEOCODER_API_KEY && env.GEOCODER_API_KEY !== "replace-with-geoapify-key");
 }
 
+/** Case and whitespace variants of one query share a cache entry. */
+export function normalizeGeocodeQuery(query: string): string {
+  return query.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
 async function cacheKey(env: Env, query: string, limit: number): Promise<string> {
-  const keyHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${env.GEOCODER_ORIGIN}|geoapify-v1|${query.toLowerCase()}|${limit}`));
+  const keyHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${env.GEOCODER_ORIGIN}|geoapify-v1|${normalizeGeocodeQuery(query)}|${limit}`));
   return `geocode/${Array.from(new Uint8Array(keyHash)).map((byte) => byte.toString(16).padStart(2, "0")).join("")}.json`;
 }
 
@@ -46,7 +54,7 @@ function jsonHeaders(maxAge: number, cache: string): Headers {
 }
 
 export async function geocodeResponse(request: Request, env: Env, ctx: ExecutionContext, url: URL, bypassCache = false): Promise<Response> {
-  const query = (url.searchParams.get("q") ?? "").trim().slice(0, 160);
+  const query = (url.searchParams.get("q") ?? "").trim().replace(/\s+/g, " ").slice(0, 160);
   const limit = geocodeLimit(url.searchParams.get("limit"));
   if (query.length < 2) return json({ error: "Query must contain at least two characters." }, { status: 400 });
   const key = await cacheKey(env, query, limit);
@@ -62,7 +70,7 @@ export async function geocodeResponse(request: Request, env: Env, ctx: Execution
   if (!apiKey || !isGeocoderConfigured(env)) return json({ error: "Geocoder is not configured." }, { status: 503 });
   const perClient = await env.GEOCODE_LIMITER.limit({ key: `${clientKey(request)}:geocode` });
   if (!perClient.success) return rateLimitExceeded("Place-search rate limit exceeded. Try again shortly.");
-  const global = await env.REQUEST_LIMITER.limit({ key: GEOCODE_GLOBAL_LIMIT_KEY });
+  const global = await env.GEOCODE_GLOBAL_LIMITER.limit({ key: GEOCODE_GLOBAL_LIMIT_KEY });
   if (!global.success) {
     console.warn(JSON.stringify({ message: "geocode_global_budget_exceeded" }));
     return rateLimitExceeded("Place search is busy. Try again shortly.");

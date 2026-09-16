@@ -13,6 +13,7 @@
 
   let { geometry, exploded, onUnavailable }: { geometry: GeometryIRV1; exploded: number; onUnavailable?: () => void } = $props();
   import AtommZoom from "./AtommZoom.svelte";
+  import { MARKING_COLORS, markingStyleKey, type MarkingStyleKey } from "./marking-style";
   const isEmbedded = getContext<() => boolean>("atomm-embedded") ?? (() => false);
   let zoom = $state(1);
   let fitDistance = 320;
@@ -217,20 +218,25 @@
       disposeContent(runtime.content, runtime.sceneResources);
       const side = new THREE.MeshStandardMaterial({ color: 0x8b6039, roughness: 0.82, metalness: 0, ...SURFACE_DEPTH_BIAS });
       const style = activeGeometry.lineStyle;
+      // The 3D engraving ink is a lighter brown than the flat previews' so it reads on lit wood.
       const engraveMaterial = new THREE.LineBasicMaterial({ color: 0x39291d, linewidth: style.annotationMm });
-      const majorRoadMaterial = new THREE.LineBasicMaterial({ color: 0x24180f, linewidth: style.majorRoadMm });
-      const localRoadMaterial = new THREE.LineBasicMaterial({ color: 0x62442f, linewidth: style.localRoadMm });
+      const majorRoadMaterial = new THREE.LineBasicMaterial({ color: MARKING_COLORS["major-road"], linewidth: style.majorRoadMm });
+      const localRoadMaterial = new THREE.LineBasicMaterial({ color: MARKING_COLORS["local-road"], linewidth: style.localRoadMm });
       const trailMaterial = style.trailPattern === "solid"
-        ? new THREE.LineBasicMaterial({ color: 0x8a5e35, linewidth: style.trailMm })
+        ? new THREE.LineBasicMaterial({ color: MARKING_COLORS.trail, linewidth: style.trailMm })
         : new THREE.LineDashedMaterial({
-            color: 0x8a5e35,
+            color: MARKING_COLORS.trail,
             linewidth: style.trailMm,
             dashSize: style.trailPattern === "dotted" ? 0.05 : Math.max(style.trailMm * 6, 1.2),
             gapSize: Math.max(style.trailMm * 4, 0.7),
           });
-      const scoreMaterial = new THREE.LineBasicMaterial({ color: 0x365c79, linewidth: style.waterMm });
-      const boundaryMaterial = new THREE.LineDashedMaterial({ color: 0x6f4057, linewidth: style.boundaryMm, dashSize: Math.max(style.boundaryMm * 8, 1.6), gapSize: Math.max(style.boundaryMm * 5, 1) });
-      const coordinateGridMaterial = new THREE.LineDashedMaterial({ color: 0x59636e, linewidth: style.coordinateGridMm, dashSize: 0.05, gapSize: Math.max(style.coordinateGridMm * 5, 0.9) });
+      const scoreMaterial = new THREE.LineBasicMaterial({ color: MARKING_COLORS.score, linewidth: style.waterMm });
+      const boundaryMaterial = new THREE.LineDashedMaterial({ color: MARKING_COLORS.boundary, linewidth: style.boundaryMm, dashSize: Math.max(style.boundaryMm * 8, 1.6), gapSize: Math.max(style.boundaryMm * 5, 1) });
+      const coordinateGridMaterial = new THREE.LineDashedMaterial({ color: MARKING_COLORS.grid, linewidth: style.coordinateGridMm, dashSize: 0.05, gapSize: Math.max(style.coordinateGridMm * 5, 0.9) });
+      const lineMaterials: Record<MarkingStyleKey, THREE.LineBasicMaterial | THREE.LineDashedMaterial> = {
+        score: scoreMaterial, "major-road": majorRoadMaterial, "local-road": localRoadMaterial, trail: trailMaterial,
+        boundary: boundaryMaterial, grid: coordinateGridMaterial, engrave: engraveMaterial,
+      };
       const labelMaterial = new THREE.LineBasicMaterial({ color: 0x21170f, linewidth: style.annotationMm });
       const markerFillMaterial = new THREE.MeshBasicMaterial({ color: 0x2b2119, side: THREE.DoubleSide });
       // Water reads as a pane resting over the basin rather than as another
@@ -265,7 +271,7 @@
             const lift = markingLift(layer.materialThicknessMm) * (marking.knockout ? 1 : 1.25);
             addStacked(runtime!.content, marker, layer.index, baseZ + layer.materialThicknessMm + lift);
           } else if (marking.points.length > 1) {
-            const material = marking.operation === "score" ? scoreMaterial : marking.transportationClass === "major-road" ? majorRoadMaterial : marking.transportationClass === "local-road" ? localRoadMaterial : marking.transportationClass === "trail" ? trailMaterial : marking.kind === "boundary" ? boundaryMaterial : marking.kind === "grid" ? coordinateGridMaterial : engraveMaterial;
+            const material = lineMaterials[markingStyleKey(marking)];
             let batch = lineBatches.get(material);
             if (!batch) { batch = { positions: [], ...(material instanceof THREE.LineDashedMaterial ? { distances: [] } : {}) }; lineBatches.set(material, batch); }
             appendPolyline(batch, marking.points);

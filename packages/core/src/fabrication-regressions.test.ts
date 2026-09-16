@@ -159,6 +159,12 @@ describe("fabrication geometry regressions", () => {
     const current = await readme(result);
     expect(current).toMatch(/horizontal scale 1:[\d,]+\)/);
     expect(await readme(legacy)).toBe(current);
+    // The scale belongs to the bounds, so flat terrain (no relief to plan a stack from) still states it.
+    const flat = generateGeometry(base, source(base, () => 400));
+    const { horizontalScale: _flatStored, ...flatLegacy } = flat;
+    expect(planTerrainStack(base, 0, bounds).horizontalScale).toBe(0);
+    for (const ir of [flat, flatLegacy]) expect(await readme(ir)).toContain(`horizontal scale 1:${Math.round(1 / flat.horizontalScale!).toLocaleString("en-US")})`);
+    expect(flat.horizontalScale).toBeGreaterThan(0);
   });
 
   it("omits annotations that cannot fit a valid small output", () => {

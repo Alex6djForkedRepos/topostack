@@ -29,7 +29,8 @@
   ],
   "ratelimits": [
     { "name": "REQUEST_LIMITER", "namespace_id": "1001", "simple": { "limit": 240, "period": 60 } },
-    { "name": "GEOCODE_LIMITER", "namespace_id": "1004", "simple": { "limit": 30, "period": 60 } }
+    { "name": "GEOCODE_LIMITER", "namespace_id": "1004", "simple": { "limit": 30, "period": 60 } },
+    { "name": "GEOCODE_GLOBAL_LIMITER", "namespace_id": "1007", "simple": { "limit": 60, "period": 60 } }
   ],
   "observability": {
     "enabled": true,
@@ -60,7 +61,8 @@
       "secrets": { "required": ["GEOCODER_API_KEY"] },
       "ratelimits": [
         { "name": "REQUEST_LIMITER", "namespace_id": "1002", "simple": { "limit": 240, "period": 60 } },
-        { "name": "GEOCODE_LIMITER", "namespace_id": "1005", "simple": { "limit": 30, "period": 60 } }
+        { "name": "GEOCODE_LIMITER", "namespace_id": "1005", "simple": { "limit": 30, "period": 60 } },
+        { "name": "GEOCODE_GLOBAL_LIMITER", "namespace_id": "1008", "simple": { "limit": 60, "period": 60 } }
       ]
     },
     "production": {
@@ -86,7 +88,8 @@
       "secrets": { "required": ["GEOCODER_API_KEY"] },
       "ratelimits": [
         { "name": "REQUEST_LIMITER", "namespace_id": "1003", "simple": { "limit": 240, "period": 60 } },
-        { "name": "GEOCODE_LIMITER", "namespace_id": "1006", "simple": { "limit": 30, "period": 60 } }
+        { "name": "GEOCODE_LIMITER", "namespace_id": "1006", "simple": { "limit": 30, "period": 60 } },
+        { "name": "GEOCODE_GLOBAL_LIMITER", "namespace_id": "1009", "simple": { "limit": 60, "period": 60 } }
       ]
     }
   }

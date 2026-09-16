@@ -4,8 +4,10 @@
   import { House } from "@lucide/svelte";
   import { Box, ChevronDown, Circle, Compass, Download, Grid3X3, Layers3, Map as MapIcon, MapPin, Minus, Mountain, PenTool, Plus, Route, Search, Sparkles, Square, Trash2, Undo2, Redo2, Upload, Waves, X } from "@lucide/svelte";
   import { AppShell, Brand, Button, ContextBar, Field, IconButton, Input, Section, Sidebar, ThemeToggle, Topbar, Workspace } from "@loidolt/theme-svelte";
-  import { sourceRequirements, buildProjectPackage, createSyntheticSource, DEFAULT_PROJECT, displayElevation, displayLength, elevationUnit, generateGeometry, labelPathData, lengthUnit, markerSymbolPaths, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, MAX_WATER_DEPTH_EXAGGERATION, millimetersFromDisplay, MIN_VERTICAL_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, northArrowMarkings, planTerrainStack, validateProject, type CustomLineFeatureV1, type CustomLineKind, type GeoBounds, type GeoPoint, type GeometryIRV1, type LineStyleV1, type MapMarkerV1, type MarkerSymbol, type NorthArrowAnchor, type NorthArrowStyle, type OperationPath, type Point2D, type ProjectConfigV1, type RoadCap, type RoadStyle, type SourceBundleV1, type TextFont, type TrailPattern, type WaterFillPattern } from "@topostack/core";
-  import { boundsForProject, loadTerrain, type PlaceResult } from "../data-provider";
+  import { sourceRequirements, buildProjectPackage, createSyntheticSource, DEFAULT_PROJECT, displayElevation, displayLength, elevationUnit, generateGeometry, labelPathData, lengthUnit, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, MAX_WATER_DEPTH_EXAGGERATION, millimetersFromDisplay, MIN_VERTICAL_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, NORTH_ARROW_MIN_SIZE_MM, planTerrainStack, validateProject, type GeoBounds, type GeometryIRV1, type LineStyleV1, type OperationPath, type ProjectConfigV1, type SourceBundleV1 } from "@topostack/core";
+  import { assembleWater, boundsForProject, loadLakeAreas, loadSurveyedLakeDepths, loadTerrain, loadVectorMarkings, type PlaceResult } from "../data-provider";
+  import { applySurveyProvenance } from "../bathymetry";
+  import { resolveLakeOutlines } from "../lake-outlines";
   import { theme } from "../lib/theme";
   import { trackUsage } from "../lib/usage";
   import { MAP_DATA_ATTRIBUTION } from "../map-attribution";
@@ -18,8 +20,12 @@
   import { readAtommLocale } from "./atomm-locale";
   import NumberField from "./StudioNumberField.svelte";
   import { ProjectHistory } from "./history";
+  import { CUSTOM_LINE_OPTIONS, ENGRAVING_MODE_OPTIONS, FONT_OPTIONS, LINE_PRESETS, MARKER_OPTIONS, NORTH_ARROW_ANCHOR_OPTIONS, NORTH_ARROW_OPTIONS, PRESETS, ROAD_CAPS, ROAD_STYLES, SHAPE_OPTIONS, STACK_MODE_OPTIONS, TRAIL_PATTERNS, UNIT_OPTIONS, WATER_FILL_PATTERNS } from "./options";
+  import * as edits from "./project-edits";
+  import { MAX_LATITUDE, MAX_LONGITUDE } from "../coordinates";
   import { isAbortError, PreviewPipeline } from "./preview-pipeline";
-  import { changedProjectKeys, projectPatch, sameMapArea } from "./project-diff";
+  import { sameMapArea } from "./project-diff";
+  import { changedProjectKeys, projectPatch } from "./project-patch";
   import type { SourcePreparationCache } from "./source-refresh";
   import { generationStatus, generationToast, previewPendingStatus, previewStaleAreaStatus, previewUpdatedStatus, statusLine, type PreviewUpdateKind } from "./status-messages";
   import Switch from "./StudioSwitch.svelte";
@@ -34,47 +40,6 @@
   const MENU_STATE_KEY = "topostack-menu-sections-v1";
   const MAX_PROJECT_FILE_BYTES = 2_000_000;
   const OSM_ATTRIBUTION = MAP_DATA_ATTRIBUTION.find((entry) => entry.name === "OpenStreetMap contributors") ?? { name: "OpenStreetMap contributors", url: "https://www.openstreetmap.org/copyright" };
-  const PRESETS: PlaceResult[] = [
-    { id: "crater-lake", label: "Crater Lake, Oregon, USA", lat: 42.9446, lon: -122.109 },
-    { id: "grand-teton", label: "Grand Teton and Jenny Lake, Wyoming, USA", lat: 43.76, lon: -110.73 },
-    { id: "rainier", label: "Mount Rainier, Washington, USA", lat: 46.8523, lon: -121.7603 },
-    { id: "grand-canyon", label: "Grand Canyon, Arizona, USA", lat: 36.1069, lon: -112.1129 },
-  ];
-  const UNIT_OPTIONS = [{ value: "metric", label: "Metric" }, { value: "imperial", label: "Imperial" }];
-  const SHAPE_OPTIONS = [{ value: "rectangle", label: "Rectangle" }, { value: "circle", label: "Circle" }];
-  const STACK_MODE_OPTIONS = [{ value: "map", label: "Map" }, { value: "2d", label: "Cut layers" }, { value: "3d", label: "3D stack" }];
-  const ENGRAVING_MODE_OPTIONS = [{ value: "map", label: "Map" }, { value: "engraving", label: "Engraving" }];
-  const FONT_OPTIONS: Array<{ value: TextFont; label: string }> = [{ value: "technical", label: "Technical" }, { value: "rounded", label: "Rounded" }, { value: "stencil", label: "Stencil" }];
-  const LINE_PRESETS: Array<{ value: string; label: string; description: string; style: LineStyleV1 }> = [
-    { value: "fine", label: "Fine", description: "Dense detail", style: { contourMm: 0.1, indexContourMm: 0.22, majorRoadMm: 0.3, localRoadMm: 0.18, trailMm: 0.14, waterMm: 0.22, boundaryMm: 0.16, coordinateGridMm: 0.1, annotationMm: 0.14, borderMm: 0.26, trailPattern: "dotted", roadStyle: "centerline", majorRoadSpacingMm: 0.65, roadCap: "round" } },
-    { value: "balanced", label: "Balanced", description: "Clear hierarchy", style: { ...DEFAULT_PROJECT.lineStyle } },
-    { value: "bold", label: "Bold", description: "Strong contrast", style: { contourMm: 0.24, indexContourMm: 0.48, majorRoadMm: 0.56, localRoadMm: 0.36, trailMm: 0.3, waterMm: 0.44, boundaryMm: 0.34, coordinateGridMm: 0.24, annotationMm: 0.28, borderMm: 0.52, trailPattern: "dashed", roadStyle: "centerline", majorRoadSpacingMm: 1, roadCap: "round" } },
-  ];
-  const WATER_FILL_PATTERNS: Array<{ value: WaterFillPattern; label: string }> = [{ value: "none", label: "None" }, { value: "lines", label: "Lines" }, { value: "ripples", label: "Ripples" }, { value: "dots", label: "Dots" }];
-  const TRAIL_PATTERNS: Array<{ value: TrailPattern; label: string }> = [{ value: "solid", label: "Solid" }, { value: "dashed", label: "Dashed" }, { value: "dotted", label: "Dotted" }];
-  const ROAD_STYLES: Array<{ value: RoadStyle; label: string }> = [{ value: "centerline", label: "Centerline" }, { value: "outlined", label: "Outlined" }];
-  const ROAD_CAPS: Array<{ value: RoadCap; label: string }> = [{ value: "round", label: "Round" }, { value: "square", label: "Square" }];
-  const NORTH_ARROW_CHOICES: Array<{ value: NorthArrowStyle; label: string }> = [
-    { value: "minimal", label: "Minimal" }, { value: "classic", label: "Classic" }, { value: "mariner", label: "Mariner" },
-  ];
-  const NORTH_ARROW_OPTIONS: Array<{ value: NorthArrowStyle; label: string; markings: OperationPath[] }> = NORTH_ARROW_CHOICES.map((option) => ({ ...option, markings: northArrowMarkings({ ...DEFAULT_PROJECT, northArrowStyle: option.value, northArrowSizeMm: 100, northArrowPlacement: { anchor: "center", offset: { x: 0, y: 0 } } }) }));
-  const NORTH_ARROW_ANCHOR_OPTIONS: Array<{ value: NorthArrowAnchor; label: string }> = [
-    { value: "top-left", label: "Top left" }, { value: "top", label: "Top" }, { value: "top-right", label: "Top right" },
-    { value: "left", label: "Left" }, { value: "center", label: "Center" }, { value: "right", label: "Right" },
-    { value: "bottom-left", label: "Bottom left" }, { value: "bottom", label: "Bottom" }, { value: "bottom-right", label: "Bottom right" },
-  ];
-  const MARKER_OPTIONS: Array<{ value: MarkerSymbol; label: string; paths: Point2D[][] }> = [
-    { value: "pin", label: "Pin", paths: markerSymbolPaths("pin", { x: 0, y: 0 }, 20) },
-    { value: "circle", label: "Circle", paths: markerSymbolPaths("circle", { x: 0, y: 0 }, 20) },
-    { value: "triangle", label: "Triangle", paths: markerSymbolPaths("triangle", { x: 0, y: 0 }, 20) },
-    { value: "star", label: "Star", paths: markerSymbolPaths("star", { x: 0, y: 0 }, 20) },
-    { value: "cross", label: "Cross", paths: markerSymbolPaths("cross", { x: 0, y: 0 }, 20) },
-  ];
-  const CUSTOM_LINE_OPTIONS: Array<{ value: CustomLineKind; label: string }> = [
-    { value: "trail", label: "Trail" },
-    { value: "boundary", label: "Boundary" },
-  ];
-
   function previewFor(config: ProjectConfigV1, source: SourceBundleV1): GeometryIRV1 {
     const result = generateGeometry(config, source);
     addPreviewWarning(result, source);
@@ -159,7 +124,8 @@
   const pipeline = new PreviewPipeline();
   // Map-data refresh code loads with the first preview edit, not at startup.
   let sourcePreparation: Promise<SourcePreparationCache> | undefined;
-  const preparedSources = () => sourcePreparation ??= import("./source-refresh").then((module) => new module.SourcePreparationCache());
+  const preparedSources = () => sourcePreparation ??= import("./source-refresh")
+    .then((module) => new module.SourcePreparationCache({ loadVectorMarkings, loadLakeAreas, loadSurveyedLakeDepths, applySurveyProvenance, resolveLakeOutlines, assembleWater }));
   // Continuous controls (sliders, typed numbers) fire on every input tick. The
   // project value updates immediately; the preview refresh trails the last tick.
   const PREVIEW_REFRESH_DELAY_MS = 120;
@@ -254,7 +220,7 @@
   const layerTicks = $derived(geometry.layers.map((layer) => Math.round(displayElevation(layer.elevationM, project.units))));
   const shownLengthUnit = $derived(lengthUnit(project.units));
   const shownElevationUnit = $derived(elevationUnit(project.units));
-  const northArrowMaximumMm = $derived(Math.min(NORTH_ARROW_MAX_SIZE_MM, Math.max(NORTH_ARROW_MIN_SIZE_MM, Math.min(project.widthMm, project.heightMm) * NORTH_ARROW_MAX_MAP_FRACTION)));
+  const northArrowSizeLimitMm = $derived(edits.northArrowMaximumMm(project.widthMm, project.heightMm));
   const activeLinePreset = $derived(LINE_PRESETS.find((preset) => JSON.stringify(preset.style) === JSON.stringify(project.lineStyle))?.value);
   const activeDetailCount = $derived([
     project.showRoads,
@@ -342,73 +308,9 @@
     return updateFabrication({ lineStyle: { ...project.lineStyle, [key]: storedLength(shown) } });
   }
 
-  function addMarker(): void {
-    if (project.markers.length >= MAX_MAP_MARKERS) return;
-    const marker: MapMarkerV1 = {
-      id: crypto.randomUUID(),
-      lat: project.location.lat,
-      lon: project.location.lon,
-      symbol: "pin",
-    };
-    void updateFabrication({ markers: [...project.markers, marker] });
-  }
-
-  function updateMarker(id: string, patch: Partial<MapMarkerV1>): void {
-    const current = project.markers.find((marker) => marker.id === id);
-    if (!current) return;
-    const next = { ...current, ...patch };
-    if (!Number.isFinite(next.lat) || next.lat < -85.0511 || next.lat > 85.0511 || !Number.isFinite(next.lon) || next.lon < -180 || next.lon > 180) return;
-    void updateFabrication({ markers: project.markers.map((marker) => marker.id === id ? next : marker) });
-  }
-
-  function removeMarker(id: string): void {
-    void updateFabrication({ markers: project.markers.filter((marker) => marker.id !== id) });
-  }
-
-  function addCustomLine(): void {
-    const pointCount = project.customLines.reduce((total, line) => total + line.points.length, 0);
-    if (project.customLines.length >= MAX_CUSTOM_LINES || pointCount + 2 > MAX_CUSTOM_DATA_POINTS) return;
-    const longitudeDelta = project.location.lon > 179.998 ? -0.002 : 0.002;
-    const line: CustomLineFeatureV1 = {
-      id: crypto.randomUUID(),
-      kind: "trail",
-      points: [
-        { lat: project.location.lat, lon: project.location.lon },
-        { lat: project.location.lat, lon: Math.max(-180, Math.min(180, project.location.lon + longitudeDelta)) },
-      ],
-    };
-    void updateFabrication({ customLines: [...project.customLines, line] });
-  }
-
-  function updateCustomLine(id: string, patch: Partial<CustomLineFeatureV1>): void {
-    void updateFabrication({ customLines: project.customLines.map((line) => line.id === id ? { ...line, ...patch } : line) });
-  }
-
-  function updateCustomLinePoint(id: string, pointIndex: number, patch: Partial<GeoPoint>): void {
-    const line = project.customLines.find((item) => item.id === id);
-    const current = line?.points[pointIndex];
-    if (!line || !current) return;
-    const next = { ...current, ...patch };
-    if (!Number.isFinite(next.lat) || next.lat < -85.0511 || next.lat > 85.0511 || !Number.isFinite(next.lon) || next.lon < -180 || next.lon > 180) return;
-    updateCustomLine(id, { points: line.points.map((point, index) => index === pointIndex ? next : point) });
-  }
-
-  function addCustomLinePoint(id: string): void {
-    const line = project.customLines.find((item) => item.id === id);
-    const last = line?.points.at(-1);
-    const pointCount = project.customLines.reduce((total, item) => total + item.points.length, 0);
-    if (!line || !last || line.points.length >= MAX_CUSTOM_LINE_POINTS || pointCount >= MAX_CUSTOM_DATA_POINTS) return;
-    updateCustomLine(id, { points: [...line.points, { ...last }] });
-  }
-
-  function removeCustomLinePoint(id: string, pointIndex: number): void {
-    const line = project.customLines.find((item) => item.id === id);
-    if (!line || line.points.length <= 2) return;
-    updateCustomLine(id, { points: line.points.filter((_, index) => index !== pointIndex) });
-  }
-
-  function removeCustomLine(id: string): void {
-    void updateFabrication({ customLines: project.customLines.filter((line) => line.id !== id) });
+  /** Apply a marker or path edit from `project-edits`; `undefined` means the edit was rejected. */
+  function applyCustomDataEdit(patch: Partial<ProjectConfigV1> | undefined): void {
+    if (patch) void updateFabrication(patch);
   }
 
   function trailPatternDash(style: LineStyleV1): string | undefined {
@@ -564,9 +466,14 @@
   });
 
   const COSMETIC_KEYS: ReadonlySet<string> = new Set(["name", "explodedPreview"]);
+  // Stroke and text styling never changes the terrain request, so a running
+  // Generate keeps going and re-renders with the latest style when it finishes.
+  const GENERATION_STYLE_KEYS: ReadonlySet<string> = new Set(["lineStyle", "textStyle"]);
 
-  function affectsGeneration(patch: Partial<ProjectConfigV1>): boolean {
-    return Object.keys(patch).some((key) => !COSMETIC_KEYS.has(key));
+  /** Whether an edit to `keys` can leave in-flight generation and preview work running. */
+  function keepsPendingWork(keys: readonly string[]): boolean {
+    const generating = generationState === "loading";
+    return keys.every((key) => COSMETIC_KEYS.has(key) || (generating && GENERATION_STYLE_KEYS.has(key)));
   }
 
   /** Swap in a project with its own source and preview, as import, restore, and directory links do. */
@@ -576,9 +483,9 @@
   }
 
   function updateProject(patch: Partial<ProjectConfigV1>): void {
-    // Cosmetic edits (rename, exploded-preview slider) must not abort an
-    // in-flight generation.
-    if (affectsGeneration(patch)) invalidatePendingPreview();
+    // Cosmetic edits (rename, exploded-preview slider) and styling must not
+    // abort an in-flight generation.
+    if (!keepsPendingWork(Object.keys(patch))) invalidatePendingPreview();
     projectHistory.record(project, Object.keys(patch));
     const nextProject = { ...project, ...patch };
     project = nextProject;
@@ -620,13 +527,18 @@
   function restoreProject(target: ProjectConfigV1, action: "Undo" | "Redo"): void {
     const changed = changedProjectKeys(project, target);
     const sourceChanged = changedProjectKeys(projectForPreview(target, sourceProject), sourceProject);
-    invalidatePendingPreview();
+    // Like the edits themselves, undoing a rename or restyle keeps Generate running.
+    const keepsWork = keepsPendingWork(changed);
+    if (!keepsWork) invalidatePendingPreview();
     project = target;
     if (changed.includes("name")) geometry = { ...geometry, projectName: target.name };
+    // Still loading here means the change was kept; generation adopts it on completion.
+    if (generationState === "loading") return;
     if (!sameMapArea(sourceProject, target)) { status = "Map area changed · regenerate terrain data"; return; }
     status = changed.includes("verticalExaggeration") && target.outputMode === "stack" && target.verticalExaggeration !== sourceProject.verticalExaggeration
       ? "Vertical exaggeration changed · regenerate terrain" : `${action} applied`;
-    if (!sourceChanged.some((key) => !COSMETIC_KEYS.has(key))) return;
+    // A cosmetic change leaves any pending refresh to finish on its own.
+    if (keepsWork || !sourceChanged.some((key) => !COSMETIC_KEYS.has(key))) return;
     const kind: PreviewUpdateKind = sourceChanged.some((key) => key.startsWith("show")) ? "details" : sourceChanged.every((key) => key === "markers" || key === "customLines") ? "customData" : "fabrication";
     void refreshPreview(kind, 0);
   }
@@ -662,7 +574,8 @@
       prepareSource: async (signal) => (await preparedSources()).prepare(fromSource, fromProject, previewProject, nextProject, signal),
       onCommit: (next, source) => {
         addPreviewWarning(next, source);
-        geometry = next; activeSource = source; sourceProject = previewProject;
+        // Cosmetic edits do not supersede a refresh, so keep the latest name.
+        geometry = { ...next, projectName: project.name }; activeSource = source; sourceProject = previewProject;
         if (generationState === "error") generationState = "ready";
         selectedLayer = (kind === "details" ? layerForEnabledDetail(next, patch) : undefined) ?? Math.min(selectedLayer, Math.max(0, next.layers.length - 1));
         status = previewUpdatedStatus(kind, source, nextProject, sourceRequirements(nextProject));
@@ -684,11 +597,13 @@
     const updatesCustomData = patch.markers !== undefined || patch.customLines !== undefined;
     const nextWidth = patch.widthMm ?? project.widthMm;
     const nextHeight = patch.heightMm ?? project.heightMm;
-    const maximumNorthArrowSize = Math.min(NORTH_ARROW_MAX_SIZE_MM, Math.max(NORTH_ARROW_MIN_SIZE_MM, Math.min(nextWidth, nextHeight) * NORTH_ARROW_MAX_MAP_FRACTION));
+    const maximumNorthArrowSize = edits.northArrowMaximumMm(nextWidth, nextHeight);
     if ((patch.widthMm !== undefined || patch.heightMm !== undefined) && (patch.northArrowSizeMm ?? project.northArrowSizeMm) > maximumNorthArrowSize) {
       patch = { ...patch, northArrowSizeMm: maximumNorthArrowSize };
     }
     updateProject(patch);
+    // A style edit kept a running Generate alive; it renders the new style itself.
+    if (generationState === "loading") return Promise.resolve();
     return refreshPreview(updatesCustomData ? "customData" : "fabrication", delayMs);
   }
 
@@ -706,13 +621,21 @@
       const loaded = await loadTerrain(generationProject, controller.signal);
       checkpoint();
       status = "Tracing and repairing contours…";
-      const next = await pipeline.generate(generationProject, loaded.source, revision);
+      let builtProject = generationProject;
+      let next = await pipeline.generate(builtProject, loaded.source, revision);
       checkpoint();
+      // Styling edited during the run did not cancel it; render again until the style is current.
+      const styleOf = (config: ProjectConfigV1) => JSON.stringify([config.lineStyle, config.textStyle]);
+      while (styleOf(builtProject) !== styleOf(project)) {
+        builtProject = { ...builtProject, lineStyle: project.lineStyle, textStyle: project.textStyle };
+        next = await pipeline.generate(builtProject, loaded.source, revision);
+        checkpoint();
+      }
       if (loaded.fallback) next.warnings.push({ code: "DATA_FALLBACK", message: `The map service was unavailable, so this preview uses deterministic sample terrain.${loaded.fallbackReason ? ` (${loaded.fallbackReason})` : ""}` });
       if (loaded.waterWarning) next.warnings.push({ code: "LAKE_DATA_UNAVAILABLE", message: `Water outlines could not be applied, so the terrain has no water adjustment. (${loaded.waterWarning})` });
       // Cosmetic edits deliberately do not cancel expensive terrain work. Merge
       // their latest values instead of replacing them with the request snapshot.
-      const completedProject = { ...generationProject, name: project.name, explodedPreview: project.explodedPreview };
+      const completedProject = { ...builtProject, name: project.name, explodedPreview: project.explodedPreview };
       const completedGeometry = { ...next, projectName: completedProject.name };
       dismissedWarnings = [];
       void sourcePreparation?.then((cache) => cache.clear());
@@ -1026,10 +949,10 @@
                     <div class="range-field">
                       <span class="range-field__label"><b>Diameter</b></span>
                       <div class="range-field__row">
-                        <input aria-label="North arrow size slider" type="range" min={displayLength(NORTH_ARROW_MIN_SIZE_MM, project.units)} max={displayLength(northArrowMaximumMm, project.units)} step={project.units === "imperial" ? 0.01 : 1} value={displayLength(project.northArrowSizeMm, project.units)} oninput={(event) => void updateFabrication({ northArrowSizeMm: storedLength(event.currentTarget.valueAsNumber) })} />
-                        <span class="number-input number-input--compact"><NumberField label="North arrow size" value={shownTextSize(project.northArrowSizeMm)} min={displayLength(NORTH_ARROW_MIN_SIZE_MM, project.units)} max={displayLength(northArrowMaximumMm, project.units)} step={project.units === "imperial" ? 0.01 : 1} oninput={(event) => event.currentTarget.value !== "" && void updateFabrication({ northArrowSizeMm: storedLength(event.currentTarget.valueAsNumber) })} onValueChange={(value) => { const sizeMm = storedLength(value); if (sizeMm !== project.northArrowSizeMm) void updateFabrication({ northArrowSizeMm: sizeMm }); }} /><em>{shownLengthUnit}</em></span>
+                        <input aria-label="North arrow size slider" type="range" min={displayLength(NORTH_ARROW_MIN_SIZE_MM, project.units)} max={displayLength(northArrowSizeLimitMm, project.units)} step={project.units === "imperial" ? 0.01 : 1} value={displayLength(project.northArrowSizeMm, project.units)} oninput={(event) => void updateFabrication({ northArrowSizeMm: storedLength(event.currentTarget.valueAsNumber) })} />
+                        <span class="number-input number-input--compact"><NumberField label="North arrow size" value={shownTextSize(project.northArrowSizeMm)} min={displayLength(NORTH_ARROW_MIN_SIZE_MM, project.units)} max={displayLength(northArrowSizeLimitMm, project.units)} step={project.units === "imperial" ? 0.01 : 1} oninput={(event) => event.currentTarget.value !== "" && void updateFabrication({ northArrowSizeMm: storedLength(event.currentTarget.valueAsNumber) })} onValueChange={(value) => { const sizeMm = storedLength(value); if (sizeMm !== project.northArrowSizeMm) void updateFabrication({ northArrowSizeMm: sizeMm }); }} /><em>{shownLengthUnit}</em></span>
                       </div>
-                      <small><span>{shownTextSize(NORTH_ARROW_MIN_SIZE_MM)} {shownLengthUnit}</span><span>{shownTextSize(northArrowMaximumMm)} {shownLengthUnit}</span></small>
+                      <small><span>{shownTextSize(NORTH_ARROW_MIN_SIZE_MM)} {shownLengthUnit}</span><span>{shownTextSize(northArrowSizeLimitMm)} {shownLengthUnit}</span></small>
                     </div>
                     <div class="subgroup-heading subgroup-heading--action">
                       <p>Placement</p>
@@ -1087,7 +1010,7 @@
             <div class="marker-editor">
               <div class="subgroup-heading subgroup-heading--action">
                 <p><MapPin size={14} />Markers <span>{project.markers.length}</span></p>
-                <button type="button" class="marker-add-button" onclick={addMarker} disabled={project.markers.length >= MAX_MAP_MARKERS}><Plus size={13} />Add marker</button>
+                <button type="button" class="marker-add-button" onclick={() => applyCustomDataEdit(edits.addMarker(project, crypto.randomUUID()))} disabled={!edits.canAddMarker(project)}><Plus size={13} />Add marker</button>
               </div>
               {#if project.markers.length === 0}
                 <small class="marker-empty">Add a marker, enter its latitude and longitude, then choose the symbol to engrave.</small>
@@ -1097,15 +1020,15 @@
                     <div class="marker-card">
                       <div class="marker-card__header">
                         <b>Marker {index + 1}</b>
-                        <button type="button" aria-label={`Remove marker ${index + 1}`} title="Remove marker" onclick={() => removeMarker(marker.id)}><Trash2 size={14} /></button>
+                        <button type="button" aria-label={`Remove marker ${index + 1}`} title="Remove marker" onclick={() => applyCustomDataEdit(edits.removeMarker(project, marker.id))}><Trash2 size={14} /></button>
                       </div>
                       <div class="field-stack marker-coordinate-fields">
-                        <Field label="Latitude" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label={`Marker ${index + 1} latitude`} value={marker.lat} min={-85.0511} max={85.0511} step={0.0001} oninput={(event) => event.currentTarget.value !== "" && updateMarker(marker.id, { lat: event.currentTarget.valueAsNumber })} onValueChange={(lat) => lat !== marker.lat && updateMarker(marker.id, { lat })} /><em>°</em></span>{/snippet}</Field>
-                        <Field label="Longitude" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label={`Marker ${index + 1} longitude`} value={marker.lon} min={-180} max={180} step={0.0001} oninput={(event) => event.currentTarget.value !== "" && updateMarker(marker.id, { lon: event.currentTarget.valueAsNumber })} onValueChange={(lon) => lon !== marker.lon && updateMarker(marker.id, { lon })} /><em>°</em></span>{/snippet}</Field>
+                        <Field label="Latitude" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label={`Marker ${index + 1} latitude`} value={marker.lat} min={-MAX_LATITUDE} max={MAX_LATITUDE} step={0.0001} oninput={(event) => event.currentTarget.value !== "" && applyCustomDataEdit(edits.updateMarker(project, marker.id, { lat: event.currentTarget.valueAsNumber }))} onValueChange={(lat) => lat !== marker.lat && applyCustomDataEdit(edits.updateMarker(project, marker.id, { lat }))} /><em>°</em></span>{/snippet}</Field>
+                        <Field label="Longitude" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label={`Marker ${index + 1} longitude`} value={marker.lon} min={-MAX_LONGITUDE} max={MAX_LONGITUDE} step={0.0001} oninput={(event) => event.currentTarget.value !== "" && applyCustomDataEdit(edits.updateMarker(project, marker.id, { lon: event.currentTarget.valueAsNumber }))} onValueChange={(lon) => lon !== marker.lon && applyCustomDataEdit(edits.updateMarker(project, marker.id, { lon }))} /><em>°</em></span>{/snippet}</Field>
                       </div>
                       <div class="marker-symbol-options" role="radiogroup" aria-label={`Marker ${index + 1} symbol`}>
                         {#each MARKER_OPTIONS as option}
-                          <button type="button" role="radio" aria-label={option.label} title={option.label} aria-checked={marker.symbol === option.value} data-state={marker.symbol === option.value ? "on" : "off"} tabindex={marker.symbol === option.value ? 0 : -1} onclick={() => updateMarker(marker.id, { symbol: option.value })} onkeydown={navigateChoice}>
+                          <button type="button" role="radio" aria-label={option.label} title={option.label} aria-checked={marker.symbol === option.value} data-state={marker.symbol === option.value ? "on" : "off"} tabindex={marker.symbol === option.value ? 0 : -1} onclick={() => applyCustomDataEdit(edits.updateMarker(project, marker.id, { symbol: option.value }))} onkeydown={navigateChoice}>
                             <svg viewBox="-11 -11 22 22" aria-hidden="true">{#each option.paths as path}<path d={path.map((point, pathIndex) => `${pathIndex === 0 ? "M" : "L"}${point.x} ${point.y}`).join(" ")} />{/each}</svg>
                           </button>
                         {/each}
@@ -1120,7 +1043,7 @@
             <div class="custom-line-editor">
               <div class="subgroup-heading subgroup-heading--action">
                 <p><Route size={14} />Paths <span>{project.customLines.length}</span></p>
-                <button type="button" class="marker-add-button" onclick={addCustomLine} disabled={project.customLines.length >= MAX_CUSTOM_LINES || project.customLines.reduce((total, line) => total + line.points.length, 0) + 2 > MAX_CUSTOM_DATA_POINTS}><Plus size={13} />Add path</button>
+                <button type="button" class="marker-add-button" onclick={() => applyCustomDataEdit(edits.addCustomLine(project, crypto.randomUUID()))} disabled={!edits.canAddCustomLine(project)}><Plus size={13} />Add path</button>
               </div>
               {#if project.customLines.length === 0}
                 <small class="marker-empty">Create a trail or boundary, then define its route with as many latitude/longitude points as needed.</small>
@@ -1130,11 +1053,11 @@
                     <div class="marker-card custom-line-card">
                       <div class="marker-card__header">
                         <b>Path {lineIndex + 1}</b>
-                        <button type="button" aria-label={`Remove path ${lineIndex + 1}`} title="Remove path" onclick={() => removeCustomLine(line.id)}><Trash2 size={14} /></button>
+                        <button type="button" aria-label={`Remove path ${lineIndex + 1}`} title="Remove path" onclick={() => applyCustomDataEdit(edits.removeCustomLine(project, line.id))}><Trash2 size={14} /></button>
                       </div>
                       <div class="custom-line-kind-options" role="radiogroup" aria-label={`Path ${lineIndex + 1} type`}>
                         {#each CUSTOM_LINE_OPTIONS as option}
-                          <button type="button" role="radio" aria-checked={line.kind === option.value} data-state={line.kind === option.value ? "on" : "off"} tabindex={line.kind === option.value ? 0 : -1} onclick={() => updateCustomLine(line.id, { kind: option.value })} onkeydown={navigateChoice}>
+                          <button type="button" role="radio" aria-checked={line.kind === option.value} data-state={line.kind === option.value ? "on" : "off"} tabindex={line.kind === option.value ? 0 : -1} onclick={() => applyCustomDataEdit(edits.updateCustomLine(project, line.id, { kind: option.value }))} onkeydown={navigateChoice}>
                             {#if option.value === "trail"}<Route size={14} />{:else}<MapIcon size={14} />{/if}{option.label}
                           </button>
                         {/each}
@@ -1144,16 +1067,16 @@
                           <div class="custom-point-row">
                             <div class="custom-point-heading">
                               <span>Point {pointIndex + 1}</span>
-                              <button type="button" aria-label={`Remove point ${pointIndex + 1} from path ${lineIndex + 1}`} title={line.points.length <= 2 ? "A path needs at least two points" : "Remove point"} disabled={line.points.length <= 2} onclick={() => removeCustomLinePoint(line.id, pointIndex)}><Trash2 size={12} /></button>
+                              <button type="button" aria-label={`Remove point ${pointIndex + 1} from path ${lineIndex + 1}`} title={line.points.length <= 2 ? "A path needs at least two points" : "Remove point"} disabled={line.points.length <= 2} onclick={() => applyCustomDataEdit(edits.removeCustomLinePoint(project, line.id, pointIndex))}><Trash2 size={12} /></button>
                             </div>
                             <div class="field-stack marker-coordinate-fields">
-                              <Field label="Latitude" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label={`Path ${lineIndex + 1} point ${pointIndex + 1} latitude`} value={point.lat} min={-85.0511} max={85.0511} step={0.0001} oninput={(event) => event.currentTarget.value !== "" && updateCustomLinePoint(line.id, pointIndex, { lat: event.currentTarget.valueAsNumber })} onValueChange={(lat) => lat !== point.lat && updateCustomLinePoint(line.id, pointIndex, { lat })} /><em>°</em></span>{/snippet}</Field>
-                              <Field label="Longitude" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label={`Path ${lineIndex + 1} point ${pointIndex + 1} longitude`} value={point.lon} min={-180} max={180} step={0.0001} oninput={(event) => event.currentTarget.value !== "" && updateCustomLinePoint(line.id, pointIndex, { lon: event.currentTarget.valueAsNumber })} onValueChange={(lon) => lon !== point.lon && updateCustomLinePoint(line.id, pointIndex, { lon })} /><em>°</em></span>{/snippet}</Field>
+                              <Field label="Latitude" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label={`Path ${lineIndex + 1} point ${pointIndex + 1} latitude`} value={point.lat} min={-MAX_LATITUDE} max={MAX_LATITUDE} step={0.0001} oninput={(event) => event.currentTarget.value !== "" && applyCustomDataEdit(edits.updateCustomLinePoint(project, line.id, pointIndex, { lat: event.currentTarget.valueAsNumber }))} onValueChange={(lat) => lat !== point.lat && applyCustomDataEdit(edits.updateCustomLinePoint(project, line.id, pointIndex, { lat }))} /><em>°</em></span>{/snippet}</Field>
+                              <Field label="Longitude" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label={`Path ${lineIndex + 1} point ${pointIndex + 1} longitude`} value={point.lon} min={-MAX_LONGITUDE} max={MAX_LONGITUDE} step={0.0001} oninput={(event) => event.currentTarget.value !== "" && applyCustomDataEdit(edits.updateCustomLinePoint(project, line.id, pointIndex, { lon: event.currentTarget.valueAsNumber }))} onValueChange={(lon) => lon !== point.lon && applyCustomDataEdit(edits.updateCustomLinePoint(project, line.id, pointIndex, { lon }))} /><em>°</em></span>{/snippet}</Field>
                             </div>
                           </div>
                         {/each}
                       </div>
-                      <button type="button" class="custom-point-add" onclick={() => addCustomLinePoint(line.id)} disabled={line.points.length >= MAX_CUSTOM_LINE_POINTS || project.customLines.reduce((total, item) => total + item.points.length, 0) >= MAX_CUSTOM_DATA_POINTS}><Plus size={13} />Add point</button>
+                      <button type="button" class="custom-point-add" onclick={() => applyCustomDataEdit(edits.addCustomLinePoint(project, line.id))} disabled={!edits.canAddCustomLinePoint(project, line)}><Plus size={13} />Add point</button>
                     </div>
                   {/each}
                 </div>

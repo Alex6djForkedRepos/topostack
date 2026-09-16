@@ -9,6 +9,7 @@ import { collectUsage } from "./usage-events";
 
 type Handler = (request: Request, env: Env, ctx: ExecutionContext, url: URL) => Promise<Response> | Response;
 
+const NOT_FOUND_BUCKET = "not-found";
 const TERRAIN_TILE_PATH = /^\/v1\/terrain\/(\d+)\/(\d+)\/(\d+)\.png$/;
 
 // Per-client request budget. Archive range reads and terrain cache hits are
@@ -56,7 +57,9 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
     if (!tile) return json({ error: "Invalid terrain tile coordinates." }, { status: 400 });
     return terrainResponse(request, env, ctx, tile, { admitUpstream: () => withinRequestBudget(request, env, "terrain") });
   }
-  return limited(url.pathname.split("/")[2] ?? "root", () => json({ error: "Not found." }, { status: 404 }))(request, env, ctx, url);
+  // One fixed bucket: a path-derived key would let callers mint fresh budgets
+  // or drain the real terrain/geocode buckets with 404s.
+  return limited(NOT_FOUND_BUCKET, () => json({ error: "Not found." }, { status: 404 }))(request, env, ctx, url);
 }
 
 export default {

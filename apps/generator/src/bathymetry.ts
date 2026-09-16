@@ -122,6 +122,32 @@ function insideRing(x: number, y: number, ring: WaterAreaV1["polygon"]["outer"])
   return inside;
 }
 
+/**
+ * Grid rows and columns that can fall inside a ring, from its bounding box in
+ * the same millimetre space as the per-pixel test. The range is widened by one
+ * pixel and a small epsilon, so every pixel that `insideRing` would accept is
+ * still visited and tested exactly.
+ */
+export function pixelBox(ring: WaterAreaV1["polygon"]["outer"], grid: Pick<ElevationGrid, "width" | "height">, dimensions: Pick<ProjectConfigV1, "widthMm" | "heightMm">): { rowStart: number; rowEnd: number; colStart: number; colEnd: number } {
+  const full = { rowStart: 0, rowEnd: grid.height - 1, colStart: 0, colEnd: grid.width - 1 };
+  if (!ring.length) return { rowStart: 0, rowEnd: -1, colStart: 0, colEnd: -1 };
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const point of ring) {
+    if (point.x < minX) minX = point.x;
+    if (point.x > maxX) maxX = point.x;
+    if (point.y < minY) minY = point.y;
+    if (point.y > maxY) maxY = point.y;
+  }
+  const toIndex = (value: number, sizeMm: number, count: number) => (value / sizeMm + 0.5) * (count - 1);
+  const pad = 1e-6 * Math.max(1, Math.abs(minX), Math.abs(maxX), Math.abs(minY), Math.abs(maxY));
+  const colStart = Math.floor(toIndex(minX - pad, dimensions.widthMm, grid.width)) - 1;
+  const colEnd = Math.ceil(toIndex(maxX + pad, dimensions.widthMm, grid.width)) + 1;
+  const rowStart = Math.floor(toIndex(minY - pad, dimensions.heightMm, grid.height)) - 1;
+  const rowEnd = Math.ceil(toIndex(maxY + pad, dimensions.heightMm, grid.height)) + 1;
+  if (![colStart, colEnd, rowStart, rowEnd].every(Number.isFinite) || dimensions.widthMm <= 0 || dimensions.heightMm <= 0) return full;
+  return { rowStart: Math.max(0, rowStart), rowEnd: Math.min(full.rowEnd, rowEnd), colStart: Math.max(0, colStart), colEnd: Math.min(full.colEnd, colEnd) };
+}
+
 export interface SurveyResult {
   areas: WaterAreaV1[];
   status: "available" | "partial" | "unavailable" | "not-covered";
@@ -155,9 +181,10 @@ export async function loadLakeBathymetry(apiBase: string, bounds: GeoBounds, gri
         // most lakes in a wide selection have no survey coverage at all.
         let samples = previous.bathymetry?.depthsM;
         let count = 0;
-        for (let row = 0; row < grid.height; row += 1) {
+        const box = dimensions ? pixelBox(area.polygon.outer, grid, dimensions) : { rowStart: 0, rowEnd: grid.height - 1, colStart: 0, colEnd: grid.width - 1 };
+        for (let row = box.rowStart; row <= box.rowEnd; row += 1) {
           signal?.throwIfAborted();
-          for (let col = 0; col < grid.width; col += 1) {
+          for (let col = box.colStart; col <= box.colEnd; col += 1) {
             const index = row * grid.width + col;
             if (!Number.isFinite(values[index])) continue;
             if (dimensions) {

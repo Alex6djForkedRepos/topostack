@@ -204,6 +204,26 @@ def minnesota(pin,cache,writer):
     print(f'Minnesota: {len(writer.grids)} basins processed, {len(skipped)} skipped',flush=True)
 
 
+FINNISH_DEPTH_FIELD='Syvyyskayr'
+# Above this share of unreadable contour depths the schema has likely changed;
+# fail instead of publishing an archive built from the few parseable lines.
+MAX_DEPTH_PARSE_SKIP_RATIO=0.5
+
+
+def finnish_contour_depth(properties):
+    """Contour depth in metres from a decimal-comma string or a numeric field, else None."""
+    value=properties.get(FINNISH_DEPTH_FIELD) if properties is not None else None
+    if value is None:return None
+    try:depth=float(str(value).strip().replace(',','.'))
+    except ValueError:return None
+    return depth if math.isfinite(depth) else None
+
+
+def check_depth_parse_ratio(skipped,total,label):
+    if total>0 and skipped/total>MAX_DEPTH_PARSE_SKIP_RATIO:
+        raise ValueError(f'{label}: {skipped} of {total} contour depths were missing or unreadable; check the {FINNISH_DEPTH_FIELD} field')
+
+
 def finland(pins,cache,writer):
     import fiona
     from shapely.geometry import shape, mapping
@@ -221,6 +241,7 @@ def finland(pins,cache,writer):
             lake=f['properties']['JarviTunnu']
             if lake and f['geometry']:regions[lake].append(shape(f['geometry']))
     skipped=[]
+    depth_total=depth_skipped=0
     with fiona.open(cache/'finland-contours/Syvyyskayra.shp') as contours:
         for i,(lake,geometries) in enumerate(sorted(regions.items())):
             prepared=cache/'fi-prepared'/f'{lake}.tif'
@@ -232,13 +253,17 @@ def finland(pins,cache,writer):
                 for feature in contours.filter(bbox=water.bounds):
                     line=shape(feature['geometry'])
                     if not water.intersects(line):continue
-                    try:depth=float(feature['properties']['Syvyyskayr'].replace(',','.'))
-                    except (ValueError,AttributeError):continue
+                    depth=finnish_contour_depth(feature['properties'])
+                    depth_total+=1
+                    if depth is None:
+                        depth_skipped+=1;continue
                     if not 0<=depth<=1500:continue
                     clipped=line.intersection(water)
                     parts=list(clipped.geoms) if hasattr(clipped,'geoms') else [clipped]
                     for part in parts:
                         if part.geom_type=='LineString':points.extend((x,y,depth) for x,y in part.coords)
+                # Check as lakes complete so a schema change fails early, not after hours.
+                if depth_total>=1000:check_depth_parse_ratio(depth_skipped,depth_total,'Finland')
                 if len(points)<3 or max((p[2] for p in points),default=0)<=0:
                     skipped.append({'id':lake,'reason':'Insufficient depth contours'});continue
                 data=np.asarray(points,dtype=np.float64)
@@ -265,6 +290,7 @@ def finland(pins,cache,writer):
                     skipped.append({'id':lake,'reason':'No underwater depth contours'});continue
             writer.add(prepared,lake)
             if i%50==0:print(f'Finland: {i+1}/{len(regions)} lakes',flush=True)
+    check_depth_parse_ratio(depth_skipped,depth_total,'Finland')
     (cache/'finland-skipped.json').write_text(json.dumps(skipped,indent=2)+'\n')
     print(f'Finland: {len(writer.grids)} lakes processed, {len(skipped)} skipped',flush=True)
 

@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { DEFAULT_PROJECT, generateGeometry, type GeometryIRV1 } from "@topostack/core";
   import { createSamplePreviewSource } from "../../sample-preview";
+  import type { GeometryWorkerRequest, GeometryWorkerResponse } from "../../app/geometry-worker-client";
   let App = $state.raw<typeof import("../../app/App.svelte").default>();
   import "../../app/styles.css";
 
@@ -11,16 +12,28 @@
     let active = true;
     void import("../../app/App.svelte").then((module) => { if (active) App = module.default; }).catch(() => { if (active) error = true; });
     const source = createSamplePreviewSource();
-    if (typeof Worker === "undefined") { preview = generateGeometry(DEFAULT_PROJECT, source); return () => { active = false; }; }
-    const worker = new Worker(new URL("../../geometry.worker.ts", import.meta.url), { type: "module" });
-    worker.onmessage = (event: MessageEvent<{ result?: GeometryIRV1; error?: string }>) => {
-      worker.terminate();
-      if (event.data.result) preview = event.data.result;
-      else error = true;
+    let worker: Worker | undefined;
+    const stopWorker = () => { if (worker) { worker.onmessage = null; worker.onerror = null; worker.terminate(); worker = undefined; } };
+    // Workers can be missing, blocked by CSP inside a host frame, or fail to
+    // load; the sample preview is small enough to finish on the main thread.
+    const generateHere = () => {
+      stopWorker();
+      if (!active) return;
+      try { preview = generateGeometry(DEFAULT_PROJECT, source); }
+      catch { error = true; }
     };
-    worker.onerror = () => { worker.terminate(); error = true; };
-    worker.postMessage({ id: 0, config: DEFAULT_PROJECT, source });
-    return () => { active = false; worker.terminate(); };
+    if (typeof Worker === "undefined") { generateHere(); return () => { active = false; }; }
+    try { worker = new Worker(new URL("../../geometry.worker.ts", import.meta.url), { type: "module" }); }
+    catch { generateHere(); return () => { active = false; }; }
+    worker.onmessage = (event: MessageEvent<GeometryWorkerResponse>) => {
+      if (event.data.result) { stopWorker(); if (active) preview = event.data.result; }
+      else generateHere();
+    };
+    worker.onerror = (event) => { event.preventDefault(); generateHere(); };
+    const request: GeometryWorkerRequest = { id: 0, config: DEFAULT_PROJECT, sourceId: 0, source };
+    try { worker.postMessage(request); }
+    catch { generateHere(); }
+    return () => { active = false; stopWorker(); };
   });
 </script>
 

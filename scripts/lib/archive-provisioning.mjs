@@ -1,4 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
+import { createReadStream } from "node:fs";
+import { access, rename, rm, stat, writeFile } from "node:fs/promises";
+import { pipeline } from "node:stream/promises";
 import { AwsClient } from "aws4fetch";
 import { parseArchiveRelease } from "../../packages/core/src/archive-release.ts";
 
@@ -99,4 +102,94 @@ export async function provisionVerifiedArchives({ accountId, cloudflare, buckets
     receipts.push({ bucket, ...receipt });
   }
   return receipts;
+}
+
+export const DEVELOPMENT_BUCKET = "topostack-vector-data-development";
+export const PRODUCTION_BUCKET = "topostack-vector-data";
+
+/** Shared CLI flags of the archive provisioning scripts; usage checks stay with each script. */
+export function parseArchiveFlags(argv, env = process.env) {
+  const flags = argv.filter((argument) => argument.startsWith("--"));
+  const includeProduction = flags.includes("--prod");
+  return {
+    flags,
+    archivePath: argv.find((argument) => !argument.startsWith("--")),
+    includeProduction,
+    promote: flags.includes("--promote"),
+    skipDigestCheck: flags.includes("--skip-digest-check"),
+    expectedDigest: (flags.find((flag) => flag.startsWith("--expected-sha256="))?.slice("--expected-sha256=".length)
+      ?? env.EXPECTED_ARCHIVE_SHA256 ?? "").trim().toLowerCase(),
+    // Stage in development by default. Production staging and activation are explicit.
+    buckets: includeProduction ? [DEVELOPMENT_BUCKET, PRODUCTION_BUCKET] : [DEVELOPMENT_BUCKET],
+  };
+}
+
+export function assertDigestPinPolicy({ includeProduction, skipDigestCheck, expectedDigest }) {
+  if (includeProduction && !expectedDigest) throw new Error("Production provisioning requires a pinned SHA-256 digest; --skip-digest-check is development-only.");
+  if (skipDigestCheck && expectedDigest) throw new Error("Choose either a pinned SHA-256 digest or --skip-digest-check, not both.");
+  if (expectedDigest && !/^[a-f0-9]{64}$/.test(expectedDigest)) throw new Error("The expected SHA-256 digest must contain exactly 64 hexadecimal characters.");
+}
+
+export async function statArchive(archivePath) {
+  await access(archivePath);
+  const archive = await stat(archivePath);
+  if (!archive.isFile()) throw new Error(`${archivePath} is not a file.`);
+  return archive;
+}
+
+export async function sha256File(path) {
+  const hash = createHash("sha256");
+  await pipeline(createReadStream(path), hash);
+  return hash.digest("hex");
+}
+
+/** Hashes the archive and enforces the pinned digest before anything is uploaded. */
+export async function verifyArchiveDigest(archivePath, { expectedDigest, skipDigestCheck }, log = console) {
+  const archiveDigest = await sha256File(archivePath);
+  log.log(`Archive SHA-256: ${archiveDigest}`);
+  if (expectedDigest) {
+    if (archiveDigest !== expectedDigest) throw new Error(`Archive digest mismatch: expected ${expectedDigest}, computed ${archiveDigest}. Refusing to upload.`);
+    log.log("Archive digest matches the pinned SHA-256.");
+  } else if (skipDigestCheck) {
+    log.warn("Digest pin check skipped (--skip-digest-check). Record the SHA-256 above and pin it for future runs.");
+  } else {
+    throw new Error("No pinned digest provided. Pass --expected-sha256=<hex> (or set EXPECTED_ARCHIVE_SHA256), or use --skip-digest-check for a first-time pin capture.");
+  }
+  return archiveDigest;
+}
+
+/** Runs `pmtiles verify` and returns the archive header. */
+export async function verifyPmtilesHeader({ run, capture, pmtilesBin, archivePath }) {
+  await run(pmtilesBin, ["verify", archivePath]);
+  return JSON.parse(await capture(pmtilesBin, ["show", archivePath, "--header-json"]));
+}
+
+/** Replaces `target` only with a completely written file. */
+export async function writeJsonAtomic(target, value) {
+  const part = `${target}.part`;
+  try {
+    await writeFile(part, JSON.stringify(value, null, 2) + "\n", "utf8");
+    await rename(part, target);
+  } catch (error) {
+    await rm(part, { force: true });
+    throw error;
+  }
+}
+
+/**
+ * Stages (and optionally promotes) a verified archive, keeping a receipt beside
+ * it. The receipt holds rollback information, so each checkpoint replaces it
+ * atomically: an interrupted write never leaves a truncated record.
+ */
+export async function provisionWithReceipt({ archivePath, dataset, logicalKey, maxZoom, sha256, bytes, buckets, promote, provision = provisionVerifiedArchives, writeReceipt = writeJsonAtomic, ...options }) {
+  const receiptPath = `${archivePath}.provisioning.json`;
+  const receipt = { schemaVersion: 2, dataset, key: logicalKey, buckets, sha256, bytes, maxZoom, releases: [] };
+  await provision({ ...options, buckets, logicalKey, dataset, archivePath, sha256, bytes, promote,
+    checkpoint: async (entry) => {
+      receipt.releases = [...receipt.releases.filter((item) => item.bucket !== entry.bucket), entry];
+      await writeReceipt(receiptPath, receipt);
+    },
+  });
+  console.log(`Verified ${logicalKey}. ${promote ? "Release pointer promoted." : "Staged only; rerun with --promote to activate after the gateway supports release pointers."} Receipt: ${receiptPath}`);
+  return { receiptPath, receipt };
 }

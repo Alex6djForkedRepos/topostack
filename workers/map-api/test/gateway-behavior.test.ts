@@ -149,15 +149,28 @@ describe("request budgets", () => {
     expect(manifest.status).toBe(429);
   });
 
-  it("caps geocoder cache misses with a shared budget across clients", async () => {
-    const limit = vi.fn(async ({ key }: RateLimitOptions) => ({ success: key !== "geocode-global" }));
-    const budgetEnv = { ...env, REQUEST_LIMITER: { limit } } as unknown as Env;
+  it("caps geocoder cache misses with a dedicated shared budget across clients", async () => {
+    const allow = vi.fn(async (_options: RateLimitOptions) => ({ success: true }));
+    const global = denyAll();
+    const budgetEnv = { ...env, REQUEST_LIMITER: { limit: allow }, GEOCODE_LIMITER: { limit: allow }, GEOCODE_GLOBAL_LIMITER: global } as unknown as Env;
     const upstream = vi.fn(async () => Response.json({ results: [{ formatted: "Somewhere", lat: 1, lon: 2 }] }));
     vi.stubGlobal("fetch", upstream);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
     const response = await worker.fetch(new Request("https://example.test/v1/geocode?q=global%20budget", { headers: { "cf-connecting-ip": "203.0.113.9" } }), budgetEnv, context);
     expect(response.status).toBe(429);
     expect(upstream).not.toHaveBeenCalled();
-    expect(limit.mock.calls.map(([options]) => options.key)).toEqual(["203.0.113.9:geocode", "geocode-global"]);
+    expect(allow.mock.calls.map(([options]) => options.key)).toEqual(["203.0.113.9:geocode", "203.0.113.9:geocode"]);
+    expect(global.limit).toHaveBeenCalledWith({ key: "geocode-global" });
+  });
+
+  it("charges unknown paths to one fixed bucket instead of a caller-chosen one", async () => {
+    const limit = vi.fn(async (_options: RateLimitOptions) => ({ success: true }));
+    const budgetEnv = { ...env, REQUEST_LIMITER: { limit } } as unknown as Env;
+    for (const path of ["/v1/terrain", "/v1/geocode/extra", "/nonsense", "/x/random-bucket-123/y"]) {
+      const response = await worker.fetch(request(path), budgetEnv, context);
+      expect(response.status).toBe(404);
+    }
+    expect(limit.mock.calls.map(([options]) => options.key)).toEqual(Array(4).fill("anonymous:not-found"));
   });
 });
 
@@ -239,6 +252,35 @@ describe("terrain validators and provenance", () => {
     expect(hit.headers.get("x-topostack-imagery-sources")).toBe(miss.headers.get("x-topostack-imagery-sources"));
   });
 
+  it("answers HEAD on an uncached terrain tile without contacting the origin or writing R2", async () => {
+    const key = terrainKey("6/1/2");
+    await env.MAP_CACHE.delete(key);
+    const upstream = vi.fn(async () => new Response(terrainPng.slice(), { headers: { "content-type": "image/png" } }));
+    vi.stubGlobal("fetch", upstream);
+    const limiter = denyAll();
+    const response = await worker.fetch(request("/v1/terrain/6/1/2.png", { method: "HEAD" }), { ...env, REQUEST_LIMITER: limiter } as unknown as Env, context);
+    await Promise.all(jobs.splice(0));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-topostack-cache")).toBe("MISS");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("etag")).toBeNull();
+    expect(await response.text()).toBe("");
+    expectCors(response);
+    expect(upstream).not.toHaveBeenCalled();
+    expect(limiter.limit).not.toHaveBeenCalled();
+    expect(await env.MAP_CACHE.head(key)).toBeNull();
+  });
+
+  it("revalidates HEAD on a cached terrain tile from metadata alone", async () => {
+    const key = terrainKey("6/1/3");
+    const stored = await env.MAP_CACHE.put(key, terrainPng.slice(), { customMetadata: current });
+    const get = vi.spyOn(env.MAP_CACHE, "get");
+    const response = await worker.fetch(request("/v1/terrain/6/1/3.png", { method: "HEAD", headers: { "if-none-match": stored!.httpEtag } }), env, context);
+    expect(response.status).toBe(304);
+    expect(response.headers.get("etag")).toBe(stored!.httpEtag);
+    expect(get).not.toHaveBeenCalled();
+  });
+
   it("answers HEAD on terrain without a body", async () => {
     await env.MAP_CACHE.put(terrainKey("6/1/1"), terrainPng.slice(), { customMetadata: current });
     const response = await worker.fetch(request("/v1/terrain/6/1/1.png", { method: "HEAD" }), env, context);
@@ -260,6 +302,20 @@ describe("geocoder caching", () => {
     expect(response.headers.get("cache-control")).toBe("public, max-age=300");
     await Promise.all(jobs.splice(0));
     expect(put).not.toHaveBeenCalled();
+  });
+
+  it("shares one cache entry across case and repeated-whitespace variants", async () => {
+    const upstream = vi.fn(async () => Response.json({ results: [{ formatted: "Lake Tahoe", lat: 39, lon: -120 }] }));
+    vi.stubGlobal("fetch", upstream);
+    const first = await worker.fetch(request("/v1/geocode?q=lake%20%20%20tahoe%20whitespace"), env, context);
+    expect(first.headers.get("x-topostack-cache")).toBe("MISS");
+    await first.arrayBuffer();
+    await Promise.all(jobs.splice(0));
+    const second = await worker.fetch(request("/v1/geocode?q=%20Lake%09Tahoe%20%0AWhitespace"), env, context);
+    expect(second.headers.get("x-topostack-cache")).toBe("HIT");
+    await second.arrayBuffer();
+    expect(upstream).toHaveBeenCalledOnce();
+    expect(new URL(String((upstream.mock.calls[0] as unknown[])[0])).searchParams.get("text")).toBe("lake tahoe whitespace");
   });
 
   it("answers HEAD on geocode without a body", async () => {

@@ -56,27 +56,80 @@ describe("geometry worker client", () => {
     await expect(pending).resolves.toMatchObject({ projectName: "resent" });
   });
 
-  it("terminates only an in-flight worker on cancel and rejects with an AbortError", async () => {
-    const { client, workers } = setup();
+  it("keeps the worker and its cached source when a request is cancelled", async () => {
+    const { client, workers, factory } = setup();
     const bundle = source();
-    const idle = client.run(DEFAULT_PROJECT, bundle);
-    workers[0]!.reply({ id: workers[0]!.last.id, result: geometry("done") });
-    await idle;
-    client.cancel();
-    expect(workers[0]!.terminated).toBe(false);
-
     const pending = client.run(DEFAULT_PROJECT, bundle);
+    const staleId = workers[0]!.last.id;
     client.cancel();
     await expect(pending).rejects.toMatchObject({ name: "AbortError" });
-    expect(workers[0]!.terminated).toBe(true);
+    expect(workers[0]!.terminated).toBe(false);
     expect(client.busy).toBe(false);
 
-    // The replacement worker has no cached source.
-    void client.run(DEFAULT_PROJECT, bundle).catch(() => undefined);
-    expect(workers).toHaveLength(2);
-    expect(workers[1]!.last.source).toBe(bundle);
+    const next = client.run(DEFAULT_PROJECT, bundle);
+    expect(workers[0]!.last.source).toBeUndefined();
+    workers[0]!.reply({ id: staleId, result: geometry("stale") });
+    expect(client.busy).toBe(true);
+    workers[0]!.reply({ id: workers[0]!.last.id, result: geometry("next") });
+    await expect(next).resolves.toMatchObject({ projectName: "next" });
+    expect(factory).toHaveBeenCalledOnce();
     client.dispose();
-    expect(workers[1]!.terminated).toBe(true);
+    expect(workers[0]!.terminated).toBe(true);
+  });
+
+  it("terminates a worker still busy with abandoned work past the limit and moves the current request", async () => {
+    vi.useFakeTimers();
+    try {
+      const workers: FakeWorker[] = [];
+      const client = new GeometryWorkerClient(() => { const worker = new FakeWorker(); workers.push(worker); return worker as unknown as Worker; }, () => geometry("sync"), 500);
+      const bundle = source();
+      void client.run(DEFAULT_PROJECT, bundle).catch(() => undefined);
+      await vi.advanceTimersByTimeAsync(200);
+      const current = client.run({ ...DEFAULT_PROJECT, name: "current" }, bundle);
+      expect(workers[0]!.terminated).toBe(false);
+      await vi.advanceTimersByTimeAsync(300);
+      expect(workers[0]!.terminated).toBe(true);
+      expect(workers[1]!.last).toMatchObject({ source: bundle, config: { name: "current" } });
+      workers[1]!.reply({ id: workers[1]!.last.id, result: geometry("current") });
+      await expect(current).resolves.toMatchObject({ projectName: "current" });
+
+      // Cancelling work that already ran past the limit terminates at once.
+      void client.run(DEFAULT_PROJECT, bundle).catch(() => undefined);
+      await vi.advanceTimersByTimeAsync(600);
+      client.cancel();
+      expect(workers[1]!.terminated).toBe(true);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("does not terminate when abandoned work finishes in time", async () => {
+    vi.useFakeTimers();
+    try {
+      const workers: FakeWorker[] = [];
+      const client = new GeometryWorkerClient(() => { const worker = new FakeWorker(); workers.push(worker); return worker as unknown as Worker; }, () => geometry("sync"), 500);
+      const bundle = source();
+      void client.run(DEFAULT_PROJECT, bundle).catch(() => undefined);
+      const staleId = workers[0]!.last.id;
+      const current = client.run(DEFAULT_PROJECT, bundle);
+      workers[0]!.reply({ id: staleId, result: geometry("stale") });
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(workers[0]!.terminated).toBe(false);
+      workers[0]!.reply({ id: workers[0]!.last.id, result: geometry("current") });
+      await expect(current).resolves.toMatchObject({ projectName: "current" });
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("retries the current request on a fresh worker when abandoned work crashes the worker", async () => {
+    const { client, workers } = setup();
+    const bundle = source();
+    const first = client.run(DEFAULT_PROJECT, bundle);
+    workers[0]!.reply({ id: workers[0]!.last.id, result: geometry("ok") });
+    await first;
+    void client.run(DEFAULT_PROJECT, bundle).catch(() => undefined);
+    const current = client.run(DEFAULT_PROJECT, bundle);
+    workers[0]!.onerror!({ message: "Out of memory" });
+    expect(workers[1]!.last.source).toBe(bundle);
+    workers[1]!.reply({ id: workers[1]!.last.id, result: geometry("retried") });
+    await expect(current).resolves.toMatchObject({ projectName: "retried" });
   });
 
   it("rejects generation errors without discarding a working worker", async () => {
@@ -93,18 +146,24 @@ describe("geometry worker client", () => {
   it("ignores late replies from a superseded request or replaced worker", async () => {
     const { client, workers } = setup();
     const bundle = source();
+    const first = client.run(DEFAULT_PROJECT, bundle);
+    workers[0]!.reply({ id: workers[0]!.last.id, result: geometry("first") });
+    await first;
     const stale = client.run(DEFAULT_PROJECT, bundle).catch((error: unknown) => error);
     const staleId = workers[0]!.last.id;
-    const staleHandler = workers[0]!.onmessage!;
     const current = client.run({ ...DEFAULT_PROJECT, name: "current" }, bundle);
     expect(await stale).toMatchObject({ name: "AbortError" });
-    // A message already queued on the terminated worker still arrives.
-    staleHandler({ data: { id: staleId, result: geometry("stale") } });
+    workers[0]!.reply({ id: staleId, result: geometry("stale") });
     expect(client.busy).toBe(true);
-    workers[1]!.reply({ id: staleId, result: geometry("wrong id") });
+    // A message already queued on a replaced worker still arrives.
+    const replacedHandler = workers[0]!.onmessage!;
+    workers[0]!.onerror!({ message: "Out of memory" });
+    await expect(current).rejects.toThrow("Out of memory");
+    const next = client.run(DEFAULT_PROJECT, bundle);
+    replacedHandler({ data: { id: workers[1]!.last.id, result: geometry("replaced") } });
     expect(client.busy).toBe(true);
-    workers[1]!.reply({ id: workers[1]!.last.id, result: geometry("current") });
-    await expect(current).resolves.toMatchObject({ projectName: "current" });
+    workers[1]!.reply({ id: workers[1]!.last.id, result: geometry("next") });
+    await expect(next).resolves.toMatchObject({ projectName: "next" });
   });
 
   it("falls back to main-thread generation when the worker cannot be constructed", async () => {
@@ -146,6 +205,24 @@ describe("geometry worker client", () => {
     workers[1]!.onmessageerror!();
     await expect(next).rejects.toThrow("unreadable");
     expect(workers[1]!.terminated).toBe(true);
+  });
+
+  it("remembers across restarts that workers load, so a later crash never disables them", async () => {
+    const { client, workers, factory, generate } = setup();
+    const first = client.run(DEFAULT_PROJECT, source());
+    workers[0]!.reply({ id: workers[0]!.last.id, result: geometry("ok") });
+    await first;
+    const crashed = client.run(DEFAULT_PROJECT, source());
+    workers[0]!.onerror!({ message: "Out of memory" });
+    await expect(crashed).rejects.toThrow("Out of memory");
+    // The fresh worker crashes before its first answer: still a runtime error, not a blocked worker.
+    const crashedAgain = client.run(DEFAULT_PROJECT, source());
+    workers[1]!.onerror!({ message: "Out of memory" });
+    await expect(crashedAgain).rejects.toThrow("Out of memory");
+    void client.run(DEFAULT_PROJECT, source()).catch(() => undefined);
+    expect(factory).toHaveBeenCalledTimes(3);
+    expect(generate).not.toHaveBeenCalled();
+    client.dispose();
   });
 });
 

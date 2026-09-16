@@ -125,15 +125,19 @@ function surfaceIndexes(polygons: readonly Polygon2D[], grid: ElevationGrid, con
  *
  * Cells beyond the array are simply absent rather than seeded, so a lake that
  * runs off the edge of the window is not given a false shoreline there.
+ *
+ * `origin` is the grid index of `f[0]`. Parabola intersections are computed in
+ * grid coordinates, so a window reproduces the full-grid arithmetic exactly.
  */
-function distanceTransform1D(f: Float64Array, n: number, spacing: number): Float64Array {
+function distanceTransform1D(f: Float64Array, n: number, spacing: number, origin = 0): Float64Array {
   const weight = spacing * spacing;
   const result = new Float64Array(n).fill(Number.POSITIVE_INFINITY);
   const vertices = new Int32Array(n);
   const breaks = new Float64Array(n + 1);
   let count = -1;
-  for (let q = 0; q < n; q += 1) {
-    if (!Number.isFinite(f[q]!)) continue;
+  for (let local = 0; local < n; local += 1) {
+    if (!Number.isFinite(f[local]!)) continue;
+    const q = local + origin;
     if (count < 0) {
       count = 0;
       vertices[0] = q;
@@ -144,7 +148,7 @@ function distanceTransform1D(f: Float64Array, n: number, spacing: number): Float
     let separation = 0;
     while (count >= 0) {
       const v = vertices[count]!;
-      separation = ((f[q]! + weight * q * q) - (f[v]! + weight * v * v)) / (2 * weight * q - 2 * weight * v);
+      separation = ((f[local]! + weight * q * q) - (f[v - origin]! + weight * v * v)) / (2 * weight * q - 2 * weight * v);
       if (separation > breaks[count]!) break;
       count -= 1;
     }
@@ -162,36 +166,68 @@ function distanceTransform1D(f: Float64Array, n: number, spacing: number): Float
   }
   if (count < 0) return result;
   let index = 0;
-  for (let q = 0; q < n; q += 1) {
+  for (let local = 0; local < n; local += 1) {
+    const q = local + origin;
     while (breaks[index + 1]! < q) index += 1;
     const v = vertices[index]!;
-    result[q] = weight * (q - v) * (q - v) + f[v]!;
+    result[local] = weight * (q - v) * (q - v) + f[v - origin]!;
   }
   return result;
+}
+
+/** Grid cells spanned by some cells plus a one-cell margin, clamped to the grid. */
+export interface CellWindow { minX: number; minY: number; maxX: number; maxY: number }
+
+function cellWindow(cells: ArrayLike<number>, width: number, height: number): CellWindow {
+  let minX = width, minY = height, maxX = -1, maxY = -1;
+  for (let index = 0; index < cells.length; index += 1) {
+    const cell = cells[index]!;
+    const x = cell % width, y = (cell - x) / width;
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  return { minX: Math.max(0, minX - 1), minY: Math.max(0, minY - 1), maxX: Math.min(width - 1, maxX + 1), maxY: Math.min(height - 1, maxY + 1) };
 }
 
 /**
  * Distance in meters from each masked cell to the nearest unmasked one. Cells
  * outside the mask seed the transform at zero; everything else starts unseeded,
  * so a mask that touches the window edge measures to real shoreline only.
+ *
+ * With a `window` enclosing every masked cell plus a one-cell margin, only that
+ * window is transformed and written into `into`; entries outside it are left
+ * untouched. The margin is unmasked, so it is always at least as near as any
+ * shore beyond it, and the result inside the window matches the full grid.
  */
-export function distanceToShoreM(mask: Uint8Array, width: number, height: number, spacingXM: number, spacingYM: number): Float64Array {
-  const squared = new Float64Array(width * height);
-  const column = new Float64Array(height);
-  const row = new Float64Array(width);
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) row[x] = mask[y * width + x] ? Number.POSITIVE_INFINITY : 0;
-    const transformed = distanceTransform1D(row, width, spacingXM);
-    for (let x = 0; x < width; x += 1) squared[y * width + x] = transformed[x]!;
+export function distanceToShoreM(
+  mask: Uint8Array, width: number, height: number, spacingXM: number, spacingYM: number,
+  window: CellWindow = { minX: 0, minY: 0, maxX: width - 1, maxY: height - 1 },
+  into = new Float64Array(width * height),
+): Float64Array {
+  const windowWidth = window.maxX - window.minX + 1;
+  const windowHeight = window.maxY - window.minY + 1;
+  if (windowWidth <= 0 || windowHeight <= 0) return into;
+  const squared = new Float64Array(windowWidth * windowHeight);
+  const column = new Float64Array(windowHeight);
+  const row = new Float64Array(windowWidth);
+  for (let y = 0; y < windowHeight; y += 1) {
+    const offset = (y + window.minY) * width + window.minX;
+    for (let x = 0; x < windowWidth; x += 1) row[x] = mask[offset + x] ? Number.POSITIVE_INFINITY : 0;
+    const transformed = distanceTransform1D(row, windowWidth, spacingXM, window.minX);
+    for (let x = 0; x < windowWidth; x += 1) squared[y * windowWidth + x] = transformed[x]!;
   }
-  for (let x = 0; x < width; x += 1) {
-    for (let y = 0; y < height; y += 1) column[y] = squared[y * width + x]!;
-    const transformed = distanceTransform1D(column, height, spacingYM);
-    for (let y = 0; y < height; y += 1) squared[y * width + x] = transformed[y]!;
+  for (let x = 0; x < windowWidth; x += 1) {
+    for (let y = 0; y < windowHeight; y += 1) column[y] = squared[y * windowWidth + x]!;
+    const transformed = distanceTransform1D(column, windowHeight, spacingYM, window.minY);
+    for (let y = 0; y < windowHeight; y += 1) squared[y * windowWidth + x] = transformed[y]!;
   }
-  const distance = new Float64Array(width * height);
-  for (let index = 0; index < distance.length; index += 1) distance[index] = Math.sqrt(squared[index]!);
-  return distance;
+  for (let y = 0; y < windowHeight; y += 1) {
+    const offset = (y + window.minY) * width + window.minX;
+    for (let x = 0; x < windowWidth; x += 1) into[offset + x] = Math.sqrt(squared[y * windowWidth + x]!);
+  }
+  return into;
 }
 
 /**
@@ -300,7 +336,13 @@ export function carveWaterDepth(
   const mask = new Uint8Array(grid.width * grid.height);
   const interior = new Float64Array(grid.width * grid.height);
   const normalized = new Float64Array(grid.width * grid.height);
+  // Per-lake work is confined to the lake's window, so these full-grid buffers
+  // are shared and only the entries a lake touches are ever rewritten.
+  const shoreDistance = new Float64Array(grid.width * grid.height);
+  const basinBuffers = { factors: new Float64Array(grid.width * grid.height), result: new Float64Array(grid.width * grid.height) };
   const cells: number[] = [];
+  let lakeWindow: CellWindow = { minX: 0, minY: 0, maxX: -1, maxY: -1 };
+  const lakeDistance = () => distanceToShoreM(mask, grid.width, grid.height, spacingXM, spacingYM, lakeWindow, shoreDistance);
 
   // Build the complete mask before carving so neighboring lakes never become
   // land samples for the terrain prior, regardless of their processing order.
@@ -315,7 +357,7 @@ export function carveWaterDepth(
     const radiusM = area.lmaxM && area.lmaxM > 0 ? area.lmaxM : visibleRadiusM;
     if (!(radiusM > 0)) return 0;
     const shape = terrainBasinDistance(grid, mask, waterMask, cells, distance, spacingXM, spacingYM,
-      surfaceM, (area.maxDepthM ?? 0) / radiusM, area.clipped ?? false);
+      surfaceM, (area.maxDepthM ?? 0) / radiusM, area.clipped ?? false, basinBuffers);
     let shapeRadiusM = 0;
     if (shape !== distance) for (const cell of cells) shapeRadiusM = Math.max(shapeRadiusM, shape[cell]!);
     for (let index = 0; index < cells.length; index += 1) {
@@ -334,14 +376,17 @@ export function carveWaterDepth(
   };
 
   for (const [areaIndex, area] of areas.entries()) {
-    mask.fill(0);
+    for (const index of cells) mask[index] = 0;
     cells.length = 0;
     let count = 0;
     const areaIndexes = areaCells[areaIndex]!;
+    lakeWindow = cellWindow(areaIndexes, grid.width, grid.height);
     for (const index of areaIndexes) {
       mask[index] = 1;
       cells.push(index);
-      interior[count] = values[index]!;
+      // The DEM as supplied, not the working copy: an overlapping lake carved
+      // earlier must not drag this one's waterline or spread down with it.
+      interior[count] = grid.values[index]!;
       count += 1;
     }
     if (count === 0) continue;
@@ -357,11 +402,15 @@ export function carveWaterDepth(
 
     if (area.bathymetry && area.kind === "lake") {
       const survey = area.bathymetry;
-      if (survey.width !== grid.width || survey.height !== grid.height || survey.depthsM.length !== values.length) {
-        throw new Error("Lake bathymetry dimensions do not match the terrain grid.");
-      }
+      // A misaligned survey cannot be placed, but it is one lake's data, not the
+      // map's: model this lake instead of failing the whole generation.
+      const aligned = survey.width === grid.width && survey.height === grid.height && survey.depthsM.length === values.length;
+      if (!aligned) warnings.push({
+        code: "BATHYMETRY_FALLBACK",
+        message: `${area.name ?? "A lake"} has survey data that does not match the terrain grid, so its floor uses existing terrain or a modeled basin instead.`,
+      });
       let surveyedCount = 0;
-      for (const index of cells) {
+      if (aligned) for (const index of cells) {
         const depth = survey.depthsM[index]!;
         if (Number.isNaN(depth)) continue;
         if (!Number.isFinite(depth) || depth < 0 || depth > 1500) throw new Error("Lake bathymetry contains an invalid depth.");
@@ -375,7 +424,7 @@ export function carveWaterDepth(
           ? area.surfaceElevationM!
           : surfaceLevelM;
         const missing = surveyedCount < cells.length;
-        const distance = missing ? distanceToShoreM(mask, grid.width, grid.height, spacingXM, spacingYM) : undefined;
+        const distance = missing ? lakeDistance() : undefined;
         const radiusM = distance && interiorSpreadM <= BATHYMETRIC_RELIEF_M ? normalizeBasin(area, distance, surfaceElevationM) : 0;
         const exponent = !distance || radiusM <= 0 || area.clipped || !(area.meanDepthM && area.maxDepthM)
           ? 1 : solveShapeExponent(normalized, cells.length, area.meanDepthM / area.maxDepthM);
@@ -454,7 +503,7 @@ export function carveWaterDepth(
     // instead would leave a step at the shoreline wherever the two disagree.
     const surfaceElevationM = surfaceLevelM;
 
-    const distance = distanceToShoreM(mask, grid.width, grid.height, spacingXM, spacingYM);
+    const distance = lakeDistance();
     // No shoreline in view means no way to place these cells within the basin.
     if (cells.some((index) => !Number.isFinite(distance[index]!))) {
       warnings.push({

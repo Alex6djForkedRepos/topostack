@@ -1,4 +1,4 @@
-import { del, get, set } from "idb-keyval";
+import { get, set } from "idb-keyval";
 import { DEFAULT_PROJECT, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_NAME_LENGTH, validateProject, type CustomLineFeatureV1, type CustomLineKind, type MapMarkerV1, type MarkerSymbol, type NorthArrowAnchor, type NorthArrowStyle, type ProjectConfigV1 } from "@topostack/core";
 
 const PROJECT_KEY = "topostack:project:v1";
@@ -211,8 +211,4 @@ export function parseProject(value: unknown): ProjectConfigV1 {
 
 export async function saveProject(project: ProjectConfigV1): Promise<void> {
   await set(PROJECT_KEY, project);
-}
-
-export async function clearProject(): Promise<void> {
-  await del(PROJECT_KEY);
 }

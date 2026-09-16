@@ -20,9 +20,12 @@ export function waterPatternStrokes(
   if (pattern === "dots") {
     const dots: Point2D[][] = [];
     const dotSpacing = spacing * 1.35;
-    for (let y = -halfHeight + dotSpacing / 2; y < halfHeight; y += dotSpacing) {
-      const row = Math.round((y + halfHeight) / dotSpacing);
-      const offset = row % 2 === 0 ? 0 : dotSpacing / 2;
+    // Parity comes from the integer row itself; recovering it from an
+    // accumulated y lands on k + 0.5 and rounds unpredictably. The first row
+    // keeps the offset it had when that rounding went up, as it usually did.
+    for (let row = 0; -halfHeight + dotSpacing / 2 + row * dotSpacing < halfHeight; row += 1) {
+      const y = -halfHeight + dotSpacing / 2 + row * dotSpacing;
+      const offset = row % 2 === 0 ? dotSpacing / 2 : 0;
       for (let x = -halfWidth + dotSpacing / 2 + offset; x < halfWidth; x += dotSpacing) {
         if (polygons.some((polygon) => pointInPolygon({ x, y }, polygon))) dots.push([{ x: x - 0.001, y }, { x: x + 0.001, y }]);
       }

@@ -1,9 +1,21 @@
-import { sourceRequirements, type Point2D, type ProjectConfigV1, type SourceBundleV1 } from "@topostack/core";
-import { applySurveyProvenance } from "../bathymetry";
-import { loadLakeAreas, loadSurveyedLakeDepths, loadVectorMarkings } from "../data-provider";
-import { changedProjectKeys, projectPatch } from "./project-diff";
-import { resolveLakeOutlines } from "../lake-outlines";
-import { assembleWater } from "../water-assembly";
+import { sourceRequirements, type Point2D, type Polygon2D, type ProjectConfigV1, type SourceBundleV1, type WaterAreaV1 } from "@topostack/core";
+import type { SurveyResult } from "../bathymetry";
+import type { VectorData } from "../data-provider";
+import { changedProjectKeys, projectPatch } from "./project-patch";
+
+/**
+ * Loaders and water helpers, passed in rather than imported. This module is
+ * loaded on the first preview edit, and importing them here would force the
+ * bundler to split the startup chunk they already live in.
+ */
+export interface SourceRefreshDependencies {
+  loadVectorMarkings: (bounds: SourceBundleV1["bounds"], zoom: number, config: ProjectConfigV1, signal?: AbortSignal) => Promise<VectorData>;
+  loadLakeAreas: (bounds: SourceBundleV1["bounds"], zoom: number, config: ProjectConfigV1, signal?: AbortSignal) => Promise<WaterAreaV1[]>;
+  loadSurveyedLakeDepths: (bounds: SourceBundleV1["bounds"], elevation: SourceBundleV1["elevation"], zoom: number, areas: WaterAreaV1[], signal?: AbortSignal, dimensions?: Pick<ProjectConfigV1, "widthMm" | "heightMm">) => Promise<SurveyResult>;
+  applySurveyProvenance: (source: SourceBundleV1, result: SurveyResult) => SourceBundleV1;
+  resolveLakeOutlines: (providers: WaterAreaV1[], hydro: WaterAreaV1[], inland: Polygon2D[]) => WaterAreaV1[];
+  assembleWater: (source: SourceBundleV1, lakes: WaterAreaV1[], ocean: Polygon2D[], config: ProjectConfigV1) => SourceBundleV1;
+}
 
 export function resizeSource(source: SourceBundleV1, from: ProjectConfigV1, to: ProjectConfigV1): SourceBundleV1 {
   if (from.widthMm === to.widthMm && from.heightMm === to.heightMm) return source;
@@ -26,7 +38,10 @@ export function resizeSource(source: SourceBundleV1, from: ProjectConfigV1, to: 
 export function markStaleSourceData(source: SourceBundleV1, patch: Partial<ProjectConfigV1>, sourceProject: ProjectConfigV1, nextProject: ProjectConfigV1): SourceBundleV1 {
   if (source.sourceKind !== "real") return source;
   let next = source;
-  const changesVectorDetails = ["showRoads", "showTrails", "showWater", "showBoundaries"].some((key) => key in patch) || (patch.showWaterDepth === true && !sourceProject.showWater);
+  // Loaded vectors hold only enabled layers, and generation filters by flag, so
+  // disabling a layer needs no reload unless a truncated load may now fit more.
+  const reloadsLayer = (["showRoads", "showTrails", "showBoundaries"] as const).some((key) => key in patch && (patch[key] === true || source.vectorStatus === "partial"));
+  const changesVectorDetails = reloadsLayer || "showWater" in patch || (patch.showWaterDepth === true && !sourceProject.showWater);
   if (changesVectorDetails) next = { ...next, vectorStatus: "not-requested" };
   if (patch.showWaterDepth === true) next = { ...next, lakeDataStatus: "not-requested" };
   const enablesDepthByMode = nextProject.outputMode === "stack" && nextProject.showWaterDepth && sourceProject.outputMode !== "stack";
@@ -34,8 +49,9 @@ export function markStaleSourceData(source: SourceBundleV1, patch: Partial<Proje
   return next;
 }
 
-export async function refreshRequiredMapData(source: SourceBundleV1, config: ProjectConfigV1, signal: AbortSignal): Promise<SourceBundleV1> {
+export async function refreshRequiredMapData(source: SourceBundleV1, config: ProjectConfigV1, signal: AbortSignal, deps: SourceRefreshDependencies): Promise<SourceBundleV1> {
   if (source.sourceKind !== "real") return source;
+  const { loadVectorMarkings, loadLakeAreas, loadSurveyedLakeDepths, applySurveyProvenance, resolveLakeOutlines, assembleWater } = deps;
   const { lakes: usesWaterDepth, vectors: needsVectors } = sourceRequirements(config);
   let next = source;
   let inland = source.inlandWaterAreas ?? [];
@@ -107,6 +123,8 @@ function preparationKey(config: ProjectConfigV1): string {
  * stable object identity lets the geometry worker skip re-cloning the source.
  */
 export class SourcePreparationCache {
+  constructor(private readonly deps: SourceRefreshDependencies) {}
+
   private entry: { input: SourceBundleV1; inputSignature: string; output: SourceBundleV1; key: string } | undefined;
 
   async prepare(active: SourceBundleV1, sourceProject: ProjectConfigV1, previewProject: ProjectConfigV1, nextProject: ProjectConfigV1, signal: AbortSignal): Promise<SourceBundleV1> {
@@ -121,7 +139,7 @@ export class SourcePreparationCache {
       if (entry.output === active && markStaleSourceData(active, patch, sourceProject, nextProject) === active) return entry.output;
     }
     const resized = resizeSource(active, sourceProject, previewProject);
-    const output = await refreshRequiredMapData(markStaleSourceData(resized, patch, sourceProject, nextProject), nextProject, signal);
+    const output = await refreshRequiredMapData(markStaleSourceData(resized, patch, sourceProject, nextProject), nextProject, signal, this.deps);
     if (!signal.aborted) this.entry = { input: active, inputSignature, output, key };
     return output;
   }

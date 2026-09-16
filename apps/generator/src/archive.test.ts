@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createArchive, NETWORK_TIMEOUT_MS } from "./archive";
+import { clearArchiveCache, createArchive, NETWORK_TIMEOUT_MS } from "./archive";
 
 function archiveBytes(directory = false): Uint8Array<ArrayBuffer> {
   const bytes = new Uint8Array(132);
@@ -23,7 +23,7 @@ function stalled(signal: AbortSignal): Promise<Response> {
   });
 }
 
-afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); clearArchiveCache(); });
 
 describe("archive request lifecycle", () => {
   it("recovers on the next generation after a transient header failure", async () => {
@@ -32,6 +32,35 @@ describe("archive request lifecycle", () => {
     await expect(createArchive("https://example.test/map.pmtiles").getHeader()).rejects.toThrow("503");
     await expect(createArchive("https://example.test/map.pmtiles").getHeader()).resolves.toMatchObject({ specVersion: 3 });
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("reuses one reader per URL across operations", async () => {
+    const fetchMock = vi.fn(async () => response());
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(createArchive("https://example.test/map.pmtiles").getHeader()).resolves.toMatchObject({ etag: '"fixture"' });
+    const second = createArchive("https://example.test/map.pmtiles");
+    await second.getHeader();
+    await second.getZxy(0, 0, 0);
+    // One header read, then only the tile body.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await createArchive("https://example.test/other.pmtiles").getHeader();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("keeps a shared header request alive when one operation is cancelled", async () => {
+    let release: (() => void) | undefined;
+    const fetchMock = vi.fn(() => new Promise<Response>((resolve) => { release = () => resolve(response()); }));
+    vi.stubGlobal("fetch", fetchMock);
+    const controller = new AbortController();
+    const cancelled = createArchive("https://example.test/map.pmtiles", controller.signal).getHeader();
+    const rejected = expect(cancelled).rejects.toMatchObject({ name: "AbortError" });
+    const kept = createArchive("https://example.test/map.pmtiles").getHeader();
+    controller.abort();
+    await rejected;
+    await vi.waitFor(() => expect(release).toBeDefined());
+    release!();
+    await expect(kept).resolves.toMatchObject({ specVersion: 3 });
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 
   it("requires a strong archive validator for generation consistency", async () => {

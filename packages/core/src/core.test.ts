@@ -394,6 +394,22 @@ describe("TopoStack geometry", () => {
     expect(engravingToSvg(generateGeometry(hidden, source), hidden)).not.toContain("ENGRAVE-water-fill");
   });
 
+  it("alternates the dot offset on every row regardless of accumulated rounding", () => {
+    for (const [heightMm, strokeWidthMm] of [[150, 1], [400, 0.5], [200, 0.3]] as const) {
+      const widthMm = 120;
+      const dotSpacing = Math.max(2.5, strokeWidthMm * 8) * 1.35;
+      const everywhere = { outer: [{ x: -61, y: -heightMm }, { x: 61, y: -heightMm }, { x: 61, y: heightMm }, { x: -61, y: heightMm }, { x: -61, y: -heightMm }], holes: [] };
+      const rows = new Map<number, number>();
+      for (const [dot] of waterPatternStrokes("dots", [everywhere], widthMm, heightMm, strokeWidthMm)) {
+        const key = Math.round(dot!.y * 1e6);
+        rows.set(key, Math.min(rows.get(key) ?? Infinity, dot!.x + 0.001));
+      }
+      const firstX = [...rows].sort(([left], [right]) => left - right).map(([, x]) => x);
+      expect(firstX.length).toBeGreaterThan(10);
+      firstX.forEach((x, row) => expect(x).toBeCloseTo(-widthMm / 2 + dotSpacing / 2 + (row % 2 === 0 ? dotSpacing / 2 : 0), 9));
+    }
+  });
+
   it("keeps flat linework bounded and uniquely keyed when provider ids repeat", () => {
     const project: ProjectConfigV1 = {
       ...DEFAULT_PROJECT,

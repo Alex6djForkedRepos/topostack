@@ -68,8 +68,16 @@ function toPoint(ringPoint: Pair): Point2D {
 
 function containingPolygonIndexes(children: Polygon2D[], containers: Polygon2D[], marginMm: number, allowContainedHoles = false): number[] | undefined {
   const indexes: number[] = [];
+  // Every vertex of a fitting ring lies inside the container's outer ring, so
+  // a container whose box (with ray-casting slack) misses the ring's box cannot fit it.
+  const containerBounds = containers.map((container) => ringBounds(container.outer));
   for (const child of children) {
-    const containerIndex = containers.findIndex((container) => ringFitsInsidePolygon(child.outer, container, marginMm, allowContainedHoles));
+    const childBounds = ringBounds(child.outer.slice(0, -1));
+    const containerIndex = containers.findIndex((container, index) => {
+      const bounds = containerBounds[index]!;
+      return childBounds.minX >= bounds.minX - 1e-6 && childBounds.maxX <= bounds.maxX + 1e-6 && childBounds.minY >= bounds.minY - 1e-6 && childBounds.maxY <= bounds.maxY + 1e-6 &&
+        ringFitsInsidePolygon(child.outer, container, marginMm, allowContainedHoles);
+    });
     if (containerIndex < 0) return undefined;
     indexes.push(containerIndex);
   }
@@ -236,10 +244,6 @@ function junctionRing(center: Point2D, radiusMm: number): Point2D[] {
   return [...points, { ...points[0]! }];
 }
 
-function coveringPolygons(layers: LayerIR[], layerIndex: number): Polygon2D[] {
-  return layers.slice(layerIndex + 1).flatMap((layer) => layer.polygons);
-}
-
 /** Each layer's material and the material stacked above it, indexed once for routing many markings. */
 interface LayerClip {
   layer: LayerIR;
@@ -247,24 +251,42 @@ interface LayerClip {
   covering: PreparedPolygons;
 }
 
-function layerClips(layers: LayerIR[]): LayerClip[] {
-  return layers.map((layer, layerIndex) => ({
-    layer,
-    material: preparePolygons(layer.polygons),
-    covering: preparePolygons(coveringPolygons(layers, layerIndex)),
-  }));
+/** `upper` followed by `lower`, reusing both sets' ring bounds. */
+function concatPrepared(upper: PreparedPolygons, lower: PreparedPolygons): PreparedPolygons {
+  const { bounds: a } = upper;
+  const { bounds: b } = lower;
+  return {
+    polygons: [...upper.polygons, ...lower.polygons],
+    outerBounds: [...upper.outerBounds, ...lower.outerBounds],
+    rings: [...upper.rings, ...lower.rings],
+    bounds: { minX: Math.min(a.minX, b.minX), minY: Math.min(a.minY, b.minY), maxX: Math.max(a.maxX, b.maxX), maxY: Math.max(a.maxY, b.maxY) },
+  };
 }
 
-function addAlignmentGuides(config: ProjectConfigV1, layers: LayerIR[]): void {
-  for (let index = 0; index < layers.length - 1; index += 1) {
-    const layer = layers[index];
-    const nextLayer = layers[index + 1];
-    if (!layer || !nextLayer || nextLayer.polygons.length === 0) continue;
+/** Built top-down: each layer's covering is the layer above's material plus that layer's covering. */
+function layerClips(layers: LayerIR[]): LayerClip[] {
+  const clips: LayerClip[] = new Array(layers.length);
+  let covering = preparePolygons([]);
+  for (let layerIndex = layers.length - 1; layerIndex >= 0; layerIndex -= 1) {
+    const layer = layers[layerIndex]!;
+    const material = preparePolygons(layer.polygons);
+    clips[layerIndex] = { layer, material, covering };
+    covering = concatPrepared(material, covering);
+  }
+  return clips;
+}
+
+function addAlignmentGuides(config: ProjectConfigV1, clips: LayerClip[]): void {
+  for (let index = 0; index < clips.length - 1; index += 1) {
+    const layer = clips[index]?.layer;
+    const material = clips[index]?.material;
+    const nextLayer = clips[index + 1]?.layer;
+    if (!layer || !material || !nextLayer || nextLayer.polygons.length === 0) continue;
     const layerNumber = String(layer.index + 1).padStart(2, "0");
     const nextLayerNumber = String(nextLayer.index + 1).padStart(2, "0");
     nextLayer.polygons.forEach((polygon, polygonIndex) => {
       offsetClosedRing(polygon.outer, -config.laserKerfMm, "round").forEach((inset, insetIndex) => {
-        clipPolyline(inset, layer.polygons).forEach((points, clipIndex) => layer.markings.push({
+        clipPolyline(inset, material).forEach((points, clipIndex) => layer.markings.push({
           id: `alignment-layer-${layerNumber}-to-${nextLayerNumber}-${polygonIndex}-inset-${insetIndex}-outline-${clipIndex}`,
           operation: "engrave",
           kind: "guide",
@@ -317,9 +339,10 @@ export function projectFingerprint(config: ProjectConfigV1): string {
   return `v5-${(hash >>> 0).toString(16).padStart(8, "0")}`;
 }
 
-function distanceM(lat: number, lonA: number, lonB: number): number {
+/** East-west ground distance across the bounds, measured along their middle latitude. */
+function groundWidthMFor(bounds: GeoBounds): number {
   const radians = Math.PI / 180;
-  return Math.abs((lonB - lonA) * radians) * 6_371_008.8 * Math.cos(lat * radians);
+  return Math.abs((bounds.east - bounds.west) * radians) * 6_371_008.8 * Math.cos(((bounds.north + bounds.south) / 2) * radians);
 }
 
 /**
@@ -338,13 +361,13 @@ function distanceM(lat: number, lonA: number, lonB: number): number {
  */
 /** Model millimeters per ground millimeter across the mapped width; 0 when the bounds have no usable width. */
 export function horizontalScaleFor(widthMm: number, bounds: GeoBounds): number {
-  const groundWidthM = distanceM((bounds.north + bounds.south) / 2, bounds.west, bounds.east);
+  const groundWidthM = groundWidthMFor(bounds);
   return Number.isFinite(groundWidthM) && groundWidthM > 0 ? widthMm / (groundWidthM * 1000) : 0;
 }
 
 export function planTerrainStack(config: ProjectConfigV1, reliefM: number, bounds: GeoBounds, depthBelowLandM = 0): TerrainStackPlan {
   const requested = config.verticalExaggeration;
-  const groundWidthM = distanceM((bounds.north + bounds.south) / 2, bounds.west, bounds.east);
+  const groundWidthM = groundWidthMFor(bounds);
   const flat = {
     layerCount: MIN_LAYER_COUNT,
     depthLayerCount: 0,
@@ -723,7 +746,7 @@ function carveWater(context: GenerationContext, grid: ElevationGrid): { waterAre
         return override && override > 0 ? { ...area, maxDepthM: override, depthSource: "user" as const } : area;
       })
     : [];
-  const groundWidthM = distanceM((source.bounds.north + source.bounds.south) / 2, source.bounds.west, source.bounds.east);
+  const groundWidthM = groundWidthMFor(source.bounds);
   const radians = Math.PI / 180;
   const mercatorHeight = Math.asinh(Math.tan(source.bounds.north * radians)) - Math.asinh(Math.tan(source.bounds.south * radians));
   const groundHeightM = groundWidthM * mercatorHeight / ((source.bounds.east - source.bounds.west) * radians);
@@ -901,7 +924,9 @@ function mapFeatures({ config, source }: GenerationContext, modelGrid: Elevation
 }
 
 function addTransportationLabelCandidate(labels: TransportationLabelCandidates, label: string, candidate: TransportationLabelCandidate): void {
-  labels.set(label, [...(labels.get(label) ?? []), candidate]);
+  const candidates = labels.get(label);
+  if (candidates) candidates.push(candidate);
+  else labels.set(label, [candidate]);
 }
 
 /** A flat engraving has one physical face, so every feature is clipped to the crop once. */
@@ -1045,7 +1070,7 @@ function placeAnnotations({ config, source, clip, warnings }: GenerationContext,
     const radius = cropRadiusMm(config);
     const x = config.cropShape === "circle" ? -radius * 0.58 : -config.widthMm / 2 + 9;
     const y = config.cropShape === "circle" ? radius * 0.58 : -config.heightMm / 2 + 10;
-    const groundWidthM = distanceM((source.bounds.north + source.bounds.south) / 2, source.bounds.west, source.bounds.east);
+    const groundWidthM = groundWidthMFor(source.bounds);
     // Pick the labeled distance from whatever fits the drawn cap, so the bar
     // length and its engraved label always agree.
     const maxLengthMm = config.cropShape === "circle" ? radius * 0.55 : config.widthMm * 0.35;
@@ -1063,12 +1088,12 @@ function placeAnnotations({ config, source, clip, warnings }: GenerationContext,
 
 function placeTransportationLabels(config: ProjectConfigV1, labels: TransportationLabelCandidates): void {
   let transportationLabelIndex = 0;
-  const labelEntries = [...labels].sort((left, right) => {
-    const longest = (candidates: (typeof left)[1]) => candidates.reduce((best, candidate) => Math.max(best, longestPath(candidate.paths)), Number.NEGATIVE_INFINITY);
-    return longest(right[1]) - longest(left[1]) || left[0].localeCompare(right[0]);
-  }).slice(0, TRANSPORTATION_LABEL_LIMIT);
-  for (const [label, candidates] of labelEntries) {
-    const ordered = [...candidates].sort((left, right) => longestPath(right.paths) - longestPath(left.paths));
+  const labelEntries = [...labels].map(([label, candidates]) => {
+    const lengths = candidates.map((candidate) => ({ candidate, length: longestPath(candidate.paths) }));
+    return { label, lengths, longest: lengths.reduce((best, { length }) => Math.max(best, length), Number.NEGATIVE_INFINITY) };
+  }).sort((left, right) => right.longest - left.longest || left.label.localeCompare(right.label)).slice(0, TRANSPORTATION_LABEL_LIMIT);
+  for (const { label, lengths } of labelEntries) {
+    const ordered = lengths.sort((left, right) => right.length - left.length).map(({ candidate }) => candidate);
     for (const candidate of ordered) {
       const placement = placeLinearLabel(label, config, candidate.layer, candidate.paths, candidate.excludedPolygons);
       if (!placement) continue;
@@ -1215,7 +1240,7 @@ export function generateGeometry(config: ProjectConfigV1, source: SourceBundleV1
 
   const transportationLabels = routeMarkings(context, clips, ladder);
   placeAnnotations(context, baseLayer);
-  if (!flatEngraving && config.showAlignmentGuides) addAlignmentGuides(config, layers);
+  if (!flatEngraving && config.showAlignmentGuides) addAlignmentGuides(config, clips);
   placeTransportationLabels(config, transportationLabels);
   if (config.showElevationLabels) placeElevationLabels(context, layers);
   placeMarkers(context, clips);
