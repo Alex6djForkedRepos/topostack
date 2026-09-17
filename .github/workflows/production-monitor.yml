@@ -25,11 +25,10 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "22.22.2"
-          cache: npm
 
-      - name: Install verification dependencies
-        run: npm ci
-
+      # Both verifiers import node: builtins only, so this hourly job needs no
+      # `npm ci` (Playwright, wrangler, Svelte). The jsdom-based SEO checks run
+      # in the daily browser monitor and after every deploy.
       - name: Verify production frontend, API, and data providers
         run: node scripts/verify-worker-deployment.mjs
         env:

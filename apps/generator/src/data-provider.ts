@@ -422,8 +422,7 @@ export async function loadTerrain(config: ProjectConfigV1, signal?: AbortSignal)
   try {
     // Ocean polygons are how geometry separates bathymetry from land relief,
     // so depth modeling needs vectors even when shoreline scoring is hidden.
-    const { lakes: usesWaterDepth } = sourceRequirements(config);
-    const vectorRequested = sourceRequirements(config).vectors;
+    const { lakes: usesWaterDepth, vectors: vectorRequested } = sourceRequirements(config);
     let loaded;
     try {
       // Imported/custom bounds can be much wider than their stored map zoom.

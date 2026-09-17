@@ -27,10 +27,9 @@
  */
 import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
-import { spawn } from "node:child_process";
-import { once } from "node:events";
 import { open as openShapefile } from "shapefile";
 import { maximumInscribedRadiusM, toLocalMeters } from "./lib/inscribed-circle.mjs";
+import { assertExecutable, writeTilesetArchive } from "./lib/lake-archive.mjs";
 
 const MAX_ZOOM = 12;
 // HydroLAKES starts at 0.1 km2. Below roughly a hectare a lake is under a
@@ -99,90 +98,96 @@ async function readMaximumDepths(path) {
   return depths;
 }
 
+// The CSV pass takes minutes; refuse now rather than after it when the one
+// required binary is missing.
+assertExecutable("tippecanoe", { install: "brew install tippecanoe" });
+
 console.log("Reading GLOBathy maximum depths…");
 const depths = await readMaximumDepths(globathyPath);
 console.log(`Loaded ${depths.size.toLocaleString()} maximum-depth estimates.`);
 
 console.log("Streaming lake polygons into tippecanoe…");
 
-const writer = spawn("tippecanoe", [
-  "--output", outputPath, "--force",
-  "--layer", "lakes",
-  "--minimum-zoom", "0", "--maximum-zoom", String(MAX_ZOOM),
-  // Low zooms cannot carry every pond on Earth. Drop the physically smallest
-  // first, matching the client's minimum-fabricable-area filter, instead of
-  // deleting arbitrary lakes merely because their region is water-dense.
-  "--drop-smallest-as-needed", "--no-tiny-polygon-reduction", "--simplification", "4",
-], { stdio: ["pipe", "inherit", "inherit"] });
+const { kept, skipped } = await writeTilesetArchive({
+  outputPath,
+  args: [
+    "--layer", "lakes",
+    "--minimum-zoom", "0", "--maximum-zoom", String(MAX_ZOOM),
+    // Low zooms cannot carry every pond on Earth. Drop the physically smallest
+    // first, matching the client's minimum-fabricable-area filter, instead of
+    // deleting arbitrary lakes merely because their region is water-dense.
+    "--drop-smallest-as-needed", "--no-tiny-polygon-reduction", "--simplification", "4",
+  ],
+  emit: async (write) => {
+    let kept = 0;
+    let skipped = 0;
+    const source = await openShapefile(lakesPath, lakesPath.replace(/\.shp$/i, ".dbf"));
+    while (true) {
+      const { done, value: feature } = await source.read();
+      if (done) break;
+      const properties = feature?.properties ?? {};
+      const hylakId = Number(properties.Hylak_id);
+      const maxDepthM = depths.get(hylakId);
+      const areaKm2 = Number(properties.Lake_area);
+      if (!Number.isFinite(hylakId) || !(areaKm2 >= MIN_LAKE_AREA_KM2)) { skipped += 1; continue; }
 
-let kept = 0;
-let skipped = 0;
-const source = await openShapefile(lakesPath, lakesPath.replace(/\.shp$/i, ".dbf"));
-while (true) {
-  const { done, value: feature } = await source.read();
-  if (done) break;
-  const properties = feature?.properties ?? {};
-  const hylakId = Number(properties.Hylak_id);
-  const maxDepthM = depths.get(hylakId);
-  const areaKm2 = Number(properties.Lake_area);
-  if (!Number.isFinite(hylakId) || !(areaKm2 >= MIN_LAKE_AREA_KM2)) { skipped += 1; continue; }
+      const geometry = feature.geometry;
+      const polygons = geometry?.type === "MultiPolygon" ? geometry.coordinates : geometry?.type === "Polygon" ? [geometry.coordinates] : [];
+      if (!polygons.length) { skipped += 1; continue; }
 
-  const geometry = feature.geometry;
-  const polygons = geometry?.type === "MultiPolygon" ? geometry.coordinates : geometry?.type === "Polygon" ? [geometry.coordinates] : [];
-  if (!polygons.length) { skipped += 1; continue; }
+      // A multipolygon lake's basin belongs to its largest part; L is measured there.
+      let originLon = 0;
+      let originLat = 0;
+      let widest = null;
+      let widestSpan = -1;
+      for (const rings of polygons) {
+        const outer = rings[0];
+        if (!outer?.length) continue;
+        let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
+        for (const [lon, lat] of outer) {
+          if (lon < minLon) minLon = lon;
+          if (lon > maxLon) maxLon = lon;
+          if (lat < minLat) minLat = lat;
+          if (lat > maxLat) maxLat = lat;
+        }
+        const span = (maxLon - minLon) * (maxLat - minLat);
+        if (span > widestSpan) {
+          widestSpan = span;
+          widest = rings;
+          originLon = (maxLon + minLon) / 2;
+          originLat = (maxLat + minLat) / 2;
+        }
+      }
+      if (!widest) { skipped += 1; continue; }
+      const lmaxM = maximumInscribedRadiusM(toLocalMeters(widest, originLat, originLon));
 
-  // A multipolygon lake's basin belongs to its largest part; L is measured there.
-  let originLon = 0;
-  let originLat = 0;
-  let widest = null;
-  let widestSpan = -1;
-  for (const rings of polygons) {
-    const outer = rings[0];
-    if (!outer?.length) continue;
-    let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
-    for (const [lon, lat] of outer) {
-      if (lon < minLon) minLon = lon;
-      if (lon > maxLon) maxLon = lon;
-      if (lat < minLat) minLat = lat;
-      if (lat > maxLat) maxLat = lat;
+      const meanDepthM = Number(properties.Depth_avg);
+      const elevationM = Number(properties.Elevation);
+      const name = typeof properties.Lake_name === "string" ? properties.Lake_name.trim() : "";
+      await write({
+        type: "Feature",
+        geometry,
+        properties: {
+          hylak_id: hylakId,
+          ...(maxDepthM ? { dmax_m: Number(maxDepthM.toFixed(1)) } : {}),
+          ...(lmaxM > 0 ? { lmax_m: Number(lmaxM.toFixed(1)) } : {}),
+          area_km2: Number(areaKm2.toFixed(4)),
+          ...(Number.isFinite(meanDepthM) && meanDepthM > 0 ? { davg_m: Number(meanDepthM.toFixed(2)) } : {}),
+          ...(Number.isFinite(elevationM) ? { elev_m: Math.round(elevationM) } : {}),
+          // HydroLAKES only names waterbodies of 500 km2 and up, so most lakes
+          // reach the client unnamed and the UI falls back to the OSM name.
+          ...(name ? { name } : {}),
+        },
+      });
+      kept += 1;
+      if (kept % 100000 === 0) console.log(`  ${kept.toLocaleString()} lakes written…`);
     }
-    const span = (maxLon - minLon) * (maxLat - minLat);
-    if (span > widestSpan) {
-      widestSpan = span;
-      widest = rings;
-      originLon = (maxLon + minLon) / 2;
-      originLat = (maxLat + minLat) / 2;
-    }
-  }
-  if (!widest) { skipped += 1; continue; }
-  const lmaxM = maximumInscribedRadiusM(toLocalMeters(widest, originLat, originLon));
+    return { kept, skipped };
+  },
+});
 
-  const meanDepthM = Number(properties.Depth_avg);
-  const elevationM = Number(properties.Elevation);
-  const name = typeof properties.Lake_name === "string" ? properties.Lake_name.trim() : "";
-  const output = {
-    type: "Feature",
-    geometry,
-    properties: {
-      hylak_id: hylakId,
-      ...(maxDepthM ? { dmax_m: Number(maxDepthM.toFixed(1)) } : {}),
-      ...(lmaxM > 0 ? { lmax_m: Number(lmaxM.toFixed(1)) } : {}),
-      area_km2: Number(areaKm2.toFixed(4)),
-      ...(Number.isFinite(meanDepthM) && meanDepthM > 0 ? { davg_m: Number(meanDepthM.toFixed(2)) } : {}),
-      ...(Number.isFinite(elevationM) ? { elev_m: Math.round(elevationM) } : {}),
-      // HydroLAKES only names waterbodies of 500 km2 and up, so most lakes
-      // reach the client unnamed and the UI falls back to the OSM name.
-      ...(name ? { name } : {}),
-    },
-  };
-  if (!writer.stdin.write(`${JSON.stringify(output)}\n`)) await once(writer.stdin, "drain");
-  kept += 1;
-  if (kept % 100000 === 0) console.log(`  ${kept.toLocaleString()} lakes written…`);
-}
-
-writer.stdin.end();
-await once(writer, "exit");
-if (writer.exitCode !== 0) throw new Error(`tippecanoe exited with code ${writer.exitCode}.`);
-console.log(`Wrote ${outputPath}: ${kept.toLocaleString()} lakes, ${skipped.toLocaleString()} skipped (no depth estimate, too small, or degenerate).`);
+// A lake with no GLOBathy depth is kept - its outline still carries area, Lmax
+// and HydroLAKES' mean depth. Only unusable records are dropped.
+console.log(`Wrote ${outputPath}: ${kept.toLocaleString()} lakes (depth estimates where GLOBathy has one), ${skipped.toLocaleString()} dropped (below ${MIN_LAKE_AREA_KM2} km2, missing Hylak_id, or degenerate geometry).`);
 console.log(`Development pin capture: node scripts/provision-lake-data.mjs ${outputPath} --provision --skip-digest-check`);
 console.log("Record the printed SHA-256, then pass --expected-sha256=<hex> on every subsequent run and whenever --prod is used.");

@@ -1,5 +1,6 @@
-import { verifyHttpSeo } from "./verify-seo-http.mjs";
-
+// Deliberately imports nothing outside node: builtins. The hourly production
+// monitor runs this file straight from a checkout, so it must not need an
+// `npm ci`; the jsdom-based SEO checks run separately (scripts/verify-seo-http.mjs).
 const deploymentTarget = process.env.WORKER_URL;
 const publicAppUrl = process.env.PUBLIC_APP_URL ?? deploymentTarget;
 const expectedEnvironment = process.env.EXPECTED_WORKER_ENVIRONMENT;
@@ -79,10 +80,23 @@ if (readiness?.service !== "topostack-map-api" || readiness?.status !== "ready" 
   throw new Error(`Unexpected Worker readiness response: ${JSON.stringify(readiness)}`);
 }
 
-const terrainResponse = await fetchWithRetry(publicBase, "/v1/terrain/0/0/0.png", { headers: { accept: "image/png" } });
+// Exercise the actual hosted iframe origin: requests without Origin hid the
+// submission's CORS rejection even while every deployment canary was green.
+const atommOrigin = "https://topostack.generator.atommapps.com";
+function verifyPublicCors(response) {
+  if (response.headers.get("access-control-allow-origin") !== "*" || response.headers.has("access-control-allow-credentials")) {
+    throw new Error("The public map API must allow credential-free browser reads from any origin.");
+  }
+}
+const preflight = await fetchWithRetry(publicBase, "/v1/osm.pmtiles", { method: "OPTIONS", headers: { origin: atommOrigin, "access-control-request-method": "GET", "access-control-request-headers": "range,if-none-match" } });
+verifyPublicCors(preflight);
+if (preflight.status !== 204 || !preflight.headers.get("access-control-allow-headers")?.includes("range")) throw new Error("The Atomm archive preflight failed.");
+
+const terrainResponse = await fetchWithRetry(publicBase, "/v1/terrain/0/0/0.png", { headers: { accept: "image/png", origin: atommOrigin } });
 if (!terrainResponse.headers.get("content-type")?.includes("image/png") || !terrainResponse.headers.get("x-topostack-dataset")) {
   throw new Error("The terrain proxy returned invalid metadata.");
 }
+verifyPublicCors(terrainResponse);
 const terrainHeader = new Uint8Array((await terrainResponse.arrayBuffer()).slice(0, 8));
 if (!terrainHeader.every((byte, index) => byte === [137, 80, 78, 71, 13, 10, 26, 10][index])) {
   throw new Error("The terrain proxy did not return a PNG tile.");
@@ -94,14 +108,16 @@ if (!Array.isArray(geocoder) || geocoder.length < 1 || typeof geocoder[0]?.displ
   throw new Error(`The geocoder returned an invalid canary response: ${JSON.stringify(geocoder)}`);
 }
 
-const vectorResponse = await fetchWithRetry(publicBase, "/v1/osm.pmtiles", { headers: { range: "bytes=0-126" } });
+const vectorResponse = await fetchWithRetry(publicBase, "/v1/osm.pmtiles", { headers: { range: "bytes=0-126", origin: atommOrigin } });
 if (vectorResponse.status !== 206 || !vectorResponse.headers.get("content-range")?.startsWith("bytes 0-126/")) throw new Error("The vector archive did not honor a PMTiles header range request.");
+verifyPublicCors(vectorResponse);
 const vectorHeader = new Uint8Array(await vectorResponse.arrayBuffer());
 if (new TextDecoder().decode(vectorHeader.subarray(0, 7)) !== "PMTiles" || vectorHeader[7] !== 3) throw new Error("The vector archive did not return a PMTiles v3 header.");
 if (vectorHeader[101] !== 12) throw new Error("The deployed vector archive has max zoom " + String(vectorHeader[101] ?? "unknown") + "; expected 12.");
 
 if (readiness?.dependencies?.lakeData?.status === "available") {
-  const lakeResponse = await fetchWithRetry(publicBase, "/v1/lakes.pmtiles", { headers: { range: "bytes=0-126" } });
+  const lakeResponse = await fetchWithRetry(publicBase, "/v1/lakes.pmtiles", { headers: { range: "bytes=0-126", origin: atommOrigin } });
+  verifyPublicCors(lakeResponse);
   const lakeHeader = new Uint8Array(await lakeResponse.arrayBuffer());
   if (lakeResponse.status !== 206 || new TextDecoder().decode(lakeHeader.subarray(0, 7)) !== "PMTiles" || lakeHeader[7] !== 3) {
     throw new Error("The lake archive did not return a PMTiles v3 header range.");
@@ -110,7 +126,5 @@ if (readiness?.dependencies?.lakeData?.status === "available") {
 
 const manifest = await fetchJson(publicBase, "/v1/manifest");
 if (manifest?.schemaVersion !== 1 || manifest?.coverage?.vectorMaxZoom !== 12 || typeof manifest?.datasetVersion !== "string" || !Array.isArray(manifest?.sources)) throw new Error("The deployed Worker returned an invalid data manifest.");
-
-await verifyHttpSeo(publicBase.origin, expectedEnvironment, { propagationTimeoutMs: verificationTimeoutMs });
 
 console.log(`Verified ${expectedEnvironment} TopoStack app and API at ${publicBase.origin} (deployment ${deploymentTarget})`);

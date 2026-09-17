@@ -25,15 +25,24 @@ export function hasNoaaCoverage(area: WaterAreaV1): boolean {
 const worldX = lonToWorldX;
 const worldY = latToWorldY;
 
-/** Interpolate only covered samples; a transparent neighbor never becomes a zero-depth shore. */
+/**
+ * Interpolate only covered samples; a transparent neighbor never becomes a
+ * zero-depth shore. The corners are unrolled in place of the literal table the
+ * loop used to allocate: this runs once per grid pixel, so five short-lived
+ * arrays per call dominated the whole raster pass.
+ */
 export function sampleDepth(sample: (x: number, y: number) => number, x: number, y: number, min = 0, max = 1500): number {
   const x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;
   let depth = 0;
-  for (const [dx, dy, weight] of [[0, 0, (1 - fx) * (1 - fy)], [1, 0, fx * (1 - fy)], [0, 1, (1 - fx) * fy], [1, 1, fx * fy]]) {
-    if (weight! <= 1e-10) continue;
-    const value = sample(x0 + dx!, y0 + dy!);
+  // Corner order and weight arithmetic match the original table exactly, so
+  // summed depths stay bit-identical.
+  for (let corner = 0; corner < 4; corner += 1) {
+    const dx = corner & 1, dy = corner >> 1;
+    const weight = (dx ? fx : 1 - fx) * (dy ? fy : 1 - fy);
+    if (weight <= 1e-10) continue;
+    const value = sample(x0 + dx, y0 + dy);
     if (!Number.isFinite(value) || value < min || value > max) return Number.NaN;
-    depth += value * weight!;
+    depth += value * weight;
   }
   return depth;
 }
@@ -99,28 +108,91 @@ async function loadRaster(apiBase: string, bounds: GeoBounds, width: number, hei
   }
 }
 
-/** Legacy single-provider entry point, retained for the NOAA archive verifier. */
-export async function loadNoaaBathymetry(apiBase: string, bounds: GeoBounds, width: number, height: number, zoom: number, areas: WaterAreaV1[], signal?: AbortSignal) {
-  const matching = areas.filter(hasNoaaCoverage);
-  if (!matching.length) return { areas, status: "not-covered" as const };
-  const dataset = registry.sources.find((source) => source.id === NOAA_DATASET_VERSION);
-  if (!dataset) return { areas, status: "unavailable" as const };
-  const result = await loadRaster(apiBase, bounds, width, height, zoom, matching, dataset, signal);
-  return { ...result, areas: areas.map((area) => result.areas.find((item) => item.id === area.id) ?? area) };
-}
-
 const intersects = (bounds: GeoBounds, extent: number[]) => bounds.east > extent[0]! && bounds.west < extent[2]! && bounds.north > extent[1]! && bounds.south < extent[3]!;
 export function hasSurveyCoverage(bounds: GeoBounds, area: WaterAreaV1): boolean {
   return area.kind === "lake" && registry.sources.some((source) => intersects(bounds, source.bounds) && (source.id !== NOAA_DATASET_VERSION || hasNoaaCoverage(area)));
 }
 
-function insideRing(x: number, y: number, ring: WaterAreaV1["polygon"]["outer"]): boolean {
-  let inside = false;
+/**
+ * Cells a scanline pass may visit before it hands the main thread back. A whole
+ * 768² grid against a shoreline of thousands of vertices runs far longer than a
+ * frame, and `throwIfAborted` can never observe a Cancel that has not been
+ * dispatched yet, so the pass has to return to the event loop to be cancellable
+ * at all. Exported so tests can size a grid that is guaranteed to yield.
+ */
+export const MASK_YIELD_CELLS = 200_000;
+
+/** Per-row abort check plus a macrotask yield once `MASK_YIELD_CELLS` cells have been visited. */
+function createYielder(signal?: AbortSignal): (cells: number) => Promise<void> {
+  let visited = 0;
+  return async (cells: number) => {
+    signal?.throwIfAborted();
+    visited += cells;
+    if (visited < MASK_YIELD_CELLS) return;
+    visited = 0;
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    signal?.throwIfAborted();
+  };
+}
+
+/**
+ * Where each edge spanning row `y` crosses it, ascending. The expression is the
+ * one the per-pixel crossing test used, so a pixel sees exactly the same
+ * comparison (`x < crossing`) against exactly the same values.
+ */
+function rowCrossings(ring: WaterAreaV1["polygon"]["outer"], y: number, out: number[]): number[] {
+  out.length = 0;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
     const a = ring[i]!, b = ring[j]!;
-    if ((a.y > y) !== (b.y > y) && x < (b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x) inside = !inside;
+    if ((a.y > y) !== (b.y > y)) out.push((b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x);
   }
-  return inside;
+  return out.sort((left, right) => left - right);
+}
+
+/** A lake's grid pixels, stored for the pixel box only rather than the whole grid. */
+export interface PixelMask {
+  rowStart: number; rowEnd: number; colStart: number; colEnd: number;
+  /** One byte per pixel of the box, row-major from (`rowStart`, `colStart`). */
+  inside: Uint8Array;
+}
+
+/**
+ * Mark every grid pixel inside `polygon`, one scanline per row instead of one
+ * point-in-polygon per pixel: the old loop re-walked the whole ring for each of
+ * up to 768² pixels, per lake and per survey provider, and froze the tab.
+ *
+ * A pixel was inside when an odd number of ring crossings lay to its right, so
+ * counting down a sorted row of crossings answers every pixel in that row in
+ * one sweep — identical results, because each pixel still resolves the same
+ * comparison against the same crossing values.
+ */
+export async function buildPixelMask(polygon: WaterAreaV1["polygon"], grid: Pick<ElevationGrid, "width" | "height">, dimensions: Pick<ProjectConfigV1, "widthMm" | "heightMm">, signal?: AbortSignal): Promise<PixelMask> {
+  const box = pixelBox(polygon.outer, grid, dimensions);
+  const width = Math.max(0, box.colEnd - box.colStart + 1);
+  const inside = new Uint8Array(Math.max(0, box.rowEnd - box.rowStart + 1) * width);
+  // The outer ring marks candidates; every hole (an island, a neighboring lake)
+  // clears them again, matching the old `insideRing && !holes.some(insideRing)`.
+  const rings = [polygon.outer, ...polygon.holes];
+  const crossings: number[] = [];
+  const yieldWork = createYielder(signal);
+  for (let row = box.rowStart; row <= box.rowEnd; row += 1) {
+    await yieldWork(width * rings.length);
+    const y = (row / (grid.height - 1) - 0.5) * dimensions.heightMm;
+    const offset = (row - box.rowStart) * width;
+    for (let ring = 0; ring < rings.length; ring += 1) {
+      rowCrossings(rings[ring]!, y, crossings);
+      // No crossing on this row means the outer ring misses it entirely.
+      if (!crossings.length) { if (ring === 0) break; continue; }
+      let cursor = 0;
+      for (let col = box.colStart; col <= box.colEnd; col += 1) {
+        const x = (col / (grid.width - 1) - 0.5) * dimensions.widthMm;
+        while (cursor < crossings.length && crossings[cursor]! <= x) cursor += 1;
+        if ((crossings.length - cursor) % 2 === 0) continue;
+        inside[offset + col - box.colStart] = ring === 0 ? 1 : 0;
+      }
+    }
+  }
+  return { ...box, inside };
 }
 
 /**
@@ -161,6 +233,10 @@ export async function loadLakeBathymetry(apiBase: string, bounds: GeoBounds, gri
   signal?.throwIfAborted();
   let merged = areas.map((area) => { const copy = { ...area }; delete copy.bathymetry; return copy; });
   const datasetVersions: string[] = [], attribution: SourceAttribution[] = [];
+  // One mask per lake for the whole call: which pixels a ring covers does not
+  // depend on the survey provider, so overlapping providers reuse the pass.
+  const masks = new Map<string, PixelMask>();
+  const yieldWork = createYielder(signal);
   let failed = false;
   for (const dataset of registry.sources) {
     if (!intersects(bounds, dataset.bounds)) continue;
@@ -175,24 +251,23 @@ export async function loadLakeBathymetry(apiBase: string, bounds: GeoBounds, gri
         if (dataset.encoding === "elevation-terrarium-v1" && !Number.isFinite(area.surfaceElevationM)) { failed = true; continue; }
         const values = area.bathymetry!.depthsM;
         const previous = merged.find((item) => item.id === area.id)!;
-        // Ignore samples outside this lake, including islands and neighboring lakes.
         // `merged` dropped every incoming bathymetry above, so an existing grid
         // was allocated by an earlier provider in this call and can be filled in
         // place. A grid-sized array is only allocated once a lake has a sample:
         // most lakes in a wide selection have no survey coverage at all.
         let samples = previous.bathymetry?.depthsM;
         let count = 0;
-        const box = dimensions ? pixelBox(area.polygon.outer, grid, dimensions) : { rowStart: 0, rowEnd: grid.height - 1, colStart: 0, colEnd: grid.width - 1 };
+        let mask = masks.get(area.id);
+        if (dimensions && !mask) { mask = await buildPixelMask(area.polygon, grid, dimensions, signal); masks.set(area.id, mask); }
+        const box = mask ?? { rowStart: 0, rowEnd: grid.height - 1, colStart: 0, colEnd: grid.width - 1 };
+        const maskWidth = box.colEnd - box.colStart + 1;
         for (let row = box.rowStart; row <= box.rowEnd; row += 1) {
-          signal?.throwIfAborted();
+          await yieldWork(maskWidth);
           for (let col = box.colStart; col <= box.colEnd; col += 1) {
             const index = row * grid.width + col;
             if (!Number.isFinite(values[index])) continue;
-            if (dimensions) {
-              const x = (col / (grid.width - 1) - 0.5) * dimensions.widthMm;
-              const y = (row / (grid.height - 1) - 0.5) * dimensions.heightMm;
-              if (!insideRing(x, y, area.polygon.outer) || area.polygon.holes.some((ring) => insideRing(x, y, ring))) continue;
-            }
+            // Samples outside this lake, including islands and neighboring lakes.
+            if (mask && !mask.inside[(row - box.rowStart) * maskWidth + col - box.colStart]) continue;
             const depth = dataset.encoding === "elevation-terrarium-v1" ? area.surfaceElevationM! - values[index]! : values[index]!;
             if (depth < 0 || depth > 1500) continue;
             // First provider wins; later providers only fill gaps.

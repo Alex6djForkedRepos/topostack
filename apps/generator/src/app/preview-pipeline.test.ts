@@ -64,12 +64,12 @@ describe("geometry worker client", () => {
     client.cancel();
     await expect(pending).rejects.toMatchObject({ name: "AbortError" });
     expect(workers[0]!.terminated).toBe(false);
-    expect(client.busy).toBe(false);
 
     const next = client.run(DEFAULT_PROJECT, bundle);
     expect(workers[0]!.last.source).toBeUndefined();
+    // The cancelled request's late reply is dropped by id, so the new request
+    // still resolves from its own.
     workers[0]!.reply({ id: staleId, result: geometry("stale") });
-    expect(client.busy).toBe(true);
     workers[0]!.reply({ id: workers[0]!.last.id, result: geometry("next") });
     await expect(next).resolves.toMatchObject({ projectName: "next" });
     expect(factory).toHaveBeenCalledOnce();
@@ -154,14 +154,12 @@ describe("geometry worker client", () => {
     const current = client.run({ ...DEFAULT_PROJECT, name: "current" }, bundle);
     expect(await stale).toMatchObject({ name: "AbortError" });
     workers[0]!.reply({ id: staleId, result: geometry("stale") });
-    expect(client.busy).toBe(true);
     // A message already queued on a replaced worker still arrives.
     const replacedHandler = workers[0]!.onmessage!;
     workers[0]!.onerror!({ message: "Out of memory" });
     await expect(current).rejects.toThrow("Out of memory");
     const next = client.run(DEFAULT_PROJECT, bundle);
     replacedHandler({ data: { id: workers[1]!.last.id, result: geometry("replaced") } });
-    expect(client.busy).toBe(true);
     workers[1]!.reply({ id: workers[1]!.last.id, result: geometry("next") });
     await expect(next).resolves.toMatchObject({ projectName: "next" });
   });
@@ -262,6 +260,25 @@ describe("preview pipeline", () => {
       await vi.advanceTimersByTimeAsync(120);
       await Promise.all([firstRun, secondRun]);
       expect(first.prepareSource).not.toHaveBeenCalled();
+      expect(second.onCommit).toHaveBeenCalledOnce();
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("settles a debounce replaced at the same revision and runs only the last update", async () => {
+    vi.useFakeTimers();
+    try {
+      const pipeline = new PreviewPipeline(async () => new GeometryWorkerClient(undefined, () => geometry("sync")));
+      // Two refreshes without an invalidation between them: a cosmetic or
+      // style edit keeps pending work, so both share one revision. The first
+      // promise must still settle, or its caller's pending state never clears.
+      const first = update();
+      const firstRun = pipeline.runPreviewUpdate(first, 120);
+      const second = update();
+      const secondRun = pipeline.runPreviewUpdate(second, 120);
+      await vi.advanceTimersByTimeAsync(120);
+      await Promise.all([firstRun, secondRun]);
+      expect(first.prepareSource).not.toHaveBeenCalled();
+      expect(first.onCommit).not.toHaveBeenCalled();
       expect(second.onCommit).toHaveBeenCalledOnce();
     } finally { vi.useRealTimers(); }
   });

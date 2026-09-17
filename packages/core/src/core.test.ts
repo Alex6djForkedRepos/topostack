@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildEngravingPackage, buildFabricationPackage, carveWaterDepth, coordinateGridInterval, createSyntheticSource, DEFAULT_PROJECT, displayLength, distanceToShoreM, engravingToSvg, generateGeometry, geoPointToMapPoint, labelDimensions, labelLineSegments, layerToSvg, longitudeInBounds, masterToSvg, MAX_DEPTH_LAYER_COUNT, MAX_LAYER_COUNT, millimetersFromDisplay, MIN_LAYER_COUNT, MM_PER_INCH, planTerrainStack, projectFingerprint, solveShapeExponent, validateProject, waterPatternStrokes, type ProjectConfigV1, type SourceBundleV1, type WaterAreaV1 } from "./index.js";
+import { buildEngravingPackage, buildFabricationPackage, coordinateGridInterval, createSyntheticSource, DEFAULT_PROJECT, displayLength, engravingToSvg, generateGeometry, geoPointToMapPoint, labelDimensions, labelLineSegments, layerToSvg, longitudeInBounds, masterToSvg, MAX_DEPTH_LAYER_COUNT, MAX_LAYER_COUNT, millimetersFromDisplay, MIN_LAYER_COUNT, MM_PER_INCH, planTerrainStack, projectFingerprint, validateProject, waterPatternStrokes, type ProjectConfigV1, type SourceBundleV1, type WaterAreaV1 } from "./index.js";
+import { carveWaterDepth, distanceToShoreM, solveShapeExponent } from "./water.js";
 import { placeElevationLabel, placeLinearLabel } from "./label-placement.js";
 
 function realSource(project = DEFAULT_PROJECT) {
@@ -630,6 +631,47 @@ describe("TopoStack geometry", () => {
     expect(joins.flatMap((marking) => marking.points).every((point) => Math.abs(Math.hypot(point.x, point.y) - 0.6) < 1e-6)).toBe(true);
   });
 
+  it("does not mistake a repeated road vertex for a junction", () => {
+    const project = { ...DEFAULT_PROJECT, lineStyle: { ...DEFAULT_PROJECT.lineStyle, roadStyle: "outlined" as const, majorRoadSpacingMm: 1.2 }, optimizeMaterialUse: false, showElevationLabels: false, showAlignmentGuides: false, showNorthArrow: false, showScaleBar: false };
+    const source = realSource(project);
+    // Vector tiles quantize coordinates, so one road carrying the same point
+    // twice is ordinary input - and not an intersection with anything.
+    source.markings = [
+      { id: "doubled", kind: "road", transportationClass: "major-road", operation: "engrave", points: [{ x: -80, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }, { x: 80, y: 0 }] },
+    ];
+    const joins = generateGeometry(project, source).layers.flatMap((layer) => layer.markings).filter((marking) => marking.id.startsWith("road-junction-"));
+    expect(joins).toEqual([]);
+  });
+
+  it("offsets repeated and closed road vertices without collapsing or notching the outline", () => {
+    const project = { ...DEFAULT_PROJECT, outputMode: "engraving" as const, lineStyle: { ...DEFAULT_PROJECT.lineStyle, roadStyle: "outlined" as const, majorRoadSpacingMm: 1.2 }, showElevationLabels: false, showNorthArrow: false, showScaleBar: false };
+    const source = realSource(project);
+    const loop = Array.from({ length: 33 }, (_, index) => {
+      const angle = (index % 32) / 32 * Math.PI * 2;
+      return { x: Math.cos(angle) * 40, y: -20 + Math.sin(angle) * 40 };
+    });
+    source.markings = [
+      // A repeated vertex has no direction of its own: its {0, 0} normal used to
+      // push one outline point out to the miter cap and drop the next back onto
+      // the centerline.
+      { id: "doubled", kind: "road", transportationClass: "major-road", operation: "engrave", points: [{ x: -80, y: 45 }, { x: 0, y: 45 }, { x: 0, y: 45 }, { x: 0, y: 45 }, { x: 80, y: 45 }] },
+      { id: "ring", kind: "road", transportationClass: "major-road", operation: "engrave", points: loop },
+    ];
+    const markings = generateGeometry(project, source).layers.flatMap((layer) => layer.markings);
+    expect(new Set(markings.filter((marking) => marking.id.startsWith("doubled-")).flatMap((marking) => marking.points.map((point) => point.y.toFixed(3)))))
+      .toEqual(new Set(["44.400", "45.600"]));
+    const outlines = markings.filter((marking) => marking.id.startsWith("ring-"));
+    expect(outlines).toHaveLength(2);
+    for (const outline of outlines) {
+      // The seam is a vertex like any other: an open-path normal there left the
+      // two offset ends a notch apart and off the loop's own radius.
+      expect(Math.hypot(outline.points[0]!.x - outline.points.at(-1)!.x, outline.points[0]!.y - outline.points.at(-1)!.y)).toBeLessThan(1e-6);
+      const radii = outline.points.map((point) => Math.hypot(point.x, point.y + 20));
+      expect(Math.min(...radii)).toBeGreaterThan(40 - 0.65);
+      expect(Math.max(...radii)).toBeLessThan(40 + 0.65);
+    }
+  });
+
   it("supports configurable outlined major roads without affecting local-road centerlines", () => {
     const project = { ...DEFAULT_PROJECT, lineStyle: { ...DEFAULT_PROJECT.lineStyle, roadStyle: "outlined" as const, majorRoadSpacingMm: 1.2 }, optimizeMaterialUse: false, showElevationLabels: false, showAlignmentGuides: false, showNorthArrow: false, showScaleBar: false };
     const source = realSource(project);
@@ -1258,6 +1300,32 @@ describe("TopoStack geometry", () => {
       const step = result.layers[1]!.elevationM - result.layers[0]!.elevationM;
       const stepsToSeaLevel = (0 - result.layers[0]!.elevationM) / step;
       expect(Math.abs(stepsToSeaLevel - Math.round(stepsToSeaLevel))).toBeLessThan(1e-6);
+    });
+
+    it("keeps the summit on the stack when the sea-level snap costs a sheet", () => {
+      // Mountains that already fill the sheet budget beside an ocean: the snap
+      // slides the ladder down by most of a step, so the span needs one sheet
+      // more than the plan allowed. Clamping the count back to the limit drops
+      // the top sheet instead - the summit - which is what the plan reserves for.
+      const base: ProjectConfigV1 = { ...DEFAULT_PROJECT, showWater: false };
+      const coastal = gridSource(base, 96, (nx) => (nx < 0 ? 200 * nx : 100 + 3000 * nx));
+      const bounds = groundBounds(base, 20000);
+      const source: SourceBundleV1 = {
+        ...coastal,
+        bounds,
+        waterAreas: [{ id: "sea", kind: "ocean", polygon: { outer: [
+          { x: -base.widthMm / 2, y: -base.heightMm / 2 }, { x: 0, y: -base.heightMm / 2 },
+          { x: 0, y: base.heightMm / 2 }, { x: -base.widthMm / 2, y: base.heightMm / 2 },
+          { x: -base.widthMm / 2, y: -base.heightMm / 2 },
+        ], holes: [] } }],
+      };
+      const result = generateGeometry({ ...base, location: { ...base.location, bounds } }, source);
+      const step = result.layers[1]!.elevationM - result.layers[0]!.elevationM;
+      expect(result.layers.length).toBeLessThanOrEqual(MAX_LAYER_COUNT);
+      // Sea level still lands on a step, and no terrain sits a whole sheet above the top one.
+      const stepsToSeaLevel = (0 - result.layers[0]!.elevationM) / step;
+      expect(Math.abs(stepsToSeaLevel - Math.round(stepsToSeaLevel))).toBeLessThan(1e-6);
+      expect(result.maxElevationM - result.layers.at(-1)!.elevationM).toBeLessThan(step * 1.05);
     });
 
     it("flattens water the sheet budget cannot reach and says so", () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildProjectPackage, carveWaterDepth, createSyntheticSource, DEFAULT_PROJECT, engravingToSvg, generateGeometry, planTerrainStack, type ProjectConfigV1, type SourceBundleV1, type WaterAreaV1 } from "./index.js";
+import { buildProjectPackage, createSyntheticSource, DEFAULT_PROJECT, engravingToSvg, generateGeometry, planTerrainStack, type ProjectConfigV1, type SourceBundleV1, type WaterAreaV1 } from "./index.js";
+import { carveWaterDepth } from "./water.js";
 import { pointInRing, ringFitsInsidePolygon, rotatedPoint, segmentsIntersect } from "./geometry2d.js";
 import { labelDimensions } from "./labels.js";
 

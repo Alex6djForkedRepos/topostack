@@ -1,8 +1,11 @@
 import { cloudflareClient } from "./lib/cloudflare-client.mjs";
 import { assertDigestPinPolicy, parseArchiveFlags, provisionWithReceipt, statArchive, verifyArchiveDigest, verifyPmtilesHeader } from "./lib/archive-provisioning.mjs";
+import { PROTOMAPS_SNAPSHOT } from "./lib/dataset-version.mjs";
 import { processRunner } from "./lib/process.mjs";
 
-const DATASET_SNAPSHOT = "20260905";
+// The snapshot the worker advertises; kept in one module so a basemap refresh
+// cannot leave the manifest, the cache keys and this upload disagreeing.
+const DATASET_SNAPSHOT = PROTOMAPS_SNAPSHOT;
 const EXPECTED_MAX_ZOOM = 12;
 const OBJECT_KEY = "osm/current.pmtiles";
 

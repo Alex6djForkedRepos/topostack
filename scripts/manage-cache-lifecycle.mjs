@@ -1,9 +1,10 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { cloudflareClient } from "./lib/cloudflare-client.mjs";
 import { lifecycleSatisfies, reconcileCacheLifecycle, terrainVersionsFromPrefixes } from "./lib/cache-lifecycle.mjs";
-import { bucketDeployment, configuredDatasetVersion, liveDatasetVersion, readWranglerConfig } from "./lib/r2-buckets.mjs";
+import { receiptDirectory, writeJsonAtomic } from "./lib/files.mjs";
+import { liveDatasetVersion } from "./lib/gateway.mjs";
+import { bucketDeployment, configuredDatasetVersion, readWranglerConfig } from "./lib/r2-buckets.mjs";
 import { temporaryR2Client, verifyParentToken } from "./lib/r2-s3.mjs";
 
 const flags = process.argv.slice(2);
@@ -13,9 +14,7 @@ const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
 const api = cloudflareClient(accountId);
 const wrangler = await readWranglerConfig();
 const parentAccessKeyId = await verifyParentToken(api);
-// Rollback receipts must survive reboots and tmp cleaners, so keep them in a
-// gitignored repo-local directory unless an explicit location is provided.
-const receiptDirectory = process.env.LIFECYCLE_RECEIPT_DIR ?? fileURLToPath(new URL("../.topostack/receipts/", import.meta.url));
+const receipts = receiptDirectory();
 for (const bucket of buckets) {
   const { environment, origin } = bucketDeployment(bucket);
   // Protect both the version about to deploy and the one serving traffic now:
@@ -31,9 +30,10 @@ for (const bucket of buckets) {
   const configured = lifecycleSatisfies(previous, proposed);
   console.log(JSON.stringify({ bucket, configured, protectedTerrainVersions, retiredTerrainVersions, proposed }));
   if (flags.includes("--apply") && !configured) {
-    await mkdir(receiptDirectory, { recursive: true, mode: 0o700 });
-    const receiptPath = join(receiptDirectory, `${bucket}-lifecycle-${Date.now()}.json`);
-    await writeFile(receiptPath, JSON.stringify({ bucket, previous, proposed }, null, 2) + "\n", { mode: 0o600 });
+    await mkdir(receipts, { recursive: true, mode: 0o700 });
+    const receiptPath = join(receipts, `${bucket}-lifecycle-${Date.now()}.json`);
+    // A truncated rollback receipt is worse than none: write it atomically.
+    await writeJsonAtomic(receiptPath, { bucket, previous, proposed }, { mode: 0o600 });
     // The API replaces the full rule set and has no conditional-update option.
     // Recheck immediately before writing to catch changes since the audit.
     const current = await api(path);

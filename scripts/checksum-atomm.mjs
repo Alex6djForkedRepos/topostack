@@ -1,8 +1,9 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFile, rename, rm, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
+import { writeFileAtomic } from "./lib/files.mjs";
 import { readVersions } from "./versions.mjs";
 
 // Every check runs before any release output is written, so a failed release
@@ -53,11 +54,6 @@ const outputs = [
   [fileURLToPath(new URL("../apps/generator/topostack-atomm.zip.sha256", import.meta.url)), `${digest}  topostack-atomm.zip\n`],
   [fileURLToPath(new URL("../apps/generator/topostack-atomm.release.json", import.meta.url)), JSON.stringify(receipt, null, 2) + "\n"],
 ];
-try {
-  for (const [target, contents] of outputs) await writeFile(`${target}.part`, contents, "utf8");
-} catch (error) {
-  await Promise.all(outputs.map(([target]) => rm(`${target}.part`, { force: true })));
-  throw error;
-}
-for (const [target] of outputs) await rename(`${target}.part`, target);
+// Each output replaces its predecessor only once fully written and fsynced.
+for (const [target, contents] of outputs) await writeFileAtomic(target, contents);
 console.log(`SHA-256 ${digest}`);

@@ -72,24 +72,42 @@ export function smoothLakePolygon(polygon: Polygon2D, minimumFeatureMm: number):
 /** Work on a copy at generation time so repeated previews never accumulate smoothing. */
 export function smoothLakeShorelines(source: SourceBundleV1, config: ProjectConfigV1): SourceBundleV1 {
   if (!config.smoothing) return source;
-  const polygons = new Map<string, Polygon2D>();
-  const rings = new Map<string, Point2D[]>();
-  const key = (value: unknown) => JSON.stringify(value);
+  const polygons = new Map<Polygon2D, Polygon2D>();
+  const rings = new Map<Point2D[], Point2D[]>();
   const register = (polygon: Polygon2D) => {
-    const id = key(polygon);
-    if (polygons.has(id)) return;
+    if (polygons.has(polygon)) return;
     const smoothed = smoothLakePolygon(polygon, config.minimumFeatureMm);
-    polygons.set(id, smoothed);
-    [polygon.outer, ...polygon.holes].forEach((ring, i) => rings.set(key(ring), [smoothed.outer, ...smoothed.holes][i]!));
+    const smoothedRings = [smoothed.outer, ...smoothed.holes];
+    polygons.set(polygon, smoothed);
+    [polygon.outer, ...polygon.holes].forEach((ring, i) => rings.set(ring, smoothedRings[i]!));
   };
   source.waterAreas?.filter(area => area.kind === "lake").forEach(area => register(area.polygon));
   source.inlandWaterAreas?.forEach(register);
   if (!polygons.size) return source;
+  // Identity answers every lookup a real source needs: shoreline markings and
+  // water-pattern areas are built from the very ring arrays the water areas
+  // carry. A caller that hands us value-equal copies instead still matches, but
+  // only then is anything stringified - keying every ring by JSON up front
+  // hashed each lake's whole outline twice per generation.
+  let polygonsByValue: Map<string, Polygon2D> | undefined;
+  let ringsByValue: Map<string, Point2D[]> | undefined;
+  const smoothedPolygon = (polygon: Polygon2D): Polygon2D | undefined => {
+    if (polygons.has(polygon)) return polygons.get(polygon);
+    polygonsByValue ??= new Map([...polygons].map(([original, smoothed]) => [JSON.stringify(original), smoothed]));
+    return polygonsByValue.get(JSON.stringify(polygon));
+  };
+  const smoothedRing = (ring: Point2D[]): Point2D[] | undefined => {
+    if (rings.has(ring)) return rings.get(ring);
+    ringsByValue ??= new Map([...rings].map(([original, smoothed]) => [JSON.stringify(original), smoothed]));
+    return ringsByValue.get(JSON.stringify(ring));
+  };
   return {
     ...source,
-    waterAreas: source.waterAreas?.map(area => area.kind === "lake" ? { ...area, polygon: polygons.get(key(area.polygon))! } : area),
-    waterPatternAreas: source.waterPatternAreas?.map(polygon => polygons.get(key(polygon)) ?? polygon),
-    markings: source.markings.map(marking => marking.kind === "water" && rings.has(key(marking.points))
-      ? { ...marking, points: rings.get(key(marking.points))! } : marking),
+    waterAreas: source.waterAreas?.map(area => area.kind === "lake" ? { ...area, polygon: smoothedPolygon(area.polygon)! } : area),
+    waterPatternAreas: source.waterPatternAreas?.map(polygon => smoothedPolygon(polygon) ?? polygon),
+    markings: source.markings.map(marking => {
+      const smoothed = marking.kind === "water" ? smoothedRing(marking.points) : undefined;
+      return smoothed ? { ...marking, points: smoothed } : marking;
+    }),
   };
 }

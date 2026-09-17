@@ -6,8 +6,15 @@
 export function surveyShoreDepths(
   depths: Float32Array, mask: Uint8Array, cells: readonly number[], distance: Float64Array,
   width: number, height: number, spacingX: number, spacingY: number, nativeSpacingM?: number,
+  /**
+   * Full-grid scratch buffer shared with the rest of the per-lake work - a
+   * fresh one per surveyed lake is ~4.7 MB at 768 squared. Only this lake's
+   * cells are cleared and only they are ever read back, so entries elsewhere
+   * keep whatever the previous lake left there.
+   */
+  into: Float64Array = new Float64Array(depths.length),
 ): Float64Array {
-  const result = new Float64Array(depths.length).fill(Number.NaN);
+  for (const cell of cells) into[cell] = Number.NaN;
   const nativeSpacing = Number.isFinite(nativeSpacingM) && nativeSpacingM! > 0 ? nativeSpacingM! : 0;
   const support = 3 * Math.max(spacingX, spacingY, nativeSpacing);
   // Bounded even for a provider much coarser than the terrain grid. This limits
@@ -36,7 +43,7 @@ export function surveyShoreDepths(
       sum += depth * taper * w;
       weight += w;
     }
-    if (weight > 0) result[cell] = sum / weight;
+    if (weight > 0) into[cell] = sum / weight;
   }
-  return result;
+  return into;
 }

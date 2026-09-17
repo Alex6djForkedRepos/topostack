@@ -2,6 +2,7 @@
   import SvgViewport from "./SvgViewport.svelte";
   import { cropRadiusMm, labelPathData, waterPatternStrokes, type GeometryIRV1, type Point2D, type ProjectConfigV1 } from "@topostack/core";
   import { markingDash, markingWidth } from "./marking-style";
+  import { pointsToPath as linePath } from "./svg-path";
 
   // `cropShape` comes from the project the geometry was built for: a width,
   // height or shape edit leaves the map area stale, so drawing the surface and
@@ -51,9 +52,6 @@
     return result;
   }
 
-  function linePath(points: Point2D[]): string {
-    return points.map((point, index) => `${index === 0 ? "M" : "L"}${point.x} ${point.y}`).join(" ");
-  }
 </script>
 
 <div class="engraving-stage">

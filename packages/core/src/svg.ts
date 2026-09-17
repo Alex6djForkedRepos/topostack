@@ -28,18 +28,14 @@ function pathData(points: Point2D[], offsetX = 0, offsetY = 0, closePath = false
   return commands.join(" ");
 }
 
-function compensatedCutPaths(points: Point2D[], distanceMm: number): Point2D[][] {
-  return offsetClosedRing(points, distanceMm, "miter");
-}
-
 function layerCutPaths(layer: LayerIR, laserKerfMm: number, omittedHoles = new Map<number, Set<number>>()): string {
   const compensationMm = laserKerfMm / 2;
   return layer.polygons.flatMap((polygon, polygonIndex) => {
     const omittedHoleIndexes = omittedHoles.get(polygonIndex) ?? new Set<number>();
     return [
-      ...compensatedCutPaths(polygon.outer, compensationMm).map((ring, offsetIndex) => `<path id="${layer.id}-cut-${polygonIndex + 1}-offset-${offsetIndex + 1}" d="${pathData(ring, 0, 0, true)}"/>`),
+      ...offsetClosedRing(polygon.outer, compensationMm, "miter").map((ring, offsetIndex) => `<path id="${layer.id}-cut-${polygonIndex + 1}-offset-${offsetIndex + 1}" d="${pathData(ring, 0, 0, true)}"/>`),
       ...polygon.holes.flatMap((hole, holeIndex) => omittedHoleIndexes.has(holeIndex) ? [] : [
-        ...compensatedCutPaths(hole, -compensationMm).map((ring, offsetIndex) => `<path id="${layer.id}-cut-${polygonIndex + 1}-hole-${holeIndex + 1}-offset-${offsetIndex + 1}" d="${pathData(ring, 0, 0, true)}"/>`),
+        ...offsetClosedRing(hole, -compensationMm, "miter").map((ring, offsetIndex) => `<path id="${layer.id}-cut-${polygonIndex + 1}-hole-${holeIndex + 1}-offset-${offsetIndex + 1}" d="${pathData(ring, 0, 0, true)}"/>`),
       ]),
     ];
   }).join("");

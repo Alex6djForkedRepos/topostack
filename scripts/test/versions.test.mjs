@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import test from "node:test";
 import { bumpVersion, nextVersion, readVersions, validateVersion } from "../versions.mjs";
+import { DATASET_VERSION, assertDatasetVersionsAgree, datasetVersionDrift } from "../lib/dataset-version.mjs";
 
 async function fixture(t) {
   const directory = await mkdtemp(join(tmpdir(), "topostack-versions-"));
@@ -56,4 +57,15 @@ test("detects workspace and lock drift before attempting a bump", async (t) => {
   await writeFile(new URL("packages/core/package.json", base), JSON.stringify({ version: "99.0.0" }));
   await assert.rejects(readVersions(base), /out of sync/);
   await assert.rejects(bumpVersion("main", "patch", base), /out of sync/);
+});
+
+test("the deployed dataset version is derived from one snapshot constant", async () => {
+  // wrangler.jsonc cannot import the worker's constant, so every environment's
+  // DATASET_VERSION is checked against it here and by `npm run version:check`.
+  assert.match(DATASET_VERSION, /^mapzen-terrarium\+protomaps-\d{8}-z12-v1$/);
+  assert.equal(await assertDatasetVersionsAgree(), DATASET_VERSION);
+  const stale = "mapzen-terrarium+protomaps-20260801-z12-v1";
+  assert.deepEqual(datasetVersionDrift({ vars: { DATASET_VERSION }, env: { development: { vars: { DATASET_VERSION } }, production: { vars: { DATASET_VERSION } } } }), []);
+  assert.deepEqual(datasetVersionDrift({ vars: { DATASET_VERSION: stale }, env: { production: { vars: {} } } }), [`top-level: ${stale}`, "production: missing"]);
+  await assert.rejects(assertDatasetVersionsAgree({ vars: { DATASET_VERSION: stale } }), /must equal mapzen-terrarium/);
 });

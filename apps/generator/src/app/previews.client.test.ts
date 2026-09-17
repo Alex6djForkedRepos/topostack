@@ -1,6 +1,6 @@
 import { flushSync, mount, unmount } from "svelte";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { DEFAULT_PROJECT, generateGeometry } from "@topostack/core";
+import { DEFAULT_PROJECT, generateGeometry, type GeometryIRV1 } from "@topostack/core";
 import { createSamplePreviewSource } from "../sample-preview";
 
 const three = vi.hoisted(() => ({ renderers: [] as Array<{ dispose: ReturnType<typeof vi.fn>; forceContextLoss: ReturnType<typeof vi.fn>; render: ReturnType<typeof vi.fn> }> }));
@@ -46,6 +46,7 @@ vi.mock("maplibre-gl", () => {
 
 import MapCanvas from "./MapCanvas.svelte";
 import ThreePreview from "./ThreePreview.svelte";
+import ThreePreviewHost from "./ThreePreviewHost.svelte";
 import * as THREE from "three";
 
 describe("preview resource cleanup", () => {
@@ -94,6 +95,57 @@ describe("preview resource cleanup", () => {
     expect(shadowDispose).toHaveBeenCalled();
     expect(materialDispose).toHaveBeenCalled();
     shadowDispose.mockRestore(); materialDispose.mockRestore();
+    target.remove();
+  });
+
+  it("re-extrudes only the layers whose cut polygons changed, and still frees them", async () => {
+    const geometry = generateGeometry(DEFAULT_PROJECT, createSamplePreviewSource());
+    const target = document.createElement("div");
+    document.body.append(target);
+    component = mount(ThreePreviewHost, { target, props: { initial: geometry } });
+    const host = component as unknown as { setGeometry: (next: GeometryIRV1) => void };
+    flushSync();
+    const renderer = three.renderers[0]!;
+    // Layer bodies are the only meshes with a [face, side] material pair.
+    const bodies = () => {
+      const scene = renderer.render.mock.lastCall![0] as THREE.Scene;
+      const meshes: THREE.Mesh[] = [];
+      scene.traverse((object) => { if (object instanceof THREE.Mesh && Array.isArray(object.material)) meshes.push(object); });
+      return meshes;
+    };
+    await vi.waitFor(() => { expect(renderer.render).toHaveBeenCalled(); expect(bodies().length).toBeGreaterThan(1); });
+    const extrusions = bodies().map((mesh) => mesh.geometry);
+    const rebuilt = async (next: GeometryIRV1) => {
+      const before = renderer.render.mock.calls.length;
+      host.setGeometry(next);
+      flushSync();
+      await vi.waitFor(() => expect(renderer.render.mock.calls.length).toBeGreaterThan(before));
+    };
+
+    // A line-width edit arrives as a fresh worker result: identical cut
+    // polygons in brand-new objects, so nothing may be re-triangulated.
+    const restyled = structuredClone(geometry);
+    restyled.lineStyle = { ...restyled.lineStyle, annotationMm: geometry.lineStyle.annotationMm + 0.1 };
+    await rebuilt(restyled);
+    expect(bodies().map((mesh) => mesh.geometry)).toHaveLength(extrusions.length);
+    expect(bodies().every((mesh, index) => mesh.geometry === extrusions[index])).toBe(true);
+
+    // Moving one vertex rebuilds that layer alone.
+    const moved = structuredClone(geometry);
+    const changed = moved.layers.findIndex((layer, index) => index > 0 && layer.polygons[0]?.outer.length);
+    expect(changed).toBeGreaterThan(0);
+    moved.layers[changed]!.polygons[0]!.outer[0]!.x += 1.5;
+    await rebuilt(moved);
+    const after = bodies();
+    expect(after[0]!.geometry).toBe(extrusions[0]);
+    expect(after.some((mesh, index) => mesh.geometry !== extrusions[index])).toBe(true);
+
+    // Cached bodies are owned by the preview, not by the rebuild that made
+    // them, so unmount has to free them as well.
+    const disposals = [vi.spyOn(extrusions[0]!, "dispose"), ...(after[0]!.material as THREE.Material[]).map((material) => vi.spyOn(material, "dispose"))];
+    await unmount(component);
+    component = undefined;
+    for (const dispose of disposals) expect(dispose).toHaveBeenCalled();
     target.remove();
   });
 

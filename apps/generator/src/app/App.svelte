@@ -22,6 +22,7 @@
   import ExportDialog from "./ExportDialog.svelte";
   import { readAtommLocale } from "./atomm-locale";
   import NumberField from "./StudioNumberField.svelte";
+  import LengthField from "./StudioLengthField.svelte";
   import { ProjectHistory } from "./history";
   import { CUSTOM_LINE_OPTIONS, ENGRAVING_MODE_OPTIONS, FONT_OPTIONS, LINE_PRESETS, MARKER_OPTIONS, NORTH_ARROW_ANCHOR_OPTIONS, NORTH_ARROW_OPTIONS, PRESETS, ROAD_CAPS, ROAD_STYLES, SHAPE_OPTIONS, STACK_MODE_OPTIONS, TRAIL_PATTERNS, UNIT_OPTIONS, WATER_FILL_PATTERNS } from "./options";
   import * as edits from "./project-edits";
@@ -32,9 +33,10 @@
   import { activeLinePreset as findActiveLinePreset, CONFIG_SECTION_IDS, countDetailMarkings, featuredLayerIndex, layerForEnabledDetail, modeledLakes as findModeledLakes, sectionSummary as summarizeSection, visibleWarnings as summarizeWarnings, type ConfigSectionId } from "./preview-summary";
   import { retryingLoader } from "./lazy-load";
   import { sameMapArea } from "./project-diff";
+  import { pointsToPath } from "./svg-path";
   import { changedProjectKeys, projectPatch } from "./project-patch";
   import type { SourcePreparationCache } from "./source-refresh";
-  import { generationStatus, generationToast, previewPendingStatus, previewStaleAreaStatus, previewUpdatedStatus, statusLine, type PreviewUpdateKind } from "./status-messages";
+  import { generationStatus, generationToast, previewPendingStatus, previewUpdatedStatus, statusLine, type PreviewUpdateKind } from "./status-messages";
   import Switch from "./StudioSwitch.svelte";
 
   let { initialPreview }: { initialPreview?: GeometryIRV1 } = $props();
@@ -164,8 +166,11 @@
   const explodedPreview = $derived(explodedDrag ?? project.explodedPreview);
   const totalHeight = $derived(geometry.layers.length * project.materialThicknessMm);
   // Layer count follows from map scale, relief, and material thickness, so the
-  // panel previews the stack the current settings will actually produce.
-  const stackPlan = $derived(planTerrainStack(project, geometry.landReliefM, geometry.bounds, geometry.waterDepthBelowLandM));
+  // panel previews the stack the current settings will actually produce. An
+  // ocean crop reserves a sheet for the sea-level snap, so the plan needs to
+  // know about one or the panel reads a sheet high.
+  const hasOcean = $derived(geometry.waterSurfaces.some((surface) => surface.kind === "ocean"));
+  const stackPlan = $derived(planTerrainStack(project, geometry.landReliefM, geometry.bounds, geometry.waterDepthBelowLandM, hasOcean));
   const previewModeOptions = $derived(project.outputMode === "engraving" ? ENGRAVING_MODE_OPTIONS : STACK_MODE_OPTIONS);
   const previewBusy = $derived(generationState === "loading" || detailsUpdating);
   const previewBusyLabel = $derived(generationState === "loading" ? "Building your terrain" : "Refreshing preview");
@@ -249,7 +254,7 @@
 
   function previewMarkingPath(marking: OperationPath): string {
     if (marking.label && marking.points[0]) return labelPathData(marking.label, marking.points[0], 0, 0, 0, marking.textStyle);
-    return marking.points.map((point, index) => `${index === 0 ? "M" : "L"}${point.x} ${point.y}`).join(" ");
+    return pointsToPath(marking.points);
   }
 
   function navigateChoice(event: KeyboardEvent & { currentTarget: HTMLButtonElement }): void {
@@ -335,17 +340,34 @@
     try { localStorage.setItem(MENU_STATE_KEY, JSON.stringify(current)); } catch { /* Preferences are optional. */ }
   });
 
+  /** Persist one snapshot, unless it could not be read back. */
+  function persistProject(current: ProjectConfigV1): void {
+    // Never persist a project that would fail validation on the next load —
+    // parse failures there would silently reset the user to the default project.
+    try { validateProject(current); } catch { return; }
+    if (!Number.isFinite(current.explodedPreview) || current.explodedPreview < 0 || current.explodedPreview > 1) return;
+    void saveProject(current).catch(() => status = "Local save is unavailable in this browser");
+  }
+
   $effect(() => {
     const current = project;
     if (!booted) return;
-    const timeout = window.setTimeout(() => {
-      // Never persist a project that would fail validation on the next load —
-      // parse failures there would silently reset the user to the default project.
-      try { validateProject(current); } catch { return; }
-      if (!Number.isFinite(current.explodedPreview) || current.explodedPreview < 0 || current.explodedPreview > 1) return;
-      void saveProject(current).catch(() => status = "Local save is unavailable in this browser");
-    }, 450);
-    return () => window.clearTimeout(timeout);
+    let written = false;
+    let timeout = 0;
+    const write = () => { if (written) return; written = true; window.clearTimeout(timeout); persistProject(current); };
+    timeout = window.setTimeout(write, 450);
+    // A closing, reloading or backgrounded tab gets this snapshot now: the
+    // debounce lost whatever was edited in its last 450 ms, because unmount
+    // only cleared the timer. `pagehide` covers close, reload and back/forward
+    // cache; `visibilitychange` covers a mobile tab switch that never unloads.
+    const onHidden = () => { if (document.hidden) write(); };
+    window.addEventListener("pagehide", write);
+    document.addEventListener("visibilitychange", onHidden);
+    return () => {
+      window.clearTimeout(timeout);
+      window.removeEventListener("pagehide", write);
+      document.removeEventListener("visibilitychange", onHidden);
+    };
   });
 
   const COSMETIC_KEYS: ReadonlySet<string> = new Set(["name", "explodedPreview"]);
@@ -355,14 +377,40 @@
 
   /** Whether an edit to `keys` can leave in-flight generation and preview work running. */
   function keepsPendingWork(keys: readonly string[]): boolean {
+    // `[].every` is true, so an empty patch used to keep pending work running
+    // at an unchanged revision, and a second refresh could then replace the
+    // first one's debounce while sharing its revision guard.
+    if (!keys.length) return false;
     const generating = generationState === "loading";
     return keys.every((key) => COSMETIC_KEYS.has(key) || (generating && GENERATION_STYLE_KEYS.has(key)));
   }
 
-  /** Swap in a project with its own source and preview, as import, restore, and directory links do. */
+  /**
+   * Swap in a project with its own source and preview, as import, restore, and
+   * directory links do. Generation runs on the geometry worker: a large project
+   * (1200 mm, 24 layers) took seconds, and on the main thread it froze the
+   * editor before it had finished opening. The retained layers stand in until
+   * the worker answers, and the revision guard drops a result a newer edit
+   * superseded, exactly as `refreshPreview` does.
+   */
   function replaceSourceProject(next: ProjectConfigV1, source: SourceBundleV1): void {
-    project = next; sourceProject = next; activeSource = source; geometry = previewFor(next, source);
-    selectedLayer = featuredLayerIndex(geometry);
+    project = next; sourceProject = next; activeSource = source;
+    geometry = { ...geometry, projectName: next.name };
+    const revision = pipeline.revision;
+    detailsUpdating = true;
+    void pipeline.generate(next, source, revision).then((result) => {
+      if (!pipeline.isCurrent(revision)) return;
+      addPreviewWarning(result, source);
+      // A rename during generation is kept, like every other preview commit.
+      geometry = { ...result, projectName: project.name };
+      selectedLayer = featuredLayerIndex(result);
+      detailsUpdating = false;
+    }, (error: unknown) => {
+      if (!pipeline.isCurrent(revision) || isAbortError(error)) return;
+      detailsUpdating = false;
+      generationState = "error";
+      status = error instanceof Error ? error.message : "Could not update the output geometry.";
+    });
   }
 
   function updateProject(patch: Partial<ProjectConfigV1>): void {
@@ -376,8 +424,7 @@
   }
   function updateVerticalExaggeration(verticalExaggeration: number): void {
     if (!Number.isFinite(verticalExaggeration) || verticalExaggeration === project.verticalExaggeration) return;
-    updateProject({ verticalExaggeration });
-    status = "Vertical exaggeration changed · regenerate terrain";
+    void updateFabrication({ verticalExaggeration });
   }
 
   function updateLocation(patch: Partial<ProjectConfigV1["location"]>): void {
@@ -409,7 +456,7 @@
    */
   function restoreProject(target: ProjectConfigV1, action: "Undo" | "Redo"): void {
     const changed = changedProjectKeys(project, target);
-    const sourceChanged = changedProjectKeys(projectForPreview(target, sourceProject), sourceProject);
+    const sourceChanged = changedProjectKeys(target, sourceProject);
     // Like the edits themselves, undoing a rename or restyle keeps Generate running.
     const keepsWork = keepsPendingWork(changed);
     if (!keepsWork) invalidatePendingPreview();
@@ -417,9 +464,8 @@
     if (changed.includes("name")) geometry = { ...geometry, projectName: target.name };
     // Still loading here means the change was kept; generation adopts it on completion.
     if (generationState === "loading") return;
-    if (!sameMapArea(sourceProject, target)) { status = "Map area changed · regenerate terrain data"; return; }
-    status = changed.includes("verticalExaggeration") && target.outputMode === "stack" && target.verticalExaggeration !== sourceProject.verticalExaggeration
-      ? "Vertical exaggeration changed · regenerate terrain" : `${action} applied`;
+    if (!sameMapArea(sourceProject, target) && changed.includes("location")) { status = "Map area changed · regenerate terrain data"; return; }
+    status = `${action} applied`;
     // A cosmetic change leaves any pending refresh to finish on its own.
     if (keepsWork || !sourceChanged.some((key) => !COSMETIC_KEYS.has(key))) return;
     const kind: PreviewUpdateKind = sourceChanged.some((key) => key.startsWith("show")) ? "details" : sourceChanged.every((key) => key === "markers" || key === "customLines") ? "customData" : "fabrication";
@@ -438,30 +484,32 @@
 
   const styleOf = (config: ProjectConfigV1) => JSON.stringify([config.lineStyle, config.textStyle]);
 
-  function projectForPreview(config: ProjectConfigV1, base = sourceProject): ProjectConfigV1 {
-    return config.outputMode === "stack" && base.verticalExaggeration !== config.verticalExaggeration
-      ? { ...config, verticalExaggeration: base.verticalExaggeration }
-      : config;
-  }
-
   /**
    * Rebuild the preview for the current project from the retained source, loading only missing map data.
    * A `quiet` refresh keeps the status line and generation state, so a failure or cancellation message stays visible.
    */
   function refreshPreview(kind: PreviewUpdateKind, delayMs: number, { quiet = false }: { quiet?: boolean } = {}): Promise<void> {
     const nextProject = project;
-    const previewProject = projectForPreview(nextProject);
-    if (!sameMapArea(sourceProject, nextProject)) { if (!quiet) status = previewStaleAreaStatus(kind, nextProject); return Promise.resolve(); }
+    const previewProject = nextProject;
+    const areaChanged = !sameMapArea(sourceProject, nextProject);
+    let loaded: Awaited<ReturnType<typeof loadTerrain>> | undefined;
     const fromProject = sourceProject;
     const fromSource = activeSource;
     const patch = projectPatch(fromProject, previewProject);
     detailsUpdating = true;
-    if (!quiet) status = previewPendingStatus(kind, nextProject);
+    if (!quiet) status = areaChanged ? "Fetching terrain for the updated map area…" : previewPendingStatus(kind, nextProject);
     return pipeline.runPreviewUpdate({
       config: previewProject,
-      prepareSource: async (signal) => (await preparedSources()).prepare(fromSource, fromProject, previewProject, nextProject, signal),
+      prepareSource: async (signal) => {
+        if (!areaChanged) return (await preparedSources()).prepare(fromSource, fromProject, previewProject, nextProject, signal);
+        loaded = await loadTerrain(previewProject, signal);
+        return loaded.source;
+      },
       onCommit: (next, source) => {
+        if (loaded?.fallback) next.warnings.push({ code: "DATA_FALLBACK", message: `The map service was unavailable, so this preview uses deterministic sample terrain.${loaded.fallbackReason ? ` (${loaded.fallbackReason})` : ""}` });
+        if (loaded?.waterWarning) next.warnings.push({ code: "LAKE_DATA_UNAVAILABLE", message: `Water outlines could not be applied. (${loaded.waterWarning})` });
         addPreviewWarning(next, source);
+        if (areaChanged) dismissedWarnings = [];
         // Cosmetic edits do not supersede a refresh, so keep the latest name.
         geometry = { ...next, projectName: project.name }; activeSource = source; sourceProject = previewProject;
         selectedLayer = (kind === "details" ? layerForEnabledDetail(next, patch) : undefined) ?? Math.min(selectedLayer, Math.max(0, next.layers.length - 1));
@@ -629,7 +677,7 @@
           </div>
           <p class:pending={terrainDataStale} class="terrain-data-note" aria-live="polite">
             {#if terrainDataStale}<strong>Terrain data is from the previous map area.</strong> Generate it before export.{:else}Changing the location or map area requires terrain regeneration.{/if}
-            <span>Map details and linework update automatically. Changing the cut aspect ratio changes the map area and requires terrain regeneration. Vertical exaggeration also requires regeneration.</span>
+            <span>Sidebar settings update the preview automatically. Changing the cut aspect ratio loads terrain for the updated map area.</span>
           </p>
           </div>
         </Section>
@@ -650,8 +698,8 @@
             {/each}
           </div>
           <div class="field-stack">
-            <Field label="Width" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label="Width" value={shownLength(project.widthMm)} min={project.units === "imperial" ? 0.001 : 0.01} max={displayLength(MAX_PROJECT_DIMENSION_MM, project.units)} step={project.units === "imperial" ? 0.01 : 1} oninput={(event) => { if (event.currentTarget.value !== "") { const widthMm = storedLength(event.currentTarget.valueAsNumber); void updateFabrication({ widthMm, ...(project.cropShape === "circle" ? { heightMm: widthMm } : {}) }); } }} onValueChange={(width) => { const widthMm = storedLength(width); if (widthMm !== project.widthMm) void updateFabrication({ widthMm, ...(project.cropShape === "circle" ? { heightMm: widthMm } : {}) }); }} /><em>{shownLengthUnit}</em></span>{/snippet}</Field>
-            <Field label="Height" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label="Height" value={shownLength(project.heightMm)} min={project.units === "imperial" ? 0.001 : 0.01} max={displayLength(MAX_PROJECT_DIMENSION_MM, project.units)} step={project.units === "imperial" ? 0.01 : 1} disabled={project.cropShape === "circle"} oninput={(event) => event.currentTarget.value !== "" && void updateFabrication({ heightMm: storedLength(event.currentTarget.valueAsNumber) })} onValueChange={(height) => { const heightMm = storedLength(height); if (heightMm !== project.heightMm) void updateFabrication({ heightMm }); }} /><em>{shownLengthUnit}</em></span>{/snippet}</Field>
+            <LengthField label="Width" unit={shownLengthUnit} value={shownLength(project.widthMm)} min={project.units === "imperial" ? 0.001 : 0.01} max={displayLength(MAX_PROJECT_DIMENSION_MM, project.units)} step={project.units === "imperial" ? 0.01 : 1} onCommit={(shown) => { const widthMm = storedLength(shown); if (widthMm !== project.widthMm) void updateFabrication({ widthMm, ...(project.cropShape === "circle" ? { heightMm: widthMm } : {}) }); }} />
+            <LengthField label="Height" unit={shownLengthUnit} value={shownLength(project.heightMm)} min={project.units === "imperial" ? 0.001 : 0.01} max={displayLength(MAX_PROJECT_DIMENSION_MM, project.units)} step={project.units === "imperial" ? 0.01 : 1} disabled={project.cropShape === "circle"} onCommit={(shown) => { const heightMm = storedLength(shown); if (heightMm !== project.heightMm) void updateFabrication({ heightMm }); }} />
           </div>
           </div>
         </Section>
@@ -684,7 +732,7 @@
             </div>
           {:else}
           <div class="range-field">
-            <span class="range-field__label vertical-exaggeration-heading"><b>Vertical exaggeration</b><span class:pending={verticalExaggerationStale} class="terrain-data-badge">{verticalExaggerationStale ? "Regeneration pending" : "Requires regeneration"}</span></span>
+            <span class="range-field__label vertical-exaggeration-heading"><b>Vertical exaggeration</b><span class="terrain-data-badge">Updates automatically</span></span>
             <div class="range-field__row">
               <input type="range" aria-label="Vertical exaggeration slider" min={MIN_VERTICAL_EXAGGERATION} max={MAX_VERTICAL_EXAGGERATION} step="0.5" value={project.verticalExaggeration} oninput={(event) => updateVerticalExaggeration(Number(event.currentTarget.value))} />
               <span class="number-input number-input--compact"><NumberField label="Vertical exaggeration" value={project.verticalExaggeration} min={MIN_VERTICAL_EXAGGERATION} max={MAX_VERTICAL_EXAGGERATION} step={0.5} oninput={(event) => event.currentTarget.value !== "" && updateVerticalExaggeration(event.currentTarget.valueAsNumber)} onValueChange={updateVerticalExaggeration} /><em>×</em></span>
@@ -692,7 +740,7 @@
             <small><span>{MIN_VERTICAL_EXAGGERATION}×</span><span>{MAX_VERTICAL_EXAGGERATION}×</span></small>
           </div>
           <div class="field-stack">
-            <Field label="Material thickness" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label="Material" value={shownLength(project.materialThicknessMm)} min={shownLength(0.5)} max={shownLength(25)} step={project.units === "imperial" ? 0.01 : 0.1} oninput={(event) => event.currentTarget.value !== "" && void updateFabrication({ materialThicknessMm: storedLength(event.currentTarget.valueAsNumber) })} onValueChange={(value) => { const materialThicknessMm = storedLength(value); if (materialThicknessMm !== project.materialThicknessMm) void updateFabrication({ materialThicknessMm }); }} /><em>{shownLengthUnit}</em></span>{/snippet}</Field>
+            <LengthField label="Material" fieldLabel="Material thickness" unit={shownLengthUnit} value={shownLength(project.materialThicknessMm)} min={shownLength(0.5)} max={shownLength(25)} step={project.units === "imperial" ? 0.01 : 0.1} onCommit={(shown) => { const materialThicknessMm = storedLength(shown); if (materialThicknessMm !== project.materialThicknessMm) void updateFabrication({ materialThicknessMm }); }} />
           </div>
           <div class="relief-summary">
             <Mountain size={20} />
@@ -903,7 +951,7 @@
                       <div class="marker-symbol-options" role="radiogroup" aria-label={`Marker ${index + 1} symbol`}>
                         {#each MARKER_OPTIONS as option}
                           <button type="button" role="radio" aria-label={option.label} title={option.label} aria-checked={marker.symbol === option.value} data-state={marker.symbol === option.value ? "on" : "off"} tabindex={marker.symbol === option.value ? 0 : -1} onclick={() => applyCustomDataEdit(edits.updateMarker(project, marker.id, { symbol: option.value }))} onkeydown={navigateChoice}>
-                            <svg viewBox="-11 -11 22 22" aria-hidden="true">{#each option.paths as path}<path d={path.map((point, pathIndex) => `${pathIndex === 0 ? "M" : "L"}${point.x} ${point.y}`).join(" ")} />{/each}</svg>
+                            <svg viewBox="-11 -11 22 22" aria-hidden="true">{#each option.paths as path}<path d={pointsToPath(path)} />{/each}</svg>
                           </button>
                         {/each}
                       </div>
@@ -1057,9 +1105,9 @@
                 <Switch checked={project.smoothing === 1} onCheckedChange={(smooth) => void updateFabrication({ smoothing: smooth ? 1 : 0 })} aria-label="Smooth contours"><span class="toggle-label"><Waves size={16} />Smooth contours</span></Switch>
               </div>
               <div class="field-stack">
-                {#if project.outputMode === "stack" && project.optimizeMaterialUse}<Field label="Glue margin" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label="Glue margin" value={shownLength(project.glueMarginMm)} min={shownLength(2)} max={shownLength(25)} step={project.units === "imperial" ? 0.01 : 0.5} oninput={(event) => event.currentTarget.value !== "" && void updateFabrication({ glueMarginMm: storedLength(event.currentTarget.valueAsNumber) })} onValueChange={(value) => { const glueMarginMm = storedLength(value); if (glueMarginMm !== project.glueMarginMm) void updateFabrication({ glueMarginMm }); }} /><em>{shownLengthUnit}</em></span>{/snippet}</Field>{/if}
-                {#if project.outputMode === "stack"}<Field label="Laser kerf" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label="Laser kerf" value={shownLength(project.laserKerfMm)} min={0} max={shownLength(1)} step={project.units === "imperial" ? 0.001 : 0.01} oninput={(event) => event.currentTarget.value !== "" && void updateFabrication({ laserKerfMm: storedLength(event.currentTarget.valueAsNumber) })} onValueChange={(value) => { const laserKerfMm = storedLength(value); if (laserKerfMm !== project.laserKerfMm) void updateFabrication({ laserKerfMm }); }} /><em>{shownLengthUnit}</em></span>{/snippet}</Field>{/if}
-                <Field label="Minimum feature" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label="Minimum feature" value={shownLength(project.minimumFeatureMm)} min={shownLength(0.2)} max={shownLength(5)} step={project.units === "imperial" ? 0.01 : 0.1} oninput={(event) => event.currentTarget.value !== "" && void updateFabrication({ minimumFeatureMm: storedLength(event.currentTarget.valueAsNumber) })} onValueChange={(value) => { const minimumFeatureMm = storedLength(value); if (minimumFeatureMm !== project.minimumFeatureMm) void updateFabrication({ minimumFeatureMm }); }} /><em>{shownLengthUnit}</em></span>{/snippet}</Field>
+                {#if project.outputMode === "stack" && project.optimizeMaterialUse}<LengthField label="Glue margin" unit={shownLengthUnit} value={shownLength(project.glueMarginMm)} min={shownLength(2)} max={shownLength(25)} step={project.units === "imperial" ? 0.01 : 0.5} onCommit={(shown) => { const glueMarginMm = storedLength(shown); if (glueMarginMm !== project.glueMarginMm) void updateFabrication({ glueMarginMm }); }} />{/if}
+                {#if project.outputMode === "stack"}<LengthField label="Laser kerf" unit={shownLengthUnit} value={shownLength(project.laserKerfMm)} min={0} max={shownLength(1)} step={project.units === "imperial" ? 0.001 : 0.01} onCommit={(shown) => { const laserKerfMm = storedLength(shown); if (laserKerfMm !== project.laserKerfMm) void updateFabrication({ laserKerfMm }); }} />{/if}
+                <LengthField label="Minimum feature" unit={shownLengthUnit} value={shownLength(project.minimumFeatureMm)} min={shownLength(0.2)} max={shownLength(5)} step={project.units === "imperial" ? 0.01 : 0.1} onCommit={(shown) => { const minimumFeatureMm = storedLength(shown); if (minimumFeatureMm !== project.minimumFeatureMm) void updateFabrication({ minimumFeatureMm }); }} />
               </div>
             </div>
           </div>
@@ -1120,6 +1168,12 @@
       {#if project.outputMode === "stack"}<div class="layer-dock"><div class="layer-heading"><span><Layers3 size={16} /><b>Layer {selectedLayer + 1}</b> of {geometry.layers.length}</span><strong>{layerTicks[selectedLayer]?.toLocaleString()} {shownElevationUnit}</strong></div><input class="layer-range" type="range" min="0" max={Math.max(0, geometry.layers.length - 1)} value={selectedLayer} oninput={(event) => { selectedLayer = Number(event.currentTarget.value); if (mode === "3d") mode = "2d"; }} /><div class="layer-scale"><span>{layerTicks[0]?.toLocaleString()} {shownElevationUnit}</span><span>{layerTicks[Math.floor(layerTicks.length / 2)]?.toLocaleString()} {shownElevationUnit}</span><span>{layerTicks.at(-1)?.toLocaleString()} {shownElevationUnit}</span></div>{#if mode === "3d"}<label class="explode-control"><span>Stack</span><input type="range" min="0" max="1" step="0.05" value={explodedPreview} oninput={(event) => { explodedDrag = Number(event.currentTarget.value); }} onchange={(event) => { explodedDrag = undefined; updateProject({ explodedPreview: Number(event.currentTarget.value) }); }} /><span>Exploded</span></label>{/if}</div>{/if}
 {/snippet}
 
+{#snippet locationSearch()}
+  <!-- One dialog for both shells: the embedded and standalone branches rendered
+       identical copies, so a prop or handler change had to be made twice. -->
+  {#if searchOpen && LocationDialog}<LocationDialog {project} presets={PRESETS} onChoose={choosePlace} onCoordinates={(lat, lon) => updateLocation({ lat, lon, label: "Custom coordinates" })} onClose={closeLocationDialog} />{/if}
+{/snippet}
+
 {#snippet unitControls()}
           <div class="ldt-toggle-group unit-switch" role="radiogroup" aria-label="Display units">
             {#each UNIT_OPTIONS as option}
@@ -1139,7 +1193,7 @@
     {/snippet}
     {#snippet parameters()}{@render parameterControls()}{@render layerControls()}{/snippet}
     {#snippet preview()}{@render previewContent()}{/snippet}
-    {#snippet dialogs()}{#if searchOpen && LocationDialog}<LocationDialog {project} presets={PRESETS} onChoose={choosePlace} onCoordinates={(lat, lon) => updateLocation({ lat, lon, label: "Custom coordinates" })} onClose={closeLocationDialog} />{/if}{/snippet}
+    {#snippet dialogs()}{@render locationSearch()}{/snippet}
   </AtommWorkbench>{:else}<main role="status">{atommLayoutFailed ? "The platform layout could not load. Reload to try again." : "Preparing terrain studio…"}</main>{/if}
 {:else}
 <AppShell class="app-shell">
@@ -1189,7 +1243,7 @@
     {@render previewContent()}
   </Workspace>
   <ExportDialog open={exportOpen} {project} blockedReason={exportBlockedBy} preparing={exportPhase === "preparing"} platformAvailable={platformExportAvailable} phase={exportPhase} title={exportTitle} detail={exportDetail} onDownload={(option) => void downloadProject(option)} onClose={() => exportOpen = false} />
-  {#if searchOpen}{#if LocationDialog}<LocationDialog {project} presets={PRESETS} onChoose={choosePlace} onCoordinates={(lat, lon) => updateLocation({ lat, lon, label: "Custom coordinates" })} onClose={closeLocationDialog} />{/if}{/if}
+  {@render locationSearch()}
 </AppShell>
 
 {/if}

@@ -92,6 +92,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     continue-on-error: true
+    concurrency:
+      group: audit-${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -313,6 +316,16 @@ jobs:
           WORKER_URL: ${{ steps.deploy.outputs.deployment-url }}
           PUBLIC_APP_URL: ${{ github.ref_name == 'main' && env.PRODUCTION_URL || env.DEVELOPMENT_URL }}
           EXPECTED_WORKER_ENVIRONMENT: ${{ github.ref_name == 'main' && 'production' || 'development' }}
+
+      # Split out of the smoke test so the hourly production monitor can run
+      # that file without installing jsdom. Static assets can lag the Worker,
+      # so this one keeps the propagation retry window.
+      - name: Verify deployed search metadata over HTTP
+        run: node scripts/verify-seo-http.mjs "$PUBLIC_APP_URL" "$EXPECTED_WORKER_ENVIRONMENT"
+        env:
+          PUBLIC_APP_URL: ${{ github.ref_name == 'main' && env.PRODUCTION_URL || env.DEVELOPMENT_URL }}
+          EXPECTED_WORKER_ENVIRONMENT: ${{ github.ref_name == 'main' && 'production' || 'development' }}
+          SEO_PROPAGATION_TIMEOUT_MS: "180000"
 
   package-atomm:
     name: Package Atomm release

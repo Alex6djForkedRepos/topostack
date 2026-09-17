@@ -45,12 +45,3 @@ export function configuredDatasetVersion(config, environment) {
   if (typeof version !== "string" || !version) throw new Error(`wrangler.jsonc has no DATASET_VERSION for ${environment}.`);
   return version;
 }
-
-/** The dataset version the live gateway is serving right now. */
-export async function liveDatasetVersion(origin, request = fetch) {
-  const response = await request(new URL("/v1/manifest", origin), { signal: AbortSignal.timeout(15_000), cache: "no-store" });
-  if (!response.ok) { await response.body?.cancel(); throw new Error(`Could not read the live manifest at ${origin} (${response.status}).`); }
-  const version = (await response.json()).datasetVersion;
-  if (typeof version !== "string" || !version) throw new Error(`The live manifest at ${origin} has no datasetVersion.`);
-  return version;
-}

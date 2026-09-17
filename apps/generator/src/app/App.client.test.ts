@@ -334,6 +334,30 @@ describe("TopoStack Svelte shell", () => {
     } finally { errors.mockRestore(); }
   });
 
+  it("flushes a pending autosave when the tab is closing or hidden", async () => {
+    const { saveProject } = await import("../storage");
+    vi.mocked(saveProject).mockClear();
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    // Autosave only starts once the saved project has been restored.
+    await vi.waitFor(() => expect(saveProject).toHaveBeenCalled(), { timeout: 2_000 });
+    vi.mocked(saveProject).mockClear();
+    const name = target.querySelector<HTMLInputElement>('input[aria-label="Project name"]')!;
+    name.value = "Closed mid-edit";
+    name.dispatchEvent(new Event("input", { bubbles: true }));
+    await tick();
+    // Still inside the debounce: only the flush can explain a write here.
+    expect(saveProject).not.toHaveBeenCalled();
+    window.dispatchEvent(new Event("pagehide"));
+    expect(saveProject).toHaveBeenCalledWith(expect.objectContaining({ name: "Closed mid-edit" }));
+    try {
+      Object.defineProperty(document, "hidden", { configurable: true, value: true });
+      document.dispatchEvent(new Event("visibilitychange"));
+      // The same snapshot is written once, however often the tab is hidden.
+      expect(saveProject).toHaveBeenCalledOnce();
+    } finally { Object.defineProperty(document, "hidden", { configurable: true, value: false }); }
+  });
+
   it("discards a generation started before the saved project finished restoring", async () => {
     const { loadProject } = await import("../storage");
     let finishRestore: ((project: typeof DEFAULT_PROJECT) => void) | undefined;
@@ -524,63 +548,40 @@ describe("TopoStack Svelte shell", () => {
     expect(saved.size).toBe(true);
   });
 
-  it("marks vertical exaggeration stale until terrain is regenerated", async () => {
+  it("updates vertical exaggeration immediately from retained terrain, including undo and redo", async () => {
     const source = { ...createSyntheticSource(DEFAULT_PROJECT, 32), sourceKind: "real" as const };
     loadTerrainMock.mockResolvedValue({ source, fallback: false });
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
     await tick();
-
-    [...target.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes("Generate terrain"))!.click();
+    target.querySelector<HTMLButtonElement>(".generate-button")!.click();
     await vi.waitFor(() => expect(target.querySelector(".status-line")?.textContent).toContain("Real terrain ready"));
     const initialLayers = target.querySelector(".layer-heading")?.textContent;
     const exaggeration = target.querySelector<HTMLInputElement>('input[aria-label="Vertical exaggeration"]')!;
     exaggeration.value = "4";
     exaggeration.dispatchEvent(new Event("input", { bubbles: true }));
-
-    await vi.waitFor(() => expect(exaggeration.value).toBe("4"));
-    expect(target.querySelector(".layer-heading")?.textContent).toBe(initialLayers);
-    expect(target.querySelector(".vertical-exaggeration-heading .terrain-data-badge")?.textContent).toBe("Regeneration pending");
-    expect(target.querySelector(".status-line")?.textContent).toContain("Vertical exaggeration changed · regenerate terrain before export");
-    expect(target.querySelector(".generate-button")?.textContent).toContain("Regenerate terrain");
-
-    const stencil = [...target.querySelectorAll<HTMLButtonElement>('.swatch-options[aria-label="Engraving font"] button[role="radio"]')].find((button) => button.textContent?.includes("Stencil"))!;
-    stencil.click();
-    await vi.waitFor(() => expect(stencil.getAttribute("aria-checked")).toBe("true"));
-    expect(target.querySelector(".layer-heading")?.textContent).toBe(initialLayers);
-    expect(target.querySelector(".vertical-exaggeration-heading .terrain-data-badge")?.textContent).toBe("Regeneration pending");
-
-    target.querySelector<HTMLButtonElement>(".generate-button")!.click();
-    await vi.waitFor(() => expect(loadTerrainMock).toHaveBeenCalledTimes(2));
-    await vi.waitFor(() => expect(target.querySelector(".status-line")?.textContent).toContain("Real terrain ready"));
-    expect(target.querySelector(".layer-heading")?.textContent).not.toBe(initialLayers);
-    expect(target.querySelector(".vertical-exaggeration-heading .terrain-data-badge")?.textContent).toBe("Requires regeneration");
+    await vi.waitFor(() => expect(target.querySelector(".layer-heading")?.textContent).not.toBe(initialLayers));
+    await vi.waitFor(() => expect(target.querySelector(".preview-stage")?.getAttribute("aria-busy")).toBe("false"));
+    const updatedLayers = target.querySelector(".layer-heading")?.textContent;
+    expect(loadTerrainMock).toHaveBeenCalledOnce();
+    expect(target.querySelector(".vertical-exaggeration-heading .terrain-data-badge")?.textContent).toBe("Updates automatically");
+    target.querySelector<HTMLButtonElement>('button[aria-label="Undo"]')!.click();
+    await vi.waitFor(() => expect(target.querySelector(".layer-heading")?.textContent).toBe(initialLayers));
+    target.querySelector<HTMLButtonElement>('button[aria-label="Redo"]')!.click();
+    await vi.waitFor(() => expect(target.querySelector(".layer-heading")?.textContent).toBe(updatedLayers));
+    expect(loadTerrainMock).toHaveBeenCalledOnce();
   });
 
-  it("identifies the controls that require terrain-data regeneration", async () => {
+  it("explains automatic sidebar updates and flags a manually selected map area", async () => {
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
     await tick();
-
-    const badge = target.querySelector<HTMLElement>(".terrain-data-badge")!;
     const note = target.querySelector<HTMLElement>(".terrain-data-note")!;
-    expect(badge.textContent).toBe("Requires regeneration");
-    expect(note.textContent).toContain("Changing the location or map area requires terrain regeneration.");
-    expect(note.textContent).toContain("Changing the cut aspect ratio changes the map area and requires terrain regeneration.");
-    expect(note.textContent).toContain("Vertical exaggeration also requires regeneration.");
-
-    const width = target.querySelector<HTMLInputElement>('input[aria-label="Width"]')!;
-    width.value = "250";
-    width.dispatchEvent(new Event("input", { bubbles: true }));
-    await vi.waitFor(() => expect(width.value).toBe("250"));
-    expect(badge.textContent).toBe("Regeneration pending");
-
+    expect(note.textContent).toContain("Sidebar settings update the preview automatically.");
     [...target.querySelectorAll<HTMLButtonElement>(".preset-row button")].find((button) => button.textContent === "Grand Teton and Jenny Lake")!.click();
     await tick();
-    expect(badge.textContent).toBe("Regeneration pending");
     expect(note.textContent).toContain("Terrain data is from the previous map area.");
     expect(target.querySelector(".status-line")?.textContent).toContain("Map area changed · generate terrain data before export");
-    expect(target.querySelector(".generate-button")?.textContent).toContain("Generate terrain");
   });
 
   it("applies and persists an explicit color scheme", async () => {
@@ -601,7 +602,8 @@ describe("TopoStack Svelte shell", () => {
     expect(document.head.querySelector<HTMLMetaElement>('meta[name="theme-color"]')).not.toBeNull();
   });
 
-  it("requires regeneration after changing the cut aspect ratio", async () => {
+  it("automatically fetches the new map area after debounced cut aspect-ratio edits", async () => {
+    loadTerrainMock.mockImplementation(async (config: typeof DEFAULT_PROJECT) => ({ source: createSyntheticSource(config, 32), fallback: true }));
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
     await tick();
@@ -609,14 +611,16 @@ describe("TopoStack Svelte shell", () => {
     expect(width.max).toBe("10000");
     width.value = "1200";
     width.dispatchEvent(new Event("input", { bubbles: true }));
-    await vi.waitFor(() => expect(target.querySelector(".status-line")?.textContent).toMatch(/Map area changed/i));
+    await vi.waitFor(() => expect(target.querySelector(".preview-stage")?.getAttribute("aria-busy")).toBe("true"));
     expect(target.querySelector(".preview-readout")?.textContent).toContain("1200 × 200 mm");
-    expect(loadTerrainMock).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(loadTerrainMock).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(target.querySelector(".preview-stage")?.getAttribute("aria-busy")).toBe("false"));
     expect(loadVectorMarkingsMock).not.toHaveBeenCalled();
     expect(loadLakeAreasMock).not.toHaveBeenCalled();
   });
 
-  it("converts units and flags aspect-ratio edits for regeneration", async () => {
+  it("converts units and automatically refreshes aspect-ratio edits", async () => {
+    loadTerrainMock.mockImplementation(async (config: typeof DEFAULT_PROJECT) => ({ source: createSyntheticSource(config, 32), fallback: true }));
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
     await tick();
@@ -628,12 +632,13 @@ describe("TopoStack Svelte shell", () => {
     expect(target.querySelector(".layer-heading")?.textContent).toContain("ft");
     width.value = "10";
     width.dispatchEvent(new Event("input", { bubbles: true }));
-    await vi.waitFor(() => expect(target.querySelector(".status-line")?.textContent).toMatch(/Map area changed/i));
+    await vi.waitFor(() => expect(target.querySelector(".preview-stage")?.getAttribute("aria-busy")).toBe("true"));
     expect(target.querySelector(".preview-readout")?.textContent).toContain("10 × 7.874 in");
     [...target.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes("Metric"))!.click();
     await vi.waitFor(() => expect(target.querySelector(".preview-readout")?.textContent).toContain("254 × 200 mm"));
     expect(width.value).toBe("254");
-    expect(loadTerrainMock).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(loadTerrainMock).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(target.querySelector(".preview-stage")?.getAttribute("aria-busy")).toBe("false"));
     expect(loadVectorMarkingsMock).not.toHaveBeenCalled();
     expect(loadLakeAreasMock).not.toHaveBeenCalled();
   });

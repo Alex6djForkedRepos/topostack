@@ -39,6 +39,10 @@
     { "name": "GEOCODE_GLOBAL_LIMITER", "namespace_id": "1007", "simple": { "limit": 300, "period": 60 } },
     { "name": "TERRAIN_GLOBAL_LIMITER", "namespace_id": "1010", "simple": { "limit": 2400, "period": 60 } }
   ],
+  // head_sampling_rate stays at 1 because the line volume is controlled in the
+  // Worker instead: src/request-log.ts samples the cache-hit request_completed
+  // lines of the archive and terrain routes (hundreds per generation) and keeps
+  // errors, cache misses and non-2xx statuses whole.
   "observability": {
     "enabled": true,
     "logs": { "enabled": true, "head_sampling_rate": 1 },

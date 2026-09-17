@@ -82,12 +82,23 @@ function retiredRuleIds(config) {
     && rule.conditions?.prefix === retiredTerrainRule(retiredVersionOf(rule)).conditions.prefix).map((rule) => rule.id).sort();
 }
 
+/** Rules this tool does not manage, which a full-set replace must preserve. */
+function unrelatedRuleIds(config) {
+  return config.rules.filter((rule) => rule.id !== GEOCODE_EXPIRY_RULE.id && !String(rule.id ?? "").startsWith(RETIRED_TERRAIN_RULE_ID_PREFIX))
+    .map((rule) => String(rule.id ?? "")).sort();
+}
+
 /**
  * True when `current` already carries every managed rule in `proposed` and no
  * stale ones. Compares the managed rules semantically, because the API may
  * echo rules back with fields added or reordered.
+ *
+ * The unrelated rules are compared by id as well: the PUT replaces the whole
+ * rule set, so a rule the API silently dropped (multipart-upload cleanup, for
+ * example) must not be reported as "applied and verified".
  */
 export function lifecycleSatisfies(current, proposed) {
   return hasGeocodeExpiry(current) && JSON.stringify(retiredRuleIds(current)) === JSON.stringify(retiredRuleIds(proposed))
-    && current.rules.filter((rule) => rule.id?.startsWith(RETIRED_TERRAIN_RULE_ID_PREFIX)).length === retiredRuleIds(proposed).length;
+    && current.rules.filter((rule) => rule.id?.startsWith(RETIRED_TERRAIN_RULE_ID_PREFIX)).length === retiredRuleIds(proposed).length
+    && JSON.stringify(unrelatedRuleIds(current)) === JSON.stringify(unrelatedRuleIds(proposed));
 }

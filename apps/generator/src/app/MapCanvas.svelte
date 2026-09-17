@@ -7,6 +7,7 @@
   import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
   import { MAX_PROJECT_DIMENSION_MM, markerSymbolCenterForAnchor, markerSymbolPaths, unwrapLongitude, type CustomLineFeatureV1, type GeoBounds, type MapMarkerV1, type MarkerSymbol, type ProjectConfigV1 } from "@topostack/core";
   import { boundsForProject } from "../data-provider";
+  import { pointsToPath } from "./svg-path";
   let { project, onLocationChange, onSelectionResize, onUnavailable }: { project: ProjectConfigV1; onSelectionResize: (widthMm: number, heightMm: number, bounds: GeoBounds) => void; onUnavailable?: (reason?: "unsupported" | "load-failed") => void; onLocationChange: (lat: number, lon: number, zoom: number, bounds: GeoBounds) => void } = $props();
   import AtommZoom from "./AtommZoom.svelte";
   const isEmbedded = getContext<() => boolean>("atomm-embedded") ?? (() => false);
@@ -105,7 +106,7 @@
     svg.setAttribute("aria-hidden", "true");
     for (const points of markerSymbolPaths(marker.symbol, { x: 0, y: 0 }, MARKER_SYMBOL_SIZE)) {
       const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute("d", points.map((point, index) => `${index === 0 ? "M" : "L"}${point.x} ${point.y}`).join(" "));
+      path.setAttribute("d", pointsToPath(points));
       svg.append(path);
     }
     element.append(svg);

@@ -4,6 +4,7 @@ import { buildManifest } from "./manifest";
 import { ARCHIVE_ROUTES, bathymetryArchives, type ArchiveRoute, isArchiveMetadataRequest, parseRangeHeader, pmtilesResponse, terrainArchives } from "./routes/archive";
 import { geocodeLimit, geocodeResponse, isGeocoderConfigured, normalizeGeoapify } from "./routes/geocode";
 import { healthResponse, probeUpstreams, readinessResponse, upstreamHealth } from "./routes/health";
+import { isHighVolumeCacheHit, REQUEST_LOG_SAMPLE_RATE, shouldLogRequest } from "./request-log";
 import { terrainResponse, validTile } from "./routes/terrain";
 import { isTerrainRefused, recordTerrainRefusal } from "./terrain-refusal";
 import { collectUsage } from "./usage-events";
@@ -111,8 +112,17 @@ export default {
       const measuredEnv = { ...env, MAP_CACHE: measureBucket(env.MAP_CACHE, metrics), VECTOR_DATA: measureBucket(env.VECTOR_DATA, metrics) };
       const response = await route(request, measuredEnv, ctx);
       response.headers.set("x-topostack-r2-reads", String(metrics.r2Reads));
-      // Cache-miss failures must be visible even when fixed canaries hit R2.
-      console.log(JSON.stringify({ message: "request_completed", method: request.method, path: url.pathname, environment: env.ENVIRONMENT, status: response.status, cache: response.headers.get("x-topostack-cache"), durationMs: Date.now() - startedAt, ...metrics }));
+      // Archive ranges and terrain tiles arrive in bursts of hundreds per
+      // generation; their cache hits are sampled. Cache-miss failures, non-2xx
+      // statuses and every other route stay fully logged, so a canary hitting
+      // R2 or a broken upstream is still visible per request.
+      const cache = response.headers.get("x-topostack-cache");
+      const highVolumeRoute = ARCHIVE_ROUTES.has(url.pathname) || TERRAIN_TILE_PATH.test(url.pathname);
+      const sampledLine = highVolumeRoute && isHighVolumeCacheHit(response.status, cache);
+      if (shouldLogRequest({ highVolumeRoute, status: response.status, cache })) {
+        console.log(JSON.stringify({ message: "request_completed", method: request.method, path: url.pathname, environment: env.ENVIRONMENT, status: response.status, cache, durationMs: Date.now() - startedAt,
+          ...(sampledLine ? { sampleRate: REQUEST_LOG_SAMPLE_RATE } : {}), ...metrics }));
+      }
       return withCors(response, request, env);
     } catch (error) {
       console.error(JSON.stringify({ message: "request_failed", path: url.pathname, error: error instanceof Error ? error.message : String(error) }));
@@ -121,4 +131,4 @@ export default {
   },
 } satisfies ExportedHandler<Env>;
 
-export { geocodeLimit, isAllowedOrigin, isGeocoderConfigured, normalizeGeoapify, parseRangeHeader, validTile };
+export { geocodeLimit, isAllowedOrigin, isGeocoderConfigured, normalizeGeoapify, parseRangeHeader, shouldLogRequest, validTile };

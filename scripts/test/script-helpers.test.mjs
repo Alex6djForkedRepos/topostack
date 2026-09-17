@@ -5,9 +5,9 @@ import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { assertDigestPinPolicy, parseArchiveFlags, provisionWithReceipt, verifyArchiveDigest, writeJsonAtomic } from "../lib/archive-provisioning.mjs";
+import { assertDigestPinPolicy, parseArchiveFlags, provisionWithReceipt, verifyArchiveDigest } from "../lib/archive-provisioning.mjs";
 import { cloudflareClient } from "../lib/cloudflare-client.mjs";
-import { filesBelow } from "../lib/files.mjs";
+import { filesBelow, writeJsonAtomic } from "../lib/files.mjs";
 import { capture, run } from "../lib/process.mjs";
 
 const accountId = "a".repeat(32);

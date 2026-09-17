@@ -6,7 +6,12 @@ export * from "./north-arrow.js";
 export * from "./offset.js";
 export * from "./svg.js";
 export * from "./units.js";
-export * from "./water.js";
+// Water carving is a stage of `generateGeometry`, not an entry point: its
+// scratch-buffer helpers and ladder fitting are meaningless without the grid
+// state it threads through them. Import those from "./water.js" directly.
+// `carveWaterDepth` stays public because scripts/verify-lake-outlines.mjs
+// carves a grid in the browser to compare provider outlines.
+export { carveWaterDepth } from "./water.js";
 export * from "./water-pattern.js";
 export * from "./export-policy.js";
 export * from "./source-requirements.js";
