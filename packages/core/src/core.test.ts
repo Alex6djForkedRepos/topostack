@@ -715,6 +715,7 @@ describe("TopoStack geometry", () => {
       materialThicknessMm: 3,
       polygons: [{ outer: [{ x: -100, y: -100 }, { x: 100, y: -100 }, { x: 100, y: 100 }, { x: -100, y: 100 }, { x: -100, y: -100 }], holes: [] }],
       markings: [{ id: "segmented-road", operation: "engrave" as const, kind: "road" as const, transportationClass: "local-road" as const, points }],
+      pieces: [],
     };
     expect(Math.max(...points.slice(0, -1).map((point, index) => Math.hypot(points[index + 1]!.x - point.x, points[index + 1]!.y - point.y)))).toBeLessThan(labelDimensions("BEND ROAD").width);
     const placement = placeLinearLabel("BEND ROAD", { ...DEFAULT_PROJECT, widthMm: 200, heightMm: 200 }, layer, [points]);
