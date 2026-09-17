@@ -728,6 +728,7 @@ describe("TopoStack geometry", () => {
       id: "terrace", index: 0, elevationM: 0, materialThicknessMm: 3,
       polygons: [{ outer: [{ x: -50, y: -3.5 }, { x: 50, y: -3.5 }, { x: 50, y: 3.5 }, { x: -50, y: 3.5 }, { x: -50, y: -3.5 }], holes: [] }],
       markings: [{ id: "road", operation: "engrave" as const, kind: "road" as const, points }],
+      pieces: [],
     };
     const placement = placeLinearLabel("BEND ROAD", DEFAULT_PROJECT, layer, [points]);
     expect(placement).toBeDefined();
