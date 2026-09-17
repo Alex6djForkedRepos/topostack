@@ -17,7 +17,7 @@ When you are ready, use Export to download the files or open the master SVG in x
 
 Make a keepsake of a favorite hike, a mountain you climbed, a memorable lake, or the place you call home.
 
-Generate fresh terrain before exporting, then review the artwork, material, and machine settings before fabrication. The opening design is a bundled preview. The gallery shows a freshly generated Crater Lake project, including USGS surveyed bathymetry in the layered views. The cover uses an AI-assisted workshop setting based on the app rendering.
+Generate fresh terrain before exporting, then review the artwork, material, and machine settings before fabrication. The opening design is a bundled preview. The gallery shows a freshly generated Crater Lake project, including USGS surveyed bathymetry in the layered views. The cover and motion preview show the app’s actual Crater Lake geometry.
 
 
 Craft

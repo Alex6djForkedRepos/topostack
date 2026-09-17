@@ -10,6 +10,11 @@ already contain underwater relief keep their existing precedence.
 
 1. Rasterize lake outlines and islands at the terrain sample locations. Distances
    and slopes use ground meters on each axis, independent of output stretching.
+   With smoothing enabled, complete lakes measure exact distance to the vector
+   shoreline (including islands), indexed by a segment bounding-volume tree.
+   This avoids terraces caused by measuring to the nearest dry grid-cell center.
+   Clipped/edge-touching lakes and smoothing-disabled output retain the raster
+   distance transform.
 2. At shoreline cells, estimate the outward direction and sample three rays
    through the original dry DEM. Each ray needs at least three distinct valid
    samples. Median rise/run estimates reduce sensitivity to isolated elevation
@@ -20,7 +25,9 @@ already contain underwater relief keep their existing precedence.
    0.5–2. These are conservative heuristic settings, not calibrated coefficients.
 4. Average bank influence inward along the shoreline-distance gradient, then
    solve `|gradient(depth)| = slopeFactor` with an anisotropic fast-sweeping
-   method. This lets opposing slopes meet continuously without multiplying a
+   method. With vector shore distances, boundary water samples are seeded at
+   their actual distance times the bank factor, with dry samples excluded from
+   the solve. This lets opposing slopes meet continuously without multiplying a
    hard nearest-shore assignment into the floor. The solve is bounded to eight
    cycles; a nonconverged solve uses the original distance field.
 5. Normalize the shape to the existing maximum-depth/radius constraint, then fit
@@ -31,7 +38,10 @@ already contain underwater relief keep their existing precedence.
    sheets if needed. Existing fabrication depth fitting happens afterward.
 
 The same profile fills survey gaps only where the DEM does not already contain
-underwater relief. Measured samples are unchanged; coverage remains `mixed`.
+underwater relief. Measured samples are unchanged; coverage remains `mixed`. For smoothed, complete
+lakes with no modeled maximum and no underwater DEM relief, a narrow uncovered
+survey rim instead uses nearby survey depths tapered to the vector shore; remote
+and interior gaps remain at the waterline. See [shoreline smoothing](lake-shoreline-smoothing.md).
 The preview displays one estimated-depth warning when any included lake is
 modeled, uses a user maximum-depth override, or has mixed survey coverage. The
 notice is prioritized alongside the depth-fitting action and also travels with

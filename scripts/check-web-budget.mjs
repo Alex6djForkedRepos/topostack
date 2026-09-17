@@ -1,11 +1,14 @@
-import { readdir, readFile, stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { gzipSync } from "node:zlib";
+import { filesBelow } from "./lib/files.mjs";
 
 const dist = new URL("../apps/generator/dist/", import.meta.url);
 // Budget the lightweight homepage separately from the editor and its default
 // 3D preview. Moving the editor must not hide its cost behind a smaller entry page.
-// Production baseline with Node 22.22.2 and VITE_MAP_API_URL=https://ci.invalid:
-// homepage 54.8 kB, startup 423.0 kB, all JS 858.1 kB, standalone CSS 32.2 kB.
+// Production baseline measured with Node 24.18.0 and VITE_MAP_API_URL=https://ci.invalid:
+// homepage 54.8 kB, startup 435.2 kB, all JS 874.9 kB, standalone CSS 32.8 kB.
+// CI and .nvmrc build with Node 22.22.2; these numbers have not been re-measured
+// there, so compare a Node 22.22.2 build before tightening or raising budgets.
 // Includes terrain-informed lake depths, the interactive depth guide, and the
 // integrated studio release. Keep roughly 2% JS headroom for platform/minifier
 // variation; compare a fresh build before accepting future budget increases.
@@ -16,28 +19,22 @@ const budgets = {
   initialJavaScriptGzip: 180_000,
   // Includes the editor, default 3D preview, and geometry worker. Lake modeling
   // runs in the main-thread fallback as well as the worker, so both are counted.
-  startupJavaScriptGzip: 432_000,
+  startupJavaScriptGzip: 444_000,
   // All routes, lazy-loaded tools, and workers, including the interactive lake
   // guide and MapLibre's worker. The fetched lake catalog is budgeted below.
-  totalJavaScriptGzip: 876_000,
+  totalJavaScriptGzip: 892_000,
   largestJavaScriptGzip: 300_000,
   // Public guides add styles outside the studio. Keep a separate allowance for
   // the Atomm template, which is loaded only inside the platform iframe.
-  standaloneCssGzip: 33_000,
+  // Raised 2026-09-17 for the feedback tab/dialog and studio retry states:
+  // measured with Node 22.22.2 at 34,290 standalone and 43,738 total.
+  standaloneCssGzip: 35_000,
   atommCssGzip: 10_000,
-  totalCssGzip: 43_000,
+  totalCssGzip: 44_600,
   // 7,775 records across 11 sources (~306 kB); fetched only when browsing/searching.
   lakeDirectoryGzip: 320_000,
   studioHtmlBytes: 10_000,
 };
-
-async function filesBelow(directory) {
-  const entries = await readdir(directory, { withFileTypes: true });
-  return (await Promise.all(entries.map((entry) => {
-    const target = new URL(entry.name + (entry.isDirectory() ? "/" : ""), directory);
-    return entry.isDirectory() ? filesBelow(target) : [target];
-  }))).flat();
-}
 
 const files = await filesBelow(dist);
 const measured = await Promise.all(files.filter((file) => /\.(?:js|css)$/.test(file.pathname)).map(async (file) => {

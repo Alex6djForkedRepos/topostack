@@ -1,7 +1,9 @@
 <script module lang="ts">
   // Persist the user's orbit across preview-mode switches: the component is
   // destroyed when leaving 3D mode, so the camera pose lives at module level.
-  let savedCamera: { position: [number, number, number]; target: [number, number, number] } | undefined;
+  // The fit signature and fitted view travel with the pose, so a remounted
+  // preview of the same model keeps the orbit instead of refitting it.
+  let savedCamera: { position: [number, number, number]; target: [number, number, number]; fitSignature?: string; fitDistance: number; fitTarget: [number, number, number] } | undefined;
 </script>
 
 <script lang="ts">
@@ -13,6 +15,7 @@
 
   let { geometry, exploded, onUnavailable }: { geometry: GeometryIRV1; exploded: number; onUnavailable?: () => void } = $props();
   import AtommZoom from "./AtommZoom.svelte";
+  import { MARKING_COLORS, markingStyleKey, type MarkingStyleKey } from "./marking-style";
   const isEmbedded = getContext<() => boolean>("atomm-embedded") ?? (() => false);
   let zoom = $state(1);
   let fitDistance = 320;
@@ -36,6 +39,8 @@
     rig: THREE.Group; content: THREE.Group; resizeObserver: ResizeObserver; frame: number;
     environmentTarget: THREE.WebGLRenderTarget; texture: THREE.CanvasTexture; fitSignature?: string;
     keyLight: THREE.DirectionalLight; detachContextHandlers: () => void; requestRender: () => void;
+    /** Materials and textures created by the last rebuild, including ones no object ended up using. */
+    sceneResources: Array<{ dispose: () => void }>;
   }
 
   interface StackedObject { layerIndex: number; baseZ: number }
@@ -73,8 +78,34 @@
     const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texture.repeat.set(1 / 45, 1 / 45); return texture;
   }
 
-  function disposeContent(content: THREE.Group): void {
+  function disposeContent(content: THREE.Group, resources: Array<{ dispose: () => void }>): void {
     for (const child of [...content.children]) { child.traverse((object) => { if (object instanceof THREE.Mesh || object instanceof THREE.Line) { object.geometry.dispose(); const materials = Array.isArray(object.material) ? object.material : [object.material]; materials.forEach((material) => { if (material instanceof THREE.MeshStandardMaterial) { material.map?.dispose(); material.bumpMap?.dispose(); } material.dispose(); }); } }); content.remove(child); }
+    // Shared materials that no object used (no trails, markers, or water in
+    // this geometry) never reach the traversal above. Disposing twice is a no-op.
+    for (const resource of resources.splice(0)) resource.dispose();
+  }
+
+  interface LineBatch { positions: number[]; distances?: number[] }
+
+  /** One polyline as segment pairs, with per-polyline dash distances so dashes restart where a separate Line would. */
+  function appendPolyline(batch: LineBatch, points: Point2D[]): void {
+    let distance = 0;
+    for (let index = 0; index < points.length - 1; index += 1) {
+      const start = points[index]!, end = points[index + 1]!;
+      batch.positions.push(start.x, start.y, 0, end.x, end.y, 0);
+      if (batch.distances) {
+        batch.distances.push(distance);
+        distance += Math.hypot(end.x - start.x, end.y - start.y);
+        batch.distances.push(distance);
+      }
+    }
+  }
+
+  function batchSegments(batch: LineBatch, material: THREE.LineBasicMaterial | THREE.LineDashedMaterial): THREE.LineSegments {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(batch.positions, 3));
+    if (batch.distances) geometry.setAttribute("lineDistance", new THREE.Float32BufferAttribute(batch.distances, 1));
+    return new THREE.LineSegments(geometry, material);
   }
 
   // Deterministic per-layer randomness: grain orientation must survive
@@ -100,8 +131,9 @@
     grain.needsUpdate = true;
     return grain;
   }
-  function linePoints(points: Point2D[], z: number): THREE.Vector3[] { return points.map((point) => new THREE.Vector3(point.x, point.y, z)); }
-  function labelPoints(label: string, origin: Point2D, rotationRad = 0, textStyle?: TextStyleV1): THREE.Vector3[] { return labelLineSegments(label, origin, 0, 0, rotationRad, textStyle).flatMap((segment) => [new THREE.Vector3(segment.start.x, segment.start.y, 0), new THREE.Vector3(segment.end.x, segment.end.y, 0)]); }
+  function appendLabel(batch: LineBatch, label: string, origin: Point2D, rotationRad = 0, textStyle?: TextStyleV1): void {
+    for (const segment of labelLineSegments(label, origin, 0, 0, rotationRad, textStyle)) batch.positions.push(segment.start.x, segment.start.y, 0, segment.end.x, segment.end.y, 0);
+  }
 
   // Fast path for the exploded slider: only mesh z-positions move, so a drag
   // never tears down or re-extrudes the scene.
@@ -125,7 +157,7 @@
     try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false }); }
     catch { onUnavailable?.(); return; }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05; renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; container.appendChild(renderer.domElement);
-    const pmrem = new THREE.PMREMGenerator(renderer); const environmentTarget = pmrem.fromScene(new RoomEnvironment()); pmrem.dispose(); scene.environment = environmentTarget.texture; scene.environmentIntensity = 0.38;
+    const pmrem = new THREE.PMREMGenerator(renderer); const room = new RoomEnvironment(); const environmentTarget = pmrem.fromScene(room); room.dispose(); pmrem.dispose(); scene.environment = environmentTarget.texture; scene.environmentIntensity = 0.38;
     // Layer steps read through cast shadows plus a cool fill from the opposite
     // quadrant; the warm key alone left the stepped edges flat. The key light's
     // position and shadow frustum are fitted to the model in the rebuild effect.
@@ -134,7 +166,7 @@
     scene.add(new THREE.HemisphereLight(0x9fb8ad, 0x2d2118, 0.9));
     const rig = new THREE.Group(); const content = new THREE.Group(); content.scale.y = -1; rig.add(content); scene.add(rig);
     const controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.dampingFactor = 0.065; controls.maxPolarAngle = Math.PI * 0.95; controls.minDistance = 120; controls.maxDistance = 1800; controls.target.set(0, 0, 10); camera.position.set(15, -165, 270); controls.update();
-    if (savedCamera) { camera.position.set(...savedCamera.position); controls.target.set(...savedCamera.target); controls.update(); }
+    if (savedCamera) { camera.position.set(...savedCamera.position); controls.target.set(...savedCamera.target); controls.update(); fitDistance = savedCamera.fitDistance; fitTarget = new THREE.Vector3(...savedCamera.fitTarget); }
     const texture = makeWoodTexture();
     let contextLost = false;
     const requestRender = () => {
@@ -168,38 +200,51 @@
       controls.removeEventListener("change", requestRender);
       controls.removeEventListener("change", updateZoom);
     };
-    runtime = { renderer, camera, controls, rig, content, resizeObserver, frame: 0, environmentTarget, texture, keyLight, detachContextHandlers, requestRender };
+    runtime = { renderer, camera, controls, rig, content, resizeObserver, frame: 0, environmentTarget, texture, keyLight, detachContextHandlers, requestRender, sceneResources: [], fitSignature: savedCamera?.fitSignature };
     requestRender();
     return () => {
       if (!runtime) return;
       const { position } = runtime.camera; const { target } = runtime.controls;
-      savedCamera = { position: [position.x, position.y, position.z], target: [target.x, target.y, target.z] };
-      cancelAnimationFrame(runtime.frame); runtime.detachContextHandlers(); runtime.resizeObserver.disconnect(); disposeContent(runtime.content); runtime.texture.dispose(); runtime.environmentTarget.dispose(); runtime.controls.dispose(); runtime.renderer.dispose(); runtime.renderer.domElement.remove(); runtime = undefined;
+      savedCamera = { position: [position.x, position.y, position.z], target: [target.x, target.y, target.z], fitSignature: runtime.fitSignature, fitDistance, fitTarget: [fitTarget.x, fitTarget.y, fitTarget.z] };
+      cancelAnimationFrame(runtime.frame); runtime.detachContextHandlers(); runtime.resizeObserver.disconnect(); disposeContent(runtime.content, runtime.sceneResources); runtime.texture.dispose(); runtime.environmentTarget.dispose(); scene.environment = null; runtime.keyLight.shadow.dispose(); runtime.controls.dispose(); runtime.renderer.dispose();
+      // Browsers cap live WebGL contexts; release this one now instead of at GC.
+      runtime.renderer.forceContextLoss(); runtime.renderer.domElement.remove(); runtime = undefined;
     };
   });
 
-  // Full rebuild only when the geometry itself changes.
+  // Full rebuild only when the modeled content changes. A rename replaces the
+  // geometry object but keeps these references, so it does not rebuild the scene.
+  const layers = $derived(geometry.layers);
+  const waterSurfaces = $derived(geometry.waterSurfaces);
+  const lineStyle = $derived(geometry.lineStyle);
+  const widthMm = $derived(geometry.widthMm);
+  const heightMm = $derived(geometry.heightMm);
   $effect(() => {
-    const activeGeometry = geometry;
+    const activeGeometry = { layers, waterSurfaces, lineStyle, widthMm, heightMm };
     const timeout = window.setTimeout(() => {
       if (!runtime) return;
-      disposeContent(runtime.content);
+      disposeContent(runtime.content, runtime.sceneResources);
       const side = new THREE.MeshStandardMaterial({ color: 0x8b6039, roughness: 0.82, metalness: 0, ...SURFACE_DEPTH_BIAS });
       const style = activeGeometry.lineStyle;
+      // The 3D engraving ink is a lighter brown than the flat previews' so it reads on lit wood.
       const engraveMaterial = new THREE.LineBasicMaterial({ color: 0x39291d, linewidth: style.annotationMm });
-      const majorRoadMaterial = new THREE.LineBasicMaterial({ color: 0x24180f, linewidth: style.majorRoadMm });
-      const localRoadMaterial = new THREE.LineBasicMaterial({ color: 0x62442f, linewidth: style.localRoadMm });
+      const majorRoadMaterial = new THREE.LineBasicMaterial({ color: MARKING_COLORS["major-road"], linewidth: style.majorRoadMm });
+      const localRoadMaterial = new THREE.LineBasicMaterial({ color: MARKING_COLORS["local-road"], linewidth: style.localRoadMm });
       const trailMaterial = style.trailPattern === "solid"
-        ? new THREE.LineBasicMaterial({ color: 0x8a5e35, linewidth: style.trailMm })
+        ? new THREE.LineBasicMaterial({ color: MARKING_COLORS.trail, linewidth: style.trailMm })
         : new THREE.LineDashedMaterial({
-            color: 0x8a5e35,
+            color: MARKING_COLORS.trail,
             linewidth: style.trailMm,
             dashSize: style.trailPattern === "dotted" ? 0.05 : Math.max(style.trailMm * 6, 1.2),
             gapSize: Math.max(style.trailMm * 4, 0.7),
           });
-      const scoreMaterial = new THREE.LineBasicMaterial({ color: 0x365c79, linewidth: style.waterMm });
-      const boundaryMaterial = new THREE.LineDashedMaterial({ color: 0x6f4057, linewidth: style.boundaryMm, dashSize: Math.max(style.boundaryMm * 8, 1.6), gapSize: Math.max(style.boundaryMm * 5, 1) });
-      const coordinateGridMaterial = new THREE.LineDashedMaterial({ color: 0x59636e, linewidth: style.coordinateGridMm, dashSize: 0.05, gapSize: Math.max(style.coordinateGridMm * 5, 0.9) });
+      const scoreMaterial = new THREE.LineBasicMaterial({ color: MARKING_COLORS.score, linewidth: style.waterMm });
+      const boundaryMaterial = new THREE.LineDashedMaterial({ color: MARKING_COLORS.boundary, linewidth: style.boundaryMm, dashSize: Math.max(style.boundaryMm * 8, 1.6), gapSize: Math.max(style.boundaryMm * 5, 1) });
+      const coordinateGridMaterial = new THREE.LineDashedMaterial({ color: MARKING_COLORS.grid, linewidth: style.coordinateGridMm, dashSize: 0.05, gapSize: Math.max(style.coordinateGridMm * 5, 0.9) });
+      const lineMaterials: Record<MarkingStyleKey, THREE.LineBasicMaterial | THREE.LineDashedMaterial> = {
+        score: scoreMaterial, "major-road": majorRoadMaterial, "local-road": localRoadMaterial, trail: trailMaterial,
+        boundary: boundaryMaterial, grid: coordinateGridMaterial, engrave: engraveMaterial,
+      };
       const labelMaterial = new THREE.LineBasicMaterial({ color: 0x21170f, linewidth: style.annotationMm });
       const markerFillMaterial = new THREE.MeshBasicMaterial({ color: 0x2b2119, side: THREE.DoubleSide });
       // Water reads as a pane resting over the basin rather than as another
@@ -211,10 +256,15 @@
         color: 0x14536e, transparent: true, opacity: 0.52, roughness: 0.28, metalness: 0,
         side: THREE.DoubleSide, depthWrite: false,
       });
+      runtime.sceneResources.push(side, engraveMaterial, majorRoadMaterial, localRoadMaterial, trailMaterial, scoreMaterial, boundaryMaterial, coordinateGridMaterial, labelMaterial, markerFillMaterial, waterMaterial);
       activeGeometry.layers.forEach((layer) => {
         const baseZ = layer.index * layer.materialThicknessMm;
         const grain = layerGrainTexture(runtime!.texture, layer.index);
         const face = new THREE.MeshStandardMaterial({ color: 0xe2bd88, map: grain, bumpMap: grain, bumpScale: 0.22, roughness: 0.7, metalness: 0.02, ...SURFACE_DEPTH_BIAS });
+        runtime!.sceneResources.push(grain, face);
+        // Every line on a layer that shares a material becomes one draw call.
+        const lineBatches = new Map<THREE.LineBasicMaterial | THREE.LineDashedMaterial, LineBatch>();
+        const labelBatch: LineBatch = { positions: [] };
         layer.polygons.forEach((polygon) => {
           const extrusion = new THREE.ExtrudeGeometry(shapeFromPolygon(polygon), { depth: layer.materialThicknessMm, bevelEnabled: false, curveSegments: 8 });
           const mesh = new THREE.Mesh(extrusion, [face, side]);
@@ -229,17 +279,17 @@
             const lift = markingLift(layer.materialThicknessMm) * (marking.knockout ? 1 : 1.25);
             addStacked(runtime!.content, marker, layer.index, baseZ + layer.materialThicknessMm + lift);
           } else if (marking.points.length > 1) {
-            const lineGeometry = new THREE.BufferGeometry().setFromPoints(linePoints(marking.points, 0));
-            const material = marking.operation === "score" ? scoreMaterial : marking.transportationClass === "major-road" ? majorRoadMaterial : marking.transportationClass === "local-road" ? localRoadMaterial : marking.transportationClass === "trail" ? trailMaterial : marking.kind === "boundary" ? boundaryMaterial : marking.kind === "grid" ? coordinateGridMaterial : engraveMaterial;
-            const line = new THREE.Line(lineGeometry, material);
-            if (material instanceof THREE.LineDashedMaterial) line.computeLineDistances();
-            addStacked(runtime!.content, line, layer.index, baseZ + layer.materialThicknessMm + markingLift(layer.materialThicknessMm));
+            const material = lineMaterials[markingStyleKey(marking)];
+            let batch = lineBatches.get(material);
+            if (!batch) { batch = { positions: [], ...(material instanceof THREE.LineDashedMaterial ? { distances: [] } : {}) }; lineBatches.set(material, batch); }
+            appendPolyline(batch, marking.points);
           }
-          if (marking.label && marking.points[0]) {
-            const labelGeometry = new THREE.BufferGeometry().setFromPoints(labelPoints(marking.label, marking.points[0], marking.labelRotationRad, marking.textStyle));
-            addStacked(runtime!.content, new THREE.LineSegments(labelGeometry, labelMaterial), layer.index, baseZ + layer.materialThicknessMm + markingLift(layer.materialThicknessMm) * 1.5);
-          }
+          if (marking.label && marking.points[0]) appendLabel(labelBatch, marking.label, marking.points[0], marking.labelRotationRad, marking.textStyle);
         });
+        for (const [material, batch] of lineBatches) {
+          if (batch.positions.length) addStacked(runtime!.content, batchSegments(batch, material), layer.index, baseZ + layer.materialThicknessMm + markingLift(layer.materialThicknessMm));
+        }
+        if (labelBatch.positions.length) addStacked(runtime!.content, batchSegments(labelBatch, labelMaterial), layer.index, baseZ + layer.materialThicknessMm + markingLift(layer.materialThicknessMm) * 1.5);
       });
       // The surface floats on the top face of the layer holding its waterline,
       // and rides that layer when the stack is exploded.

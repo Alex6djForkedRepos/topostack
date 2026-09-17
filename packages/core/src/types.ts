@@ -90,7 +90,6 @@ export const DEFAULT_LINE_STYLE: LineStyleV1 = {
   roadCap: "round",
 };
 
-export const TEXT_FONTS: readonly TextFont[] = ["technical", "rounded", "stencil"];
 export const DEFAULT_TEXT_STYLE: TextStyleV1 = { font: "technical", sizeMm: 3.1 };
 
 export const MIN_LAYER_COUNT = 2;
@@ -280,7 +279,13 @@ export interface WaterAreaV1 {
   /** Set to "user" once a per-lake override has replaced `maxDepthM`. */
   depthSource?: DepthSource;
   /** Surveyed depths below the dataset reference waterline, aligned to the terrain grid. NaN means no coverage. */
-  bathymetry?: { width: number; height: number; depthsM: Float32Array };
+  bathymetry?: {
+    width: number;
+    height: number;
+    depthsM: Float32Array;
+    /** Ground spacing of the sampled survey raster, before alignment to terrain. */
+    sampleSpacingM?: number;
+  };
 }
 
 export interface WaterSurfaceIR {
@@ -308,11 +313,19 @@ export interface WaterSurfaceIR {
   depthSource: DepthSource;
 }
 
+export interface TerrainSelection {
+  policy: "terrain-priority-v1";
+  sources: Array<{ id: string; name: string; fraction: number; nativeResolutionM?: number; verticalDatum: string }>;
+  attempts: Array<{ id: string; name: string; status: "selected" | "no-coverage" | "unavailable" }>;
+}
+
 export interface SourceBundleV1 {
   schemaVersion: 1;
   elevation: ElevationGrid;
   /** Native DEM samples estimated from neighbors after detecting isolated downward spikes. */
   elevationRepairCount?: number;
+  /** A registered preferred terrain archive failed; base terrain was retained. */
+  terrainSourceUnavailable?: boolean;
   markings: MarkingFeature[];
   waterAreas?: WaterAreaV1[];
   /** OSM water polygons retained independently of depth-modeling metadata. */
@@ -328,6 +341,7 @@ export interface SourceBundleV1 {
   sourceKind: "real" | "preview" | "synthetic";
   bounds: GeoBounds;
   imagerySources: string[];
+  terrainSelection?: TerrainSelection;
   resolutionM?: number;
   attribution: SourceAttribution[];
 }
@@ -388,7 +402,7 @@ export interface FabricationNest {
 }
 
 export interface GeometryWarning {
-  code: "ELEVATION_REPAIRED" | "LOW_RELIEF" | "EMPTY_LAYER" | "SMALL_FEATURES" | "DATA_FALLBACK" | "VECTOR_DATA_PARTIAL" | "VECTOR_DATA_UNAVAILABLE" | "LAKE_DATA_UNAVAILABLE" | "BATHYMETRY_FALLBACK" | "LAKE_DEPTH_PREDICTED" | "LABEL_OMITTED" | "WATER_DEPTH_CLAMPED";
+  code: "TERRAIN_SOURCE_FALLBACK" | "ELEVATION_REPAIRED" | "LOW_RELIEF" | "EMPTY_LAYER" | "SMALL_FEATURES" | "DATA_FALLBACK" | "VECTOR_DATA_PARTIAL" | "VECTOR_DATA_UNAVAILABLE" | "LAKE_DATA_UNAVAILABLE" | "BATHYMETRY_FALLBACK" | "LAKE_DEPTH_PREDICTED" | "LABEL_OMITTED" | "WATER_DEPTH_CLAMPED";
   message: string;
   action?: "fit-lake-depth";
 }
@@ -406,11 +420,18 @@ export interface GeometryIRV1 {
   bounds: GeoBounds;
   resolutionM?: number;
   imagerySources: string[];
+  terrainSelection?: TerrainSelection;
   widthMm: number;
   heightMm: number;
   laserKerfMm: number;
   lineStyle: LineStyleV1;
   verticalExaggeration: number;
+  /**
+   * Model length over ground length across the mapped width (1/78247 for the
+   * bundled preview); 0 when the bounds have no usable width. Optional so IR
+   * produced before it was recorded still renders.
+   */
+  horizontalScale?: number;
   minElevationM: number;
   maxElevationM: number;
   /** Relief of the land alone - what the sheet budget is sized from. */
@@ -437,10 +458,6 @@ export interface FabricationPackageV1 {
   files: ExportFile[];
   /** Convenience pointer to the master-layout SVG; the same file is also present in `files`. */
   master: ExportFile;
-}
-
-export interface MapDataProvider {
-  getElevation(config: ProjectConfigV1, signal?: AbortSignal): Promise<SourceBundleV1>;
 }
 
 export const DEFAULT_PROJECT: ProjectConfigV1 = {

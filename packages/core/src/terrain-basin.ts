@@ -24,13 +24,22 @@ export function terrainBasinDistance(
   surfaceM: number,
   referenceSlope: number,
   clipped: boolean,
+  /**
+   * Full-grid scratch arrays reused across lakes. Only the lake's cells and a
+   * one-cell margin are reset, and the returned array may be `buffers.result`.
+   */
+  buffers?: { factors: Float64Array; result: Float64Array },
+  /** Distances reach the vector shore between samples, rather than dry cell centers. */
+  vectorShore = false,
 ): Float64Array {
   const { width, height, values } = grid;
   // A partial shoreline cannot constrain the whole basin. Never normalize a
   // terrain prediction against just the portion visible in the crop.
   if (clipped || cells.some((i) => i < width || i >= width * (height - 1) || i % width === 0 || i % width === width - 1)) return distance;
 
-  const factors = new Float64Array(values.length).fill(Number.NaN);
+  // Factors are only ever read at lake cells: every neighbour lookup checks the mask first.
+  const factors = buffers?.factors ?? new Float64Array(values.length);
+  for (const cell of cells) factors[cell] = Number.NaN;
   const spacing = Math.max(spacingX, spacingY);
   const sampleRadius = Math.max(4 * spacing, Math.min(250, 12 * spacing));
   const baseline = Math.max(0.01, referenceSlope);
@@ -105,15 +114,25 @@ export function terrainBasinDistance(
     factors[cell] = weight ? sum / weight : 1;
   }
 
-  // Fast sweeping solves the Eikonal equation in physical meters, with dry
-  // cells fixed at zero. Unlike multiplying distance by a bank factor, this
+  // Fast sweeping solves the Eikonal equation in physical meters. The raster
+  // fallback fixes dry cells at zero; vector shores seed boundary water cells.
+  // Unlike multiplying distance by a bank factor, this
   // forms a continuous floor where opposing slopes meet without depth jumps.
-  const result = new Float64Array(values.length);
-  for (const cell of cells) result[cell] = Infinity;
   let minX = width, maxX = 0, minY = height, maxY = 0;
   for (const cell of cells) {
     minX = Math.min(minX, cell % width); maxX = Math.max(maxX, cell % width);
     minY = Math.min(minY, Math.floor(cell / width)); maxY = Math.max(maxY, Math.floor(cell / width));
+  }
+  // The sweep reads lake cells and their direct neighbours, which lie inside the
+  // grid because edge-touching lakes returned above. Vector mode excludes dry
+  // neighbours from the solve after seeding the real shoreline distances.
+  const result = buffers?.result ?? new Float64Array(values.length);
+  for (let y = minY - 1; y <= maxY + 1; y += 1) result.fill(vectorShore ? Infinity : 0, y * width + minX - 1, y * width + maxX + 2);
+  for (const cell of cells) {
+    // Seed at the actual shore distance. Seeding dry cells at zero instead
+    // turns the shallow basin into terraces aligned with raster rows/columns.
+    const shore = vectorShore && NEIGHBORS.some(([dx, dy]) => !mask[cell + dy * width + dx]);
+    result[cell] = shore ? distance[cell]! * factors[cell]! : Infinity;
   }
   const wx = 1 / spacingX ** 2, wy = 1 / spacingY ** 2;
   for (let iteration = 0; iteration < 8; iteration += 1) {

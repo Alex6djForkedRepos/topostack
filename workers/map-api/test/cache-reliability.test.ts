@@ -1,7 +1,8 @@
 import { terrainPng } from "./terrain-fixture";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { env as workerEnv } from "cloudflare:workers";
 import worker from "../src/index";
+import { resetArchiveHeadCache } from "../src/archive-release";
 
 const env = { ...workerEnv, GEOCODER_API_KEY: "test-provider-key" } as unknown as Env;
 const jobs: Promise<unknown>[] = [];
@@ -9,6 +10,7 @@ const context = { waitUntil: (job: Promise<unknown>) => { jobs.push(job); } } as
 const request = (path: string, init?: RequestInit) => new Request(`https://example.test${path}`, init);
 const png = terrainPng;
 
+beforeEach(() => resetArchiveHeadCache());
 afterEach(async () => {
   await Promise.all(jobs.splice(0));
   vi.unstubAllGlobals(); vi.restoreAllMocks();
@@ -57,7 +59,7 @@ describe("cache failure isolation", () => {
 
   it("revalidates cached terrain and never advertises immutable public URLs", async () => {
     const key = `terrain/${env.DATASET_VERSION}/terrarium/1/0/0.png`;
-    const stored = await env.MAP_CACHE.put(key, png.slice(), { httpMetadata: { contentType: "image/png" } });
+    const stored = await env.MAP_CACHE.put(key, png.slice(), { httpMetadata: { contentType: "image/png" }, customMetadata: { terrainValidation: "png-v1", provenance: "v2" } });
     const upstream = vi.fn(); vi.stubGlobal("fetch", upstream);
     const response = await worker.fetch(request("/v1/terrain/1/0/0.png", { headers: { "if-none-match": stored!.httpEtag } }), env, context);
     expect(response.status).toBe(304);

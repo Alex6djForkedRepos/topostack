@@ -1,22 +1,21 @@
 /** Manual integration check against a local Vite app + Worker with development R2. */
 import assert from "node:assert/strict";
-import { mkdir, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { chromium } from "@playwright/test";
+import { artifactDirectory, openBrowserCheck } from "./lib/browser-check.mjs";
 import { unzipSync } from "fflate";
 
 const baseURL = process.env.NOAA_TEST_APP_URL ?? "http://localhost:5293";
 if (!["localhost", "127.0.0.1"].includes(new URL(baseURL).hostname)) throw new Error("Use a local Vite app for this development-data check.");
 const coreUrl = `/@fs${fileURLToPath(new URL("../packages/core/src/index.ts", import.meta.url))}`;
-const artifacts = process.env.NOAA_TEST_OUTPUT ?? "/tmp/topostack-noaa-validation";
-await mkdir(artifacts, { recursive: true });
-const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
-page.setDefaultTimeout(120_000);
-const errors = [];
-page.on("pageerror", (error) => errors.push(error.message));
+const { page, errors, output: artifacts, run } = await openBrowserCheck({
+  output: artifactDirectory(process.env.NOAA_TEST_OUTPUT, "noaa-validation"),
+  pageOptions: { viewport: { width: 1440, height: 1000 } },
+  defaultTimeout: 120_000,
+  failureReport: true,
+});
 const reports = [];
-try {
+await run(async () => {
   await page.goto(`${baseURL}/studio`, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: "Build the landscape." }).waitFor();
   for (const [name, hylakId, lon, lat] of [
@@ -92,10 +91,4 @@ try {
   assert.deepEqual(errors, [], "Browser errors");
   await writeFile(`${artifacts}/report.json`, JSON.stringify(reports, null, 2) + "\n");
   console.log(`NOAA live checks passed. Artifacts: ${artifacts}`);
-} catch (error) {
-  await page.screenshot({ path: `${artifacts}/failure.png`, fullPage: true }).catch(() => {});
-  await writeFile(`${artifacts}/failure.txt`, `${error.stack}\nBrowser errors: ${JSON.stringify(errors)}\n${await page.locator("body").innerText().catch(() => "")}`);
-  throw error;
-} finally {
-  await browser.close();
-}
+});

@@ -1,14 +1,16 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { base } from "$app/paths";
-  import { indexLakeDirectory, lakeStudioLink, searchLakes, type IndexedLake, type LakeDirectory } from "../lib/lake-directory";
-  import { uniqueLocationLakes, uniqueOtherPlaces } from "../lib/location-results";
+  import { lakeStudioLink, searchLakes, type IndexedLake } from "../lib/lake-directory";
+  import { uniqueOtherPlaces } from "../lib/location-results";
   import { lakeLocationFromSearch } from "../lib/lake-location";
   import { LocateFixed, Map as MapIcon, Mountain, Search } from "@lucide/svelte";
   import { Button, Field, IconButton, Input } from "@loidolt/theme-svelte";
   import NumberField from "./StudioNumberField.svelte";
   import type { ProjectConfigV1 } from "@topostack/core";
   import { searchPlaces, type PlaceResult } from "../data-provider";
+  import { clampLatitude, clampLongitude, isSupportedCoordinate, MAX_LATITUDE, MAX_LONGITUDE } from "../coordinates";
+  import { loadLocationLakes } from "./lake-directory-cache";
 
   let { project, presets, onChoose, onCoordinates, onClose }: { project: ProjectConfigV1; presets: PlaceResult[]; onChoose: (place: PlaceResult) => void; onCoordinates: (lat: number, lon: number) => void; onClose: () => void } = $props();
   let query = $state("");
@@ -29,22 +31,17 @@
   const lakePageCount = $derived(Math.max(1, Math.ceil(matchedLakes.length / lakePageSize)));
   const currentLakePage = $derived(Math.min(lakePage, lakePageCount));
   const shownLakes = $derived(matchedLakes.slice((currentLakePage - 1) * lakePageSize, currentLakePage * lakePageSize));
-  let directoryController: AbortController | undefined;
+  let lakeRequest = 0;
 
   async function loadLakes(): Promise<void> {
-    directoryController?.abort();
-    const controller = new AbortController();
-    directoryController = controller;
+    // The shared directory load keeps running after close so the next open reuses it.
+    const request = ++lakeRequest;
     lakesLoading = true; lakesFailed = false;
     try {
-      const response = await fetch(`${base}/data/lake-depth-directory.json`, { signal: controller.signal });
-      if (!response.ok) throw new Error("Lake directory unavailable");
-      const data = await response.json() as LakeDirectory;
-      if (data.schemaVersion !== 1 || !Array.isArray(data.lakes) || !Array.isArray(data.sources)) throw new Error("Invalid lake directory");
-      const indexed = uniqueLocationLakes(indexLakeDirectory(data));
-      if (!controller.signal.aborted) lakes = indexed;
-    } catch { if (!controller.signal.aborted) lakesFailed = true; }
-    finally { if (!controller.signal.aborted) lakesLoading = false; }
+      const indexed = await loadLocationLakes();
+      if (request === lakeRequest) lakes = indexed;
+    } catch { if (request === lakeRequest) lakesFailed = true; }
+    finally { if (request === lakeRequest) lakesLoading = false; }
   }
 
   function chooseLake(lake: IndexedLake): void {
@@ -64,7 +61,7 @@
   onMount(() => {
     dialog.showModal();
     void loadLakes();
-    return () => { locationRequest++; directoryController?.abort(); if (dialog.open) dialog.close(); };
+    return () => { locationRequest++; lakeRequest++; if (dialog.open) dialog.close(); };
   });
 
   function closeFromBackdrop(event: MouseEvent): void {
@@ -85,8 +82,7 @@
     navigator.geolocation.getCurrentPosition(({ coords }) => {
       if (!isCurrent()) return;
       locating = false;
-      if (!Number.isFinite(coords.latitude) || !Number.isFinite(coords.longitude)
-        || Math.abs(coords.latitude) > 85.0511 || Math.abs(coords.longitude) > 180) {
+      if (!isSupportedCoordinate(coords.latitude, coords.longitude)) {
         locationError = "Your location is outside the supported map area. Enter coordinates instead.";
         return;
       }
@@ -103,11 +99,17 @@
     }, { timeout: 10000, maximumAge: 60000 });
   }
 
+  /** Typing supersedes a pending current-location request without moving the map yet. */
+  function cancelLocationRequest(): void {
+    locationRequest++; locating = false; locationError = "";
+  }
+
+  /** Coordinates commit on change (blur, Enter, or a stepper), never per keystroke. */
   function commitCoordinate(value: number, axis: "lat" | "lon"): void {
     if (!Number.isFinite(value)) return;
-    locationRequest++; locating = false; locationError = "";
-    if (axis === "lat") onCoordinates(Math.max(-85.0511, Math.min(85.0511, value)), project.location.lon);
-    else onCoordinates(project.location.lat, Math.max(-180, Math.min(180, value)));
+    cancelLocationRequest();
+    if (axis === "lat") onCoordinates(clampLatitude(value), project.location.lon);
+    else onCoordinates(project.location.lat, clampLongitude(value));
   }
 
   $effect(() => {
@@ -132,8 +134,8 @@
   <div class="ldt-dialog__body">
     <label class="search-input"><Search size={19} /><Input autofocus aria-label="Search places" bind:value={query} oninput={() => lakePage = 1} placeholder="Lake, place or survey ID" boxed /></label>
     <div class="coordinate-row">
-      <Field label="Latitude">{#snippet children({ id })}<NumberField {id} label="Latitude" min={-85.0511} max={85.0511} step={0.0001} value={project.location.lat} boxed oninput={(event) => event.currentTarget.value !== "" && commitCoordinate(event.currentTarget.valueAsNumber, "lat")} onValueChange={(value) => commitCoordinate(value, "lat")} />{/snippet}</Field>
-      <Field label="Longitude">{#snippet children({ id })}<NumberField {id} label="Longitude" min={-180} max={180} step={0.0001} value={project.location.lon} boxed oninput={(event) => event.currentTarget.value !== "" && commitCoordinate(event.currentTarget.valueAsNumber, "lon")} onValueChange={(value) => commitCoordinate(value, "lon")} />{/snippet}</Field>
+      <Field label="Latitude">{#snippet children({ id })}<NumberField {id} label="Latitude" min={-MAX_LATITUDE} max={MAX_LATITUDE} step={0.0001} value={project.location.lat} boxed oninput={cancelLocationRequest} onValueChange={(value) => commitCoordinate(value, "lat")} />{/snippet}</Field>
+      <Field label="Longitude">{#snippet children({ id })}<NumberField {id} label="Longitude" min={-MAX_LONGITUDE} max={MAX_LONGITUDE} step={0.0001} value={project.location.lon} boxed oninput={cancelLocationRequest} onValueChange={(value) => commitCoordinate(value, "lon")} />{/snippet}</Field>
       <IconButton label={locating ? "Locating…" : "Use current location"} title={locating ? "Finding your current location…" : "Use current location"} disabled={locating} onclick={useCurrentLocation}><LocateFixed size={18} /></IconButton>
       <Button onclick={() => dialog.close()}>Use coordinates</Button>
     </div>

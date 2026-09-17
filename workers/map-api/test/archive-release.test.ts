@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { env as workerEnv } from "cloudflare:workers";
 import worker from "../src/index";
-import { archiveHead } from "../src/archive-release";
+import { archiveHead, resetArchiveHeadCache } from "../src/archive-release";
 
 const logicalKey = "osm/current.pmtiles", pointerKey = `releases/${logicalKey}.json`;
 const digest = "a".repeat(64), objectKey = `archives/${digest}/12345678-1234-1234-1234-123456789abc.pmtiles`;
@@ -14,6 +14,7 @@ async function seed() {
   await env.VECTOR_DATA.put(pointerKey, JSON.stringify(release));
   return release;
 }
+beforeEach(() => resetArchiveHeadCache());
 afterEach(async () => { await env.VECTOR_DATA.delete(pointerKey); vi.restoreAllMocks(); });
 
 describe("verified archive releases", () => {

@@ -18,3 +18,9 @@ test-results-live/
 *.provisioning.json
 apps/generator/topostack-atomm.release.json
 __pycache__/
+.venv-data/
+# Local operational receipts (e.g. R2 lifecycle rollback backups).
+.topostack/
+
+.terrain-venv/
+.terrain-receipts/

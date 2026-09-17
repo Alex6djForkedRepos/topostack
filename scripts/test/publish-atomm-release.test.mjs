@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test from "node:test";
-import { validatePackage, validateRun } from "../publish-atomm-release.mjs";
+import { publishRelease, validatePackage, validateRun } from "../publish-atomm-release.mjs";
 
 const commit = "a".repeat(40);
 const repository = "Echo-Foxtrot-Works/topostack";
@@ -35,4 +35,53 @@ test("rejects missing versions and tags that do not match the packaged version",
   for (const patch of [{ version: undefined }, { atommVersion: undefined }, { atommVersion: "01.2.0" }]) {
     assert.throws(() => validatePackage({ ...receipt, ...patch }, archive, checksum, commit, "atomm-v0.2.0"));
   }
+});
+
+function fakeGh({ tagSha, release }) {
+  const calls = [];
+  const notFound = (message) => Object.assign(new Error("Command failed"), { stderr: message });
+  const gh = (...args) => {
+    calls.push(args);
+    const [command, sub] = args;
+    if (command === "api" && sub.includes("/git/ref/tags/")) {
+      if (!tagSha) throw notFound("gh: Not Found (HTTP 404)");
+      return JSON.stringify({ object: { type: "commit", sha: tagSha } });
+    }
+    if (command === "release" && sub === "view" && args.includes("isDraft")) {
+      if (!release) throw notFound("release not found");
+      return JSON.stringify(release);
+    }
+    if (command === "release" && sub === "view") return "https://example.invalid/release\n";
+    return "";
+  };
+  return { gh, calls };
+}
+
+const publishOptions = { repository, tag: "atomm-v0.2.0", sha: commit, assets: ["a.zip"], title: "T", notesFile: "notes.md", prerelease: false };
+const verbs = (calls) => calls.map(([command, sub, ...rest]) => command === "api" ? (rest.includes("POST") ? "api:create-ref" : "api:get-ref") : `release:${sub}${rest.includes("--draft=false") ? ":publish" : ""}`);
+
+test("publishes a fresh tag through a draft release", () => {
+  const { gh, calls } = fakeGh({});
+  assert.equal(publishRelease({ gh, ...publishOptions }), "https://example.invalid/release");
+  assert.deepEqual(verbs(calls), ["api:get-ref", "api:create-ref", "release:view", "release:create", "release:edit:publish", "release:view"]);
+});
+
+test("rerun reuses a matching tag and resumes an existing draft", () => {
+  const { gh, calls } = fakeGh({ tagSha: commit, release: { isDraft: true } });
+  publishRelease({ gh, ...publishOptions });
+  assert.deepEqual(verbs(calls), ["api:get-ref", "release:view", "release:upload", "release:edit", "release:edit:publish", "release:view"]);
+  assert.ok(calls.find(([, sub]) => sub === "upload").includes("--clobber"));
+});
+
+test("rerun after tag creation alone creates the draft without recreating the tag", () => {
+  const { gh, calls } = fakeGh({ tagSha: commit });
+  publishRelease({ gh, ...publishOptions });
+  assert.deepEqual(verbs(calls), ["api:get-ref", "release:view", "release:create", "release:edit:publish", "release:view"]);
+});
+
+test("refuses moved tags, published releases, and unexpected lookup failures", () => {
+  assert.throws(() => publishRelease({ gh: fakeGh({ tagSha: "b".repeat(40) }).gh, ...publishOptions }), /different commit/);
+  assert.throws(() => publishRelease({ gh: fakeGh({ tagSha: commit, release: { isDraft: false } }).gh, ...publishOptions }), /already published/);
+  const failing = () => { throw Object.assign(new Error("Command failed"), { stderr: "HTTP 500" }); };
+  assert.throws(() => publishRelease({ gh: failing, ...publishOptions }), /Command failed/);
 });

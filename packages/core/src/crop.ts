@@ -1,6 +1,14 @@
 import { clamp, pointAt } from "./geometry2d.js";
 import type { ElevationGrid, Point2D, ProjectConfigV1 } from "./types.js";
 
+/** Vertices approximating a circular crop; see `cropBoundary`. */
+export const CIRCLE_CROP_SEGMENTS = 96;
+
+/** A circular crop is inscribed in the artwork, so its radius follows the shorter side. */
+export function cropRadiusMm(config: Pick<ProjectConfigV1, "widthMm" | "heightMm">): number {
+  return Math.min(config.widthMm, config.heightMm) / 2;
+}
+
 export function cropBoundary(config: ProjectConfigV1): Point2D[] {
   const w = config.widthMm / 2;
   const h = config.heightMm / 2;
@@ -14,9 +22,9 @@ export function cropBoundary(config: ProjectConfigV1): Point2D[] {
     ];
   }
 
-  const radius = Math.min(w, h);
-  const points = Array.from({ length: 96 }, (_, index) => {
-    const angle = (index / 96) * Math.PI * 2;
+  const radius = cropRadiusMm(config);
+  const points = Array.from({ length: CIRCLE_CROP_SEGMENTS }, (_, index) => {
+    const angle = (index / CIRCLE_CROP_SEGMENTS) * Math.PI * 2;
     return { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius };
   });
   // sin/cos of 2π are not exactly 0, so close with a copy of the first point
@@ -31,7 +39,7 @@ export function cropElevationRange(config: ProjectConfigV1, grid: ElevationGrid,
   let waterCells = 0;
   let visibleMin = Number.POSITIVE_INFINITY;
   let visibleMax = Number.NEGATIVE_INFINITY;
-  const radius = Math.min(config.widthMm, config.heightMm) / 2;
+  const radius = cropRadiusMm(config);
   for (let index = 0; index < grid.values.length; index += 1) {
     const x = ((index % grid.width) / (grid.width - 1) - 0.5) * config.widthMm;
     const y = (Math.floor(index / grid.width) / (grid.height - 1) - 0.5) * config.heightMm;

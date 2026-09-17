@@ -2,6 +2,7 @@ import { mapTiles } from "./tile-requests";
 import type { ElevationGrid, GeoBounds, ProjectConfigV1, SourceAttribution, SourceBundleV1, WaterAreaV1 } from "@topostack/core";
 import { createArchive } from "./archive";
 import { decodeTerrainPng } from "./terrain-png";
+import { latToWorldY, lonToWorldX } from "./tile-math";
 import rawSurveyCatalog from "../../../scripts/data/lake-bathymetry.json";
 import { validateSurveyCatalog, type SurveySource } from "../../../packages/core/src/source-catalog";
 import catalog from "../../../scripts/data/noaa-great-lakes.json";
@@ -21,8 +22,8 @@ export function hasNoaaCoverage(area: WaterAreaV1): boolean {
     ? names.has(area.name?.trim().toLowerCase() ?? "")
     : lakeIds.has(area.hylakId)));
 }
-const worldX = (lon: number, z: number) => (lon + 180) / 360 * 256 * 2 ** z;
-const worldY = (lat: number, z: number) => (1 - Math.asinh(Math.tan(lat * Math.PI / 180)) / Math.PI) / 2 * 256 * 2 ** z;
+const worldX = lonToWorldX;
+const worldY = latToWorldY;
 
 /** Interpolate only covered samples; a transparent neighbor never becomes a zero-depth shore. */
 export function sampleDepth(sample: (x: number, y: number) => number, x: number, y: number, min = 0, max = 1500): number {
@@ -89,7 +90,8 @@ async function loadRaster(apiBase: string, bounds: GeoBounds, width: number, hei
       }
     }
     if (!covered) return { areas, status: "not-covered" };
-    const bathymetry = { width, height, depthsM };
+    const sampleSpacingM = 2 * Math.PI * 6_371_008.8 * Math.cos((bounds.north + bounds.south) / 2 * Math.PI / 180) / (256 * 2 ** z);
+    const bathymetry = { width, height, depthsM, sampleSpacingM };
     return { areas: areas.map((area) => ({ ...area, bathymetry })), status: "available" };
   } catch (error) {
     if (signal?.aborted) throw error;
@@ -121,6 +123,32 @@ function insideRing(x: number, y: number, ring: WaterAreaV1["polygon"]["outer"])
   return inside;
 }
 
+/**
+ * Grid rows and columns that can fall inside a ring, from its bounding box in
+ * the same millimetre space as the per-pixel test. The range is widened by one
+ * pixel and a small epsilon, so every pixel that `insideRing` would accept is
+ * still visited and tested exactly.
+ */
+export function pixelBox(ring: WaterAreaV1["polygon"]["outer"], grid: Pick<ElevationGrid, "width" | "height">, dimensions: Pick<ProjectConfigV1, "widthMm" | "heightMm">): { rowStart: number; rowEnd: number; colStart: number; colEnd: number } {
+  const full = { rowStart: 0, rowEnd: grid.height - 1, colStart: 0, colEnd: grid.width - 1 };
+  if (!ring.length) return { rowStart: 0, rowEnd: -1, colStart: 0, colEnd: -1 };
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const point of ring) {
+    if (point.x < minX) minX = point.x;
+    if (point.x > maxX) maxX = point.x;
+    if (point.y < minY) minY = point.y;
+    if (point.y > maxY) maxY = point.y;
+  }
+  const toIndex = (value: number, sizeMm: number, count: number) => (value / sizeMm + 0.5) * (count - 1);
+  const pad = 1e-6 * Math.max(1, Math.abs(minX), Math.abs(maxX), Math.abs(minY), Math.abs(maxY));
+  const colStart = Math.floor(toIndex(minX - pad, dimensions.widthMm, grid.width)) - 1;
+  const colEnd = Math.ceil(toIndex(maxX + pad, dimensions.widthMm, grid.width)) + 1;
+  const rowStart = Math.floor(toIndex(minY - pad, dimensions.heightMm, grid.height)) - 1;
+  const rowEnd = Math.ceil(toIndex(maxY + pad, dimensions.heightMm, grid.height)) + 1;
+  if (![colStart, colEnd, rowStart, rowEnd].every(Number.isFinite) || dimensions.widthMm <= 0 || dimensions.heightMm <= 0) return full;
+  return { rowStart: Math.max(0, rowStart), rowEnd: Math.min(full.rowEnd, rowEnd), colStart: Math.max(0, colStart), colEnd: Math.min(full.colEnd, colEnd) };
+}
+
 export interface SurveyResult {
   areas: WaterAreaV1[];
   status: "available" | "partial" | "unavailable" | "not-covered";
@@ -148,11 +176,16 @@ export async function loadLakeBathymetry(apiBase: string, bounds: GeoBounds, gri
         const values = area.bathymetry!.depthsM;
         const previous = merged.find((item) => item.id === area.id)!;
         // Ignore samples outside this lake, including islands and neighboring lakes.
-        const samples = Float32Array.from(previous.bathymetry?.depthsM ?? new Float32Array(values.length).fill(Number.NaN));
+        // `merged` dropped every incoming bathymetry above, so an existing grid
+        // was allocated by an earlier provider in this call and can be filled in
+        // place. A grid-sized array is only allocated once a lake has a sample:
+        // most lakes in a wide selection have no survey coverage at all.
+        let samples = previous.bathymetry?.depthsM;
         let count = 0;
-        for (let row = 0; row < grid.height; row += 1) {
+        const box = dimensions ? pixelBox(area.polygon.outer, grid, dimensions) : { rowStart: 0, rowEnd: grid.height - 1, colStart: 0, colEnd: grid.width - 1 };
+        for (let row = box.rowStart; row <= box.rowEnd; row += 1) {
           signal?.throwIfAborted();
-          for (let col = 0; col < grid.width; col += 1) {
+          for (let col = box.colStart; col <= box.colEnd; col += 1) {
             const index = row * grid.width + col;
             if (!Number.isFinite(values[index])) continue;
             if (dimensions) {
@@ -163,12 +196,13 @@ export async function loadLakeBathymetry(apiBase: string, bounds: GeoBounds, gri
             const depth = dataset.encoding === "elevation-terrarium-v1" ? area.surfaceElevationM! - values[index]! : values[index]!;
             if (depth < 0 || depth > 1500) continue;
             // First provider wins; later providers only fill gaps.
+            samples ??= new Float32Array(values.length).fill(Number.NaN);
             if (!Number.isFinite(samples[index])) { samples[index] = depth; count += 1; }
           }
         }
-        if (count) {
+        if (count && samples) {
           used = true;
-          merged = merged.map((item) => item.id === area.id ? { ...item, bathymetry: { width: grid.width, height: grid.height, depthsM: samples } } : item);
+          merged = merged.map((item) => item.id === area.id ? { ...item, bathymetry: { width: grid.width, height: grid.height, depthsM: samples, sampleSpacingM: Math.max(previous.bathymetry?.sampleSpacingM ?? 0, area.bathymetry!.sampleSpacingM ?? 0) } } : item);
         }
       }
     }

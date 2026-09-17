@@ -1,4 +1,6 @@
-import { readFile, readdir, stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
+import { isForbiddenApiHost } from "./lib/api-host.mjs";
+import { filesBelow } from "./lib/files.mjs";
 
 // `--skip-endpoint-scan` is used only by the CI validate job, whose build
 // intentionally embeds the hermetic `https://ci.invalid` sentinel so tests
@@ -19,27 +21,10 @@ if (headers.includes("__TOPOSTACK_SCRIPT_HASHES__") || /script-src[^;]*unsafe-in
 if (!studio.includes("https://static-res.makextool.com/scripts/js/generator-sdk/platform-sdk.js")) throw new Error("Atomm SDK is missing from the terrain studio.");
 if (!index.includes("https://static-res.makextool.com/scripts/js/generator-sdk/platform-sdk.js") && !/href=["'][^"']*studio["']/.test(index)) throw new Error("The homepage does not link to the terrain studio.");
 const distDirectory = new URL("../apps/generator/dist/", import.meta.url);
-async function filesBelow(directory) {
-  const entries = await readdir(directory, { withFileTypes: true });
-  return (await Promise.all(entries.map((entry) => {
-    const target = new URL(entry.name + (entry.isDirectory() ? "/" : ""), directory);
-    return entry.isDirectory() ? filesBelow(target) : [target];
-  }))).flat();
-}
 const distFiles = await filesBelow(distDirectory);
 const scripts = distFiles.filter((file) => file.pathname.endsWith(".js"));
 if (!scripts.length) throw new Error("Production artifact contains no JavaScript application files.");
 const searchable = [index, studio, ...await Promise.all(scripts.map((file) => readFile(file, "utf8")))].join("\n");
-
-// Keep the forbidden-host families in sync with scripts/validate-submission-env.mjs.
-function isForbiddenApiHost(hostname) {
-  const host = hostname.toLowerCase();
-  if (host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]") return true;
-  const forbiddenSuffixes = [".localhost", ".invalid", ".test", ".local", ".example", ".workers.dev"];
-  if (forbiddenSuffixes.some((suffix) => host.endsWith(suffix) || host === suffix.slice(1))) return true;
-  if (host.includes("example.")) return true;
-  return false;
-}
 
 if (!skipEndpointScan) {
   const embeddedHosts = [...searchable.matchAll(/https?:\/\/([a-z0-9.-]+)/gi)].map((match) => match[1]);

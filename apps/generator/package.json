@@ -8,8 +8,8 @@
     "build": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && vite build && node ../../scripts/finalize-static-headers.mjs && node ../../scripts/write-build-version.mjs",
     "build:e2e": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && vite build --mode e2e && node ../../scripts/finalize-static-headers.mjs && node ../../scripts/write-build-version.mjs",
     "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "test": "vitest run src --exclude src/app/App.client.test.ts && vitest run --config vitest.client.config.ts",
-    "coverage": "vitest run src --exclude src/app/App.client.test.ts --coverage --coverage.reportsDirectory=coverage/node --coverage.thresholds.statements=60 --coverage.thresholds.branches=55 --coverage.thresholds.functions=65 --coverage.thresholds.lines=65 && vitest run --config vitest.client.config.ts --coverage --coverage.reportsDirectory=coverage/client --coverage.thresholds.statements=60 --coverage.thresholds.branches=40 --coverage.thresholds.functions=65 --coverage.thresholds.lines=50 --testTimeout=20000",
+    "test": "vitest run src --exclude 'src/app/*.client.test.ts' && vitest run --config vitest.client.config.ts",
+    "coverage": "vitest run src --exclude 'src/app/*.client.test.ts' --coverage --coverage.reportsDirectory=coverage/node --coverage.thresholds.statements=60 --coverage.thresholds.branches=55 --coverage.thresholds.functions=65 --coverage.thresholds.lines=65 && vitest run --config vitest.client.config.ts --coverage --coverage.reportsDirectory=coverage/client --coverage.thresholds.statements=60 --coverage.thresholds.branches=40 --coverage.thresholds.functions=65 --coverage.thresholds.lines=50 --testTimeout=20000",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -1,3 +1,4 @@
+import { mercatorWorldY } from "./geometry2d.js";
 import type { GeoBounds, MarkerSymbol, Point2D } from "./types.js";
 
 function circle(center: Point2D, radius: number, steps = 24): Point2D[] {
@@ -67,11 +68,6 @@ export function markerSymbolPaths(symbol: MarkerSymbol, center: Point2D, size: n
     ],
     circle({ x: center.x, y: center.y - radius * 0.3 }, radius * 0.19, 16),
   ];
-}
-
-function mercatorWorldY(latitude: number): number {
-  const radians = Math.max(-85.0511, Math.min(85.0511, latitude)) * Math.PI / 180;
-  return (1 - Math.asinh(Math.tan(radians)) / Math.PI) / 2;
 }
 
 /** Return the longitude equivalent that is closest to the center of an unwrapped map window. */

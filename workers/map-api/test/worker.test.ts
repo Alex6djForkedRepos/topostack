@@ -1,7 +1,10 @@
 import { terrainPng } from "./terrain-fixture";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { env as workerEnv, exports } from "cloudflare:workers";
 import mapWorker, { geocodeLimit, isAllowedOrigin, isGeocoderConfigured, normalizeGeoapify, parseRangeHeader, validTile } from "../src/index";
+import { resetArchiveHeadCache } from "../src/archive-release";
+
+beforeEach(() => resetArchiveHeadCache());
 
 const env = {
   ALLOWED_ORIGINS: "http://localhost:5273,http://127.0.0.1:5273,https://dev-topostack.echofoxtrot.works,https://www.atomm.com",
@@ -120,10 +123,14 @@ describe("map API validation", () => {
     expect(parseRangeHeader("bytes=-500", 100)).toEqual({ kind: "partial", offset: 0, length: 100 });
     expect(parseRangeHeader("bytes=0-999", 100)).toEqual({ kind: "partial", offset: 0, length: 100 });
     expect(parseRangeHeader("bytes=999999999999-", 100)).toEqual({ kind: "unsatisfiable" });
-    expect(parseRangeHeader("bytes=0-1,5-6", 100)).toEqual({ kind: "unsatisfiable" });
     expect(parseRangeHeader("bytes=-0", 100)).toEqual({ kind: "unsatisfiable" });
-    expect(parseRangeHeader("bytes=abc", 100)).toEqual({ kind: "unsatisfiable" });
-    expect(parseRangeHeader("bytes=9-1", 100)).toEqual({ kind: "unsatisfiable" });
+    // Syntax errors are 400s: PMTiles clients read any 416 as an archive change.
+    expect(parseRangeHeader("bytes=0-1,5-6", 100)).toEqual({ kind: "malformed" });
+    expect(parseRangeHeader("bytes=abc", 100)).toEqual({ kind: "malformed" });
+    expect(parseRangeHeader("bytes=-", 100)).toEqual({ kind: "malformed" });
+    expect(parseRangeHeader("items=0-1", 100)).toEqual({ kind: "malformed" });
+    expect(parseRangeHeader("bytes=9-1", 100)).toEqual({ kind: "malformed" });
+    expect(parseRangeHeader("bytes=9-1", 0)).toEqual({ kind: "malformed" });
     expect(parseRangeHeader("bytes=0-16777216", 20_000_000)).toEqual({ kind: "too_large" });
     expect(parseRangeHeader("bytes=0-", 0)).toEqual({ kind: "unsatisfiable" });
   });
@@ -160,7 +167,8 @@ describe("geocoder proxy", () => {
   it("refreshes expired cached results and limits browser freshness to the remaining age", async () => {
     const keyHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${configuredEnv.GEOCODER_ORIGIN}|geoapify-v1|cache age regression|5`));
     const key = `geocode/${Array.from(new Uint8Array(keyHash)).map((byte) => byte.toString(16).padStart(2, "0")).join("")}.json`;
-    await workerEnv.MAP_CACHE.put(key, "[]");
+    const stored = [{ place_id: "cached", display_name: "Cached place", lat: 1, lon: 2 }];
+    await workerEnv.MAP_CACHE.put(key, JSON.stringify(stored));
     const cached = await workerEnv.MAP_CACHE.head(key);
     const clock = vi.spyOn(Date, "now").mockReturnValue(cached!.uploaded.getTime() + 23 * 3600 * 1000);
     const upstream = vi.fn(async () => jsonResponse({ results: [{ formatted: "Fresh place", lat: 42, lon: -122 }] }));
@@ -169,7 +177,7 @@ describe("geocoder proxy", () => {
     const hit = await mapWorker.fetch(request(), configuredEnv, context);
     expect(hit.headers.get("x-topostack-cache")).toBe("HIT");
     expect(hit.headers.get("cache-control")).toBe("public, max-age=3600");
-    expect(await hit.json()).toEqual([]);
+    expect(await hit.json()).toEqual(stored);
     expect(upstream).not.toHaveBeenCalled();
     clock.mockReturnValue(cached!.uploaded.getTime() + 25 * 3600 * 1000);
     const miss = await mapWorker.fetch(request(), configuredEnv, context);
@@ -205,10 +213,11 @@ describe("terrain proxy", () => {
     expect(response.status).toBe(400);
   });
 
-  it("fetches, labels, and stores an uncached terrain tile under the dataset-versioned key", async () => {
+  it.each(["x-imagery-sources", "x-amz-meta-x-imagery-sources"])("fetches and stores uncached terrain with %s provenance", async (imageryHeader) => {
+    await workerEnv.MAP_CACHE.delete(`terrain/${workerEnv.DATASET_VERSION}/terrarium/11/321/702.png`);
     const png = terrainPng;
     const upstream = vi.fn(async (_input: RequestInfo | URL) => new Response(png.slice(), {
-      headers: { "content-type": "image/png", "x-imagery-sources": "mapzen/test-source" },
+      headers: { "content-type": "image/png", [imageryHeader]: "mapzen/test-source" },
     }));
     vi.stubGlobal("fetch", upstream);
     const response = await exports.default.fetch("http://example.com/v1/terrain/11/321/702.png", { headers: origin });
@@ -231,7 +240,7 @@ describe("terrain proxy", () => {
     const bytes = terrainPng;
     await workerEnv.MAP_CACHE.put(`terrain/${workerEnv.DATASET_VERSION}/terrarium/11/321/703.png`, bytes.slice(), {
       httpMetadata: { contentType: "image/png" },
-      customMetadata: { dataset: "mapzen-terrarium+protomaps-legacy", imagerySources: "mapzen/stored-source" },
+      customMetadata: { terrainValidation: "png-v1", provenance: "v2", dataset: "mapzen-terrarium+protomaps-legacy", imagerySources: "mapzen/stored-source" },
     });
     const upstream = vi.fn();
     vi.stubGlobal("fetch", upstream);
@@ -315,19 +324,18 @@ describe("vector archive", () => {
     expect(new Uint8Array(await suffix.arrayBuffer())).toEqual(archive.slice(229));
   });
 
-  it("rejects unsatisfiable and multipart ranges with 416 instead of 500", async () => {
+  it("answers unsatisfiable ranges with 416 but malformed and multipart ranges with 400", async () => {
     await seedArchive();
     const unsatisfiable = await exports.default.fetch("http://example.com/v1/osm.pmtiles", { headers: { ...origin, range: "bytes=999999999999-" } });
     expect(unsatisfiable.status).toBe(416);
     expect(unsatisfiable.headers.get("content-range")).toBe("bytes */256");
 
-    const multipart = await exports.default.fetch("http://example.com/v1/osm.pmtiles", { headers: { ...origin, range: "bytes=0-1,5-6" } });
-    expect(multipart.status).toBe(416);
-    expect(multipart.headers.get("content-range")).toBe("bytes */256");
-
-    const malformed = await exports.default.fetch("http://example.com/v1/osm.pmtiles", { headers: { ...origin, range: "bytes=abc" } });
-    expect(malformed.status).toBe(416);
-    expect(malformed.headers.get("content-range")).toBe("bytes */256");
+    for (const range of ["bytes=0-1,5-6", "bytes=abc", "bytes=9-1"]) {
+      const malformed = await exports.default.fetch("http://example.com/v1/osm.pmtiles", { headers: { ...origin, range } });
+      expect(malformed.status).toBe(400);
+      expect(malformed.headers.has("content-range")).toBe(false);
+      expect(await malformed.json()).toMatchObject({ error: expect.stringContaining("single bytes=start-end range") });
+    }
   });
 });
 
@@ -381,6 +389,8 @@ describe.each(["noaa-great-lakes-v1", "usgs-crater-lake-v1", "usgs-lake-tahoe-v1
     await workerEnv.VECTOR_DATA.delete(key);
     expect((await exports.default.fetch(url, { headers: origin })).status).toBe(404);
     await workerEnv.VECTOR_DATA.put(key, new Uint8Array([1, 2, 3, 4]));
+    // The 404 is memoized briefly; skip that window instead of waiting it out.
+    resetArchiveHeadCache();
     const response = await exports.default.fetch(url, { headers: { ...origin, range: "bytes=1-2" } });
     expect(response.status).toBe(206);
     expect(response.headers.get("content-range")).toBe("bytes 1-2/4");
@@ -389,5 +399,29 @@ describe.each(["noaa-great-lakes-v1", "usgs-crater-lake-v1", "usgs-lake-tahoe-v1
     expect((await exports.default.fetch(url, { headers: origin })).status).toBe(400);
     expect((await exports.default.fetch(url, { method: "HEAD", headers: origin })).headers.get("content-length")).toBe("4");
     await workerEnv.VECTOR_DATA.delete(key);
+  });
+});
+
+describe("optional HRDEM terrain archive", () => {
+  const key = "terrain-sources/nrcan-hrdem-alexander-v1.pmtiles";
+  const url = `http://example.com/v1/${key}`;
+  it("serves bounded archive ranges with strong etags", async () => {
+    await workerEnv.VECTOR_DATA.put(key, new Uint8Array(200));
+    const response = await exports.default.fetch(url, { headers: { range: "bytes=0-126" } });
+    expect(response.status).toBe(206);
+    expect(response.headers.get("content-range")).toBe("bytes 0-126/200");
+    expect(response.headers.get("etag")).toBeTruthy();
+    expect((await response.arrayBuffer()).byteLength).toBe(127);
+    await workerEnv.VECTOR_DATA.delete(key);
+  });
+  it("reports missing archives and rejects unregistered source paths", async () => {
+    await workerEnv.VECTOR_DATA.delete(key);
+    expect((await exports.default.fetch(url)).status).toBe(404);
+    expect((await exports.default.fetch("http://example.com/v1/terrain-sources/unknown-v1.pmtiles")).status).toBe(404);
+  });
+  it("advertises regional HRDEM coverage as optional", async () => {
+    const response = await exports.default.fetch("http://example.com/v1/manifest");
+    const manifest = await response.json() as { sources: unknown[] };
+    expect(manifest.sources).toContainEqual(expect.objectContaining({ id: "nrcan-hrdem-alexander-v1", optional: true, verticalDatum: "CGVD2013" }));
   });
 });

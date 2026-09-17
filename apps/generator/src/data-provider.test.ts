@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createSyntheticSource, DEFAULT_PROJECT, type MarkingFeature } from "@topostack/core";
-import { applyLakeShorelines, boundsForProject, classifyTransportation, cleanBoundaryMarkings, cleanWaterwayMarkings, clipVectorTileLine, combineWaterAreas, dissolveWaterAreas, dissolveWaterPolygons, fittingDataZoom, isStateProvinceBoundary, limitVectorMarkingGroups, loadVectorMarkings, stitchTransportationMarkings, transportationLabel } from "./data-provider";
+import { applyLakeShorelines, boundsForProject, classifyTransportation, cleanBoundaryMarkings, cleanWaterwayMarkings, clipVectorTileLine, combineWaterAreas, dissolveWaterAreas, dissolveWaterPolygons, isStateProvinceBoundary, limitVectorMarkingGroups, loadVectorMarkings, stitchTransportationMarkings, transportationLabel } from "./data-provider";
+import { fittingTileWindow } from "./tile-math";
 
 
 describe("vector feature budgets", () => {
@@ -302,13 +303,13 @@ describe("vector marking zoom", () => {
   });
 
   it("bounds work for a near-world selection imported at maximum zoom", () => {
-    expect(fittingDataZoom({ west: -180, east: 180, south: -85, north: 85 }, 15)).toBeLessThanOrEqual(2);
+    expect(fittingTileWindow({ west: -180, east: 180, south: -85, north: 85 }, 15).zoom).toBeLessThanOrEqual(2);
   });
 
   it("reduces oversized statewide requests to a bounded tile window", () => {
     const colorado = { west: -109.06, east: -102.04, south: 36.99, north: 41.01 };
-    expect(fittingDataZoom(colorado, 11)).toBeLessThan(11);
-    expect(fittingDataZoom(boundsForProject(DEFAULT_PROJECT), 11)).toBe(11);
+    expect(fittingTileWindow(colorado, 11).zoom).toBeLessThan(11);
+    expect(fittingTileWindow(boundsForProject(DEFAULT_PROJECT), 11).zoom).toBe(11);
   });
 });
 

@@ -33,6 +33,50 @@ export function validatePackage(receipt, archive, checksum, commit, tag) {
   return digest;
 }
 
+const isNotFound = (error) => /HTTP 404|Not Found|release not found/i.test(`${error?.message ?? ""}\n${error?.stderr ?? ""}`);
+
+/**
+ * Creates the tag and a draft release, uploads assets, then publishes. Safe to
+ * rerun after a partial failure: an existing tag is reused only when it already
+ * points at the verified commit, and an existing draft is updated in place. A
+ * moved tag or an already-published release is always refused.
+ * `gh(...args)` runs the GitHub CLI and returns stdout, throwing on failure.
+ */
+export function publishRelease({ gh, repository, tag, sha, assets, title, notesFile, prerelease }) {
+  let ref = null;
+  try {
+    ref = JSON.parse(gh("api", `repos/${repository}/git/ref/tags/${tag}`));
+  } catch (error) {
+    if (!isNotFound(error)) throw error;
+  }
+  if (ref) {
+    assert.ok(ref.object?.type === "commit" && ref.object.sha === sha,
+      `Tag ${tag} already exists at a different commit; never move a release tag`);
+  } else {
+    // Ref creation is atomic: a concurrent run creating the same tag fails here.
+    gh("api", `repos/${repository}/git/refs`, "--method", "POST", "-f", `ref=refs/tags/${tag}`, "-f", `sha=${sha}`);
+  }
+  let release = null;
+  try {
+    release = JSON.parse(gh("release", "view", tag, "--repo", repository, "--json", "isDraft"));
+  } catch (error) {
+    if (!isNotFound(error)) throw error;
+  }
+  assert.ok(!release || release.isDraft, `Release ${tag} is already published`);
+  const flags = prerelease ? ["--prerelease"] : [];
+  if (release) {
+    // Resume a draft left by an interrupted run with the freshly verified files.
+    gh("release", "upload", tag, ...assets, "--repo", repository, "--clobber");
+    gh("release", "edit", tag, "--repo", repository, "--title", title, "--notes-file", notesFile, ...flags);
+  } else {
+    // Stage all files on a draft before publishing, including for immutable releases.
+    gh("release", "create", tag, ...assets, "--repo", repository,
+      "--verify-tag", "--draft", "--title", title, "--notes-file", notesFile, ...flags);
+  }
+  gh("release", "edit", tag, "--repo", repository, "--draft=false", `--latest=${!prerelease}`, ...flags);
+  return gh("release", "view", tag, "--repo", repository, "--json", "url", "--jq", ".url").trim();
+}
+
 async function main() {
   const repository = process.env.GITHUB_REPOSITORY;
   const runId = process.env.ATOMM_CI_RUN_ID;
@@ -40,7 +84,7 @@ async function main() {
   assert.match(repository ?? "", /^[\w.-]+\/[\w.-]+$/);
   assert.match(runId ?? "", /^\d+$/);
   assert.match(tag ?? "", /^atomm-v\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/, "Use a version such as atomm-v0.1.0");
-  const gh = (...args) => execFileSync("gh", args, { encoding: "utf8", maxBuffer: 10 * 1024 * 1024 });
+  const gh = (...args) => execFileSync("gh", args, { encoding: "utf8", maxBuffer: 10 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
   const api = (...args) => JSON.parse(gh("api", ...args));
   const run = api(`repos/${repository}/actions/runs/${runId}`);
   validateRun(run, repository);
@@ -64,8 +108,6 @@ async function main() {
   console.log(`Verified ${tag}: ${run.head_sha}, SHA-256 ${digest}`);
   if (process.argv.includes("--dry-run")) return;
 
-  // Ref creation is atomic: never silently reuse or move an existing version tag.
-  api(`repos/${repository}/git/refs`, "--method", "POST", "-f", `ref=refs/tags/${tag}`, "-f", `sha=${run.head_sha}`);
   const notes = join(directory, "release-notes.md");
   await writeFile(notes, `Upload **topostack-atomm.zip** to the Atomm developer console. GitHub's automatic Source code archives are not the upload package.\n\n` +
     `- **topostack-atomm.zip** — static generator, opening directly in the terrain studio.\n` +
@@ -76,12 +118,8 @@ async function main() {
     `Main codebase: **${receipt.version}**. Atomm package: **${receipt.atommVersion}**.\n\n` +
     `ZIP SHA-256: \`${digest}\`\n\nAtomm host review and physical fabrication acceptance are separate from automated CI.\n`);
   const prerelease = tag.slice("atomm-v".length).includes("-");
-  const flags = prerelease ? ["--prerelease"] : [];
-  // Stage all files on a draft before publishing, including for immutable releases.
-  gh("release", "create", tag, code, checksum, receiptPath, listing, "--repo", repository,
-    "--verify-tag", "--draft", "--title", `TopoStack ${tag.slice("atomm-".length)} for Atomm`, "--notes-file", notes, ...flags);
-  gh("release", "edit", tag, "--repo", repository, "--draft=false", `--latest=${!prerelease}`, ...flags);
-  console.log(gh("release", "view", tag, "--repo", repository, "--json", "url", "--jq", ".url").trim());
+  console.log(publishRelease({ gh, repository, tag, sha: run.head_sha, assets: [code, checksum, receiptPath, listing],
+    title: `TopoStack ${tag.slice("atomm-".length)} for Atomm`, notesFile: notes, prerelease }));
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();

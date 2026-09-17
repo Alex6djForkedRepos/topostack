@@ -79,13 +79,31 @@ describe("NOAA lake-floor carving", () => {
     expect(result.grid.min).toBeLessThan(180);
   });
 
-  it("rejects mismatched dimensions and invalid depths", () => {
+  it("models a lake whose survey grid is misaligned instead of failing the map", () => {
     const area = lake();
     area.bathymetry!.width = 6;
-    expect(() => carveWaterDepth(grid, config, [area], 5000)).toThrow(/dimensions/);
-    area.bathymetry!.width = 5;
+    const other = { ...lake(), id: "other", polygon: { outer: ring(-45, -42), holes: [] }, bathymetry: undefined };
+    const result = carveWaterDepth(grid, config, [area, other], 5000);
+    expect(result.surfaces[0]).toMatchObject({ id: "erie", depthSource: "modeled", surfaceElevationM: 180 });
+    expect(result.grid.min).toBeLessThan(180);
+    expect(result.warnings.filter((warning) => warning.code === "BATHYMETRY_FALLBACK")).toHaveLength(1);
+    const source = { ...createSyntheticSource(config, 5), sourceKind: "real" as const, elevation: grid, waterAreas: [area] };
+    expect(generateGeometry(config, source).warnings.some((warning) => warning.code === "BATHYMETRY_FALLBACK")).toBe(true);
+  });
+
+  it("rejects invalid depths", () => {
+    const area = lake();
     area.bathymetry!.depthsM[12] = -100;
     expect(() => carveWaterDepth(grid, config, [area], 5000)).toThrow(/invalid depth/);
+  });
+
+  it("reads each waterline from the original terrain when water areas overlap", () => {
+    const flat = { width: 9, height: 9, values: new Float32Array(81).fill(180), min: 180, max: 180 };
+    const first: WaterAreaV1 = { id: "first", kind: "lake", maxDepthM: 60, polygon: { outer: ring(-45, 20), holes: [] } };
+    const second: WaterAreaV1 = { id: "second", kind: "lake", maxDepthM: 30, polygon: { outer: ring(-20, 45), holes: [] } };
+    const result = carveWaterDepth(flat, config, [first, second], 5000);
+    expect(result.surfaces.map((surface) => [surface.id, surface.surfaceElevationM, surface.depthSource])).toEqual([["first", 180, "modeled"], ["second", 180, "modeled"]]);
+    expect(result.surfaces[1]!.bedElevationM).toBeLessThan(180);
   });
 
   it("does not carve disabled depth and carries archive failure into export warnings", () => {

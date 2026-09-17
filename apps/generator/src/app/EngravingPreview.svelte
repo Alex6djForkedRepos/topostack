@@ -1,6 +1,7 @@
 <script lang="ts">
   import SvgViewport from "./SvgViewport.svelte";
-  import { labelPathData, waterPatternStrokes, type GeometryIRV1, type OperationPath, type Point2D, type ProjectConfigV1 } from "@topostack/core";
+  import { cropRadiusMm, labelPathData, waterPatternStrokes, type GeometryIRV1, type Point2D, type ProjectConfigV1 } from "@topostack/core";
+  import { markingDash, markingWidth } from "./marking-style";
 
   let { geometry, project }: { geometry: GeometryIRV1; project: ProjectConfigV1 } = $props();
   const contourLayers = $derived(geometry.layers.slice(1));
@@ -10,7 +11,7 @@
   function onBoundary(start: Point2D, end: Point2D): boolean {
     const epsilon = 0.02;
     if (project.cropShape === "circle") {
-      const radius = project.widthMm / 2;
+      const radius = cropRadiusMm(project);
       return Math.abs(Math.hypot(start.x, start.y) - radius) <= epsilon &&
         Math.abs(Math.hypot(end.x, end.y) - radius) <= epsilon;
     }
@@ -39,35 +40,13 @@
   function linePath(points: Point2D[]): string {
     return points.map((point, index) => `${index === 0 ? "M" : "L"}${point.x} ${point.y}`).join(" ");
   }
-
-  function markingWidth(marking: OperationPath): number {
-    if (marking.transportationClass === "major-road") return geometry.lineStyle.majorRoadMm;
-    if (marking.transportationClass === "local-road") return geometry.lineStyle.localRoadMm;
-    if (marking.transportationClass === "trail") return geometry.lineStyle.trailMm;
-    if (marking.kind === "water") return geometry.lineStyle.waterMm;
-    if (marking.kind === "boundary") return geometry.lineStyle.boundaryMm;
-    if (marking.kind === "grid") return geometry.lineStyle.coordinateGridMm;
-    return geometry.lineStyle.annotationMm;
-  }
-
-  function trailDash(): string | undefined {
-    const { trailMm, trailPattern } = geometry.lineStyle;
-    if (trailPattern === "solid") return undefined;
-    return trailPattern === "dotted" ? `0.01 ${Math.max(trailMm * 4, 0.7)}` : `${Math.max(trailMm * 6, 1.2)} ${Math.max(trailMm * 4, 0.8)}`;
-  }
-
-  function markingDash(marking: OperationPath): string | undefined {
-    if (marking.kind === "boundary") return `${Math.max(geometry.lineStyle.boundaryMm * 8, 1.6)} ${Math.max(geometry.lineStyle.boundaryMm * 5, 1)}`;
-    if (marking.kind === "grid") return `0.01 ${Math.max(geometry.lineStyle.coordinateGridMm * 5, 0.9)}`;
-    return marking.transportationClass === "trail" ? trailDash() : undefined;
-  }
 </script>
 
 <div class="engraving-stage">
   <SvgViewport widthMm={geometry.widthMm} heightMm={geometry.heightMm} label="engraving" svgLabel="Flat engraving preview" controlsLabel="Engraving zoom controls" resetLabel="Reset engraving view">
     <defs><filter id="engraving-shadow"><feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.2" /></filter></defs>
     {#if project.cropShape === "circle"}
-      <circle cx="0" cy="0" r={project.widthMm / 2} class="engraving-surface" data-preview-shadow filter="url(#engraving-shadow)" />
+      <circle cx="0" cy="0" r={cropRadiusMm(project)} class="engraving-surface" data-preview-shadow filter="url(#engraving-shadow)" />
     {:else}
       <rect x={-project.widthMm / 2} y={-project.heightMm / 2} width={project.widthMm} height={project.heightMm} class="engraving-surface" data-preview-shadow filter="url(#engraving-shadow)" />
     {/if}
@@ -88,13 +67,13 @@
     <g class="engraving-details">
       {#each markings as marking (marking.id)}
         <g data-marking-id={marking.id} data-marking-kind={marking.kind} data-transportation-class={marking.transportationClass}>
-          {#if marking.points.length > 1}<path d={linePath(marking.points)} fill={marking.knockout ? "#e8cfaa" : marking.filled ? "#2b2119" : "none"} stroke={marking.knockout ? "#e8cfaa" : undefined} stroke-width={markingWidth(marking)} stroke-dasharray={markingDash(marking)} stroke-linecap={marking.kind === "road" ? geometry.lineStyle.roadCap : undefined} stroke-linejoin={marking.kind === "road" ? "round" : undefined} />{/if}
+          {#if marking.points.length > 1}<path d={linePath(marking.points)} fill={marking.knockout ? "#e8cfaa" : marking.filled ? "#2b2119" : "none"} stroke={marking.knockout ? "#e8cfaa" : undefined} stroke-width={markingWidth(marking, geometry.lineStyle)} stroke-dasharray={markingDash(marking, geometry.lineStyle)} stroke-linecap={marking.kind === "road" ? geometry.lineStyle.roadCap : undefined} stroke-linejoin={marking.kind === "road" ? "round" : undefined} />{/if}
           {#if marking.label && marking.points[0]}<path d={labelPathData(marking.label, marking.points[0], 0, 0, marking.labelRotationRad, marking.textStyle)} stroke-width={geometry.lineStyle.annotationMm} stroke-linecap={marking.textStyle?.font === "rounded" ? "round" : "butt"} stroke-linejoin={marking.textStyle?.font === "rounded" ? "round" : "miter"} />{/if}
         </g>
       {/each}
     </g>
     {#if project.showEngravingBorder}
-      {#if project.cropShape === "circle"}<circle cx="0" cy="0" r={project.widthMm / 2} class="engraving-border" stroke-width={geometry.lineStyle.borderMm} />{:else}<rect x={-project.widthMm / 2} y={-project.heightMm / 2} width={project.widthMm} height={project.heightMm} class="engraving-border" stroke-width={geometry.lineStyle.borderMm} />{/if}
+      {#if project.cropShape === "circle"}<circle cx="0" cy="0" r={cropRadiusMm(project)} class="engraving-border" stroke-width={geometry.lineStyle.borderMm} />{:else}<rect x={-project.widthMm / 2} y={-project.heightMm / 2} width={project.widthMm} height={project.heightMm} class="engraving-border" stroke-width={geometry.lineStyle.borderMm} />{/if}
     {/if}
   </SvgViewport>
   <div class="engraving-legend"><span><i style:--sample-width={`${Math.max(1, geometry.lineStyle.contourMm * 5)}px`}></i> Minor contour</span><span><i class="index" style:--sample-width={`${Math.max(1, geometry.lineStyle.indexContourMm * 5)}px`}></i> Index every {project.engravingIndexInterval}</span><span>{project.engravingContourCount} contours</span>{#if project.showWater && project.waterFillPattern !== "none"}<span>{project.waterFillPattern} water</span>{/if}</div>

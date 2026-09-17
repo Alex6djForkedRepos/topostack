@@ -27,3 +27,14 @@ record dataset IDs, tile coordinates, sample bounds, and nine independently
 decoded pixel values. Crater values are depths in meters; Swiss values are LN02
 bed elevations in meters. Sources: USGS DDS-72 (public domain) and swisstopo
 swissBATHY3D (open government data, © swisstopo).
+
+## NRCan HRDEM Alexander Lake terrain
+
+`hrdem-alexander-z14.png` and `hrdem-alexander-edge-z14.png` are terrain tiles
+from the Alexander Lake regional HRDEM archive. The second includes transparent
+pixels outside the registered build area. Adjacent JSON files record tile
+coordinates, SHA-256 and independently decoded elevations. Source: Ontario West
+Nipissing 2020 lidar, 1 m bare-earth DTM, CGVD2013, licensed under the Open
+Government Licence – Canada. `scripts/data/hrdem-sources.json` pins the upstream
+COG identity; `scripts/data/hrdem-builds.json` records the regional snapshot and
+archive hashes. See `docs/hrdem-terrain.md` for reproduction.

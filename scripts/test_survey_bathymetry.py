@@ -32,4 +32,20 @@ class SurveyTests(unittest.TestCase):
             with self.assertRaises(ValueError):surveys.unzip(archive,root/'out')
             self.assertFalse((root/'escape').exists())
 
+    def test_finnish_contour_depth_accepts_strings_and_numbers(self):
+        self.assertEqual(surveys.finnish_contour_depth({'Syvyyskayr':'2,5'}),2.5)
+        self.assertEqual(surveys.finnish_contour_depth({'Syvyyskayr':' 10 '}),10)
+        self.assertEqual(surveys.finnish_contour_depth({'Syvyyskayr':3}),3)
+        self.assertEqual(surveys.finnish_contour_depth({'Syvyyskayr':1.25}),1.25)
+        for properties in ({},{'Syvyyskayr':None},{'Syvyyskayr':''},{'Syvyyskayr':'n/a'},{'Syvyyskayr':'nan'},None):
+            self.assertIsNone(surveys.finnish_contour_depth(properties))
+
+    def test_depth_parse_ratio_fails_only_above_threshold(self):
+        features=[{'Syvyyskayr':'1,5'},{'Syvyyskayr':2},{'Other':'3'},{'Syvyyskayr':'bad'},{'Other':None}]
+        depths=[surveys.finnish_contour_depth(f) for f in features]
+        skipped=sum(d is None for d in depths)
+        with self.assertRaises(ValueError):surveys.check_depth_parse_ratio(skipped,len(depths),'Finland')
+        surveys.check_depth_parse_ratio(skipped,len(depths)+1,'Finland')
+        surveys.check_depth_parse_ratio(0,0,'Finland')
+
 if __name__=='__main__':unittest.main()

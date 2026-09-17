@@ -44,6 +44,10 @@ Explore the code, ask questions, suggest improvements, or contribute through [Gi
 
 [Donations](https://www.paypal.com/donate/?hosted_button_id=QXCUQVC3XAEZA) help support development and are always optional. Every export is available without donating.
 
+## Feedback
+
+Use **Feedback** in the studio or page footer to report bugs, request features, or flag low-quality terrain and lake data. Optionally include reviewable location and source diagnostics. Reports open as prefilled GitHub issues; a GitHub account and submission on GitHub are required. See the [feedback workflow and triage guide](docs/feedback.md).
+
 ## Local development
 
 ### Install
@@ -132,6 +136,14 @@ npm run budget:web
 
 `npm run build` builds all workspaces, including a dry run of the Worker deployment; it does not publish the app. The generated frontend is in `apps/generator/dist`. `npm run budget:web` checks that built output against separate homepage/editor JavaScript budgets, startup costs, total assets, and HTML limits.
 
+The Python data builders under `scripts/` have their own tests, kept out of `npm test` so Node-only contributors need no GDAL stack. CI runs them on Python 3.13. Locally, use a virtual environment with the pinned builder dependencies:
+
+```sh
+python3.13 -m venv .venv-data && . .venv-data/bin/activate
+pip install -r scripts/survey-requirements.txt
+npm run test:python
+```
+
 Install browsers before running the end-to-end suite:
 
 ```sh
@@ -151,7 +163,7 @@ On macOS, the Playwright configuration stores Firefox startup metadata in
 while keeping test data separate from your personal Firefox data. Playwright still
 creates a fresh browser profile for each launch.
 
-The browser suite builds its own deterministic test version and covers Chromium, Firefox, and WebKit. CI runs each browser on a separate runner, with one test worker per runner. Each runner installs only its selected browser; all three must pass the aggregate `Browser E2E` check before deployment. Failed runs retain browser-specific diagnostics for seven days. Dependency installation skips the implicit npm audit because the Quality job runs the full audit explicitly. `npm run test:coverage` runs the unit/component/Worker suites with the thresholds used in CI. Run the live browser canary against a deployed environment with:
+The browser suite builds its own deterministic test version and covers Chromium, Firefox, and WebKit. CI runs each browser on a separate runner, with one test worker per runner. Each runner installs only its selected browser; all three must pass the aggregate `Browser E2E` check before deployment. Failed runs retain browser-specific diagnostics for seven days. Dependency installation skips the implicit npm audit because CI audits explicitly: the deployment gate fails on high-severity production advisories, and a separate non-blocking job reports the full audit. `npm run test:coverage` runs the unit/component/Worker suites with the thresholds used in CI. Run the live browser canary against a deployed environment with:
 
 ```sh
 PUBLIC_APP_URL=https://dev-topostack.echofoxtrot.works npm run test:e2e:live
@@ -215,7 +227,7 @@ VITE_MAP_API_URL=https://topostack.echofoxtrot.works npm run release:atomm
 
 The packaging command selects `VITE_SITE_ENV=atomm`, so the ZIP opens the studio directly at its root. This produces `apps/generator/topostack-atomm.zip`, its `.zip.sha256` checksum, and `topostack-atomm.release.json` with both release versions, the source revision, API origin, dataset/archive identities, and dirty-tree flag. Packaging requires a real HTTPS API origin and rejects local, placeholder, and `*.workers.dev` URLs. Use `npm run package:atomm` with the same API variable for the ZIP and validation without the checksum/receipt step.
 
-After a successful production deployment and smoke test, CI retains the ZIP, checksum, receipt, and listing-media bundle as a `topostack-atomm-<commit>` artifact for 30 days. To keep a version permanently accessible, run **Actions → Publish Atomm release → Run workflow** on `main`, supplying the successful production CI run ID and a new tag matching the artifact’s `atommVersion`, such as `atomm-v0.1.0`. Artifacts built before version metadata was introduced must be rebuilt by production CI. The workflow verifies the run, clean commit, production API, archive size, and SHA-256 before publishing the exact CI files as GitHub Release assets. It does not rebuild the package or replace an existing tag.
+After a successful production deployment and smoke test, CI retains the ZIP, checksum, receipt, and listing-media bundle as a `topostack-atomm-<commit>` artifact for 30 days. To keep a version permanently accessible, run **Actions → Publish Atomm release → Run workflow** on `main`, supplying the successful production CI run ID and a new tag matching the artifact’s `atommVersion`, such as `atomm-v0.1.0`. Artifacts built before version metadata was introduced must be rebuilt by production CI. The workflow verifies the run, clean commit, production API, archive size, and SHA-256 before publishing the exact CI files as GitHub Release assets. It does not rebuild the package, move an existing tag, or replace a published release; rerunning after a partial failure reuses a tag that already points at the tested commit and completes its draft release.
 
 Download **topostack-atomm.zip** from the [GitHub Releases page](https://github.com/Echo-Foxtrot-Works/topostack/releases) for upload to Atomm; GitHub’s automatic “Source code” archives are not the generator package. Download **topostack-listing-upload.zip** for the cover, screenshots, and descriptions. Run `npm run package:atomm-listing` to reproduce that media bundle locally. Keep release evidence with the data-provisioning receipts.
 

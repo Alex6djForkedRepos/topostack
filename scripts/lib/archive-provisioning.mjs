@@ -1,6 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
-import { AwsClient } from "aws4fetch";
+import { createReadStream } from "node:fs";
+import { access, open, rename, rm, stat } from "node:fs/promises";
+import { pipeline } from "node:stream/promises";
 import { parseArchiveRelease } from "../../packages/core/src/archive-release.ts";
+import { bucketDeployment } from "./r2-buckets.mjs";
+import { temporaryR2Client, verifyParentToken } from "./r2-s3.mjs";
 
 export async function verifyArchiveResponse(response, expectedBytes, expectedDigest) {
   if (response.status !== 200 || !response.body) throw new Error(`Archive verification GET failed (${response.status}).`);
@@ -45,7 +49,11 @@ export async function stageArchive({ logicalKey, dataset, bytes, sha256, upload,
   await upload(objectKey);
   const downloaded = await request(objectKey, { method: "GET", signal: AbortSignal.timeout(2 * 60 * 60 * 1000) });
   const etag = await verifyArchiveResponse(downloaded, bytes, sha256);
-  const release = parseArchiveRelease({ schemaVersion: 1, logicalKey, objectKey, dataset, bytes, sha256, etag, verifiedAt: new Date().toISOString() }, logicalKey);
+  // Recording the predecessor lets archive pruning keep exactly one rollback
+  // target. Re-promoting the same object inherits its predecessor instead.
+  const previousObjectKey = previousRelease?.objectKey === objectKey ? previousRelease.previousObjectKey : previousRelease?.objectKey ?? null;
+  const release = parseArchiveRelease({ schemaVersion: 1, logicalKey, objectKey, dataset, bytes, sha256, etag, verifiedAt: new Date().toISOString(),
+    ...(previousObjectKey === undefined ? {} : { previousObjectKey }) }, logicalKey);
   const receipt = { release, previousRelease, previousEtag: previousEtag ?? null, promoted: false };
   // Retain rollback information even if promotion or a subsequent bucket fails.
   await checkpoint(receipt);
@@ -69,26 +77,15 @@ export async function verifyPromotionGateway(origin, request = fetch) {
 
 export async function provisionVerifiedArchives({ accountId, cloudflare, buckets, logicalKey, dataset, archivePath, sha256, bytes, pmtilesBin, run, promote, checkpoint }) {
   if (promote) {
-    const origins = { "topostack-vector-data-development": "https://dev-topostack.echofoxtrot.works", "topostack-vector-data": "https://topostack.echofoxtrot.works" };
-    for (const bucket of buckets) {
-      if (!origins[bucket]) throw new Error("No promotion gateway is registered for this bucket.");
-      await verifyPromotionGateway(origins[bucket]);
-    }
+    for (const bucket of buckets) await verifyPromotionGateway(bucketDeployment(bucket).origin);
   }
-  const parent = await cloudflare("/tokens/verify");
-  if (!parent?.id || parent.status !== "active") throw new Error("The account API token is not active.");
+  const parentAccessKeyId = await verifyParentToken(cloudflare);
   const receipts = [];
   for (const bucket of buckets) {
     const id = randomUUID();
     const objectKey = `archives/${sha256}/${id}.pmtiles`;
-    const credentials = await cloudflare("/r2/temp-access-credentials", { method: "POST", body: JSON.stringify({
-      bucket, parentAccessKeyId: parent.id, permission: "object-read-write", ttlSeconds: 86400,
-      objects: [objectKey, `releases/${logicalKey}.json`],
-    }) });
-    if (!credentials?.accessKeyId || !credentials.secretAccessKey || !credentials.sessionToken) throw new Error("Missing temporary R2 credentials.");
-    const client = new AwsClient({ ...credentials, service: "s3", region: "auto", retries: 0 });
-    const endpoint = `https://${accountId}.r2.cloudflarestorage.com`;
-    const request = async (key, init) => client.fetch(`${endpoint}/${bucket}/${key.split("/").map(encodeURIComponent).join("/")}`, { signal: AbortSignal.timeout(30_000), ...init });
+    const { credentials, endpoint, request } = await temporaryR2Client({ cloudflare, accountId, bucket, parentAccessKeyId,
+      permission: "object-read-write", ttlSeconds: 86400, objects: [objectKey, `releases/${logicalKey}.json`] });
     console.log(`Staging and verifying ${logicalKey} in ${bucket}.`);
     const receipt = await stageArchive({ logicalKey, dataset, bytes, sha256, id, request, promote,
       upload: (key) => run(pmtilesBin, ["upload", archivePath, key, `--bucket=s3://${bucket}?endpoint=${endpoint}&region=auto&use_path_style=true`, "--max-concurrency=8"], {
@@ -99,4 +96,104 @@ export async function provisionVerifiedArchives({ accountId, cloudflare, buckets
     receipts.push({ bucket, ...receipt });
   }
   return receipts;
+}
+
+export const DEVELOPMENT_BUCKET = "topostack-vector-data-development";
+export const PRODUCTION_BUCKET = "topostack-vector-data";
+
+/** Shared CLI flags of the archive provisioning scripts; usage checks stay with each script. */
+export function parseArchiveFlags(argv, env = process.env) {
+  const flags = argv.filter((argument) => argument.startsWith("--"));
+  const includeProduction = flags.includes("--prod");
+  return {
+    flags,
+    archivePath: argv.find((argument) => !argument.startsWith("--")),
+    includeProduction,
+    promote: flags.includes("--promote"),
+    skipDigestCheck: flags.includes("--skip-digest-check"),
+    expectedDigest: (flags.find((flag) => flag.startsWith("--expected-sha256="))?.slice("--expected-sha256=".length)
+      ?? env.EXPECTED_ARCHIVE_SHA256 ?? "").trim().toLowerCase(),
+    // Stage in development by default. Production staging and activation are explicit.
+    buckets: includeProduction ? [DEVELOPMENT_BUCKET, PRODUCTION_BUCKET] : [DEVELOPMENT_BUCKET],
+  };
+}
+
+export function assertDigestPinPolicy({ includeProduction, skipDigestCheck, expectedDigest }) {
+  if (includeProduction && !expectedDigest) throw new Error("Production provisioning requires a pinned SHA-256 digest; --skip-digest-check is development-only.");
+  if (skipDigestCheck && expectedDigest) throw new Error("Choose either a pinned SHA-256 digest or --skip-digest-check, not both.");
+  if (expectedDigest && !/^[a-f0-9]{64}$/.test(expectedDigest)) throw new Error("The expected SHA-256 digest must contain exactly 64 hexadecimal characters.");
+}
+
+export async function statArchive(archivePath) {
+  await access(archivePath);
+  const archive = await stat(archivePath);
+  if (!archive.isFile()) throw new Error(`${archivePath} is not a file.`);
+  return archive;
+}
+
+export async function sha256File(path) {
+  const hash = createHash("sha256");
+  await pipeline(createReadStream(path), hash);
+  return hash.digest("hex");
+}
+
+/** Hashes the archive and enforces the pinned digest before anything is uploaded. */
+export async function verifyArchiveDigest(archivePath, { expectedDigest, skipDigestCheck }, log = console) {
+  const archiveDigest = await sha256File(archivePath);
+  log.log(`Archive SHA-256: ${archiveDigest}`);
+  if (expectedDigest) {
+    if (archiveDigest !== expectedDigest) throw new Error(`Archive digest mismatch: expected ${expectedDigest}, computed ${archiveDigest}. Refusing to upload.`);
+    log.log("Archive digest matches the pinned SHA-256.");
+  } else if (skipDigestCheck) {
+    log.warn("Digest pin check skipped (--skip-digest-check). Record the SHA-256 above and pin it for future runs.");
+  } else {
+    throw new Error("No pinned digest provided. Pass --expected-sha256=<hex> (or set EXPECTED_ARCHIVE_SHA256), or use --skip-digest-check for a first-time pin capture.");
+  }
+  return archiveDigest;
+}
+
+/** Runs `pmtiles verify` and returns the archive header. */
+export async function verifyPmtilesHeader({ run, capture, pmtilesBin, archivePath }) {
+  await run(pmtilesBin, ["verify", archivePath]);
+  return JSON.parse(await capture(pmtilesBin, ["show", archivePath, "--header-json"]));
+}
+
+/**
+ * Replaces `target` only with a completely written, fsynced file. The temporary
+ * name is unique so concurrent writers never share or clobber a partial file.
+ */
+export async function writeJsonAtomic(target, value) {
+  const contents = JSON.stringify(value, null, 2) + "\n";
+  const part = `${target}.${process.pid}.${randomUUID()}.part`;
+  try {
+    const handle = await open(part, "wx");
+    try {
+      await handle.writeFile(contents, "utf8");
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+    await rename(part, target);
+  } catch (error) {
+    await rm(part, { force: true });
+    throw error;
+  }
+}
+
+/**
+ * Stages (and optionally promotes) a verified archive, keeping a receipt beside
+ * it. The receipt holds rollback information, so each checkpoint replaces it
+ * atomically: an interrupted write never leaves a truncated record.
+ */
+export async function provisionWithReceipt({ archivePath, dataset, logicalKey, maxZoom, sha256, bytes, buckets, promote, provision = provisionVerifiedArchives, writeReceipt = writeJsonAtomic, ...options }) {
+  const receiptPath = `${archivePath}.provisioning.json`;
+  const receipt = { schemaVersion: 2, dataset, key: logicalKey, buckets, sha256, bytes, maxZoom, releases: [] };
+  await provision({ ...options, buckets, logicalKey, dataset, archivePath, sha256, bytes, promote,
+    checkpoint: async (entry) => {
+      receipt.releases = [...receipt.releases.filter((item) => item.bucket !== entry.bucket), entry];
+      await writeReceipt(receiptPath, receipt);
+    },
+  });
+  console.log(`Verified ${logicalKey}. ${promote ? "Release pointer promoted." : "Staged only; rerun with --promote to activate after the gateway supports release pointers."} Receipt: ${receiptPath}`);
+  return { receiptPath, receipt };
 }

@@ -12,16 +12,18 @@ permissions:
 
 env:
   NODE_VERSION: "22.22.2"
+  PYTHON_VERSION: "3.13"
   DEVELOPMENT_URL: https://dev-topostack.echofoxtrot.works
   PRODUCTION_URL: https://topostack.echofoxtrot.works
 
 jobs:
-  quality:
-    name: Quality
+  # Lint/typecheck and tests run in parallel; deploy-worker needs both.
+  lint-typecheck:
+    name: Lint and typecheck
     runs-on: ubuntu-latest
     timeout-minutes: 10
     concurrency:
-      group: quality-${{ github.workflow }}-${{ github.ref }}
+      group: lint-${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true
     env:
       VITE_MAP_API_URL: https://ci.invalid
@@ -41,8 +43,10 @@ jobs:
       - name: Check release version consistency
         run: npm run version:check
 
-      - name: Audit production and build dependencies
-        run: npm audit --audit-level=moderate
+      # Deploys are gated only on high-severity advisories in runtime
+      # dependencies; the full audit runs non-blocking in dependency-audit.
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Verify generated Worker types
         run: npm run types:check -w @topostack/map-api
@@ -53,11 +57,79 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+  tests:
+    name: Tests and coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: tests-${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+    env:
+      VITE_MAP_API_URL: https://ci.invalid
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
       - name: Test provisioning and lifecycle safeguards
         run: npm run test:scripts
 
       - name: Test unit and component suites with coverage thresholds
         run: npm run test:coverage
+
+  # Informational: reports moderate advisories in every dependency, including
+  # dev tooling, without blocking deploys. Not listed in deploy-worker needs.
+  dependency-audit:
+    name: Full dependency audit (non-blocking)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Audit all dependencies
+        run: npm audit --audit-level=moderate
+
+  python-data-tools:
+    name: Python data tooling tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: python-${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: scripts/survey-requirements.txt
+
+      # survey-requirements.txt pins a superset of the NOAA and terrain builder
+      # dependencies (numpy, rasterio, Pillow, fiona, scipy, shapely).
+      - name: Install pinned builder dependencies
+        run: python -m pip install -r scripts/survey-requirements.txt
+
+      - name: Test bathymetry, terrain, and lake outline builders
+        # Same command developers run locally; package.json is the single source.
+        run: npm run test:python
 
   build-and-budget:
     name: Build and budget
@@ -131,8 +203,26 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
+      - name: Resolve Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('./package-lock.json').packages['node_modules/playwright'].version")" >> "$GITHUB_OUTPUT"
+
+      # Browser binaries are versioned with Playwright; system libraries are
+      # not cached, so a cache hit still installs them.
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}-${{ matrix.browser }}
+
       - name: Install browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Install browser system dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps ${{ matrix.browser }}
 
       - name: Test browser generation and export
         run: xvfb-run --auto-servernum npm run test:e2e -- --project=${{ matrix.browser }}
@@ -161,7 +251,7 @@ jobs:
 
   deploy-worker:
     name: Deploy Worker
-    needs: [quality, build-and-budget, browser-e2e]
+    needs: [lint-typecheck, tests, python-data-tools, build-and-budget, browser-e2e]
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && (github.ref_name == 'dev' || github.ref_name == 'main')
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -191,6 +281,16 @@ jobs:
 
       - name: Verify search indexing policy
         run: node scripts/verify-seo.mjs --environment ${{ github.ref_name == 'main' && 'production' || 'development' }}
+
+      # build-and-budget checks a hermetic https://ci.invalid build, but this job
+      # deploys a different same-origin build (no VITE_MAP_API_URL, per-branch
+      # VITE_SITE_ENV). Re-check the exact files being deployed before wrangler
+      # uploads them. No sentinel is embedded, so the full endpoint scan runs.
+      - name: Enforce web performance budgets on deployed build
+        run: npm run budget:web
+
+      - name: Verify deployed static artifact
+        run: node scripts/verify-atomm-dist.mjs
 
       - name: Deploy app, map API, and synchronize Worker secrets
         id: deploy

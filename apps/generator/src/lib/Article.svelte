@@ -1,4 +1,5 @@
 <script lang="ts">
+  import FeedbackButton from "./FeedbackButton.svelte";
   import { base } from "$app/paths";
   import { page } from "$app/state";
   import { Brand, ThemeToggle, Topbar } from "@loidolt/theme-svelte";
@@ -28,7 +29,7 @@
       <a class="start" href={`${base}/studio`}>Create a topographic map</a>
     </aside>
   </main>
-  <footer>TopoStack · Free, browser-based terrain tools · <a href="https://github.com/Echo-Foxtrot-Works/topostack">GitHub</a> · <a href={`${base}/attribution`}>Sources and attribution</a></footer>
+  <footer>TopoStack · Free, browser-based terrain tools · <a href="https://github.com/Echo-Foxtrot-Works/topostack">GitHub</a> · <a href={`${base}/attribution`}>Sources and attribution</a> · <FeedbackButton /></footer>
 </div>
 
 <style>

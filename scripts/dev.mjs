@@ -91,7 +91,8 @@ async function waitForMapApi(api, port) {
   while (Date.now() < deadline) {
     if (api.exitCode !== null) throw new Error("The map API exited before becoming ready.");
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/health`);
+      // A hung connection must not stall the poll past its deadline.
+      const response = await fetch(`http://127.0.0.1:${port}/health`, { signal: AbortSignal.timeout(Math.max(1, Math.min(2_000, deadline - Date.now()))) });
       if (response.ok) return;
     } catch {
       // Wrangler is still starting.

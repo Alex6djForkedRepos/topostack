@@ -1216,6 +1216,10 @@ body:has(.app-shell) {
   min-width: 0;
 }
 
+.terrain-source-summary { grid-column: 1 / -1; margin-bottom: 8px; font-size: 11px; line-height: 1.5; max-height: 180px; overflow: auto; }
+.terrain-source-summary summary { cursor: pointer; }
+.terrain-source-summary p { margin: 5px 0; }
+
 .generate-dock {
   padding: 12px 20px 16px;
   background: var(--loidolt-surface);
@@ -2415,4 +2419,10 @@ body:has(.app-shell) {
 .about-link:focus-visible { outline: 2px solid var(--loidolt-accent); outline-offset: 3px; }
 @media (pointer: coarse), (max-width: 760px) {
   .about-link { min-width: 44px; min-height: 44px; }
+}
+
+.preview-load-failed {
+  align-content: center;
+  gap: 10px;
+  pointer-events: auto;
 }

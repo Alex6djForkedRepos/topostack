@@ -1,446 +1,67 @@
 import { measureBucket } from "./data-metrics";
-import { archiveHead } from "./archive-release";
-import rawSurveyCatalog from "../../../scripts/data/lake-bathymetry.json";
-import { validateSurveyCatalog } from "../../../packages/core/src/source-catalog";
+import { clientKey, corsHeaders, isAllowedOrigin, json, rateLimitExceeded, withCors } from "./http";
+import { buildManifest } from "./manifest";
+import { ARCHIVE_ROUTES, bathymetryArchives, type ArchiveRoute, parseRangeHeader, pmtilesResponse, terrainArchives } from "./routes/archive";
+import { geocodeLimit, geocodeResponse, isGeocoderConfigured, normalizeGeoapify } from "./routes/geocode";
+import { healthResponse, probeUpstreams, readinessResponse, upstreamHealth } from "./routes/health";
+import { terrainResponse, validTile } from "./routes/terrain";
 import { collectUsage } from "./usage-events";
-import { readCache, writeCache } from "./cache";
-import { decodeTerrainPng } from "../../../packages/core/src/terrain-png";
 
-const bathymetryCatalog = validateSurveyCatalog(rawSurveyCatalog);
+type Handler = (request: Request, env: Env, ctx: ExecutionContext, url: URL) => Promise<Response> | Response;
 
-const MAX_TERRAIN_BYTES = 2_000_000;
-const MAX_GEOCODER_BYTES = 256_000;
-const MAX_ARCHIVE_RANGE_BYTES = 16 * 1024 * 1024;
-const UPSTREAM_TIMEOUT_MS = 10_000;
-// R2 keys are versioned; public tile URLs are mutable across deployments.
-const TERRAIN_CACHE_SECONDS = 60 * 60;
-// The vector archive key is overwritten in place on dataset updates, so client
-// and edge caching must stay short and revalidate by etag; a long `immutable`
-// TTL would let PMTiles readers mix byte ranges from different archive
-// generations for the full cache lifetime.
-const VECTOR_CACHE_SECONDS = 60 * 60;
-const GEOCODE_CACHE_SECONDS = 60 * 60 * 24;
-const VECTOR_ARCHIVE_KEY = "osm/current.pmtiles";
-const LAKE_ARCHIVE_KEY = "lakes/current.pmtiles";
-const BATHYMETRY_ARCHIVES = new Map(bathymetryCatalog.sources.map((source) => [`/v1/bathymetry/${source.id}.pmtiles`, `bathymetry/${source.id}.pmtiles`]));
-const UPSTREAM_HEALTH_KEY = "health/upstreams-v1.json";
-const DEFAULT_ALLOWED_ORIGIN_SUFFIXES = ".atomm.com";
+const NOT_FOUND_BUCKET = "not-found";
+const TERRAIN_TILE_PATH = /^\/v1\/terrain\/(\d+)\/(\d+)\/(\d+)\.png$/;
 
-async function readBounded(body: ReadableStream<Uint8Array> | null, maximumBytes: number): Promise<Uint8Array<ArrayBuffer>> {
-  if (!body) return new Uint8Array();
-  const reader = body.getReader();
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      size += value.byteLength;
-      if (size > maximumBytes) throw new Error("UPSTREAM_BODY_TOO_LARGE");
-      chunks.push(value);
-    }
-  } catch (error) {
-    await reader.cancel().catch(() => {});
-    throw error;
-  } finally { reader.releaseLock(); }
-  const result = new Uint8Array(size);
-  let offset = 0;
-  for (const chunk of chunks) { result.set(chunk, offset); offset += chunk.byteLength; }
-  return result;
+// Per-client request budget. Archive range reads and terrain cache hits are
+// R2-backed and arrive in bursts of hundreds during one generation, so they are
+// not charged here; terrain charges the budget only for HEAD and before an
+// upstream fetch.
+async function withinRequestBudget(request: Request, env: Env, bucket: string): Promise<boolean> {
+  const { success } = await env.REQUEST_LIMITER.limit({ key: `${clientKey(request)}:${bucket}` });
+  return success;
 }
 
-function json(value: unknown, init: ResponseInit = {}): Response {
-  const headers = new Headers(init.headers);
-  headers.set("content-type", "application/json; charset=utf-8");
-  return new Response(JSON.stringify(value), { ...init, headers });
+const TERRAIN_GLOBAL_LIMIT_KEY = "terrain-global";
+
+// Per-client first so a client already over its own budget cannot also drain
+// the shared per-colo ceiling that protects origin fetches and cache writes.
+async function withinTerrainUpstreamBudget(request: Request, env: Env): Promise<boolean> {
+  if (!(await withinRequestBudget(request, env, "terrain"))) return false;
+  const { success } = await env.TERRAIN_GLOBAL_LIMITER.limit({ key: TERRAIN_GLOBAL_LIMIT_KEY });
+  if (!success) console.warn(JSON.stringify({ message: "terrain_global_budget_exceeded" }));
+  return success;
 }
 
-interface OriginPolicyEnv {
-  ALLOWED_ORIGINS: string;
-  // Comma-separated host suffixes allowed over HTTPS (default ".atomm.com").
-  // Set to an empty string to disable suffix-based origins entirely.
-  ALLOWED_ORIGIN_SUFFIXES?: string;
-  ENVIRONMENT?: string;
-}
-
-const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
-
-// The local dev server moves to another port whenever its default is taken, so
-// pinning exact loopback origins would break `npm run dev` at the first
-// collision. Only the development Worker accepts a floating port this way;
-// staging and production keep the exact ALLOWED_ORIGINS list.
-function isDevelopmentLoopbackOrigin(origin: string, env: OriginPolicyEnv): boolean {
-  if (env.ENVIRONMENT !== "development") return false;
-  try {
-    const url = new URL(origin);
-    return url.protocol === "http:" && LOOPBACK_HOSTS.has(url.hostname);
-  } catch {
-    return false;
+// Range reads of a present archive stay unmetered. Metadata-only requests
+// (HEAD, If-None-Match) re-resolve from R2 each time, and missing or invalid
+// archives answer 404/503; both are charged so they cannot become an unmetered
+// R2 read loop.
+async function archiveResponse(request: Request, env: Env, ctx: ExecutionContext, archive: ArchiveRoute): Promise<Response> {
+  if ((request.method === "HEAD" || request.headers.has("if-none-match")) && !(await withinRequestBudget(request, env, "archive-meta"))) {
+    return rateLimitExceeded();
   }
-}
-
-function isAllowedOrigin(origin: string | null, env: OriginPolicyEnv): boolean {
-  if (!origin) return true;
-  if (env.ALLOWED_ORIGINS.split(",").map((value) => value.trim()).includes(origin)) return true;
-  if (isDevelopmentLoopbackOrigin(origin, env)) return true;
-  if (!origin.startsWith("https://")) return false;
-  const suffixes = (env.ALLOWED_ORIGIN_SUFFIXES ?? DEFAULT_ALLOWED_ORIGIN_SUFFIXES)
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean)
-    // A leading dot keeps the label boundary: ".atomm.com" matches
-    // https://runtime.atomm.com but not https://evil-atomm.com.
-    .map((suffix) => (suffix.startsWith(".") ? suffix : `.${suffix}`));
-  return suffixes.some((suffix) => origin.endsWith(suffix));
-}
-
-function corsHeaders(request: Request, env: Env): Headers {
-  const origin = request.headers.get("origin");
-  const headers = new Headers({
-    "access-control-allow-methods": new URL(request.url).pathname === "/v1/events" ? "POST,OPTIONS" : "GET,HEAD,OPTIONS",
-    "access-control-allow-headers": "range,content-type,if-none-match",
-    "access-control-expose-headers": "content-length,content-range,etag,x-topostack-dataset,x-topostack-cache,x-topostack-imagery-sources,x-topostack-r2-reads",
-    "access-control-max-age": "86400",
-    "vary": "Origin",
-  });
-  if (origin && isAllowedOrigin(origin, env)) headers.set("access-control-allow-origin", origin);
-  return headers;
-}
-
-function withCors(response: Response, request: Request, env: Env): Response {
-  const headers = new Headers(response.headers);
-  for (const [name, value] of corsHeaders(request, env)) headers.set(name, value);
-  headers.set("content-security-policy", "default-src 'none'; base-uri 'none'; frame-ancestors 'none'");
-  headers.set("cross-origin-resource-policy", "cross-origin");
-  headers.set("permissions-policy", "camera=(), geolocation=(), microphone=(), payment=(), usb=()");
-  headers.set("referrer-policy", "no-referrer");
-  headers.set("strict-transport-security", "max-age=31536000; includeSubDomains");
-  headers.set("x-content-type-options", "nosniff");
-  headers.set("x-frame-options", "DENY");
-  if (response.status >= 400) headers.set("cache-control", "no-store");
-  if (request.method === "HEAD") {
-    void response.body?.cancel().catch(() => {});
-    return new Response(null, { status: response.status, statusText: response.statusText, headers });
+  const response = await pmtilesResponse(request, env, ctx, archive);
+  if ((response.status === 404 || response.status === 503) && !(await withinRequestBudget(request, env, NOT_FOUND_BUCKET))) {
+    await response.body?.cancel();
+    return rateLimitExceeded();
   }
-  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+  return response;
 }
 
-function upstreamSignal(request: Request): AbortSignal {
-  return AbortSignal.any([request.signal, AbortSignal.timeout(UPSTREAM_TIMEOUT_MS)]);
+function limited(bucket: string, handler: Handler): Handler {
+  return async (request, env, ctx, url) => (await withinRequestBudget(request, env, bucket)) ? handler(request, env, ctx, url) : rateLimitExceeded();
 }
 
-function upstreamFailure(error: unknown, service: string): Response {
-  const timedOut = error instanceof DOMException && error.name === "TimeoutError";
-  console.warn(JSON.stringify({ message: "upstream_failed", service, reason: timedOut ? "timeout" : "network" }));
-  return json({ error: timedOut ? `${service} timed out` : `${service} unavailable` }, { status: timedOut ? 504 : 502 });
-}
-
-function clientKey(request: Request): string {
-  return request.headers.get("cf-connecting-ip") ?? "anonymous";
-}
-
-function validTile(zText: string, xText: string, yText: string): { z: number; x: number; y: number } | null {
-  const z = Number(zText);
-  const x = Number(xText);
-  const y = Number(yText);
-  if (![z, x, y].every(Number.isInteger) || z < 0 || z > 15) return null;
-  const limit = 2 ** z;
-  if (x < 0 || y < 0 || x >= limit || y >= limit) return null;
-  return { z, x, y };
-}
-
-function isGeocoderConfigured(env: Pick<Env, "GEOCODER_API_KEY">): boolean {
-  return Boolean(env.GEOCODER_API_KEY && env.GEOCODER_API_KEY !== "replace-with-geoapify-key");
-}
-
-async function readinessResponse(env: Env): Promise<Response> {
-  const [vectorCheck, lakeCheck] = await Promise.allSettled([
-    archiveHead(env.VECTOR_DATA, VECTOR_ARCHIVE_KEY),
-    archiveHead(env.VECTOR_DATA, LAKE_ARCHIVE_KEY),
-  ]);
-  const vectorArchive = vectorCheck.status === "fulfilled" ? vectorCheck.value.head : null;
-  const lakeArchive = lakeCheck.status === "fulfilled" ? lakeCheck.value.head : null;
-  const geocoderConfigured = isGeocoderConfigured(env);
-  const ready = Boolean(vectorArchive && lakeArchive && geocoderConfigured);
-  return json({
-    service: "topostack-map-api",
-    status: ready ? "ready" : "not_ready",
-    environment: env.ENVIRONMENT,
-    dependencies: {
-      terrain: { status: "configured" },
-      geocoder: { status: geocoderConfigured ? "configured" : "unconfigured" },
-      vectorData: {
-        status: vectorCheck.status === "rejected" ? "unavailable" : vectorArchive ? "available" : "missing",
-        key: VECTOR_ARCHIVE_KEY,
-        ...(vectorCheck.status === "fulfilled" && vectorCheck.value.release ? { release: vectorCheck.value.release } : {}),
-        ...(vectorArchive ? { bytes: vectorArchive.size, etag: vectorArchive.httpEtag } : {}),
-      },
-      // Default projects request water depth, so readiness requires both archives.
-      lakeData: {
-        status: lakeCheck.status === "rejected" ? "unavailable" : lakeArchive ? "available" : "missing",
-        key: LAKE_ARCHIVE_KEY,
-        ...(lakeCheck.status === "fulfilled" && lakeCheck.value.release ? { release: lakeCheck.value.release } : {}),
-        ...(lakeArchive ? { bytes: lakeArchive.size, etag: lakeArchive.httpEtag } : {}),
-      },
-    },
-  }, { status: ready ? 200 : 503, headers: { "cache-control": "no-store" } });
-}
-
-type ParsedRange =
-  | { kind: "missing" }
-  | { kind: "partial"; offset: number; length: number }
-  | { kind: "unsatisfiable" }
-  | { kind: "too_large" };
-
-// Single-range parsing only. Multipart range requests (`bytes=0-1,5-6`) are
-// rejected with 416 rather than answered with a multipart/byteranges body.
-// Full archive downloads are intentionally unavailable: PMTiles clients only
-// need bounded byte ranges, and the underlying archives are multi-GB.
-function parseRangeHeader(header: string | null, size: number): ParsedRange {
-  if (header === null) return { kind: "missing" };
-  if (header.includes(",")) return { kind: "unsatisfiable" };
-  const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
-  if (!match || (match[1] === "" && match[2] === "")) return { kind: "unsatisfiable" };
-  if (size === 0) return { kind: "unsatisfiable" };
-  let offset: number;
-  let length: number;
-  if (match[1] === "") {
-    const suffix = Number(match[2]);
-    if (!Number.isSafeInteger(suffix) || suffix === 0) return { kind: "unsatisfiable" };
-    length = Math.min(suffix, size);
-    offset = size - length;
-  } else {
-    const start = Number(match[1]);
-    if (!Number.isSafeInteger(start) || start >= size) return { kind: "unsatisfiable" };
-    offset = start;
-    if (match[2] === "") {
-      length = size - start;
-    } else {
-      const end = Number(match[2]);
-      if (!Number.isSafeInteger(end) || end < start) return { kind: "unsatisfiable" };
-      length = Math.min(end, size - 1) - start + 1;
-    }
-  }
-  return length > MAX_ARCHIVE_RANGE_BYTES ? { kind: "too_large" } : { kind: "partial", offset, length };
-}
-
-function etagMatches(ifNoneMatch: string | null, etag: string): boolean {
-  if (!ifNoneMatch) return false;
-  if (ifNoneMatch.trim() === "*") return true;
-  const normalize = (value: string) => value.trim().replace(/^W\//, "");
-  return ifNoneMatch.split(",").some((candidate) => normalize(candidate) === normalize(etag));
-}
-
-function terrainCachedResponse(object: R2ObjectBody, dataset: string, body: BodyInit = object.body): Response {
-  const headers = new Headers();
-  object.writeHttpMetadata(headers);
-  headers.set("etag", object.httpEtag);
-  headers.set("x-topostack-cache", "HIT");
-  headers.set("x-topostack-dataset", dataset);
-  if (object.customMetadata?.imagerySources) headers.set("x-topostack-imagery-sources", object.customMetadata.imagerySources);
-  headers.set("cache-control", `public, max-age=${TERRAIN_CACHE_SECONDS}, must-revalidate`);
-  return new Response(body, { headers });
-}
-
-async function terrainResponse(request: Request, env: Env, ctx: ExecutionContext, tile: { z: number; x: number; y: number }, bypassCache = false): Promise<Response> {
-  const key = `terrain/${env.DATASET_VERSION}/terrarium/${tile.z}/${tile.x}/${tile.y}.png`;
-  const cached = bypassCache ? null : await readCache(env.MAP_CACHE, key, "terrain");
-  if (cached) {
-    try {
-      let body: Uint8Array<ArrayBuffer> | undefined;
-      if (cached.customMetadata?.terrainValidation !== "png-v1") {
-        // Validate legacy cache entries once; malformed tiles must be repairable.
-        body = await readBounded(cached.body, MAX_TERRAIN_BYTES);
-        decodeTerrainPng(body);
-        const validated = body;
-        writeCache(ctx, "terrain", () => env.MAP_CACHE.put(key, validated, {
-          httpMetadata: { contentType: "image/png" },
-          customMetadata: { ...cached.customMetadata, terrainValidation: "png-v1" },
-        }));
-      }
-      const response = terrainCachedResponse(cached, cached.customMetadata?.dataset ?? env.DATASET_VERSION, body);
-      if (etagMatches(request.headers.get("if-none-match"), cached.httpEtag)) {
-        await response.body?.cancel();
-        return new Response(null, { status: 304, headers: response.headers });
-      }
-      return response;
-    } catch {
-      console.warn(JSON.stringify({ message: "cache_invalid", source: "terrain" }));
-    }
-  }
-
-  let upstream: Response;
-  try {
-    upstream = await fetch(`${env.TERRAIN_ORIGIN}/${tile.z}/${tile.x}/${tile.y}.png`, {
-      headers: { "user-agent": "TopoStack/0.1 (terrain fabrication generator)" },
-      signal: upstreamSignal(request),
-    });
-  } catch (error) {
-    return upstreamFailure(error, "Terrain origin");
-  }
-  if (upstream.status !== 200 || !upstream.body) {
-    await upstream.body?.cancel();
-    return json({ error: "Terrain tile unavailable", status: upstream.status }, { status: 502 });
-  }
-  const contentLength = Number(upstream.headers.get("content-length") ?? 0);
-  const contentType = upstream.headers.get("content-type") ?? "";
-  if ((contentLength > 0 && contentLength > MAX_TERRAIN_BYTES) || !contentType.includes("image/png")) {
-    await upstream.body.cancel();
-    return json({ error: "Terrain origin returned an invalid tile" }, { status: 502 });
-  }
-
-  const imagerySources = upstream.headers.get("x-imagery-sources") ?? "";
-  let body: Uint8Array<ArrayBuffer>;
-  try { body = await readBounded(upstream.body, MAX_TERRAIN_BYTES); }
-  catch (error) {
-    if (error instanceof Error && error.message === "UPSTREAM_BODY_TOO_LARGE") return json({ error: "Terrain origin returned an oversized tile" }, { status: 502 });
-    return upstreamFailure(error, "Terrain origin");
-  }
-  try { decodeTerrainPng(body); }
-  catch { return json({ error: "Terrain origin returned an invalid tile" }, { status: 502 }); }
-  if (!bypassCache) writeCache(ctx, "terrain", () => env.MAP_CACHE.put(key, body, {
-    httpMetadata: { contentType: "image/png", cacheControl: `public, max-age=${TERRAIN_CACHE_SECONDS}` },
-    customMetadata: { terrainValidation: "png-v1", dataset: env.DATASET_VERSION, cachedAt: new Date().toISOString(), imagerySources: imagerySources.slice(0, 1900) },
-  }));
-  return new Response(body, {
-    headers: {
-      "content-type": "image/png",
-      "content-length": String(body.byteLength),
-      "cache-control": `public, max-age=${TERRAIN_CACHE_SECONDS}, must-revalidate`,
-      "x-topostack-cache": bypassCache ? "BYPASS" : "MISS",
-      "x-topostack-dataset": env.DATASET_VERSION,
-      ...(imagerySources ? { "x-topostack-imagery-sources": imagerySources } : {}),
-    },
-  });
-}
-
-interface GeoapifyResult { lat?: unknown; lon?: unknown; formatted?: unknown; place_id?: unknown; result_type?: unknown }
-
-function normalizeGeoapify(payload: unknown): Array<{ place_id: string; display_name: string; lat: number; lon: number; type?: string }> {
-  const results = payload && typeof payload === "object" && Array.isArray((payload as { results?: unknown }).results) ? (payload as { results: GeoapifyResult[] }).results : [];
-  return results.flatMap((item, index) => {
-    if (!item || typeof item !== "object") return [];
-    const lat = item.lat;
-    const lon = item.lon;
-    const label = typeof item.formatted === "string" ? item.formatted.trim() : "";
-    if (typeof lat !== "number" || !Number.isFinite(lat) || lat < -85.0511 || lat > 85.0511 || typeof lon !== "number" || !Number.isFinite(lon) || lon < -180 || lon > 180 || !label) return [];
-    return [{ place_id: String(item.place_id ?? (String(lat) + "," + String(lon) + "," + String(index))), display_name: label, lat, lon, ...(typeof item.result_type === "string" ? { type: item.result_type } : {}) }];
-  });
-}
-
-function geocodeLimit(value: string | null): number {
-  if (value === null || value.trim() === "") return 5;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? Math.max(1, Math.min(8, Math.trunc(parsed))) : 5;
-}
-
-async function geocodeResponse(request: Request, env: Env, ctx: ExecutionContext, url: URL, bypassCache = false): Promise<Response> {
-  const query = (url.searchParams.get("q") ?? "").trim().slice(0, 160);
-  const limit = geocodeLimit(url.searchParams.get("limit"));
-  if (query.length < 2) return json({ error: "Query must contain at least two characters." }, { status: 400 });
-  const keyHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${env.GEOCODER_ORIGIN}|geoapify-v1|${query.toLowerCase()}|${limit}`));
-  const key = `geocode/${Array.from(new Uint8Array(keyHash)).map((byte) => byte.toString(16).padStart(2, "0")).join("")}.json`;
-  const cached = bypassCache ? null : await readCache(env.MAP_CACHE, key, "geocoder");
-  const ageSeconds = cached ? Math.max(0, (Date.now() - cached.uploaded.getTime()) / 1000) : Infinity;
-  if (cached && ageSeconds < GEOCODE_CACHE_SECONDS) {
-    const remainingSeconds = Math.max(0, Math.floor(GEOCODE_CACHE_SECONDS - ageSeconds));
-    const headers = new Headers({ "content-type": "application/json; charset=utf-8", "cache-control": `public, max-age=${remainingSeconds}`, "x-topostack-cache": "HIT" });
-    return new Response(cached.body, { headers });
-  }
-  if (cached) await cached.body.cancel();
-
-  if (!env.GEOCODER_API_KEY || env.GEOCODER_API_KEY === "replace-with-geoapify-key") return json({ error: "Geocoder is not configured." }, { status: 503 });
-  const { success } = await env.GEOCODE_LIMITER.limit({ key: `${clientKey(request)}:geocode` });
-  if (!success) return json({ error: "Place-search rate limit exceeded. Try again shortly." }, { status: 429, headers: { "retry-after": "60" } });
-  const upstreamUrl = new URL("/v1/geocode/search", env.GEOCODER_ORIGIN);
-  upstreamUrl.searchParams.set("text", query);
-  upstreamUrl.searchParams.set("limit", String(limit));
-  upstreamUrl.searchParams.set("format", "json");
-  upstreamUrl.searchParams.set("apiKey", env.GEOCODER_API_KEY);
-  let upstream: Response;
-  try {
-    upstream = await fetch(upstreamUrl, { headers: { "accept": "application/json" }, signal: upstreamSignal(request) });
-  } catch (error) {
-    return upstreamFailure(error, "Geocoder");
-  }
-  if (!upstream.ok) {
-    await upstream.body?.cancel();
-    return json({ error: "Geocoder unavailable", status: upstream.status }, { status: 502 });
-  }
-  const contentLength = Number(upstream.headers.get("content-length") ?? 0);
-  if (contentLength > MAX_GEOCODER_BYTES) {
-    await upstream.body?.cancel();
-    return json({ error: "Geocoder response too large" }, { status: 502 });
-  }
-  let body: Uint8Array;
-  try { body = await readBounded(upstream.body, MAX_GEOCODER_BYTES); }
-  catch (error) {
-    if (error instanceof Error && error.message === "UPSTREAM_BODY_TOO_LARGE") return json({ error: "Geocoder response too large" }, { status: 502 });
-    return upstreamFailure(error, "Geocoder");
-  }
-  let payload: unknown;
-  try { payload = JSON.parse(new TextDecoder().decode(body)); } catch { return json({ error: "Geocoder returned invalid JSON" }, { status: 502 }); }
-  if (!payload || typeof payload !== "object" || !Array.isArray((payload as { results?: unknown }).results)) {
-    return json({ error: "Geocoder returned an unexpected response" }, { status: 502 });
-  }
-  const normalized = normalizeGeoapify(payload);
-  const normalizedBody = JSON.stringify(normalized);
-  if (!bypassCache) writeCache(ctx, "geocoder", () => env.MAP_CACHE.put(key, normalizedBody, { httpMetadata: { contentType: "application/json", cacheControl: `public, max-age=${GEOCODE_CACHE_SECONDS}` } }));
-  return new Response(normalizedBody, { headers: { "content-type": "application/json; charset=utf-8", "cache-control": `public, max-age=${GEOCODE_CACHE_SECONDS}`, "x-topostack-cache": bypassCache ? "BYPASS" : "MISS" } });
-}
-
-async function pmtilesResponse(request: Request, env: Env, archiveKey: string, label: string, retried = false): Promise<Response> {
-  const resolved = await archiveHead(env.VECTOR_DATA, archiveKey);
-  const head = resolved.head;
-  if (!head) return json({ error: `${label} archive has not been provisioned.` }, { status: 404 });
-  const headers = new Headers({
-    "etag": head.httpEtag,
-    "accept-ranges": "bytes",
-    "content-type": "application/vnd.pmtiles",
-    "cache-control": `public, max-age=${VECTOR_CACHE_SECONDS}`,
-    "x-topostack-cache": "HIT",
-    "x-topostack-dataset": env.DATASET_VERSION,
-  });
-  if (etagMatches(request.headers.get("if-none-match"), head.httpEtag)) return new Response(null, { status: 304, headers });
-  if (request.method === "HEAD") {
-    headers.set("content-length", String(head.size));
-    return new Response(null, { headers });
-  }
-  const range = parseRangeHeader(request.headers.get("range"), head.size);
-  if (range.kind === "missing") {
-    return json({ error: "A bounded Range header is required for PMTiles archives." }, { status: 400, headers });
-  }
-  if (range.kind === "unsatisfiable" || range.kind === "too_large") {
-    headers.set("content-range", `bytes */${head.size}`);
-    return json({ error: range.kind === "too_large" ? `Requested range exceeds ${MAX_ARCHIVE_RANGE_BYTES} bytes.` : "Requested range is not satisfiable." }, { status: 416, headers });
-  }
-  const object = await env.VECTOR_DATA.get(resolved.key, {
-    range: { offset: range.offset, length: range.length },
-    onlyIf: { etagMatches: head.etag },
-  });
-  if (!object) return json({ error: `${label} archive has not been provisioned.` }, { status: 404 });
-  // Never combine one generation's size/range with another generation's body.
-  if (!("body" in object)) {
-    if (!retried) return pmtilesResponse(request, env, archiveKey, label, true);
-    return json({ error: `${label} archive is being updated. Try again shortly.` }, { status: 503, headers: { "retry-after": "1" } });
-  }
-  headers.set("etag", object.httpEtag);
-  headers.set("content-range", `bytes ${range.offset}-${range.offset + range.length - 1}/${head.size}`);
-  headers.set("content-length", String(range.length));
-  return new Response(object.body, { status: 206, headers });
-}
-
-async function upstreamHealth(env: Env): Promise<Response> {
-  const stored = await env.MAP_CACHE.get(UPSTREAM_HEALTH_KEY);
-  if (!stored) return json({ status: "unknown", error: "No upstream probe has completed." }, { status: 503 });
-  if (stored.size > 4096) { await stored.body.cancel(); return json({ status: "invalid" }, { status: 503 }); }
-  const result = await stored.json<{ checkedAt: string; ok: boolean; environment: string }>();
-  const age = Date.now() - Date.parse(result.checkedAt);
-  const fresh = Number.isFinite(age) && age >= 0 && age < 2 * 60 * 60 * 1000;
-  return json({ ...result, status: fresh && result.ok === true ? "healthy" : "unhealthy", fresh }, {
-    status: fresh && result.ok === true ? 200 : 503, headers: { "cache-control": "no-store" },
-  });
-}
+const EXACT_ROUTES = new Map<string, Handler>([
+  ["/health", limited("root", (_request, env) => healthResponse(env))],
+  ["/ready", limited("root", (_request, env) => readinessResponse(env))],
+  ["/v1/upstream-health", limited("upstream-health", (_request, env) => upstreamHealth(env))],
+  ["/v1/manifest", limited("manifest", (_request, env) => json(
+    buildManifest(env.DATASET_VERSION, terrainArchives, bathymetryArchives),
+    { headers: { "cache-control": "public, max-age=3600" } },
+  ))],
+  ["/v1/geocode", limited("geocode", (request, env, ctx, url) => geocodeResponse(request, env, ctx, url))],
+]);
 
 async function route(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const url = new URL(request.url);
@@ -448,66 +69,32 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(request, env) });
   if (url.pathname === "/v1/events") {
     if (request.method !== "POST") return json({ error: "Method not allowed." }, { status: 405, headers: { allow: "POST,OPTIONS" } });
-    const { success } = await env.REQUEST_LIMITER.limit({ key: `${clientKey(request)}:events` });
-    if (!success) return json({ error: "Rate limit exceeded." }, { status: 429, headers: { "retry-after": "60", "cache-control": "no-store" } });
+    if (!(await withinRequestBudget(request, env, "events"))) return rateLimitExceeded("Rate limit exceeded.");
     return collectUsage(request, env.ENVIRONMENT);
   }
-  if (!(["GET", "HEAD"] as string[]).includes(request.method)) return json({ error: "Method not allowed." }, { status: 405, headers: { allow: "GET,HEAD,OPTIONS" } });
+  if (request.method !== "GET" && request.method !== "HEAD") return json({ error: "Method not allowed." }, { status: 405, headers: { allow: "GET,HEAD,OPTIONS" } });
 
-  const { success } = await env.REQUEST_LIMITER.limit({ key: `${clientKey(request)}:${url.pathname.split("/")[2] ?? "root"}` });
-  if (!success) return json({ error: "Rate limit exceeded. Try again shortly." }, { status: 429, headers: { "retry-after": "60" } });
-
-  if (url.pathname === "/" || url.pathname === "/health") return json({ service: "topostack-map-api", status: "ok", environment: env.ENVIRONMENT });
-  if (url.pathname === "/ready") return readinessResponse(env);
-  if (url.pathname === "/v1/upstream-health") return upstreamHealth(env);
-  if (url.pathname === "/v1/manifest") return json({
-    schemaVersion: 1,
-    capabilities: { archiveReleases: 1, upstreamProbes: 1 },
-    datasetVersion: env.DATASET_VERSION,
-    coverage: { projection: "Web Mercator", minLatitude: -85.0511, maxLatitude: 85.0511, landOnly: true, vectorMaxZoom: 12 },
-    sources: [
-      { name: "Mapzen Terrain Tiles", url: "https://registry.opendata.aws/terrain-tiles/", attribution: "See Mapzen source attribution" },
-      { name: "HydroLAKES v1.0", url: "https://www.hydrosheds.org/products/hydrolakes", attribution: "CC BY 4.0 — Messager et al. (2016)" },
-      ...bathymetryCatalog.sources.map((source) => ({ name: source.name, url: source.url, attribution: source.license, archive: `/v1/bathymetry/${source.id}.pmtiles` })),
-      { name: "GLOBathy", url: "https://doi.org/10.1038/s41597-022-01132-9", attribution: "CC0 1.0 — Khazaei et al. (2022)" },
-      { name: "Protomaps Basemap 20260905", url: "https://build.protomaps.com/20260905.pmtiles", version: "4.15.2", license: "ODbL Produced Work" },
-      { name: "OpenStreetMap contributors", url: "https://www.openstreetmap.org/copyright", license: "ODbL" },
-    ],
-  }, { headers: { "cache-control": "public, max-age=3600" } });
-  if (url.pathname === "/v1/geocode") return geocodeResponse(request, env, ctx, url);
-  if (url.pathname === "/v1/osm.pmtiles") return pmtilesResponse(request, env, VECTOR_ARCHIVE_KEY, "OSM");
-  if (url.pathname === "/v1/lakes.pmtiles") return pmtilesResponse(request, env, LAKE_ARCHIVE_KEY, "Lake bathymetry");
-  const bathymetryKey = BATHYMETRY_ARCHIVES.get(url.pathname);
-  if (bathymetryKey) return pmtilesResponse(request, env, bathymetryKey, "Lake survey bathymetry");
-  const terrainMatch = url.pathname.match(/^\/v1\/terrain\/(\d+)\/(\d+)\/(\d+)\.png$/);
+  const exact = EXACT_ROUTES.get(url.pathname);
+  if (exact) return exact(request, env, ctx, url);
+  const archive = ARCHIVE_ROUTES.get(url.pathname);
+  if (archive) return archiveResponse(request, env, ctx, archive);
+  const terrainMatch = TERRAIN_TILE_PATH.exec(url.pathname);
   if (terrainMatch) {
     const tile = validTile(terrainMatch[1] ?? "", terrainMatch[2] ?? "", terrainMatch[3] ?? "");
     if (!tile) return json({ error: "Invalid terrain tile coordinates." }, { status: 400 });
-    return terrainResponse(request, env, ctx, tile);
+    // HEAD reads R2 metadata on every call (no memo), so it is metered in its
+    // own bucket rather than competing with the upstream-miss budget.
+    if (request.method === "HEAD" && !(await withinRequestBudget(request, env, "terrain-head"))) return rateLimitExceeded();
+    return terrainResponse(request, env, ctx, tile, { admitUpstream: () => withinTerrainUpstreamBudget(request, env) });
   }
-  return json({ error: "Not found." }, { status: 404 });
+  // One fixed bucket: a path-derived key would let callers mint fresh budgets
+  // or drain the real terrain/geocode buckets with 404s.
+  return limited(NOT_FOUND_BUCKET, () => json({ error: "Not found." }, { status: 404 }))(request, env, ctx, url);
 }
 
 export default {
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    const checks = [
-      { source: "terrain", run: () => terrainResponse(new Request("https://probe.invalid/v1/terrain/0/0/0.png"), env, ctx, { z: 0, x: 0, y: 0 }, true) },
-      { source: "geocoder", run: () => { const url = new URL("https://probe.invalid/v1/geocode?q=Crater%20Lake&limit=1"); return geocodeResponse(new Request(url), env, ctx, url, true); } },
-    ];
-    const results = await Promise.all(checks.map(async ({ source, run }) => {
-      const start = Date.now();
-      try {
-        const response = await run();
-        let ok = response.ok;
-        if (ok && source === "geocoder") ok = (await response.json<unknown[]>()).length > 0;
-        else await response.body?.cancel();
-        return { source, ok, status: response.status, durationMs: Date.now() - start };
-      } catch { return { source, ok: false, status: 0, durationMs: Date.now() - start }; }
-    }));
-    const snapshot = { checkedAt: new Date().toISOString(), environment: env.ENVIRONMENT, ok: results.every((result) => result.ok), results };
-    console.log(JSON.stringify({ message: "upstream_probe", ...snapshot }));
-    await env.MAP_CACHE.put(UPSTREAM_HEALTH_KEY, JSON.stringify(snapshot), { httpMetadata: { contentType: "application/json", cacheControl: "no-store" } });
-    if (!snapshot.ok) throw new Error("An uncached upstream probe failed.");
+    await probeUpstreams(env, ctx);
   },
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);

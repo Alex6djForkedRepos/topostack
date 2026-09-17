@@ -1,4 +1,5 @@
 <script lang="ts">
+  import FeedbackButton from "../lib/FeedbackButton.svelte";
   import { base } from "$app/paths";
   import { ArrowRight, ArrowUpRight, Heart } from "@lucide/svelte";
   import { Brand, ThemeToggle, Topbar } from "@loidolt/theme-svelte";
@@ -140,7 +141,7 @@
     </section>
   </main>
 
-  <footer><span>TopoStack <span class="footer-note">/ Terrain studio</span></span><a href={`${base}/guides/lake-depth-data`}>Lake depth directory</a><a href={`${base}/attribution`}>Sources and attribution</a><a href={`${base}/privacy`}>Privacy</a><a href={studioUrl}>Open terrain studio <ArrowUpRight size={14} aria-hidden="true" /></a></footer>
+  <footer><span>TopoStack <span class="footer-note">/ Terrain studio</span></span><a href={`${base}/guides/lake-depth-data`}>Lake depth directory</a><a href={`${base}/attribution`}>Sources and attribution</a><a href={`${base}/privacy`}>Privacy</a><FeedbackButton /><a href={studioUrl}>Open terrain studio <ArrowUpRight size={14} aria-hidden="true" /></a></footer>
 </div>
 
 {/if}
