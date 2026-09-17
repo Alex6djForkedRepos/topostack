@@ -36,11 +36,11 @@ async function withinTerrainUpstreamBudget(request: Request, env: Env): Promise<
 // (HEAD, If-None-Match) re-resolve from R2 each time, and missing or invalid
 // archives answer 404/503; both are charged so they cannot become an unmetered
 // R2 read loop.
-async function archiveResponse(request: Request, env: Env, archive: ArchiveRoute): Promise<Response> {
+async function archiveResponse(request: Request, env: Env, ctx: ExecutionContext, archive: ArchiveRoute): Promise<Response> {
   if ((request.method === "HEAD" || request.headers.has("if-none-match")) && !(await withinRequestBudget(request, env, "archive-meta"))) {
     return rateLimitExceeded();
   }
-  const response = await pmtilesResponse(request, env, archive);
+  const response = await pmtilesResponse(request, env, ctx, archive);
   if ((response.status === 404 || response.status === 503) && !(await withinRequestBudget(request, env, NOT_FOUND_BUCKET))) {
     await response.body?.cancel();
     return rateLimitExceeded();
@@ -77,7 +77,7 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
   const exact = EXACT_ROUTES.get(url.pathname);
   if (exact) return exact(request, env, ctx, url);
   const archive = ARCHIVE_ROUTES.get(url.pathname);
-  if (archive) return archiveResponse(request, env, archive);
+  if (archive) return archiveResponse(request, env, ctx, archive);
   const terrainMatch = TERRAIN_TILE_PATH.exec(url.pathname);
   if (terrainMatch) {
     const tile = validTile(terrainMatch[1] ?? "", terrainMatch[2] ?? "", terrainMatch[3] ?? "");

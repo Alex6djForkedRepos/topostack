@@ -2,6 +2,7 @@ import rawSurveyCatalog from "../../../../scripts/data/lake-bathymetry.json";
 import rawTerrainCatalog from "../../../../scripts/data/terrain-sources.json";
 import { validateSurveyCatalog, validateTerrainCatalog } from "../../../../packages/core/src/source-catalog";
 import { cachedArchiveHead, evictArchiveHead } from "../archive-release";
+import { edgeCacheKey, matchEdge, teeToEdge } from "../edge-cache";
 import { etagMatches, json } from "../http";
 
 export const MAX_ARCHIVE_RANGE_BYTES = 16 * 1024 * 1024;
@@ -11,6 +12,9 @@ export const MAX_ARCHIVE_RANGE_BYTES = 16 * 1024 * 1024;
 // generations for the full cache lifetime.
 const ARCHIVE_CACHE_SECONDS = 60 * 60;
 const INVALID_RELEASE_RETRY_SECONDS = 30;
+// Edge copies are keyed by object key, etag and exact range, so their bytes can
+// never change; the lifetime only bounds how long a cold range occupies cache.
+const ARCHIVE_EDGE_SECONDS = 24 * 60 * 60;
 export const VECTOR_ARCHIVE_KEY = "osm/current.pmtiles";
 export const LAKE_ARCHIVE_KEY = "lakes/current.pmtiles";
 
@@ -73,7 +77,7 @@ export function parseRangeHeader(header: string | null, size: number): ParsedRan
   return length > MAX_ARCHIVE_RANGE_BYTES ? { kind: "too_large" } : { kind: "partial", offset, length };
 }
 
-export async function pmtilesResponse(request: Request, env: Env, archive: ArchiveRoute, retried = false): Promise<Response> {
+export async function pmtilesResponse(request: Request, env: Env, ctx: ExecutionContext, archive: ArchiveRoute, retried = false): Promise<Response> {
   // HEAD and If-None-Match answer with size and validator alone, with no
   // conditional body read to catch an in-place overwrite, so they re-resolve
   // from R2 (refreshing the memo) instead of trusting a cached head.
@@ -117,6 +121,18 @@ export async function pmtilesResponse(request: Request, env: Env, archive: Archi
     headers.set("content-range", `bytes */${head.size}`);
     return json({ error: "Requested range is not satisfiable." }, { status: 416, headers });
   }
+  headers.set("content-range", `bytes ${range.offset}-${range.offset + range.length - 1}/${head.size}`);
+  headers.set("content-length", String(range.length));
+  // PMTiles clients reread the header, root directory and popular tiles; serving
+  // those ranges from the edge cache skips a billed R2 read. The Cache API
+  // cannot store 206 responses, so ranges are stored as plain 200 bodies.
+  const edgeKey = edgeCacheKey(request, `archive/${encodeURIComponent(resolved.key)}/${encodeURIComponent(head.etag)}/${range.offset}-${range.length}`);
+  const edge = await matchEdge(edgeKey);
+  if (edge?.body && edge.headers.get("content-length") === String(range.length)) {
+    headers.set("x-topostack-cache", "EDGE");
+    return new Response(edge.body, { status: 206, headers });
+  }
+  await edge?.body?.cancel();
   const object = await env.VECTOR_DATA.get(resolved.key, {
     range: { offset: range.offset, length: range.length },
     onlyIf: { etagMatches: head.etag },
@@ -124,12 +140,15 @@ export async function pmtilesResponse(request: Request, env: Env, archive: Archi
   // Never combine one generation's size/range with another generation's body.
   if (!object || !("body" in object)) {
     evictArchiveHead(archive.key);
-    if (!retried) return pmtilesResponse(request, env, archive, true);
+    if (!retried) return pmtilesResponse(request, env, ctx, archive, true);
     if (!object) return json({ error: `${archive.label} archive has not been provisioned.` }, { status: 404 });
     return json({ error: `${archive.label} archive is being updated. Try again shortly.` }, { status: 503, headers: { "retry-after": "1" } });
   }
   headers.set("etag", object.httpEtag);
-  headers.set("content-range", `bytes ${range.offset}-${range.offset + range.length - 1}/${head.size}`);
-  headers.set("content-length", String(range.length));
-  return new Response(object.body, { status: 206, headers });
+  const body = teeToEdge(ctx, edgeKey, object.body, {
+    "content-type": "application/octet-stream",
+    "content-length": String(range.length),
+    "cache-control": `public, max-age=${ARCHIVE_EDGE_SECONDS}`,
+  });
+  return new Response(body, { status: 206, headers });
 }

@@ -1,6 +1,7 @@
 import { decodeTerrainPng } from "../../../../packages/core/src/terrain-png";
 import { BodyTooLargeError, readBounded } from "../body";
 import { headCache, readCache, writeCache } from "../cache";
+import { edgeCacheKey, matchEdge, putEdge, teeToEdge } from "../edge-cache";
 import { etagMatches, json, rateLimitExceeded, upstreamFailure, upstreamSignal } from "../http";
 
 const MAX_TERRAIN_BYTES = 2_000_000;
@@ -26,6 +27,18 @@ export function validTile(zText: string, xText: string, yText: string): Tile | n
 
 function terrainKey(env: Env, tile: Tile): string {
   return `terrain/${env.DATASET_VERSION}/terrarium/${tile.z}/${tile.x}/${tile.y}.png`;
+}
+
+/** Versioned like the R2 key, plus the provenance marker, so a bump never serves an older edge entry. */
+function terrainEdgeKey(request: Request, env: Env, tile: Tile): string {
+  return edgeCacheKey(request, `terrain/${encodeURIComponent(env.DATASET_VERSION)}/${TERRAIN_PROVENANCE_VERSION}/${tile.z}/${tile.x}/${tile.y}.png`);
+}
+
+/** Edge entries are stored with the headers of the response that filled them. */
+function edgeHeaders(edge: Response): Headers {
+  const headers = new Headers(edge.headers);
+  headers.set("x-topostack-cache", "EDGE");
+  return headers;
 }
 
 function isCurrentEntry(metadata: Record<string, string> | undefined): boolean {
@@ -131,7 +144,13 @@ export interface TerrainOptions {
  * PNG decode or cache write. The caller charges the per-client request budget
  * first because each HEAD still costs one R2 read.
  */
-async function terrainHeadResponse(request: Request, env: Env, key: string): Promise<Response> {
+async function terrainHeadResponse(request: Request, env: Env, key: string, edgeKey: string): Promise<Response> {
+  const edge = await matchEdge(edgeKey);
+  if (edge) {
+    await edge.body?.cancel();
+    const headers = edgeHeaders(edge);
+    return etagMatches(request.headers.get("if-none-match"), headers.get("etag") ?? "") ? notModified(headers) : new Response(null, { headers });
+  }
   const object = await headCache(env.MAP_CACHE, key, "terrain");
   if (object && isCurrentEntry(object.customMetadata)) {
     const headers = cachedHeaders(object, env, "HIT");
@@ -152,7 +171,17 @@ async function terrainHeadResponse(request: Request, env: Env, key: string): Pro
 
 export async function terrainResponse(request: Request, env: Env, ctx: ExecutionContext, tile: Tile, options: TerrainOptions = {}): Promise<Response> {
   const key = terrainKey(env, tile);
-  if (request.method === "HEAD") return terrainHeadResponse(request, env, key);
+  const edgeKey = terrainEdgeKey(request, env, tile);
+  if (request.method === "HEAD") return terrainHeadResponse(request, env, key, edgeKey);
+  const edge = options.bypassCache ? null : await matchEdge(edgeKey);
+  if (edge?.body) {
+    const headers = edgeHeaders(edge);
+    if (etagMatches(request.headers.get("if-none-match"), headers.get("etag") ?? "")) {
+      await edge.body.cancel();
+      return notModified(headers);
+    }
+    return new Response(edge.body, { headers });
+  }
   const cached = options.bypassCache ? null : await readTerrainCache(request, env, key);
   if (cached && isCurrentEntry(cached.customMetadata)) {
     if (!hasBody(cached)) return notModified(cachedHeaders(cached, env, "HIT"));
@@ -160,7 +189,8 @@ export async function terrainResponse(request: Request, env: Env, ctx: Execution
       await cached.body.cancel();
       return notModified(cachedHeaders(cached, env, "HIT"));
     }
-    return new Response(cached.body, { headers: cachedHeaders(cached, env, "HIT") });
+    const headers = cachedHeaders(cached, env, "HIT");
+    return new Response(teeToEdge(ctx, edgeKey, cached.body, headers), { headers });
   }
   // Legacy or unvalidated entries are misses; keep their metadata for a stale fallback.
   if (cached && hasBody(cached)) await cached.body.cancel();
@@ -187,6 +217,7 @@ export async function terrainResponse(request: Request, env: Env, ctx: Execution
     },
   }));
   const headers = terrainHeaders({ etag, dataset: env.DATASET_VERSION, imagerySources, cache: options.bypassCache ? "BYPASS" : "MISS", size: body.byteLength });
+  if (!options.bypassCache) putEdge(ctx, edgeKey, new Response(body.slice(), { headers }));
   if (etagMatches(request.headers.get("if-none-match"), etag)) return notModified(headers);
   return new Response(body, { headers });
 }

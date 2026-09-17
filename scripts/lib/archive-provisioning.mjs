@@ -2,8 +2,9 @@ import { createHash, randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { access, open, rename, rm, stat } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
-import { AwsClient } from "aws4fetch";
 import { parseArchiveRelease } from "../../packages/core/src/archive-release.ts";
+import { bucketDeployment } from "./r2-buckets.mjs";
+import { temporaryR2Client, verifyParentToken } from "./r2-s3.mjs";
 
 export async function verifyArchiveResponse(response, expectedBytes, expectedDigest) {
   if (response.status !== 200 || !response.body) throw new Error(`Archive verification GET failed (${response.status}).`);
@@ -48,7 +49,11 @@ export async function stageArchive({ logicalKey, dataset, bytes, sha256, upload,
   await upload(objectKey);
   const downloaded = await request(objectKey, { method: "GET", signal: AbortSignal.timeout(2 * 60 * 60 * 1000) });
   const etag = await verifyArchiveResponse(downloaded, bytes, sha256);
-  const release = parseArchiveRelease({ schemaVersion: 1, logicalKey, objectKey, dataset, bytes, sha256, etag, verifiedAt: new Date().toISOString() }, logicalKey);
+  // Recording the predecessor lets archive pruning keep exactly one rollback
+  // target. Re-promoting the same object inherits its predecessor instead.
+  const previousObjectKey = previousRelease?.objectKey === objectKey ? previousRelease.previousObjectKey : previousRelease?.objectKey ?? null;
+  const release = parseArchiveRelease({ schemaVersion: 1, logicalKey, objectKey, dataset, bytes, sha256, etag, verifiedAt: new Date().toISOString(),
+    ...(previousObjectKey === undefined ? {} : { previousObjectKey }) }, logicalKey);
   const receipt = { release, previousRelease, previousEtag: previousEtag ?? null, promoted: false };
   // Retain rollback information even if promotion or a subsequent bucket fails.
   await checkpoint(receipt);
@@ -72,26 +77,15 @@ export async function verifyPromotionGateway(origin, request = fetch) {
 
 export async function provisionVerifiedArchives({ accountId, cloudflare, buckets, logicalKey, dataset, archivePath, sha256, bytes, pmtilesBin, run, promote, checkpoint }) {
   if (promote) {
-    const origins = { "topostack-vector-data-development": "https://dev-topostack.echofoxtrot.works", "topostack-vector-data": "https://topostack.echofoxtrot.works" };
-    for (const bucket of buckets) {
-      if (!origins[bucket]) throw new Error("No promotion gateway is registered for this bucket.");
-      await verifyPromotionGateway(origins[bucket]);
-    }
+    for (const bucket of buckets) await verifyPromotionGateway(bucketDeployment(bucket).origin);
   }
-  const parent = await cloudflare("/tokens/verify");
-  if (!parent?.id || parent.status !== "active") throw new Error("The account API token is not active.");
+  const parentAccessKeyId = await verifyParentToken(cloudflare);
   const receipts = [];
   for (const bucket of buckets) {
     const id = randomUUID();
     const objectKey = `archives/${sha256}/${id}.pmtiles`;
-    const credentials = await cloudflare("/r2/temp-access-credentials", { method: "POST", body: JSON.stringify({
-      bucket, parentAccessKeyId: parent.id, permission: "object-read-write", ttlSeconds: 86400,
-      objects: [objectKey, `releases/${logicalKey}.json`],
-    }) });
-    if (!credentials?.accessKeyId || !credentials.secretAccessKey || !credentials.sessionToken) throw new Error("Missing temporary R2 credentials.");
-    const client = new AwsClient({ ...credentials, service: "s3", region: "auto", retries: 0 });
-    const endpoint = `https://${accountId}.r2.cloudflarestorage.com`;
-    const request = async (key, init) => client.fetch(`${endpoint}/${bucket}/${key.split("/").map(encodeURIComponent).join("/")}`, { signal: AbortSignal.timeout(30_000), ...init });
+    const { credentials, endpoint, request } = await temporaryR2Client({ cloudflare, accountId, bucket, parentAccessKeyId,
+      permission: "object-read-write", ttlSeconds: 86400, objects: [objectKey, `releases/${logicalKey}.json`] });
     console.log(`Staging and verifying ${logicalKey} in ${bucket}.`);
     const receipt = await stageArchive({ logicalKey, dataset, bytes, sha256, id, request, promote,
       upload: (key) => run(pmtilesBin, ["upload", archivePath, key, `--bucket=s3://${bucket}?endpoint=${endpoint}&region=auto&use_path_style=true`, "--max-concurrency=8"], {

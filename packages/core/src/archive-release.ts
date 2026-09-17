@@ -8,7 +8,15 @@ export interface ArchiveRelease {
   bytes: number;
   etag: string;
   verifiedAt: string;
+  /**
+   * The archive this release replaced, kept as its rollback target: `null` for
+   * a first (or legacy-replacing) release, absent on pointers written before
+   * predecessors were recorded.
+   */
+  previousObjectKey?: string | null;
 }
+
+const ARCHIVE_OBJECT_KEY = /^archives\/[a-f0-9]{64}\/[a-f0-9-]{36}\.pmtiles$/;
 
 export function parseArchiveRelease(value: unknown, logicalKey: string): ArchiveRelease {
   if (!value || typeof value !== "object") throw new Error("Invalid archive release.");
@@ -18,6 +26,10 @@ export function parseArchiveRelease(value: unknown, logicalKey: string): Archive
     || typeof r.dataset !== "string" || !r.dataset.trim() || r.dataset.length > 200
     || typeof r.bytes !== "number" || !Number.isSafeInteger(r.bytes) || r.bytes < 127
     || typeof r.etag !== "string" || !/^"[^"\r\n]+"$/.test(r.etag)
-    || typeof r.verifiedAt !== "string" || !Number.isFinite(Date.parse(r.verifiedAt))) throw new Error("Invalid archive release.");
-  return { schemaVersion: 1, logicalKey, objectKey: r.objectKey, dataset: r.dataset, sha256: r.sha256, bytes: r.bytes, etag: r.etag, verifiedAt: r.verifiedAt };
+    || typeof r.verifiedAt !== "string" || !Number.isFinite(Date.parse(r.verifiedAt))
+    || (r.previousObjectKey !== undefined && r.previousObjectKey !== null
+      && (typeof r.previousObjectKey !== "string" || !ARCHIVE_OBJECT_KEY.test(r.previousObjectKey) || r.previousObjectKey === r.objectKey))) throw new Error("Invalid archive release.");
+  const release: ArchiveRelease = { schemaVersion: 1, logicalKey, objectKey: r.objectKey, dataset: r.dataset, sha256: r.sha256, bytes: r.bytes, etag: r.etag, verifiedAt: r.verifiedAt };
+  if (r.previousObjectKey !== undefined) release.previousObjectKey = r.previousObjectKey as string | null;
+  return release;
 }

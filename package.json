@@ -28,6 +28,7 @@
     "test:scripts": "node scripts/check-node.mjs && node --test scripts/test/*.test.mjs",
     "test:python": "python3 -m unittest discover -s scripts -p 'test_*.py'",
     "data:cache-audit": "node scripts/manage-cache-lifecycle.mjs",
+    "data:prune-archives": "node scripts/prune-archives.mjs",
     "data:benchmark": "node scripts/benchmark-data-layer.mjs",
     "package:atomm-listing": "node scripts/package-atomm-listing.mjs",
     "version:check": "node scripts/versions.mjs check",
