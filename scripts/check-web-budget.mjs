@@ -28,12 +28,17 @@ const budgets = {
   // Raised again 2026-09-17 for the export-files and troubleshooting guide
   // routes: 446,818 -> 453,585 with Node 22.14.0.
   // Raised again 2026-09-17 for four more guide routes: 453,585 -> 464,010.
-  startupJavaScriptGzip: 466_000,
+  // Raised 2026-09-18 for machine work-area splitting: the seam planner and the
+  // per-cell panel writer are part of generateGeometry, which the studio route
+  // imports directly for its first preview. Measured with Node 22.22.2 at
+  // 463,134 startup and 914,639 total on the rebased branch.
+  startupJavaScriptGzip: 474_000,
   // All routes, lazy-loaded tools, and workers, including the interactive lake
   // guide and MapLibre's worker. The fetched lake catalog is budgeted below.
   // Raised 2026-09-17 for the same two guide routes: 888,934 -> 895,695.
   // Raised again 2026-09-17 for four more guide routes: 895,695 -> 906,116.
-  totalJavaScriptGzip: 908_000,
+  // Raised 2026-09-18 for machine work-area splitting.
+  totalJavaScriptGzip: 922_000,
   largestJavaScriptGzip: 300_000,
   // Public guides add styles outside the studio. Keep a separate allowance for
   // the Atomm template, which is loaded only inside the platform iframe.
