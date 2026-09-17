@@ -21,10 +21,16 @@ export const DOCS_SECTIONS: readonly { id: string; title: string; summary: strin
     paths: ["/guides/how-lake-depths-work", "/guides/lake-depth-data"],
   },
   {
+    id: "help",
+    title: "Help",
+    summary: "Fix blocked exports, understand warnings and find answers to common questions.",
+    paths: ["/guides/troubleshooting"],
+  },
+  {
     id: "reference",
     title: "Reference",
-    summary: "Data sources, credits, licenses and how the site handles your projects.",
-    paths: ["/attribution", "/privacy"],
+    summary: "What each export contains, data sources and credits, and how the site handles your projects.",
+    paths: ["/guides/export-files", "/attribution", "/privacy"],
   },
 ];
 

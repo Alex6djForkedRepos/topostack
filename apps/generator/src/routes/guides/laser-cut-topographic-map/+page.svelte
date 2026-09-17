@@ -21,7 +21,7 @@
   <h2>5. Export and import the artwork</h2>
   <p>Open <strong>Export</strong> and download the complete project. It contains a master SVG, cut panels, matching engraving panels, an assembly guide, a project file with your settings and generation details, and <strong>ATTRIBUTION.txt</strong>.</p>
   <p>SVG operation groups separate cuts (red, <code>#FE0002</code>) from scores and engravings (both blue, <code>#2366FF</code>). In your laser software, confirm the imported dimensions and assign each operation deliberately: color alone does not configure the machine.</p>
-  <p><strong>Kerf compensation is on by default.</strong> TopoStack offsets cut paths by the <strong>Laser kerf</strong> value in <strong>Fabrication settings</strong> (0.15 mm unless you change it). Measure your laser's kerf and enter it there, or set it to 0 if your laser software applies its own offset. Do not apply both.</p>
+  <p><strong>Kerf compensation is on by default.</strong> TopoStack moves each cut outward or inward by half the <strong>Laser kerf</strong> width set in <strong>Fabrication settings</strong> (0.15 mm unless you change it). Measure your laser's kerf and enter it there, or set it to 0 if your laser software applies its own offset. Do not apply both.</p>
   <h2>6. Keep the pieces and follow the assembly guide</h2>
   <p><strong>Material-saving nests</strong> (on by default) cut some upper layers from the part of a lower sheet that the layer above will cover, leaving a <strong>Glue margin</strong> around them. Keep every loose cutout and use the layer IDs and assembly guide to identify where it belongs. Alignment engravings help position the next layer and are hidden once it is glued in place.</p>
   <h2>Check before you cut</h2>

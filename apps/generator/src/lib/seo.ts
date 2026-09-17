@@ -9,7 +9,7 @@ export const PUBLIC_PAGES: Record<string, { title: string; description: string; 
   },
   "/guides": {
     title: "Topographic Map Guides and Documentation | TopoStack",
-    description: "Guides for making layered and engraved topographic maps, understanding lake-depth data, and TopoStack's sources, credits and privacy.",
+    description: "Guides for making layered and engraved topographic maps, understanding lake-depth data and export files, troubleshooting, and TopoStack's sources, credits and privacy.",
     label: "Guides",
   },
   "/guides/laser-cut-topographic-map": {
@@ -31,6 +31,16 @@ export const PUBLIC_PAGES: Record<string, { title: string; description: string; 
     title: "How Lake Depths Work: Surveys, Predictions and Layers | TopoStack",
     description: "Learn how TopoStack combines lake surveys, shoreline terrain and depth estimates, handles missing data, and turns lake floors into cut layers.",
     label: "How lake depths work",
+  },
+  "/guides/export-files": {
+    title: "Laser Export Files and SVG Structure | TopoStack",
+    description: "What each TopoStack download contains: SVG panels, colors and operation groups, kerf compensation, assembly guide, project file and attribution.",
+    label: "Export files",
+  },
+  "/guides/troubleshooting": {
+    title: "Troubleshooting Topographic Map Exports | TopoStack",
+    description: "Fix blocked exports, understand studio warnings, and get answers to common questions about layers, lake depth, SVG scale and kerf.",
+    label: "Troubleshooting",
   },
   "/examples/crater-lake": {
     title: "Crater Lake Topographic Map: A Terrain Project | TopoStack",
