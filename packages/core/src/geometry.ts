@@ -366,7 +366,7 @@ function addPieceLabels({ config, flatEngraving, warnings }: GenerationContext, 
   if (!config.showAssemblyLabels || flatEngraving) return;
   const omitted: string[] = [];
   for (const { layer, covering } of clips) {
-    if (layer.pieces.length < 2) continue;
+    if (!layer.pieces.length) continue;
     const labelIndex = indexLabelLayer(layer.polygons, layer.markings);
     for (const piece of layer.pieces) {
       const polygon = layer.polygons[piece.polygonIndex];

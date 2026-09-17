@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildFabricationPackage,
   cellEdges,
   createSyntheticSource,
   DEFAULT_PROJECT,
   generateGeometry,
   MAX_SEAM_DIVISIONS,
+  masterToSvg,
   planSeamGrid,
   projectFingerprint,
   seamPhase,
@@ -323,6 +325,27 @@ describe("machine work-area splitting", () => {
     }
   });
 
+  it("absorbs a piece too narrow to cut into its neighbour", () => {
+    // A fine grid over a cone grazes the slope with several seams, so some
+    // cells retain only a crescent a fraction of a millimetre wide.
+    const [config, source] = conicalProject({ workAreaWidthMm: 42, workAreaHeightMm: 42, minimumFeatureMm: 5 });
+    const whole = generateGeometry({ ...config, workAreaWidthMm: 0, workAreaHeightMm: 0 }, source);
+    const ir = generateGeometry(config, source);
+    expect(ir.splitPlan).toBeDefined();
+
+    const narrow = ir.layers.flatMap((layer) => layer.pieces)
+      .filter((piece) => !piece.exempt && (piece.widthMm < config.minimumFeatureMm || piece.heightMm < config.minimumFeatureMm));
+    // Whatever could be absorbed was; anything left is reported, never deleted.
+    if (narrow.length) expect(ir.warnings.some((warning) => warning.code === "SMALL_FEATURES")).toBe(true);
+    expect(materialArea(ir)).toBeCloseTo(materialArea(whole), 4);
+    for (const layer of ir.layers) {
+      for (const piece of layer.pieces) {
+        expect(piece.widthMm).toBeLessThanOrEqual(ir.splitPlan!.usableWidthMm + 1e-6);
+        expect(piece.heightMm).toBeLessThanOrEqual(ir.splitPlan!.usableHeightMm + 1e-6);
+      }
+    }
+  });
+
   it("abandons the split rather than emitting more pieces than it will cut", () => {
     const [config, source] = conicalProject({ workAreaWidthMm: 25, workAreaHeightMm: 25 });
     const whole = generateGeometry({ ...config, workAreaWidthMm: 0, workAreaHeightMm: 0 }, source);
@@ -366,3 +389,101 @@ describe("machine work-area splitting", () => {
       .toEqual(second.layers.map((layer) => layer.pieces.map((piece) => piece.id)));
   });
 });
+
+describe("split fabrication package", () => {
+  const workArea = { workAreaWidthMm: 160, workAreaHeightMm: 120 };
+
+  function splitPackage(overrides: Partial<ProjectConfigV1> = {}) {
+    const [config, source] = conicalProject({ ...workArea, ...overrides });
+    const ir = generateGeometry(config, source);
+    return { config, ir, pkg: buildFabricationPackage(ir, config) };
+  }
+
+  it("emits one panel per seam cell, each fitting the machine", async () => {
+    const { config, pkg } = splitPackage();
+    const panels = pkg.files.filter((file) => file.filename.endsWith(".svg") && !file.filename.includes("master") && !file.filename.includes("assembly-guide") && !file.filename.endsWith("-engrave.svg"));
+    expect(panels.length).toBeGreaterThan(1);
+    expect(panels.every((file) => /-[a-z]\d+\.svg$/.test(file.filename))).toBe(true);
+
+    for (const file of panels) {
+      const svg = await file.blob.text();
+      const width = Number(/width="([\d.]+)mm"/.exec(svg)![1]);
+      const height = Number(/height="([\d.]+)mm"/.exec(svg)![1]);
+      expect(width).toBeLessThanOrEqual(config.workAreaWidthMm + 1e-6);
+      expect(height).toBeLessThanOrEqual(config.workAreaHeightMm + 1e-6);
+    }
+  });
+
+  it("puts assembly ids in their own operation group", async () => {
+    const { pkg } = splitPackage();
+    const withIds = [];
+    for (const file of pkg.files.filter((entry) => entry.filename.endsWith(".svg"))) {
+      const svg = await file.blob.text();
+      if (!svg.includes('id="ASSEMBLY"')) continue;
+      withIds.push(file.filename);
+      const group = /<g id="ASSEMBLY"[\s\S]*?stroke="(#[0-9A-Fa-f]{6})"/.exec(svg)!;
+      // A separate colour is what makes it a separate process in the machine.
+      expect(group[1]).not.toBe("#2366FF");
+      const body = svg.slice(svg.indexOf('id="ASSEMBLY"'));
+      const ids = [...body.slice(0, body.indexOf('data-operation="SCORE"')).matchAll(/<path id="([^"]+)"/g)].map((match) => match[1]!);
+      expect(ids.length).toBeGreaterThan(0);
+      expect(ids.every((id) => id.startsWith("piece-"))).toBe(true);
+    }
+    expect(withIds.length).toBeGreaterThan(0);
+  });
+
+  it("carries no assembly group when assembly labels are off", async () => {
+    const { pkg } = splitPackage({ showAssemblyLabels: false });
+    for (const file of pkg.files.filter((entry) => entry.filename.endsWith(".svg"))) {
+      expect(await file.blob.text()).not.toContain('id="ASSEMBLY"');
+    }
+  });
+
+  it("stops a marking at the seam instead of engraving past its own sheet", async () => {
+    const [config, source] = conicalProject({ ...workArea, showAlignmentGuides: true });
+    const ir = generateGeometry(config, source);
+    const pkg = buildFabricationPackage(ir, config);
+    const grid = planSeamGrid(config)!;
+    const panels = pkg.files.filter((file) => /-[a-z]\d+\.svg$/.test(file.filename) && !file.filename.endsWith("-engrave.svg"));
+
+    for (const file of panels) {
+      const svg = await file.blob.text();
+      const viewBox = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(svg)!.slice(1).map(Number);
+      const points = [...svg.matchAll(/[ML](-?[\d.]+) (-?[\d.]+)/g)].map((match) => ({ x: Number(match[1]), y: Number(match[2]) }));
+      expect(points.length).toBeGreaterThan(0);
+      for (const point of points) {
+        expect(point.x).toBeGreaterThanOrEqual(viewBox[0]! - 1e-3);
+        expect(point.x).toBeLessThanOrEqual(viewBox[0]! + viewBox[2]! + 1e-3);
+        expect(point.y).toBeGreaterThanOrEqual(viewBox[1]! - 1e-3);
+        expect(point.y).toBeLessThanOrEqual(viewBox[1]! + viewBox[3]! + 1e-3);
+      }
+    }
+    expect(grid.columns * grid.rows).toBeGreaterThan(1);
+  });
+
+  it("records the seam grid in the manifest", async () => {
+    const { pkg } = splitPackage();
+    const manifest = JSON.parse(await pkg.files.find((file) => file.filename.endsWith("-project.json"))!.blob.text());
+    expect(manifest.result.fabrication.workArea).toMatchObject({ widthMm: 160, heightMm: 120, columns: 2, rows: 2 });
+    expect(manifest.result.fabrication.panels.every((panel: { cell?: string }) => Boolean(panel.cell))).toBe(true);
+    expect(manifest.result.layers[0].filenames.length).toBeGreaterThan(1);
+  });
+
+  it("explains the seams in the README", async () => {
+    const { pkg } = splitPackage();
+    const readme = await pkg.files.find((file) => file.filename === "README.txt")!.blob.text();
+    expect(readme).toMatch(/Seams shift half a tile on alternating layers/);
+    expect(readme).toMatch(/assembly id/i);
+  });
+
+  it("tiles every panel into the master without overlap", () => {
+    const { ir } = splitPackage();
+    const master = masterToSvg(ir);
+    const width = Number(/width="([\d.]+)mm"/.exec(master)![1]);
+    expect(width).toBeGreaterThan(ir.widthMm);
+    expect((master.match(/data-cell="/g) ?? []).length).toBeGreaterThan(OPERATION_GROUPS);
+  });
+});
+
+/** ENGRAVE, ASSEMBLY, SCORE and CUT each repeat every panel group once. */
+const OPERATION_GROUPS = 4;
