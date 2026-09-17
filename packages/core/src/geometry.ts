@@ -337,6 +337,10 @@ function addAlignmentGuides(config: ProjectConfigV1, clips: LayerClip[]): void {
   }
 }
 
+function ringArea(points: Point2D[]): number {
+  return Math.abs(signedArea(points));
+}
+
 /** The parts of `polygon` that something stacked above it hides after assembly. */
 function coveredParts(polygon: Polygon2D, covering: PreparedPolygons): Polygon2D[] {
   if (!covering.polygons.length) return [];
@@ -372,8 +376,14 @@ function addPieceLabels({ config, flatEngraving, warnings }: GenerationContext, 
       const polygon = layer.polygons[piece.polygonIndex];
       if (!polygon) continue;
       const covered = coveredParts(polygon, covering);
-      const point = covered.length
-        ? placeLabel(piece.id, config, labelIndex, polygonCenter(polygon, config), covered)
+      // Aim at the middle of the largest covered region rather than the middle
+      // of the piece: `placeLabel` tries the preferred point first and then
+      // falls back to a grid spanning the whole model, whose spacing is far
+      // coarser than one cut piece, so a poor first guess loses the label.
+      const largest = covered.reduce<Polygon2D | undefined>((best, part) =>
+        !best || ringArea(part.outer) > ringArea(best.outer) ? part : best, undefined);
+      const point = largest
+        ? placeLabel(piece.id, config, labelIndex, polygonCenter(largest, config), covered)
         : undefined;
       if (!point) {
         omitted.push(piece.id);
