@@ -10,12 +10,14 @@
 
   const uses: Record<string, { section: string; description: string }> = {
     "Mapzen Terrain Tiles": { section: "terrain", description: "Elevation tiles are sampled, cropped to your selected area, and converted into terrain layers, contour lines, and 3D previews. Vertical exaggeration and contour spacing are applied by TopoStack." },
-    "HydroLAKES v1.0": { section: "lakes", description: "Lake outlines, identifiers, and surface elevations supplement provider water masks and OSM shorelines to locate lakes and connect them to depth data. TopoStack clips and simplifies the outlines and joins them to GLOBathy estimates and available surveys." },
-    "GLOBathy": { section: "lakes", description: "Estimated maximum depths help TopoStack construct a modeled lake floor where survey coverage is unavailable. The resulting shape is a TopoStack approximation, not a measured bathymetric survey." },
+    "HydroLAKES v1.0": { section: "lakes", description: "Lake outlines, identifiers, surface elevations, and estimated average depths supplement provider water masks and OSM shorelines to locate lakes and connect them to depth data. TopoStack clips and simplifies the outlines and joins them to GLOBathy estimates and available surveys." },
+    "GLOBathy": { section: "lakes", description: "Maximum depths, from reported measurements where available and model estimates elsewhere, help TopoStack construct a modeled lake floor where survey coverage is unavailable. The resulting shape is a TopoStack approximation, not a measured bathymetric survey." },
     "Protomaps Basemap 20260905": { section: "features", description: "The pinned OpenStreetMap-derived basemap supplies roads, trails, water features, and boundaries for generated artwork. TopoStack selects, classifies, clips, and simplifies these features into engraving paths." },
     "OpenStreetMap contributors": { section: "features", description: "Community mapping supplies the underlying geographic features used through Protomaps, the location map, and place search. Map data © OpenStreetMap contributors." },
   };
   const terrainContributors = MAP_DATA_ATTRIBUTION.filter((source) => !uses[source.name]);
+  // Several catalog entries can come from one published dataset; credit each once.
+  const terrainSources = terrainCatalog.sources.filter((source, index, all) => all.findIndex((other) => other.name === source.name && other.license === source.license) === index);
   const sections = [
     { id: "terrain", title: "Terrain and elevation" },
     { id: "features", title: "Roads, trails, water, and boundaries" },
@@ -40,11 +42,13 @@
     { name: "Lucide", url: "https://lucide.dev/license", license: "ISC", use: "Interface icons." },
     { name: "MapLibre GL JS", url: "https://github.com/maplibre/maplibre-gl-js", license: "BSD-3-Clause", use: "Interactive location map rendering." },
     { name: "Three.js", url: "https://github.com/mrdoob/three.js", license: "MIT", use: "3D terrain and exploded layer previews." },
-    { name: "PMTiles", url: "https://github.com/protomaps/PMTiles", license: "BSD-3-Clause", use: "Reading map and bathymetry tile archives." },
+    { name: "PMTiles", url: "https://github.com/protomaps/PMTiles", license: "BSD-3-Clause", use: "Reading map, terrain, and bathymetry tile archives." },
     { name: "@mapbox/vector-tile and pbf", url: "https://github.com/mapbox/vector-tile-js", license: "BSD-3-Clause", use: "Decoding vector map tiles and their Protocol Buffer data." },
+    { name: "d3-contour", url: "https://github.com/d3/d3-contour", license: "ISC", use: "Tracing contour lines from elevation grids." },
+    { name: "clipper-lib", url: "https://github.com/junmer/clipper-lib", license: "BSL-1.0", use: "Offsetting cut paths for kerf compensation and clearances around map markers." },
     { name: "polygon-clipping", url: "https://github.com/mfogel/polygon-clipping", license: "MIT", use: "Combining and clipping terrain and map geometry." },
-    { name: "fflate", url: "https://github.com/101arrowz/fflate", license: "MIT", use: "Compression and downloadable project ZIP files." },
-    { name: "idb-keyval", url: "https://github.com/jakearchibald/idb-keyval", license: "Apache-2.0", use: "Local browser data caching." },
+    { name: "fflate", url: "https://github.com/101arrowz/fflate", license: "MIT", use: "Decompressing terrain tiles and creating downloadable project ZIP files." },
+    { name: "idb-keyval", url: "https://github.com/jakearchibald/idb-keyval", license: "Apache-2.0", use: "Saving project settings in your browser." },
   ];
 </script>
 
@@ -65,7 +69,7 @@
         </div>
       {/each}
       {#if section.id === "terrain"}
-        {#each terrainCatalog.sources as source}
+        {#each terrainSources as source}
           <div class="source">
             <h3><a href={source.url}>{source.name}</a></h3>
             <p>Within registered coverage, preferred bare-earth elevations are selected by quality priority, native resolution, and survey year. Standard terrain fills coverage gaps. These elevations describe the ground and water surface; lake-floor depths use separate sources.</p>
@@ -139,7 +143,7 @@
 
   <section id="exports" aria-labelledby="exports-title">
     <h2 id="exports-title">Credits in your exported project</h2>
-    <p>Complete fabrication downloads include <strong>ATTRIBUTION.txt</strong> with the map-source notices, applied survey credits, and terrain imagery sources reported by the provider. The project manifest also records source attribution and dataset versions. Survey credits are added when survey data is used.</p>
+    <p>Complete project downloads for layered and flat output, and panel ZIP downloads, include <strong>ATTRIBUTION.txt</strong>. It lists the map-source notices, the high-resolution terrain, lake outline, and survey sources used, and the terrain imagery sources reported by the provider. Single-file downloads do not include it. The project manifest also records source attribution and dataset versions. Survey credits are added when survey data is used.</p>
     <p>Keep these files with the artwork when sharing a project. This page describes the sources available across TopoStack; your project’s records describe the data used for that generation.</p>
     <p class="note">TopoStack crops, resamples, simplifies, interpolates, and scales source data for decorative fabrication. These adaptations are made by TopoStack and do not imply endorsement by the original providers.</p>
     <p>Found a missing credit or an incorrect source description? <a href={`${REPOSITORY_URL}/issues`}>Report an attribution correction</a>.</p>
@@ -160,4 +164,6 @@
   summary { cursor: pointer; line-height: 1.6; font-weight: 600; }
   summary:focus-visible { outline: 2px solid var(--loidolt-accent); outline-offset: 4px; }
   @media print { details::details-content { content-visibility: visible; } }
+  /* Wide layouts show the shared "On this page" list beside the article. */
+  @media (min-width: 1240px) { .contents { display: none; } }
 </style>
