@@ -4,7 +4,7 @@
   import { House } from "@lucide/svelte";
   import { Box, ChevronDown, Circle, Compass, Download, Grid3X3, Layers3, Map as MapIcon, MapPin, Minus, Mountain, PenTool, Plus, Route, RotateCcw, Search, Sparkles, Square, Trash2, Undo2, Redo2, Upload, Waves, X } from "@lucide/svelte";
   import { AppShell, Brand, Button, ContextBar, Field, IconButton, Input, Section, Sidebar, ThemeToggle, Topbar, Workspace } from "@loidolt/theme-svelte";
-  import { sourceRequirements, DEFAULT_PROJECT, displayElevation, displayLength, elevationUnit, generateGeometry, labelPathData, lengthUnit, MAP_MARKER_SIZE_MM, MAP_MARKER_MIN_SIZE_MM, MAP_MARKER_MAX_SIZE_MM, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, MAX_WATER_DEPTH_EXAGGERATION, millimetersFromDisplay, MIN_VERTICAL_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, NORTH_ARROW_MIN_SIZE_MM, planTerrainStack, projectFingerprint, validateProject, type GeoBounds, type GeometryIRV1, type LineStyleV1, type OperationPath, type ProjectConfigV1, type SourceBundleV1 } from "@topostack/core";
+  import { sourceRequirements, DEFAULT_PROJECT, planSeamGrid, displayElevation, displayLength, elevationUnit, generateGeometry, labelPathData, lengthUnit, MAP_MARKER_SIZE_MM, MAP_MARKER_MIN_SIZE_MM, MAP_MARKER_MAX_SIZE_MM, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, MAX_WATER_DEPTH_EXAGGERATION, millimetersFromDisplay, MIN_VERTICAL_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, NORTH_ARROW_MIN_SIZE_MM, planTerrainStack, projectFingerprint, validateProject, type GeoBounds, type GeometryIRV1, type LineStyleV1, type OperationPath, type ProjectConfigV1, type SourceBundleV1 } from "@topostack/core";
   import { assembleWater, boundsForProject, loadLakeAreas, loadSurveyedLakeDepths, loadTerrain, loadVectorMarkings, type PlaceResult } from "../data-provider";
   import { applySurveyProvenance } from "../bathymetry";
   import { resolveLakeOutlines } from "../lake-outlines";
@@ -203,6 +203,12 @@
 
   const layerTicks = $derived(geometry.layers.map((layer) => Math.round(displayElevation(layer.elevationM, project.units))));
   const shownLengthUnit = $derived(lengthUnit(project.units));
+  const seamGrid = $derived(planSeamGrid(project));
+  const seamSummary = $derived(seamGrid
+    ? `${seamGrid.columns} × ${seamGrid.rows} sheets per layer · ${shownLength(seamGrid.pitchXMm)} × ${shownLength(seamGrid.pitchYMm)} ${shownLengthUnit} tiles`
+    : project.workAreaWidthMm > 0 || project.workAreaHeightMm > 0
+      ? "Fits the work area in one piece."
+      : "Leave at 0 to cut the model in one piece.");
   const shownElevationUnit = $derived(elevationUnit(project.units));
   const northArrowSizeLimitMm = $derived(edits.northArrowMaximumMm(project.widthMm, project.heightMm));
   const activeLinePreset = $derived(findActiveLinePreset(project.lineStyle));
@@ -230,6 +236,11 @@
 
   function storedLength(value: number): number {
     return millimetersFromDisplay(value, project.units);
+  }
+
+  /** 0 means "no limit on this axis", so it must survive unit conversion exactly. */
+  function workAreaLength(value: number): number {
+    return value > 0 ? millimetersFromDisplay(value, project.units) : 0;
   }
 
   function shownTextSize(valueMm: number): number {
@@ -1158,13 +1169,17 @@
             <div class="advanced-fields">
               <div class="toggle-stack">
                 {#if project.outputMode === "stack"}<Switch checked={project.optimizeMaterialUse} onCheckedChange={(optimizeMaterialUse) => void updateFabrication({ optimizeMaterialUse })} aria-label="Material-saving nests"><span class="toggle-label"><Layers3 size={16} />Material-saving nests</span></Switch>{/if}
+                {#if project.outputMode === "stack" && seamGrid}<Switch checked={project.showAssemblyLabels} onCheckedChange={(showAssemblyLabels) => void updateFabrication({ showAssemblyLabels })} aria-label="Assembly labels"><span class="toggle-label"><Grid3X3 size={16} />Assembly labels</span></Switch>{/if}
                 <Switch checked={project.smoothing === 1} onCheckedChange={(smooth) => void updateFabrication({ smoothing: smooth ? 1 : 0 })} aria-label="Smooth contours"><span class="toggle-label"><Waves size={16} />Smooth contours</span></Switch>
               </div>
               <div class="field-stack">
                 {#if project.outputMode === "stack" && project.optimizeMaterialUse}<LengthField label="Glue margin" unit={shownLengthUnit} value={shownLength(project.glueMarginMm)} min={shownLength(2)} max={shownLength(25)} step={project.units === "imperial" ? 0.01 : 0.5} onCommit={(shown) => { const glueMarginMm = storedLength(shown); if (glueMarginMm !== project.glueMarginMm) void updateFabrication({ glueMarginMm }); }} />{/if}
                 {#if project.outputMode === "stack"}<LengthField label="Laser kerf" unit={shownLengthUnit} value={shownLength(project.laserKerfMm)} min={0} max={shownLength(1)} step={project.units === "imperial" ? 0.001 : 0.01} onCommit={(shown) => { const laserKerfMm = storedLength(shown); if (laserKerfMm !== project.laserKerfMm) void updateFabrication({ laserKerfMm }); }} />{/if}
                 <LengthField label="Minimum feature" unit={shownLengthUnit} value={shownLength(project.minimumFeatureMm)} min={shownLength(0.2)} max={shownLength(5)} step={project.units === "imperial" ? 0.01 : 0.1} onCommit={(shown) => { const minimumFeatureMm = storedLength(shown); if (minimumFeatureMm !== project.minimumFeatureMm) void updateFabrication({ minimumFeatureMm }); }} />
+                <LengthField label="Work area width" unit={shownLengthUnit} value={shownLength(project.workAreaWidthMm)} min={0} max={displayLength(MAX_PROJECT_DIMENSION_MM, project.units)} step={project.units === "imperial" ? 0.1 : 1} onCommit={(shown) => { const workAreaWidthMm = workAreaLength(shown); if (workAreaWidthMm !== project.workAreaWidthMm) void updateFabrication({ workAreaWidthMm }); }} />
+                <LengthField label="Work area height" unit={shownLengthUnit} value={shownLength(project.workAreaHeightMm)} min={0} max={displayLength(MAX_PROJECT_DIMENSION_MM, project.units)} step={project.units === "imperial" ? 0.1 : 1} onCommit={(shown) => { const workAreaHeightMm = workAreaLength(shown); if (workAreaHeightMm !== project.workAreaHeightMm) void updateFabrication({ workAreaHeightMm }); }} />
               </div>
+              <p class="seam-summary">{seamSummary}</p>
             </div>
           </div>
         </Section>
