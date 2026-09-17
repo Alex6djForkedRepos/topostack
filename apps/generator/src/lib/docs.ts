@@ -9,10 +9,22 @@ export { DOCS_HOME };
  */
 export const DOCS_SECTIONS: readonly { id: string; title: string; summary: string; paths: readonly string[] }[] = [
   {
+    id: "start",
+    title: "Get started",
+    summary: "Find your way around the studio and follow a complete first project.",
+    paths: ["/guides/studio-tour", "/examples/crater-lake"],
+  },
+  {
     id: "make",
     title: "Make a map",
-    summary: "Step-by-step workflows from choosing a place to importing SVG files into your laser software.",
-    paths: ["/guides/laser-cut-topographic-map", "/guides/topographic-map-engraving", "/examples/crater-lake"],
+    summary: "Step-by-step workflows from choosing a place to exporting SVG files for your laser.",
+    paths: ["/guides/laser-cut-topographic-map", "/guides/topographic-map-engraving"],
+  },
+  {
+    id: "customize",
+    title: "Customize",
+    summary: "Choose map details, labels and line widths, and engrave your own markers and routes.",
+    paths: ["/guides/map-details", "/guides/custom-markers-and-paths"],
   },
   {
     id: "lakes",
@@ -29,8 +41,8 @@ export const DOCS_SECTIONS: readonly { id: string; title: string; summary: strin
   {
     id: "reference",
     title: "Reference",
-    summary: "What each export contains, data sources and credits, and how the site handles your projects.",
-    paths: ["/guides/export-files", "/attribution", "/privacy"],
+    summary: "Every studio setting, what each export contains, data sources and credits, and how the site handles your projects.",
+    paths: ["/guides/settings-reference", "/guides/export-files", "/attribution", "/privacy"],
   },
 ];
 

@@ -100,8 +100,8 @@ test("mobile readers can navigate guides, examples and the studio with correct m
   await page.getByText("Browse guides", { exact: true }).click();
   await page.getByRole("navigation", { name: "Guides menu" }).getByRole("link", { name: "Crater Lake example", exact: true }).click();
   await expect(page).toHaveTitle("Crater Lake Topographic Map: A Terrain Project | TopoStack");
-  await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toContainText("Make a map");
-  await expect(page.getByRole("navigation", { name: "Previous and next guides" }).getByRole("link", { name: /Next\s*How lake depths work/ })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toContainText("Get started");
+  await expect(page.getByRole("navigation", { name: "Previous and next guides" }).getByRole("link", { name: /Next\s*Layered map guide/ })).toBeVisible();
   await expect(page.locator("article img")).toBeVisible();
   await page.getByRole("link", { name: "Open the terrain studio", exact: true }).click();
   await expect(page).toHaveURL(baseURL + "/studio");

@@ -32,6 +32,26 @@ export const PUBLIC_PAGES: Record<string, { title: string; description: string; 
     description: "Learn how TopoStack combines lake surveys, shoreline terrain and depth estimates, handles missing data, and turns lake floors into cut layers.",
     label: "How lake depths work",
   },
+  "/guides/studio-tour": {
+    title: "Studio Tour: Settings, Previews and Saving | TopoStack",
+    description: "Find your way around the TopoStack studio: choose a place, frame the map, generate terrain, switch previews, and save or import projects.",
+    label: "Studio tour",
+  },
+  "/guides/map-details": {
+    title: "Map Details, Labels and Linework for Laser Maps | TopoStack",
+    description: "Choose roads, trails, water fills and boundaries, place elevation labels and the north arrow, and set line widths for laser engraving.",
+    label: "Map details and linework",
+  },
+  "/guides/custom-markers-and-paths": {
+    title: "Add Custom Markers and Trails to a Topographic Map | TopoStack",
+    description: "Engrave your own summit markers, hiking routes and boundaries on a topographic map from latitude and longitude coordinates.",
+    label: "Custom markers and paths",
+  },
+  "/guides/settings-reference": {
+    title: "Studio Settings Reference | TopoStack",
+    description: "Every TopoStack studio control with its range, default and output type, from vertical exaggeration and kerf to linework widths.",
+    label: "Settings reference",
+  },
   "/guides/export-files": {
     title: "Laser Export Files and SVG Structure | TopoStack",
     description: "What each TopoStack download contains: SVG panels, colors and operation groups, kerf compensation, assembly guide, project file and attribution.",
