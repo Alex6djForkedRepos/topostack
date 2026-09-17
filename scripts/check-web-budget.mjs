@@ -26,9 +26,11 @@ const budgets = {
   largestJavaScriptGzip: 300_000,
   // Public guides add styles outside the studio. Keep a separate allowance for
   // the Atomm template, which is loaded only inside the platform iframe.
-  standaloneCssGzip: 33_000,
+  // Raised 2026-09-17 for the feedback tab/dialog and studio retry states:
+  // measured with Node 22.22.2 at 34,290 standalone and 43,738 total.
+  standaloneCssGzip: 35_000,
   atommCssGzip: 10_000,
-  totalCssGzip: 43_000,
+  totalCssGzip: 44_600,
   // 7,775 records across 11 sources (~306 kB); fetched only when browsing/searching.
   lakeDirectoryGzip: 320_000,
   studioHtmlBytes: 10_000,

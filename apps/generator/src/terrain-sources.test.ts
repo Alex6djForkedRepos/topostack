@@ -118,7 +118,8 @@ it("loads HRDEM through the complete terrain pipeline and exports its provenance
   expect(fallback.source.elevation.min).toBe(1);
   expect(fallback.source.datasetVersion).toBe("base-fixture");
   expect(generateGeometry(project, fallback.source).warnings).toContainEqual(expect.objectContaining({ code: "TERRAIN_SOURCE_FALLBACK" }));
-});
+  // Two full 1 m geometry generations: ~5 s locally, ~10 s on CI runners under coverage.
+}, 30_000);
 
 import terrainCatalog from "../../../scripts/data/terrain-sources.json";
 import { validateTerrainCatalog } from "../../../packages/core/src/source-catalog";
