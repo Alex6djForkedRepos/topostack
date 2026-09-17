@@ -1048,6 +1048,13 @@ describe("TopoStack Svelte shell", () => {
     await vi.waitFor(() => expect(target.querySelectorAll(".marker-card")).toHaveLength(1));
     expect(target.querySelector<HTMLInputElement>('input[aria-label="Marker 1 latitude"]')?.value).toBe(String(DEFAULT_PROJECT.location.lat));
     expect(target.querySelector<HTMLInputElement>('input[aria-label="Marker 1 longitude"]')?.value).toBe(String(DEFAULT_PROJECT.location.lon));
+    const size = target.querySelector<HTMLInputElement>('input[aria-label="Marker 1 size"]')!;
+    expect(size.value).toBe("8");
+    size.value = "16";
+    size.dispatchEvent(new Event("input", { bubbles: true }));
+    await vi.waitFor(() => expect(size.value).toBe("16"));
+    const { saveProject } = await import("../storage");
+    await vi.waitFor(() => expect(vi.mocked(saveProject).mock.lastCall?.[0].markers[0]?.sizeMm).toBe(16));
     const star = target.querySelector<HTMLButtonElement>('.marker-symbol-options button[title="Star"]')!;
     star.click();
     await vi.waitFor(() => expect(star.getAttribute("aria-checked")).toBe("true"));

@@ -73,7 +73,7 @@
   <table>
     <thead><tr><th scope="col">Control</th><th scope="col">Range or options</th><th scope="col">Default</th><th scope="col">Notes</th></tr></thead>
     <tbody>
-      <tr><td>Markers</td><td>Up to 250; Pin, Circle, Triangle, Star, Cross</td><td>None</td><td>Latitude and longitude in decimal degrees.</td></tr>
+      <tr><td>Markers</td><td>Up to 250; Pin, Circle, Triangle, Star, Cross</td><td>None</td><td>Latitude and longitude in decimal degrees; Size 1–200 mm (default 8 mm), shown in the selected units.</td></tr>
       <tr><td>Paths</td><td>Up to 250; Trail or Boundary; 2–2,000 points each, 10,000 in total</td><td>None</td><td>Engraved even when built-in trails or boundaries are off.</td></tr>
     </tbody>
   </table>

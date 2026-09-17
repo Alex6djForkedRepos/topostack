@@ -32,7 +32,7 @@ export function markerSymbolPaths(symbol: MarkerSymbol, center: Point2D, size: n
   if (symbol === "circle") return [circle(center, radius * 0.78)];
   if (symbol === "cross") {
     const extent = radius * 0.72;
-    const width = Math.max(size * 0.16, 0.8);
+    const width = size * 0.16;
     return [
       thickSegment({ x: center.x - extent, y: center.y - extent }, { x: center.x + extent, y: center.y + extent }, width),
       thickSegment({ x: center.x + extent, y: center.y - extent }, { x: center.x - extent, y: center.y + extent }, width),

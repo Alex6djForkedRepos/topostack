@@ -11,8 +11,8 @@ describe("Atomm export policy", () => {
     expect(exportBlockReason(geometry("synthetic"), DEFAULT_PROJECT)).toMatch(/real terrain/i);
     expect(exportBlockReason(geometry("preview"), DEFAULT_PROJECT)).toMatch(/real terrain/i);
     expect(exportBlockReason(geometry(), { ...DEFAULT_PROJECT, verticalExaggeration: 9 })).toMatch(/settings changed/i);
-    // Older capped terrain and base-only compass geometry both need regeneration.
-    for (const version of ["v6", "v7"]) {
+    // Older terrain, compass and single-layer marker geometry need regeneration.
+    for (const version of ["v6", "v7", "v8"]) {
       const stale = geometry();
       stale.configFingerprint = stale.configFingerprint!.replace(/^v\d+-/, `${version}-`);
       expect(exportBlockReason(stale, DEFAULT_PROJECT)).toMatch(/settings changed/i);

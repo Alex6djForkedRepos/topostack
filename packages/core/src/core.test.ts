@@ -117,8 +117,7 @@ describe("TopoStack geometry", () => {
     const foregroundCross = rendered.filter((marking) => marking.id.startsWith("map-marker-2-") && !marking.knockout);
     const pinAnchor = geoPointToMapPoint(markers[0]!.lat, markers[0]!.lon, realSource(project).bounds, project.widthMm, project.heightMm);
     expect(halos.length).toBeGreaterThanOrEqual(markers.length);
-    expect(foregroundPin?.points[0]?.x).toBeCloseTo(pinAnchor.x);
-    expect(foregroundPin?.points[0]?.y).toBeCloseTo(pinAnchor.y);
+    expect(foregroundPin?.points.some(point => Math.abs(point.x - pinAnchor.x) < 1e-6 && Math.abs(point.y - pinAnchor.y) < 1e-6)).toBe(true);
     expect(foregroundCross).toHaveLength(2);
     expect(foregroundCross.every((marking) => marking.points.length === 5)).toBe(true);
     const svg = engravingToSvg(result, project);

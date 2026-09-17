@@ -16,10 +16,14 @@ export type NorthArrowAnchor = "top-left" | "top" | "top-right" | "left" | "cent
 export interface MapMarkerV1 extends GeoPoint {
   id: string;
   symbol: MarkerSymbol;
+  /** Nominal symbol size in millimeters; omitted legacy values use 8 mm. */
+  sizeMm?: number;
 }
 
 export const MARKER_SYMBOLS: readonly MarkerSymbol[] = ["pin", "circle", "triangle", "star", "cross"];
 export const MAP_MARKER_SIZE_MM = 8;
+export const MAP_MARKER_MIN_SIZE_MM = 1;
+export const MAP_MARKER_MAX_SIZE_MM = 200;
 export const MAP_MARKER_CLEARANCE_MM = 1.2;
 export const CUSTOM_LINE_KINDS: readonly CustomLineKind[] = ["trail", "boundary"];
 export const MAX_PROJECT_NAME_LENGTH = 120;
@@ -364,6 +368,8 @@ export interface OperationPath {
   transportationClass?: TransportationClass;
   /** Closed engraving paths that should render as solid marker artwork. */
   filled?: boolean;
+  /** Interior voids in a filled marking, including areas covered by upper sheets. */
+  holes?: Point2D[][];
   /** Paper/material-colored geometry that protects a marker from underlying engravings. */
   knockout?: boolean;
 }

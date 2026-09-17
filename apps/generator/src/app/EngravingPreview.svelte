@@ -2,7 +2,7 @@
   import SvgViewport from "./SvgViewport.svelte";
   import { cropRadiusMm, labelPathData, waterPatternStrokes, type GeometryIRV1, type Point2D, type ProjectConfigV1 } from "@topostack/core";
   import { markingDash, markingWidth } from "./marking-style";
-  import { pointsToPath as linePath } from "./svg-path";
+  import { markingPath, pointsToPath as linePath } from "./svg-path";
 
   // `cropShape` comes from the project the geometry was built for: a width,
   // height or shape edit leaves the map area stale, so drawing the surface and
@@ -79,7 +79,7 @@
     <g class="engraving-details">
       {#each markings as marking (marking.id)}
         <g data-marking-id={marking.id} data-marking-kind={marking.kind} data-transportation-class={marking.transportationClass}>
-          {#if marking.points.length > 1}<path d={linePath(marking.points)} fill={marking.knockout ? "#e8cfaa" : marking.filled ? "#2b2119" : "none"} stroke={marking.knockout ? "#e8cfaa" : undefined} stroke-width={markingWidth(marking, geometry.lineStyle)} stroke-dasharray={markingDash(marking, geometry.lineStyle)} stroke-linecap={marking.kind === "road" ? geometry.lineStyle.roadCap : undefined} stroke-linejoin={marking.kind === "road" ? "round" : undefined} />{/if}
+          {#if marking.points.length > 1}<path d={markingPath(marking)} fill-rule="evenodd" fill={marking.knockout ? "#e8cfaa" : marking.filled ? "#2b2119" : "none"} stroke={marking.filled ? "none" : undefined} stroke-width={markingWidth(marking, geometry.lineStyle)} stroke-dasharray={markingDash(marking, geometry.lineStyle)} stroke-linecap={marking.kind === "road" ? geometry.lineStyle.roadCap : undefined} stroke-linejoin={marking.kind === "road" ? "round" : undefined} />{/if}
           {#if marking.label && marking.points[0]}<path d={labelPathData(marking.label, marking.points[0], 0, 0, marking.labelRotationRad, marking.textStyle)} stroke-width={geometry.lineStyle.annotationMm} stroke-linecap={marking.textStyle?.font === "rounded" ? "round" : "butt"} stroke-linejoin={marking.textStyle?.font === "rounded" ? "round" : "miter"} />{/if}
         </g>
       {/each}

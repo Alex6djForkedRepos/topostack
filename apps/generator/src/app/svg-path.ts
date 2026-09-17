@@ -1,3 +1,5 @@
+import type { OperationPath } from "@topostack/core";
+
 /**
  * One polyline as an SVG path. Every preview, the sidebar's marker symbols and
  * the map overlay walked points into `M`/`L` with their own private copy of
@@ -7,4 +9,10 @@
  */
 export function pointsToPath(points: readonly { x: number; y: number }[]): string {
   return points.map((point, index) => `${index === 0 ? "M" : "L"}${point.x} ${point.y}`).join(" ");
+}
+
+/** Filled pieces retain their interior voids in both SVG previews. */
+export function markingPath(marking: OperationPath): string {
+  if (!marking.filled) return pointsToPath(marking.points);
+  return [marking.points, ...(marking.holes ?? [])].map(ring => `${pointsToPath(ring)} Z`).join(" ");
 }

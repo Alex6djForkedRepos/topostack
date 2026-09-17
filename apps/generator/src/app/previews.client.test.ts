@@ -45,6 +45,8 @@ vi.mock("maplibre-gl", () => {
 });
 
 import MapCanvas from "./MapCanvas.svelte";
+import TwoDPreview from "./TwoDPreview.svelte";
+import EngravingPreview from "./EngravingPreview.svelte";
 import ThreePreview from "./ThreePreview.svelte";
 import ThreePreviewHost from "./ThreePreviewHost.svelte";
 import * as THREE from "three";
@@ -96,6 +98,45 @@ describe("preview resource cleanup", () => {
     expect(materialDispose).toHaveBeenCalled();
     shadowDispose.mockRestore(); materialDispose.mockRestore();
     target.remove();
+  });
+
+  it.each(["cut", "flat"])("preserves filled marker holes in the %s preview", mode => {
+    const geometry = generateGeometry(DEFAULT_PROJECT, createSamplePreviewSource());
+    const square = (r: number) => [{x:-r,y:-r},{x:r,y:-r},{x:r,y:r},{x:-r,y:r},{x:-r,y:-r}];
+    geometry.layers = [{ ...geometry.layers[0]!, markings: [{ id:"marker-hole",kind:"marker",operation:"engrave",filled:true,points:square(10),holes:[square(2)] }] }];
+    const target = document.createElement("div");
+    component = mode === "cut" ? mount(TwoDPreview, { target, props: { geometry, selectedLayer:0 } }) : mount(EngravingPreview, { target, props: { geometry, project:DEFAULT_PROJECT,cropShape:"rectangle" } });
+    flushSync();
+    const path = target.querySelector('[data-marking-id="marker-hole"] path')!;
+    expect(path.getAttribute("d")?.match(/M/g)).toHaveLength(2);
+    expect(path.getAttribute("fill-rule")).toBe("evenodd");
+    expect(path.getAttribute("stroke")).toBe("none");
+  });
+
+  it("keeps covered marker areas empty in the 3D mesh", async () => {
+    const geometry = generateGeometry(DEFAULT_PROJECT, createSamplePreviewSource());
+    const square = (r: number) => [{x:-r,y:-r},{x:r,y:-r},{x:r,y:r},{x:-r,y:r},{x:-r,y:-r}];
+    geometry.layers = [{ ...geometry.layers[0]!, polygons: [{outer:square(20),holes:[]}], markings: [{ id:"marker-hole",kind:"marker",operation:"engrave",filled:true,points:square(10),holes:[square(2)] }] }];
+    geometry.waterSurfaces = [];
+    const target = document.createElement("div");
+    component = mount(ThreePreview, { target, props: { geometry, exploded: 0 } });
+    flushSync();
+    const meshes = () => {
+      const scene = three.renderers[0]?.render.mock.lastCall?.[0] as THREE.Scene | undefined;
+      const result: THREE.Mesh[] = [];
+      scene?.traverse(object => { if (object instanceof THREE.Mesh && object.renderOrder === 3) result.push(object); });
+      return result;
+    };
+    await vi.waitFor(() => expect(meshes()).toHaveLength(1));
+    const mesh = meshes()[0]!;
+    const positions = mesh.geometry.getAttribute("position");
+    const indices = mesh.geometry.index!;
+    let area = 0;
+    for (let i=0;i<indices.count;i+=3) {
+      const a=indices.getX(i), b=indices.getX(i+1), c=indices.getX(i+2);
+      area += Math.abs((positions.getX(b)-positions.getX(a))*(positions.getY(c)-positions.getY(a))-(positions.getY(b)-positions.getY(a))*(positions.getX(c)-positions.getX(a)))/2;
+    }
+    expect(area).toBeCloseTo(384);
   });
 
   it("re-extrudes only the layers whose cut polygons changed, and still frees them", async () => {

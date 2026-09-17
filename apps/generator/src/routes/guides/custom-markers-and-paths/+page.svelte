@@ -15,6 +15,8 @@
   </ol>
   <p>Markers are engraved about 8 mm across. Lines beneath a marker are cleared for about 1.2 mm around it so the symbol stays readable. In layered output, a marker is engraved on the highest sheet that covers its location, so it appears on the visible surface after assembly.</p>
 
+  <p>Set each marker’s <strong>Size</strong> in your selected units (1–200 mm; default 8 mm). On a layered map, the symbol spans the exposed faces of the stack so upper sheets do not cover it.</p>
+
   <h2>2. Add a trail or boundary</h2>
   <ol>
     <li>Select <strong>Add path</strong>. A new path starts as a short <strong>Trail</strong> at the map center; choose <strong>Boundary</strong> instead if you prefer.</li>

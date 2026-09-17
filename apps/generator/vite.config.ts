@@ -32,7 +32,7 @@ export default defineConfig({
             // never needs the guide content chunk. Split shared JS by actual
             // consumers to avoid loading guide-only navigation on the homepage.
             { name: "site", test: /node_modules\/(?:@loidolt\/|@sveltejs\/kit\/)|\/src\/lib\/(?:FeedbackButton\.svelte|theme\.ts|seo\.ts|support\.ts)$/, priority: 20, entriesAware: true },
-            { name: "guides", test: /\/src\/routes\/guides\/.*\/\+page\.svelte$/, priority: 10 },
+            { name: "guides", test: /\/src\/routes\/(?:guides(?:\/.*)?|examples\/[^/]+|privacy)\/\+page\.svelte$/, priority: 10 },
           ],
         },
       },

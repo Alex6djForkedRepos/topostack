@@ -99,12 +99,6 @@
     return shape;
   }
 
-  function shapeFromRing(points: Point2D[]): THREE.Shape {
-    const shape = new THREE.Shape();
-    points.forEach((point, index) => index === 0 ? shape.moveTo(point.x, point.y) : shape.lineTo(point.x, point.y));
-    return shape;
-  }
-
   function makeWoodTexture(): THREE.CanvasTexture {
     const canvas = document.createElement("canvas"); canvas.width = 256; canvas.height = 256;
     const context = canvas.getContext("2d")!;
@@ -349,7 +343,7 @@
         for (const mesh of cached.meshes) addStacked(runtime!.content, mesh, layer.index, baseZ);
         layer.markings.forEach((marking) => {
           if (marking.filled && marking.points.length > 2) {
-            const marker = new THREE.Mesh(new THREE.ShapeGeometry(shapeFromRing(marking.points)), marking.knockout ? face : markerFillMaterial);
+            const marker = new THREE.Mesh(new THREE.ShapeGeometry(shapeFromPolygon({ outer: marking.points, holes: marking.holes ?? [] })), marking.knockout ? face : markerFillMaterial);
             marker.renderOrder = marking.knockout ? 2 : 3;
             const lift = markingLift(layer.materialThicknessMm) * (marking.knockout ? 1 : 1.25);
             addStacked(runtime!.content, marker, layer.index, baseZ + layer.materialThicknessMm + lift);

@@ -81,7 +81,7 @@ function markerClearance(layers: LayerIR[]): MarkerClearance | undefined {
   if (!halos.length) return undefined;
   return {
     material: preparePolygons(layers.flatMap(layer => layer.polygons)),
-    excluded: preparePolygons(halos.map(mark => ({ outer: mark.points, holes: [] }))),
+    excluded: preparePolygons(halos.map(mark => ({ outer: mark.points, holes: mark.holes ?? [] }))),
   };
 }
 
@@ -99,8 +99,8 @@ function markingPath(mark: LayerIR["markings"][number], clearance?: MarkerCleara
   if (mark.label && mark.points[0]) return `<path id="${escapeXml(mark.id)}" d="${clearLineData(labelPathData(mark.label, mark.points[0], 0, 0, mark.labelRotationRad, mark.textStyle), clearance)}" ${ENGRAVE_LINE}${mark.textStyle?.font === "rounded" ? ' stroke-linecap="round" stroke-linejoin="round"' : ""}/>`;
   const color = mark.operation === "score" ? SCORE : ENGRAVE;
   const paint = mark.filled ? `fill="${color}" stroke="none"` : `fill="none" stroke="${color}"`;
-  const data = pathData(mark.points, 0, 0, mark.filled);
-  return mark.points.length > 1 ? `<path id="${escapeXml(mark.id)}" d="${mark.filled ? data : clearLineData(data, clearance)}" ${paint}/>` : "";
+  const data = [pathData(mark.points, 0, 0, mark.filled), ...(mark.holes ?? []).map(hole => pathData(hole, 0, 0, true))].join(" ");
+  return mark.points.length > 1 ? `<path id="${escapeXml(mark.id)}" d="${mark.filled ? data : clearLineData(data, clearance)}" ${paint}${mark.holes?.length ? ' fill-rule="evenodd"' : ""}/>` : "";
 }
 
 function layerMarkingPaths(layer: LayerIR, operation: "score" | "engrave", style: LineStyleV1): string {

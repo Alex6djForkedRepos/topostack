@@ -22,11 +22,12 @@ import { sampleIndexAt, sampleOffset } from "./grid.js";
 import { labelDimensions, labelLineSegments } from "./labels.js";
 import { addLabelObstacles, indexLabelLayer, placeElevationLabelStack, placeLabel, placeLinearLabel } from "./label-placement.js";
 import { geoPointToMapPoint, longitudeInBounds, markerSymbolCenterForAnchor, markerSymbolPaths } from "./markers.js";
+import { markerLayerPolygons } from "./marker-placement.js";
 import { offsetClosedRing } from "./offset.js";
 import { northArrowFootprint, northArrowMarkings } from "./north-arrow.js";
 import { sourceRequirements } from "./source-requirements.js";
 import { displayElevation, elevationUnit, FEET_PER_METER } from "./units.js";
-import { CUSTOM_LINE_KINDS, MAP_MARKER_CLEARANCE_MM, MAP_MARKER_SIZE_MM, MARKER_SYMBOLS, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_WATER_DEPTH_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, MAX_VERTICAL_EXAGGERATION, MIN_LAYER_COUNT, MIN_VERTICAL_EXAGGERATION, NORTH_ARROW_ANCHORS, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, NORTH_ARROW_STYLES, SEA_LEVEL_M } from "./types.js";
+import { CUSTOM_LINE_KINDS, MAP_MARKER_CLEARANCE_MM, MAP_MARKER_SIZE_MM, MAP_MARKER_MIN_SIZE_MM, MAP_MARKER_MAX_SIZE_MM, MARKER_SYMBOLS, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_WATER_DEPTH_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, MAX_VERTICAL_EXAGGERATION, MIN_LAYER_COUNT, MIN_VERTICAL_EXAGGERATION, NORTH_ARROW_ANCHORS, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, NORTH_ARROW_STYLES, SEA_LEVEL_M } from "./types.js";
 import { type CarvedWater, carveWaterDepth, clampCarveToLadder, fitLakesToLadder } from "./water.js";
 import type {
   ElevationGrid,
@@ -367,7 +368,7 @@ export function projectFingerprint(config: ProjectConfigV1): string {
     hash ^= input.charCodeAt(index);
     hash = Math.imul(hash, 16777619);
   }
-  return `v8-${(hash >>> 0).toString(16).padStart(8, "0")}`;
+  return `v9-${(hash >>> 0).toString(16).padStart(8, "0")}`;
 }
 
 /** East-west ground distance across the bounds, measured along their middle latitude. */
@@ -1219,40 +1220,30 @@ function placeElevationLabels({ config, flatEngraving, warnings }: GenerationCon
  * details before the solid symbol is drawn on top.
  */
 function placeMarkers({ config, source, flatEngraving }: GenerationContext, clips: LayerClip[]): void {
+  const materials = (flatEngraving ? clips.slice(0, 1) : clips).map(clip => clip.material);
   config.markers.forEach((marker, markerIndex) => {
     if (!longitudeInBounds(marker.lon, source.bounds) || marker.lat < source.bounds.south || marker.lat > source.bounds.north) return;
     const anchor = geoPointToMapPoint(marker.lat, marker.lon, source.bounds, config.widthMm, config.heightMm);
-    // Contour smoothing and minimum-feature filtering can move the cut edge
-    // away from the sampled elevation, especially on a modeled lake floor.
-    // Place the marker on the highest sheet that actually retains its anchor.
-    const retainsAnchor = (candidate: LayerClip) => pointInPreparedPolygons(anchor, candidate.material);
-    const target = flatEngraving ? clips[0] : [...clips].reverse().find(retainsAnchor);
-    if (!target || (flatEngraving && !retainsAnchor(target))) return;
-    const { layer, material } = target;
-    const symbolCenter = markerSymbolCenterForAnchor(marker.symbol, anchor, MAP_MARKER_SIZE_MM);
-    const paths = markerSymbolPaths(marker.symbol, symbolCenter, MAP_MARKER_SIZE_MM)
+    if (!materials.some(material => pointInPreparedPolygons(anchor, material))) return;
+    const size = marker.sizeMm ?? MAP_MARKER_SIZE_MM;
+    const symbolCenter = markerSymbolCenterForAnchor(marker.symbol, anchor, size);
+    const paths = markerSymbolPaths(marker.symbol, symbolCenter, size)
       .filter((_, pathIndex) => marker.symbol !== "pin" || pathIndex === 0);
-    paths.forEach((path, pathIndex) => {
-      offsetClosedRing(path, MAP_MARKER_CLEARANCE_MM, "round").forEach((halo, haloIndex) => {
-        clipPolyline(halo, material).forEach((points, clipIndex) => layer.markings.push({
-          id: `map-marker-${markerIndex}-halo-${pathIndex}-${haloIndex}-${clipIndex}`,
-          operation: "engrave",
-          kind: "marker",
-          points,
-          filled: true,
-          knockout: true,
-        }));
-      });
-    });
-    paths.forEach((path, pathIndex) => {
-      clipPolyline(path, material).forEach((points, clipIndex) => layer.markings.push({
-        id: `map-marker-${markerIndex}-${pathIndex}-${clipIndex}`,
+    const place = (path: Point2D[], id: string, knockout = false) => {
+      markerLayerPolygons(path, materials).forEach(({ layerIndex, polygon }, pieceIndex) => clips[layerIndex]!.layer.markings.push({
+        id: `map-marker-${markerIndex}-${id}-${layerIndex}-${pieceIndex}`,
         operation: "engrave",
         kind: "marker",
-        points,
+        points: polygon.outer,
+        ...(polygon.holes.length ? { holes: polygon.holes } : {}),
         filled: true,
+        ...(knockout ? { knockout: true } : {}),
       }));
+    };
+    paths.forEach((path, pathIndex) => {
+      offsetClosedRing(path, MAP_MARKER_CLEARANCE_MM, "round").forEach((halo, haloIndex) => place(halo, `halo-${pathIndex}-${haloIndex}`, true));
     });
+    paths.forEach((path, pathIndex) => place(path, String(pathIndex)));
   });
 }
 
@@ -1382,6 +1373,8 @@ export function validateProject(config: ProjectConfigV1): void {
     markerIds.add(marker.id);
     if (!Number.isFinite(marker.lat) || marker.lat < -85.0511 || marker.lat > 85.0511) throw new Error("Marker latitude must be within Web Mercator limits.");
     if (!Number.isFinite(marker.lon) || marker.lon < -180 || marker.lon > 180) throw new Error("Marker longitude must be between -180 and 180 degrees.");
+    const size = marker.sizeMm === undefined ? MAP_MARKER_SIZE_MM : marker.sizeMm;
+    if (!Number.isFinite(size) || size < MAP_MARKER_MIN_SIZE_MM || size > MAP_MARKER_MAX_SIZE_MM) throw new Error(`Marker size must be between ${MAP_MARKER_MIN_SIZE_MM} and ${MAP_MARKER_MAX_SIZE_MM} mm.`);
     if (!MARKER_SYMBOLS.includes(marker.symbol)) throw new Error("Marker symbol is invalid.");
   }
   const customLineIds = new Set<string>();

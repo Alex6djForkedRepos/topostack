@@ -35,6 +35,16 @@ describe("fabrication marker clearances", () => {
     expect(data(withoutClearance, "crossing")).toBe("M-10 0 L10 0");
   });
 
+  it.each(["layer", "master", "flat"])("retains marker and clearance holes in %s output", mode => {
+    const ir = artwork();
+    ir.layers[0]!.markings.find(mark => mark.id === "solid-marker")!.holes = [square(0.5)];
+    ir.layers[0]!.markings.find(mark => mark.id === "halo")!.holes = [square(1)];
+    const svg = mode === "layer" ? layerToSvg(ir,ir.layers[0]!) : mode === "master" ? masterToSvg(ir) : engravingToSvg(ir,{...config,outputMode:"engraving"});
+    expect(data(svg,"solid-marker")?.match(/M/g)).toHaveLength(2);
+    expect(svg).toMatch(/id="solid-marker"[^>]*fill-rule="evenodd"/);
+    expect(data(svg,"crossing")).toBe("M-10 0 L-2 0 M-1 0 L1 0 M2 0 L10 0");
+  });
+
   it("also removes flat contour segments under a marker", () => {
     const ir = artwork();
     ir.layers.push({ ...ir.layers[0]!, id: "layer-2", index: 1, markings: [], polygons: [{ outer: [{x: -10,y: 0},{x: 10,y: 0},{x: 10,y: 10},{x: -10,y: 0}], holes: [] }] });

@@ -15,9 +15,15 @@ describe("north arrow size limit", () => {
 
 describe("marker edits", () => {
   it("adds a pin at the map center until the marker limit", () => {
-    expect(addMarker(DEFAULT_PROJECT, "m1")?.markers).toEqual([{ id: "m1", lat: DEFAULT_PROJECT.location.lat, lon: DEFAULT_PROJECT.location.lon, symbol: "pin" }]);
+    expect(addMarker(DEFAULT_PROJECT, "m1")?.markers).toEqual([{ id: "m1", lat: DEFAULT_PROJECT.location.lat, lon: DEFAULT_PROJECT.location.lon, symbol: "pin", sizeMm: 8 }]);
     const full = withData({ markers: Array.from({ length: MAX_MAP_MARKERS }, (_, index) => ({ id: `m${index}`, lat: 0, lon: 0, symbol: "pin" as const })) });
     expect(addMarker(full, "extra")).toBeUndefined();
+  });
+
+  it("resizes only the chosen marker and rejects invalid sizes", () => {
+    const project = withData({ markers: [{ id: "a", lat: 1, lon: 2, symbol: "pin" }, { id: "b", lat: 3, lon: 4, symbol: "star", sizeMm: 20 }] });
+    expect(updateMarker(project, "a", { sizeMm: 12.5 })?.markers).toEqual([{ ...project.markers[0], sizeMm: 12.5 }, project.markers[1]]);
+    for (const sizeMm of [0, -1, 201, NaN, Infinity]) expect(updateMarker(project, "a", { sizeMm })).toBeUndefined();
   });
 
   it("updates only valid coordinates and removes by id", () => {

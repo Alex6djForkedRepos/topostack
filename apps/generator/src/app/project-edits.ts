@@ -1,4 +1,4 @@
-import { MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, type CustomLineFeatureV1, type GeoPoint, type MapMarkerV1, type ProjectConfigV1 } from "@topostack/core";
+import { MAP_MARKER_SIZE_MM, MAP_MARKER_MIN_SIZE_MM, MAP_MARKER_MAX_SIZE_MM, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, type CustomLineFeatureV1, type GeoPoint, type MapMarkerV1, type ProjectConfigV1 } from "@topostack/core";
 import { clampLongitude, isSupportedCoordinate } from "../coordinates";
 
 /**
@@ -26,7 +26,7 @@ export const canAddCustomLinePoint = (project: Pick<ProjectConfigV1, "customLine
 
 export function addMarker(project: Project, id: string): MarkersPatch | undefined {
   if (!canAddMarker(project)) return undefined;
-  const marker: MapMarkerV1 = { id, lat: project.location.lat, lon: project.location.lon, symbol: "pin" };
+  const marker: MapMarkerV1 = { id, lat: project.location.lat, lon: project.location.lon, symbol: "pin", sizeMm: MAP_MARKER_SIZE_MM };
   return { markers: [...project.markers, marker] };
 }
 
@@ -35,6 +35,8 @@ export function updateMarker(project: Project, id: string, patch: Partial<MapMar
   if (!current) return undefined;
   const next = { ...current, ...patch };
   if (!isSupportedCoordinate(next.lat, next.lon)) return undefined;
+  const size = next.sizeMm === undefined ? MAP_MARKER_SIZE_MM : next.sizeMm;
+  if (!Number.isFinite(size) || size < MAP_MARKER_MIN_SIZE_MM || size > MAP_MARKER_MAX_SIZE_MM) return undefined;
   return { markers: project.markers.map((marker) => marker.id === id ? next : marker) };
 }
 
