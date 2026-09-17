@@ -105,5 +105,7 @@
   .reading-key { border-left: 3px solid var(--loidolt-accent); padding: 1px 20px; background: var(--loidolt-surface); }
   .next-links { display: flex; gap: 16px 24px; flex-wrap: wrap; margin-top: 28px; }
   .next-links a { min-height: 44px; display: inline-flex; align-items: center; font-weight: 600; }
+  /* Wide layouts show the shared "On this page" list beside the article. */
+  @media (min-width: 1240px) { .contents { display: none; } }
   @media (max-width: 650px) { .source-types { grid-template-columns: 1fr; } }
 </style>

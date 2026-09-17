@@ -19,7 +19,9 @@ const budgets = {
   initialJavaScriptGzip: 180_000,
   // Includes the editor, default 3D preview, and geometry worker. Lake modeling
   // runs in the main-thread fallback as well as the worker, so both are counted.
-  startupJavaScriptGzip: 444_000,
+  // Raised 2026-09-17 for the guides hub route and docs navigation layout
+  // (every route entry counts here): 441,994 -> 444,688 with Node 22.14.0.
+  startupJavaScriptGzip: 447_000,
   // All routes, lazy-loaded tools, and workers, including the interactive lake
   // guide and MapLibre's worker. The fetched lake catalog is budgeted below.
   totalJavaScriptGzip: 892_000,
@@ -28,9 +30,11 @@ const budgets = {
   // the Atomm template, which is loaded only inside the platform iframe.
   // Raised 2026-09-17 for the feedback tab/dialog and studio retry states:
   // measured with Node 22.22.2 at 34,290 standalone and 43,738 total.
-  standaloneCssGzip: 35_000,
+  // Raised again 2026-09-17 for the guides sidebar, table of contents and hub:
+  // measured with Node 22.14.0 at 35,197 standalone and 44,645 total.
+  standaloneCssGzip: 36_000,
   atommCssGzip: 10_000,
-  totalCssGzip: 44_600,
+  totalCssGzip: 45_600,
   // 7,775 records across 11 sources (~306 kB); fetched only when browsing/searching.
   lakeDirectoryGzip: 320_000,
   studioHtmlBytes: 10_000,

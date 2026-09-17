@@ -1,10 +1,16 @@
 export const SITE_ORIGIN = "https://topostack.echofoxtrot.works";
 export const REPOSITORY_URL = "https://github.com/Echo-Foxtrot-Works/topostack";
+export const DOCS_HOME = "/guides";
 export const PUBLIC_PAGES: Record<string, { title: string; description: string; label: string }> = {
   "/": {
     title: "Free Topographic Map Generator for Laser Cutting | TopoStack",
     description: "Create layered terrain maps and flat topographic engravings from real elevation data. Customize your design and export SVG files free in your browser.",
     label: "Home",
+  },
+  "/guides": {
+    title: "Topographic Map Guides and Documentation | TopoStack",
+    description: "Guides for making layered and engraved topographic maps, understanding lake-depth data, and TopoStack's sources, credits and privacy.",
+    label: "Guides",
   },
   "/guides/laser-cut-topographic-map": {
     title: "How to Make a Laser-Cut Topographic Map | TopoStack",

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { page } from "$app/state";
-  import { PUBLIC_PAGES, REPOSITORY_URL, SITE_ORIGIN, STUDIO_META } from "./seo";
+  import { DOCS_HOME, PUBLIC_PAGES, REPOSITORY_URL, SITE_ORIGIN, STUDIO_META } from "./seo";
 
   const production = import.meta.env.VITE_SITE_ENV === "production";
   const path = $derived(page.route.id ?? (page.url.pathname.replace(/\/$/, "") || "/"));
@@ -17,7 +17,8 @@
       ...(path === "/" ? [{ "@type": "WebApplication", name: "TopoStack", url: SITE_ORIGIN + "/", applicationCategory: "DesignApplication", operatingSystem: "Web browser", description, isAccessibleForFree: true, license: REPOSITORY_URL + "/blob/main/LICENSE", offers: { "@type": "Offer", price: "0", priceCurrency: "USD" }, featureList: ["Layered terrain relief", "Flat topographic engraving", "SVG export at physical size"], screenshot: SITE_ORIGIN + "/images/studio-crater-lake.png" }] : []),
       ...(PUBLIC_PAGES[path] && path !== "/" ? [{ "@type": "BreadcrumbList", itemListElement: [
         { "@type": "ListItem", position: 1, name: "TopoStack", item: SITE_ORIGIN + "/" },
-        { "@type": "ListItem", position: 2, name: metadata?.label, item: canonical },
+        ...(path === DOCS_HOME ? [] : [{ "@type": "ListItem", position: 2, name: PUBLIC_PAGES[DOCS_HOME]!.label, item: SITE_ORIGIN + DOCS_HOME }]),
+        { "@type": "ListItem", position: path === DOCS_HOME ? 2 : 3, name: metadata?.label, item: canonical },
       ] }] : []),
     ],
   }).replace(/</g, "\\u003c"));
