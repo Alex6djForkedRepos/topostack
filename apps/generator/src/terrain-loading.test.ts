@@ -18,7 +18,9 @@ describe("West Point terrain loading", () => {
     const longitude = (tile: number) => tile / 2 ** zoom * 360 - 180;
     const latitude = (tile: number) => Math.atan(Math.sinh(Math.PI * (1 - 2 * tile / 2 ** zoom))) * 180 / Math.PI;
     const project = { ...terrainOnly, location: { lat: 41.3915, lon: -73.956, label: "West Point, NY", zoom, bounds: { west: longitude(x), east: longitude(x + 1), north: latitude(y), south: latitude(y + 1) } } };
-    const result = await loadTerrain(project);
+    const stages: string[] = [];
+    const result = await loadTerrain(project, undefined, (stage) => stages.push(stage));
+    expect(stages).toEqual(["fetching", "preparing"]);
     expect(result.fallback).toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0]?.[1]?.cache).toBe("no-cache");
@@ -38,7 +40,9 @@ describe("West Point terrain loading", () => {
   it("requires explicit dataset provenance before marking terrain as real", async () => {
     const png = readFileSync(new URL("./fixtures/west-point-z12.png", import.meta.url));
     vi.stubGlobal("fetch", vi.fn(async () => new Response(png)));
-    const result = await loadTerrain(terrainOnly);
+    const stages: string[] = [];
+    const result = await loadTerrain(terrainOnly, undefined, (stage) => stages.push(stage));
+    expect(stages).toEqual(["fetching", "preparing"]);
     expect(result.fallback).toBe(true);
     expect(result.fallbackReason).toBe("Terrain tile is missing its dataset version.");
     expect(result.source.sourceKind).toBe("synthetic");

@@ -2,7 +2,9 @@
 
 ## User flow
 
-A quiet **Feedback** button is available as a tab anchored to the right edge of the render viewport (including Atomm), and in public-page footers. Terrain source details and lake-depth controls also offer category-specific entry points. Nothing opens automatically. The narrow edge tab leaves the header free for project controls and scrolls away with the preview on small screens.
+A quiet **Feedback** button is available as a tab anchored to the right edge of the standalone studio’s render viewport, and in public-page footers. Terrain source details and lake-depth controls also offer category-specific entry points. Nothing opens automatically. The narrow edge tab leaves the header free for project controls and scrolls away with the preview on small screens.
+
+The Atomm workbench omits all feedback entry points. Its lake-depth controls and warnings open the explanation inside the existing Atomm-styled Fabrication tips dialog, rather than linking to the public guide.
 
 Choose a bug, feature request, terrain-data report, or lake-data report; enter a summary and details. Studio users may opt into sharing coordinates, selection bounds, output settings, source resolutions, dataset identifiers, lake/survey identifiers, data availability and warning codes. The report distinguishes the current selection from the loaded preview's bounds and marks a changed selection. Synthetic and bundled previews are identified explicitly. Lake diagnostics include at most 12 records and the total count.
 

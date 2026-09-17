@@ -33,9 +33,10 @@ already contain underwater relief keep their existing precedence.
 5. Normalize the shape to the existing maximum-depth/radius constraint, then fit
    the profile exponent to HydroLAKES mean depth where available. The per-lake
    maximum override still applies, and depth exaggeration scales the final bed
-   uniformly. Stack allocation reserves the required water sheets (up to the
-   existing depth cap) within the 24-sheet total, reducing and refitting land
-   sheets if needed. Existing fabrication depth fitting happens afterward.
+   uniformly. Stack allocation adds all required water sheets by default, preserving the
+   terrain scale without an upper total-layer limit. An optional, user-selected
+   `waterDepthLayerLimit` limits added sheets below the lowest land; fabrication
+   depth fitting can compress lakes into that explicit allowance afterward.
 
 The same profile fills survey gaps only where the DEM does not already contain
 underwater relief. Measured samples are unchanged; coverage remains `mixed`. For smoothed, complete

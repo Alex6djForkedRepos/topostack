@@ -26,7 +26,7 @@ import { offsetClosedRing } from "./offset.js";
 import { northArrowFootprint, northArrowMarkings } from "./north-arrow.js";
 import { sourceRequirements } from "./source-requirements.js";
 import { displayElevation, elevationUnit, FEET_PER_METER } from "./units.js";
-import { CUSTOM_LINE_KINDS, MAP_MARKER_CLEARANCE_MM, MAP_MARKER_SIZE_MM, MARKER_SYMBOLS, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_DEPTH_LAYER_COUNT, MAX_LAYER_COUNT, MAX_MAP_MARKERS, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_WATER_DEPTH_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, MAX_VERTICAL_EXAGGERATION, MIN_LAYER_COUNT, MIN_VERTICAL_EXAGGERATION, NORTH_ARROW_ANCHORS, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, NORTH_ARROW_STYLES, SEA_LEVEL_M } from "./types.js";
+import { CUSTOM_LINE_KINDS, MAP_MARKER_CLEARANCE_MM, MAP_MARKER_SIZE_MM, MARKER_SYMBOLS, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_WATER_DEPTH_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, MAX_VERTICAL_EXAGGERATION, MIN_LAYER_COUNT, MIN_VERTICAL_EXAGGERATION, NORTH_ARROW_ANCHORS, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, NORTH_ARROW_STYLES, SEA_LEVEL_M } from "./types.js";
 import { type CarvedWater, carveWaterDepth, clampCarveToLadder, fitLakesToLadder } from "./water.js";
 import type {
   ElevationGrid,
@@ -367,7 +367,7 @@ export function projectFingerprint(config: ProjectConfigV1): string {
     hash ^= input.charCodeAt(index);
     hash = Math.imul(hash, 16777619);
   }
-  return `v5-${(hash >>> 0).toString(16).padStart(8, "0")}`;
+  return `v7-${(hash >>> 0).toString(16).padStart(8, "0")}`;
 }
 
 /** East-west ground distance across the bounds, measured along their middle latitude. */
@@ -384,8 +384,8 @@ function groundWidthMFor(bounds: GeoBounds): number {
  * a preference. Exaggeration multiplies that height, and the material thickness
  * divides it into sheets. Layer count is therefore always the last term.
  *
- * When the sheet count lands outside the fabricable range the count is clamped
- * and the exaggeration is refitted to whatever that clamp implies, so the
+ * The sheet count is rounded to whole sheets, with a two-sheet minimum and no
+ * upper cap. The exaggeration is refitted to that whole-sheet count, so the
  * reported figure always describes the model that will actually be cut. The
  * refitted value can fall below `MIN_VERTICAL_EXAGGERATION` or rise above
  * `MAX_VERTICAL_EXAGGERATION`; those bounds constrain the request, not the fit.
@@ -396,7 +396,7 @@ export function horizontalScaleFor(widthMm: number, bounds: GeoBounds): number {
   return Number.isFinite(groundWidthM) && groundWidthM > 0 ? widthMm / (groundWidthM * 1000) : 0;
 }
 
-export function planTerrainStack(config: ProjectConfigV1, reliefM: number, bounds: GeoBounds, depthBelowLandM = 0, hasOcean = false): TerrainStackPlan {
+export function planTerrainStack(config: ProjectConfigV1, reliefM: number, bounds: GeoBounds, depthBelowLandM = 0): TerrainStackPlan {
   const requested = config.verticalExaggeration;
   const groundWidthM = groundWidthMFor(bounds);
   const flat = {
@@ -407,31 +407,30 @@ export function planTerrainStack(config: ProjectConfigV1, reliefM: number, bound
     metersPerLayer: Math.max(0, reliefM) / MIN_LAYER_COUNT,
     horizontalScale: 0,
   };
-  if (!Number.isFinite(groundWidthM) || groundWidthM <= 0 || !Number.isFinite(reliefM) || reliefM <= 0) return flat;
+  if (!Number.isFinite(groundWidthM) || groundWidthM <= 0 || !Number.isFinite(reliefM) || reliefM < 0) return flat;
 
   const horizontalScale = config.widthMm / (groundWidthM * 1000);
+  const hasDepth = Number.isFinite(depthBelowLandM) && depthBelowLandM > 0;
+  if (reliefM === 0) {
+    if (!hasDepth) return flat;
+    // A flat shoreline still has a physical depth scale. Include a top sheet
+    // at the waterline as well as the layers covering the bed below it.
+    const metersPerLayer = config.materialThicknessMm / (horizontalScale * 1000 * requested);
+    const depthLayerCount = Math.min(config.waterDepthLayerLimit ?? Infinity, Math.ceil(depthBelowLandM / metersPerLayer));
+    const layerCount = Math.max(MIN_LAYER_COUNT, depthLayerCount + 1);
+    return { layerCount, depthLayerCount, metersPerLayer, horizontalScale, verticalExaggeration: requested, stackHeightMm: layerCount * config.materialThicknessMm };
+  }
   const trueReliefMm = reliefM * (config.widthMm / groundWidthM);
   if (!(trueReliefMm > 0)) return { ...flat, horizontalScale };
 
-  // An ocean shifts the whole ladder down so sea level falls exactly on a step,
-  // which stretches the span the sheets must cover by up to one of them. That
-  // sheet is reserved here, where the budget is decided: spending it on land
-  // and clamping the ladder afterwards silently drops the summit instead.
-  const layerBudget = hasOcean ? MAX_LAYER_COUNT - 1 : MAX_LAYER_COUNT;
-  let landLayerCount = clamp(Math.round((trueReliefMm * requested) / config.materialThicknessMm), MIN_LAYER_COUNT, layerBudget);
-  const depthLimit = Math.max(MAX_DEPTH_LAYER_COUNT, Math.ceil(MAX_DEPTH_LAYER_COUNT * Math.max(1, config.waterDepthExaggeration)));
-  const hasDepth = Number.isFinite(depthBelowLandM) && depthBelowLandM > 0;
+  const landLayerCount = Math.max(MIN_LAYER_COUNT, Math.round((trueReliefMm * requested) / config.materialThicknessMm));
+  const depthLimit = config.waterDepthLayerLimit ?? Infinity;
   const requiredDepthLayers = (landLayers: number): number => hasDepth
     ? Math.min(depthLimit, Math.ceil(depthBelowLandM / (reliefM / landLayers)))
     : 0;
-  // Reserve room for water before the land consumes all 24 sheets. Refit both
-  // to the same vertical interval: otherwise a mountain lake can be carved
-  // correctly and then flattened away by a zero-sheet depth budget.
-  while (landLayerCount > MIN_LAYER_COUNT && landLayerCount + requiredDepthLayers(landLayerCount) > layerBudget) {
-    landLayerCount -= 1;
-  }
+  // Water adds sheets at the same interval without compressing the land.
   const metersPerLayer = reliefM / landLayerCount;
-  const depthLayerCount = Math.min(requiredDepthLayers(landLayerCount), layerBudget - landLayerCount);
+  const depthLayerCount = requiredDepthLayers(landLayerCount);
   const layerCount = landLayerCount + depthLayerCount;
   return {
     layerCount,
@@ -804,7 +803,7 @@ function buildLadder(context: GenerationContext, carved: CarvedWater, waterAreas
   if (landRelief < 20) warnings.push({ code: "LOW_RELIEF", message: flatEngraving ? "This area has very little elevation change; contour lines may be sparse." : "This area has very little elevation change; the layers may look nearly identical." });
 
   const hasOcean = !flatEngraving && waterAreas.some((area) => area.kind === "ocean");
-  const stack = planTerrainStack(config, landRelief, source.bounds, depthBelowLandM, hasOcean);
+  const stack = planTerrainStack(config, landRelief, source.bounds, depthBelowLandM);
 
   // The ladder runs at one uniform step, extended below the land minimum by the
   // depth sheets the budget allowed. When there is an ocean it is shifted so sea
@@ -818,14 +817,12 @@ function buildLadder(context: GenerationContext, carved: CarvedWater, waterAreas
   // the sheet count is taken from the span the ladder actually has to cover.
   // Keeping the planned count instead would drop the summit off the top. The
   // step itself is unchanged, so the planned exaggeration still describes the cut.
-  // The plan reserved a sheet for exactly this stretch, so the clamp below is a
-  // floor on thin stacks now rather than a ceiling that eats the top sheet.
   // A flat engraving of flat ground has no contours to draw: every threshold
   // would coincide and repeat the crop outline, so only the base remains.
   const ladderLayerCount = flatEngraving
     ? landRelief > 0 ? config.engravingContourCount + 1 : 1
     : stack.metersPerLayer > 0
-      ? clamp(Math.round((landMax - ladderBase) / stack.metersPerLayer), MIN_LAYER_COUNT, MAX_LAYER_COUNT)
+      ? Math.max(MIN_LAYER_COUNT, Math.ceil((landMax - ladderBase) / stack.metersPerLayer - 1e-9) + (landRelief === 0 ? 1 : 0))
       : stack.layerCount;
   const contourStepM = flatEngraving ? landRelief / (config.engravingContourCount + 1) : stack.metersPerLayer;
   const thresholds = Array.from({ length: ladderLayerCount }, (_, index) => ladderBase + contourStepM * index);
@@ -837,7 +834,7 @@ function buildLadder(context: GenerationContext, carved: CarvedWater, waterAreas
   if (clamped && !flatEngraving) warnings.push({
     code: "WATER_DEPTH_CLAMPED",
     ...(!config.fitLakeDepth && carved.surfaces.some((surface) => surface.kind === "lake" && surface.bedElevationM < ladderBase && surface.surfaceElevationM > ladderBase) ? { action: "fit-lake-depth" as const } : {}),
-    message: `Water here is deeper than the ${stack.depthLayerCount} sheet${stack.depthLayerCount === 1 ? "" : "s"} below the shoreline can hold, so its floor is flattened. Lower the water depth exaggeration, or use thinner material to buy more sheets.`,
+    message: `Water here is deeper than the ${stack.depthLayerCount} sheet${stack.depthLayerCount === 1 ? "" : "s"} below the shoreline can hold, so its floor is flattened. Increase the depth-layer limit or turn it off for automatic coverage. Fit depth compresses lakes to the chosen allowance.`,
   });
   return { landMin, landMax, visibleMin, visibleMax, depthBelowLandM, stack, ladderBase, thresholds, water, modelGrid };
 }
@@ -1349,6 +1346,7 @@ export function validateProject(config: ProjectConfigV1): void {
   if (config.widthMm > MAX_PROJECT_DIMENSION_MM || config.heightMm > MAX_PROJECT_DIMENSION_MM) throw new Error("Project dimensions must not exceed 10000 mm.");
   if (config.verticalExaggeration < MIN_VERTICAL_EXAGGERATION || config.verticalExaggeration > MAX_VERTICAL_EXAGGERATION) throw new Error(`Vertical exaggeration must be between ${MIN_VERTICAL_EXAGGERATION} and ${MAX_VERTICAL_EXAGGERATION}.`);
   if (typeof config.fitLakeDepth !== "boolean") throw new Error("Fit lake depth must be a boolean.");
+  if (config.waterDepthLayerLimit !== undefined && (!Number.isSafeInteger(config.waterDepthLayerLimit) || config.waterDepthLayerLimit < 1)) throw new Error("Maximum depth layers must be a positive whole number.");
   if (!Number.isFinite(config.waterDepthExaggeration) || config.waterDepthExaggeration < MIN_WATER_DEPTH_EXAGGERATION || config.waterDepthExaggeration > MAX_WATER_DEPTH_EXAGGERATION) throw new Error(`Water depth exaggeration must be between ${MIN_WATER_DEPTH_EXAGGERATION} and ${MAX_WATER_DEPTH_EXAGGERATION}.`);
   if (config.materialThicknessMm < 0.5 || config.materialThicknessMm > 25) throw new Error("Material thickness must be between 0.5 and 25 mm.");
   if (config.location.lat < -85.0511 || config.location.lat > 85.0511) throw new Error("This version supports Web Mercator latitudes only.");

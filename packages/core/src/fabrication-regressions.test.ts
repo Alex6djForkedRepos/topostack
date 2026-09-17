@@ -81,7 +81,7 @@ describe("fabrication geometry regressions", () => {
     const result = generateGeometry(config, source(config, (x, y) => x * 20 + y * 7, 48));
     const radius = Math.min(widthMm, heightMm) / 2;
     const svg = engravingToSvg(result, config);
-    expect(svg).toContain(`<circle id="engraving-border" cx="0" cy="0" r="${radius}"/>`);
+    expect(svg).toContain(`<circle id="engraving-border" cx="0" cy="0" r="${radius}" fill="none" stroke="#2366FF"/>`);
     expect(svg).toContain("ENGRAVE-contours-minor");
     expect(boundaryStubs(svg, radius)).toBe(0);
   });

@@ -1,6 +1,6 @@
 import { buildProjectPackage, exportBlockReason, type GeometryIRV1, type ProjectConfigV1 } from "@topostack/core";
 
-export { exportBlockReason } from "@topostack/core";
+export { buildProjectPackage, exportBlockReason } from "@topostack/core";
 export type ExportIntent = "download" | "openInStudio";
 
 export function createAtommExport(geometry: GeometryIRV1, project: ProjectConfigV1, intent: ExportIntent) {

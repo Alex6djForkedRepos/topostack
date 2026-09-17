@@ -8,7 +8,7 @@
   import { MAX_PROJECT_DIMENSION_MM, markerSymbolCenterForAnchor, markerSymbolPaths, unwrapLongitude, type CustomLineFeatureV1, type GeoBounds, type MapMarkerV1, type MarkerSymbol, type ProjectConfigV1 } from "@topostack/core";
   import { boundsForProject } from "../data-provider";
   import { pointsToPath } from "./svg-path";
-  let { project, onLocationChange, onSelectionResize, onUnavailable }: { project: ProjectConfigV1; onSelectionResize: (widthMm: number, heightMm: number, bounds: GeoBounds) => void; onUnavailable?: (reason?: "unsupported" | "load-failed") => void; onLocationChange: (lat: number, lon: number, zoom: number, bounds: GeoBounds) => void } = $props();
+  let { project, aspectLocked = $bindable(false), onLocationChange, onSelectionResize, onUnavailable }: { aspectLocked?: boolean; project: ProjectConfigV1; onSelectionResize: (widthMm: number, heightMm: number, bounds: GeoBounds) => void; onUnavailable?: (reason?: "unsupported" | "load-failed") => void; onLocationChange: (lat: number, lon: number, zoom: number, bounds: GeoBounds) => void } = $props();
   import AtommZoom from "./AtommZoom.svelte";
   const isEmbedded = getContext<() => boolean>("atomm-embedded") ?? (() => false);
   let zoomScale = $state(1);
@@ -28,7 +28,6 @@
   const MARKER_VIEWBOX_SIZE = 26;
   const MARKER_ELEMENT_SIZE_PX = 30;
 
-  let aspectLocked = $state(false);
   let resizing = $state(false);
   let skipSelectionFit = false;
   const handles = [
@@ -179,7 +178,7 @@
     if (!isEmbedded()) map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
     initialZoom = map.getZoom(); initialCenter = [project.location.lon, project.location.lat];
     map.on("zoom", () => { if (map) zoomScale = 2 ** (map.getZoom() - initialZoom); });
-    map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: `<a href="${base}/attribution" target="_blank" rel="noopener noreferrer">All sources</a>` }), "bottom-left");
+    map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: `<a href="${base}/attribution${import.meta.env.VITE_SITE_ENV === "atomm" ? ".html" : ""}" target="_blank" rel="noopener noreferrer">All sources</a>` }), "bottom-left");
     map.on("load", () => syncCustomLines(project.customLines));
     let reportedFailure = false;
     let styleReady = false;
@@ -268,10 +267,12 @@
 
 <div class="map-wrap">
   <div bind:this={container} class="map-canvas"></div>
+  {#if !isEmbedded()}
   <div class="selection-tools">
     <label><input type="checkbox" bind:checked={aspectLocked} disabled={isCircle} /> {isCircle ? "Circle proportions locked" : "Lock aspect ratio"}</label>
     <span>Drag handles to resize · Hold Shift to lock · Esc to cancel</span>
   </div>
+  {/if}
   <div bind:this={guide} class="crop-guide" class:crop-circle={isCircle}>
     {#if isCircle}<div class="circle-outline" style:width={`${100 * Math.min(project.widthMm, project.heightMm) / project.widthMm}%`} style:height={`${100 * Math.min(project.widthMm, project.heightMm) / project.heightMm}%`}></div>{/if}
     {#each handles as handle}

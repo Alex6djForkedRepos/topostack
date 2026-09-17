@@ -632,10 +632,9 @@ export function fitLakesToLadder(carved: CarvedWater, config: ProjectConfigV1, f
 }
 
 /**
- * Raise every cell that the sheet ladder cannot reach. The ladder is bounded by
- * `MAX_DEPTH_LAYER_COUNT`, so a deep lake on a low-relief map would otherwise
- * ask for dozens of sheets; flattening its floor keeps the model fabricable and
- * the warning keeps that honest.
+ * Raise cells below the chosen layer allowance. Automatic depth coverage
+ * normally reaches every visible bed; a user-selected limit can clip it, and
+ * the caller reports that clipping or offers proportional lake-depth fitting.
  */
 export function clampCarveToLadder(grid: ElevationGrid, floorM: number): { grid: ElevationGrid; clamped: boolean } {
   if (!(grid.min < floorM)) return { grid, clamped: false };

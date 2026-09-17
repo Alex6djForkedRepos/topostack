@@ -30,10 +30,13 @@ describe("map API validation", () => {
     expect(validTile("16", "1", "1")).toBeNull();
   });
 
-  it("allows local, development, and Atomm origins without opening arbitrary origins", () => {
+  it("retains the configured origin policy for event writes", () => {
     expect(isAllowedOrigin("http://localhost:5273", env)).toBe(true);
     expect(isAllowedOrigin("https://dev-topostack.echofoxtrot.works", env)).toBe(true);
     expect(isAllowedOrigin("https://runtime.atomm.com", env)).toBe(true);
+    expect(isAllowedOrigin("https://other.generator.atommapps.com", env)).toBe(false);
+    expect(isAllowedOrigin("https://topostack.generator.atommapps.com.evil.example", env)).toBe(false);
+    expect(isAllowedOrigin("http://topostack.generator.atommapps.com", env)).toBe(false);
     expect(isAllowedOrigin("https://example.com", env)).toBe(false);
     expect(isAllowedOrigin("https://runtime.atomm.com.evil.example", env)).toBe(false);
     expect(isAllowedOrigin("https://evil-atomm.com", env)).toBe(false);
@@ -68,13 +71,31 @@ describe("map API validation", () => {
     expect(isAllowedOrigin("https://evil-atomm.com", { ALLOWED_ORIGINS: "", ALLOWED_ORIGIN_SUFFIXES: "atomm.com" })).toBe(false);
   });
 
-  it("returns a valid CORS preflight only for an allowed origin", async () => {
-    const response = await exports.default.fetch("http://example.com/v1/manifest", { method: "OPTIONS", headers: { origin: "https://runtime.atomm.com" } });
-    expect(response.status).toBe(204);
-    expect(response.headers.get("access-control-allow-origin")).toBe("https://runtime.atomm.com");
-    const denied = await exports.default.fetch("http://example.com/v1/manifest", { headers: { origin: "https://evil.example" } });
-    expect(denied.status).toBe(403);
-    expect(denied.headers.has("access-control-allow-origin")).toBe(false);
+  it("serves public reads and range preflights to any browser without credentials", async () => {
+    for (const origin of ["https://topostack.generator.atommapps.com", "https://public-client.example", "null"]) {
+      const response = await exports.default.fetch("http://example.com/v1/osm.pmtiles", { method: "OPTIONS", headers: { origin, "access-control-request-method": "GET", "access-control-request-headers": "range,if-none-match" } });
+      expect(response.status).toBe(204);
+      expect(response.headers.get("access-control-allow-origin")).toBe("*");
+      expect(response.headers.get("access-control-allow-methods")).toBe("GET,HEAD,OPTIONS");
+      expect(response.headers.get("access-control-allow-headers")).toContain("range");
+      expect(response.headers.has("access-control-allow-credentials")).toBe(false);
+      const manifest = await exports.default.fetch("http://example.com/v1/manifest", { headers: { origin } });
+      expect(manifest.status).toBe(200);
+      expect(manifest.headers.get("access-control-allow-origin")).toBe("*");
+    }
+    const missing = await exports.default.fetch("http://example.com/v1/missing", { headers: { origin: "https://public-client.example" } });
+    expect(missing.status).toBe(404);
+    expect(missing.headers.get("access-control-allow-origin")).toBe("*");
+  });
+
+  it("keeps cross-origin event writes restricted and rejects writes to data routes", async () => {
+    for (const method of ["OPTIONS", "POST"]) {
+      const denied = await exports.default.fetch("http://example.com/v1/events", { method, headers: { origin: "https://public-client.example" } });
+      expect(denied.status).toBe(403);
+      expect(denied.headers.has("access-control-allow-origin")).toBe(false);
+    }
+    const write = await exports.default.fetch("http://example.com/v1/manifest", { method: "POST", headers: { origin: "https://public-client.example" } });
+    expect(write.status).toBe(405);
   });
 
   it("does not call geocoding without a deployed provider key", async () => {

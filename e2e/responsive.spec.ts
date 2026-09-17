@@ -17,6 +17,7 @@ async function expectDialogFits(page: Page, name: string | RegExp): Promise<void
     return rect.left >= 0 && rect.top >= 0 && rect.right <= innerWidth + 1 && rect.bottom <= innerHeight + 1 && element.scrollWidth <= element.clientWidth + 1;
   })).toBe(true);
   await dialog.getByRole("button", { name: /^Close .*dialog$/ }).click();
+  await expect(dialog).not.toBeVisible();
 }
 
 const devices = [

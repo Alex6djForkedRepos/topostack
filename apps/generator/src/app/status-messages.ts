@@ -5,11 +5,7 @@ export type PreviewUpdateKind = "details" | "fabrication" | "customData";
 export function previewPendingStatus(kind: PreviewUpdateKind, project: ProjectConfigV1): string {
   if (kind === "details") return "Updating map details…";
   if (kind === "customData") return "Updating custom data…";
-  return project.outputMode === "engraving" ? "Updating engraving artwork…" : "Resizing cut geometry…";
-}
-
-export function previewStaleAreaStatus(kind: PreviewUpdateKind, project: ProjectConfigV1): string {
-  return kind === "details" ? "Map details changed · generate to refresh this area" : `${project.outputMode === "engraving" ? "Artwork" : "Cut"} size changed · generate to refresh terrain`;
+  return project.outputMode === "engraving" ? "Updating engraving artwork…" : "Updating terrain geometry…";
 }
 
 export function previewUpdatedStatus(kind: PreviewUpdateKind, source: SourceBundleV1, project: ProjectConfigV1, requirements: { vectors: boolean; lakes: boolean }): string {
@@ -68,7 +64,7 @@ export interface StatusLineState {
 export function statusLine(state: StatusLineState): string {
   if (state.generationState === "loading") return state.status;
   if (!state.detailsUpdating && state.terrainDataStale) return state.terrainDataAction === "regenerate" ? "Map area changed · regenerate terrain data before export" : "Map area changed · generate terrain data before export";
-  if (!state.detailsUpdating && state.verticalExaggerationStale) return "Vertical exaggeration changed · regenerate terrain before export";
+  if (!state.detailsUpdating && state.verticalExaggerationStale) return "Preview update incomplete · retry before export";
   if (!state.detailsUpdating && !state.exportReady && state.sourceKind === "real") return state.exportBlockedBy ?? "Design changed · refresh before export";
   return state.status;
 }

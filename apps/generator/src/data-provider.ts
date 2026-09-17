@@ -404,7 +404,11 @@ export interface TerrainLoadResult {
 
 const errorMessage = (error: unknown, fallback: string) => error instanceof Error && error.message.trim() ? error.message : fallback;
 
-export async function loadTerrain(config: ProjectConfigV1, signal?: AbortSignal): Promise<TerrainLoadResult> {
+export type TerrainLoadStage = "fetching" | "preparing";
+
+export async function loadTerrain(config: ProjectConfigV1, signal?: AbortSignal, onStage?: (stage: TerrainLoadStage) => void): Promise<TerrainLoadResult> {
+  signal?.throwIfAborted();
+  onStage?.("fetching");
   const bounds = boundsForProject(config);
   // Compiled only into the Playwright build (vite build --mode e2e) so browser
   // generation/export stays deterministic and cannot accidentally depend on an
@@ -412,6 +416,7 @@ export async function loadTerrain(config: ProjectConfigV1, signal?: AbortSignal)
   // defeating the fabrication export policy in a production build.
   if (import.meta.env.VITE_E2E === "1" && (import.meta.env.DEV || import.meta.env.MODE !== "production")) {
     signal?.throwIfAborted();
+    onStage?.("preparing");
     const fixture = createSyntheticSource({ ...config, location: { ...config.location, bounds } }, 32);
     return { fallback: false, source: { ...fixture, sourceKind: "real", datasetVersion: "topostack-browser-e2e-v1", vectorStatus: "available" } };
   }
@@ -453,6 +458,7 @@ export async function loadTerrain(config: ProjectConfigV1, signal?: AbortSignal)
       if (userSignal?.aborted) throw error;
       // Elevation is the one input fabrication cannot do without. Keep the
       // editor usable with sample terrain, but say why real data is missing.
+      onStage?.("preparing");
       const source = createSyntheticSource({ ...config, location: { ...config.location, bounds } });
       return {
         source: { ...source, vectorStatus: vectorRequested ? "unavailable" : "not-requested", lakeDataStatus: usesWaterDepth ? "unavailable" : "not-requested" },
@@ -460,6 +466,8 @@ export async function loadTerrain(config: ProjectConfigV1, signal?: AbortSignal)
         fallbackReason: errorMessage(error, "The terrain service could not be reached."),
       };
     }
+    signal.throwIfAborted();
+    onStage?.("preparing");
     const [{ elevation, elevationRepairCount, imagerySources, datasetVersion, terrainAttribution, terrainSourceUnavailable, terrainSelection }, vector, lakes] = loaded;
     const base: SourceBundleV1 = { schemaVersion: 1, elevation, elevationRepairCount, terrainSourceUnavailable, terrainSelection, markings: vector.markings, waterPatternAreas: [...vector.ocean, ...vector.inland], inlandWaterAreas: vector.inland, vectorStatus: vector.status, lakeDataStatus: lakes.status, datasetVersion, sourceKind: "real", bounds, imagerySources, resolutionM: groundWidthM(bounds) / elevation.width, attribution: [...MAP_DATA_ATTRIBUTION, ...terrainAttribution] };
     try {

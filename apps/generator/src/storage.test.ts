@@ -68,6 +68,13 @@ describe("project import validation", () => {
     expect(parseProject({ ...DEFAULT_PROJECT, fitLakeDepth: undefined }).fitLakeDepth).toBe(false);
     expect(() => parseProject({ ...DEFAULT_PROJECT, fitLakeDepth: "true" })).toThrow(/fitLakeDepth/i);
   });
+  it("restores an explicit depth allowance and defaults older projects to automatic coverage", () => {
+    expect(parseProject(DEFAULT_PROJECT).waterDepthLayerLimit).toBeUndefined();
+    expect(parseProject({ ...DEFAULT_PROJECT, waterDepthLayerLimit: 40 }).waterDepthLayerLimit).toBe(40);
+    for (const waterDepthLayerLimit of [0, -1, 1.5, Infinity, NaN, "6", null]) {
+      expect(() => parseProject({ ...DEFAULT_PROJECT, waterDepthLayerLimit })).toThrow(/depth layers/i);
+    }
+  });
   it("rejects non-finite and out-of-range values", () => {
     expect(() => parseProject({ ...DEFAULT_PROJECT, widthMm: "not-a-number" })).toThrow(/finite/i);
     expect(() => parseProject({ ...DEFAULT_PROJECT, location: { ...DEFAULT_PROJECT.location, lat: 90 } })).toThrow(/Mercator/i);
@@ -112,6 +119,14 @@ describe("project import validation", () => {
       showBoundaries: false,
       showCoordinateGrid: false,
     });
+  });
+  it("loads former terrain exaggerations at the new maximum without losing other settings", () => {
+    const original = { ...DEFAULT_PROJECT, name: "Saved terrain", waterDepthExaggeration: 1.05, waterDepthLayerLimit: 40 };
+    for (const verticalExaggeration of [10.1, 12.5, 20]) {
+      expect(parseProject({ ...original, verticalExaggeration })).toMatchObject({ ...original, verticalExaggeration: 10 });
+    }
+    expect(parseProject({ ...original, verticalExaggeration: 1.1 }).verticalExaggeration).toBe(1.1);
+    expect(() => parseProject({ ...original, verticalExaggeration: 21 })).toThrow(/vertical exaggeration/i);
   });
   it("loads a project saved with an explicit layer count at the derived default", () => {
     // Layer count used to be a stored setting; it is now derived from map

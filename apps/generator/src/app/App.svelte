@@ -4,7 +4,7 @@
   import { House } from "@lucide/svelte";
   import { Box, ChevronDown, Circle, Compass, Download, Grid3X3, Layers3, Map as MapIcon, MapPin, Minus, Mountain, PenTool, Plus, Route, Search, Sparkles, Square, Trash2, Undo2, Redo2, Upload, Waves, X } from "@lucide/svelte";
   import { AppShell, Brand, Button, ContextBar, Field, IconButton, Input, Section, Sidebar, ThemeToggle, Topbar, Workspace } from "@loidolt/theme-svelte";
-  import { sourceRequirements, createSyntheticSource, DEFAULT_PROJECT, displayElevation, displayLength, elevationUnit, generateGeometry, labelPathData, lengthUnit, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, MAX_WATER_DEPTH_EXAGGERATION, millimetersFromDisplay, MIN_VERTICAL_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, NORTH_ARROW_MIN_SIZE_MM, planTerrainStack, validateProject, type GeoBounds, type GeometryIRV1, type LineStyleV1, type OperationPath, type ProjectConfigV1, type SourceBundleV1 } from "@topostack/core";
+  import { sourceRequirements, createSyntheticSource, DEFAULT_PROJECT, displayElevation, displayLength, elevationUnit, generateGeometry, labelPathData, lengthUnit, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, MAX_WATER_DEPTH_EXAGGERATION, millimetersFromDisplay, MIN_VERTICAL_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, NORTH_ARROW_MIN_SIZE_MM, planTerrainStack, projectFingerprint, validateProject, type GeoBounds, type GeometryIRV1, type LineStyleV1, type OperationPath, type ProjectConfigV1, type SourceBundleV1 } from "@topostack/core";
   import { assembleWater, boundsForProject, loadLakeAreas, loadSurveyedLakeDepths, loadTerrain, loadVectorMarkings, type PlaceResult } from "../data-provider";
   import { applySurveyProvenance } from "../bathymetry";
   import { resolveLakeOutlines } from "../lake-outlines";
@@ -12,7 +12,7 @@
   import { trackUsage } from "../lib/usage";
   import { MAP_DATA_ATTRIBUTION } from "../map-attribution";
   import { createSamplePreviewSource } from "../sample-preview";
-  import { exportBlockReason } from "../export-policy";
+  import { exportBlockReason } from "@topostack/core";
   import { loadProject, parseProject, saveProject } from "../storage";
   import { connectAtomm } from "./atomm-bridge";
   import type { DownloadOption } from "./native-export";
@@ -69,6 +69,7 @@
   let previewNotice = $state("");
   let dismissedWarnings = $state<string[]>([]);
   let generationState = $state<GenerateState>("ready");
+  let generationStep = $state(1);
   let status = $state("Real-data sample preview ready");
   let detailsUpdating = $state(false);
   let selectedLayer = $state(featuredLayerIndex(defaultPreviewGeometry));
@@ -78,6 +79,7 @@
   // drag now only moves the preview and records one history entry on release.
   let explodedDrag = $state.raw<number | undefined>(undefined);
   let searchOpen = $state(false);
+  let mapAspectLocked = $state(false);
   let locationTrigger: HTMLButtonElement;
   let lineworkOpen = $state(false);
   let menuStateReady = $state(false);
@@ -166,11 +168,10 @@
   const explodedPreview = $derived(explodedDrag ?? project.explodedPreview);
   const totalHeight = $derived(geometry.layers.length * project.materialThicknessMm);
   // Layer count follows from map scale, relief, and material thickness, so the
-  // panel previews the stack the current settings will actually produce. An
-  // ocean crop reserves a sheet for the sea-level snap, so the plan needs to
-  // know about one or the panel reads a sheet high.
-  const hasOcean = $derived(geometry.waterSurfaces.some((surface) => surface.kind === "ocean"));
-  const stackPlan = $derived(planTerrainStack(project, geometry.landReliefM, geometry.bounds, geometry.waterDepthBelowLandM, hasOcean));
+  // panel previews the stack the current settings will actually produce.
+  const stackPlan = $derived(planTerrainStack(project, geometry.landReliefM, geometry.bounds, geometry.waterDepthBelowLandM));
+  // Sea-level alignment can add a sheet; report the generated count once current.
+  const stackLayerCount = $derived(geometry.configFingerprint === projectFingerprint(project) ? geometry.layers.length : stackPlan.layerCount);
   const previewModeOptions = $derived(project.outputMode === "engraving" ? ENGRAVING_MODE_OPTIONS : STACK_MODE_OPTIONS);
   const previewBusy = $derived(generationState === "loading" || detailsUpdating);
   const previewBusyLabel = $derived(generationState === "loading" ? "Building your terrain" : "Refreshing preview");
@@ -277,7 +278,7 @@
   }
 
   function sectionSummary(section: ConfigSectionId): string {
-    return summarizeSection(section, project, stackPlan.layerCount);
+    return summarizeSection(section, project, stackLayerCount);
   }
 
   onMount(() => {
@@ -427,6 +428,12 @@
     void updateFabrication({ verticalExaggeration });
   }
 
+  function updateDepthLayerLimit(value: number): void {
+    if (!Number.isFinite(value)) return;
+    const waterDepthLayerLimit = Math.max(1, Math.round(value));
+    if (waterDepthLayerLimit !== project.waterDepthLayerLimit) void updateFabrication({ waterDepthLayerLimit });
+  }
+
   function updateLocation(patch: Partial<ProjectConfigV1["location"]>): void {
     invalidatePendingPreview();
     projectHistory.record(project, ["location"]);
@@ -550,15 +557,19 @@
     const revision = pipeline.revision;
     const controller = new AbortController(); generationAbort = controller;
     const generationProject: ProjectConfigV1 = { ...project, location: { ...project.location, bounds: boundsForProject(project) } };
-    generationState = "loading"; status = "Fetching elevation tiles…";
+    generationState = "loading"; generationStep = 1; status = "Fetching elevation and map details…";
     trackUsage("generation_started", generationProject.outputMode);
     const progressToast = showToast({ type: "info", message: "Building terrain layers…", duration: 0 });
     // Throws at each await boundary once canceled (AbortError) or superseded by a newer edit.
     const checkpoint = () => { controller.signal.throwIfAborted(); if (!pipeline.isCurrent(revision)) throw new DOMException("Generation superseded", "AbortError"); };
     try {
-      const loaded = await loadTerrain(generationProject, controller.signal);
+      const loaded = await loadTerrain(generationProject, controller.signal, (stage) => {
+        if (controller.signal.aborted || !pipeline.isCurrent(revision)) return;
+        generationStep = stage === "fetching" ? 1 : 2;
+        status = stage === "fetching" ? "Fetching elevation and map details…" : "Preparing terrain and lake depths…";
+      });
       checkpoint();
-      status = "Tracing and repairing contours…";
+      generationStep = 3; status = "Tracing and repairing contours…";
       let builtProject = generationProject;
       let next = await pipeline.generate(builtProject, loaded.source, revision);
       checkpoint();
@@ -661,20 +672,25 @@
               <div class="subsection-label">Location</div>
               <span class:pending={terrainDataStale} class="terrain-data-badge">{terrainDataStale ? "Regeneration pending" : "Requires regeneration"}</span>
             </div>
-          <button bind:this={locationTrigger} class="location-card" onclick={() => searchOpen = true}>
+          <button bind:this={locationTrigger} class="location-card" aria-haspopup="dialog" onclick={() => searchOpen = true}>
             <span class="location-icon"><MapIcon size={18} /></span>
             <span>
-              <strong>{project.location.label.split(",")[0]}</strong>
-              <small>{project.location.label.split(",").slice(1).join(",") || "Selected coordinates"}</small>
+              <strong>{embeddedInPlatform ? "Choose location" : project.location.label.split(",")[0]}</strong>
+              <small>{embeddedInPlatform ? project.location.label.split(",")[0] : project.location.label.split(",").slice(1).join(",") || "Selected coordinates"}</small>
             </span>
             <Search size={17} />
           </button>
-          <div class="preset-row">
+          {#if embeddedInPlatform}<p class="preset-label">Suggested places</p>{/if}
+          <div class="preset-row" role={embeddedInPlatform ? "group" : undefined} aria-label={embeddedInPlatform ? "Suggested places" : undefined}>
             {#each PRESETS as preset}
-              <button onclick={() => choosePlace(preset)}>{preset.label.split(",")[0].replace("Mount ", "Mt. ")}</button>
+              <button onclick={() => choosePlace(preset)}>{#if embeddedInPlatform}{#if preset.id === "crater-lake"}<Waves size={20} aria-hidden="true" />{:else if preset.id === "grand-canyon"}<Layers3 size={20} aria-hidden="true" />{:else}<Mountain size={20} aria-hidden="true" />{/if}{/if}<span>{preset.label.split(",")[0].replace("Mount ", "Mt. ")}</span></button>
             {/each}
           </div>
           </div>
+          {#if embeddedInPlatform}
+            <Switch checked={mapAspectLocked || project.cropShape === "circle"} disabled={project.cropShape === "circle"} onCheckedChange={(locked) => mapAspectLocked = locked} aria-label="Lock aspect ratio"><span class="toggle-label">Lock aspect ratio</span></Switch>
+            <p class="terrain-data-note">{project.cropShape === "circle" ? "Circle proportions are always locked." : "Keep proportions when resizing the map selection. Hold Shift to lock temporarily; Esc cancels a resize."}</p>
+          {/if}
           <p class:pending={terrainDataStale} class="terrain-data-note" aria-live="polite">
             {#if terrainDataStale}<strong>Terrain data is from the previous map area.</strong> Generate it before export.{:else}Changing the location or map area requires terrain regeneration.{/if}
             <span>Sidebar settings update the preview automatically. Changing the cut aspect ratio loads terrain for the updated map area.</span>
@@ -683,7 +699,105 @@
         </Section>
 {/snippet}
 
-{#snippet parameterControls()}
+{#snippet lakeDepthHelp(openLakeDepthHelp: ((trigger: HTMLButtonElement) => void) | undefined)}
+  {#if openLakeDepthHelp}
+    <button type="button" class="btn btn-secondary btn-sm lake-depth-help" aria-haspopup="dialog" onclick={(event) => openLakeDepthHelp(event.currentTarget)}>How lake depths work</button>
+  {:else if !embeddedInPlatform}
+    <a href={`${base}/guides/how-lake-depths-work`} target="_blank" rel="noopener noreferrer">How lake depths work<span class="ldt-visually-hidden"> (opens in a new tab)</span></a>
+  {/if}
+{/snippet}
+
+{#snippet customDataControls()}
+        <Section class="config-section custom-data-section" aria-labelledby="atomm-customData-title">
+          <button type="button" class="section-disclosure" id="atomm-customData-title" aria-expanded={openSections.customData} aria-controls="section-custom-data" onclick={() => toggleSection("customData")}>
+            <span class="section-number">06</span>
+            <span class="section-title">{embeddedInPlatform ? "Markers & paths" : "Custom Data"}<small>{sectionSummary("customData")}</small></span>
+            <ChevronDown size={16} class={openSections.customData ? "kicker-chevron kicker-chevron--open" : "kicker-chevron"} />
+          </button>
+          <div id="section-custom-data" class="section-content" hidden={!openSections.customData}>
+            <p class="custom-data-intro">Add your own geographic annotations. Coordinates stay attached to the project and are clipped to the selected map area during engraving.</p>
+
+            <div class="marker-editor">
+              <div class="subgroup-heading subgroup-heading--action">
+                <p><MapPin size={14} />Markers <span>{project.markers.length}</span></p>
+                <button type="button" class="marker-add-button" onclick={() => applyCustomDataEdit(edits.addMarker(project, crypto.randomUUID()))} disabled={!edits.canAddMarker(project)}><Plus size={13} />Add marker</button>
+              </div>
+              {#if project.markers.length === 0}
+                <small class="marker-empty">Add a marker, enter its latitude and longitude, then choose the symbol to engrave.</small>
+              {:else}
+                <div class="marker-list">
+                  {#each project.markers as marker, index (marker.id)}
+                    <div class="marker-card">
+                      <div class="marker-card__header">
+                        <b>Marker {index + 1}</b>
+                        <button type="button" aria-label={`Remove marker ${index + 1}`} title="Remove marker" onclick={() => applyCustomDataEdit(edits.removeMarker(project, marker.id))}><Trash2 size={14} /></button>
+                      </div>
+                      <div class="field-stack marker-coordinate-fields">
+                        <Field label="Latitude" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label={`Marker ${index + 1} latitude`} value={marker.lat} min={-MAX_LATITUDE} max={MAX_LATITUDE} step={0.0001} oninput={(event) => event.currentTarget.value !== "" && applyCustomDataEdit(edits.updateMarker(project, marker.id, { lat: event.currentTarget.valueAsNumber }))} onValueChange={(lat) => lat !== marker.lat && applyCustomDataEdit(edits.updateMarker(project, marker.id, { lat }))} /><em>°</em></span>{/snippet}</Field>
+                        <Field label="Longitude" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label={`Marker ${index + 1} longitude`} value={marker.lon} min={-MAX_LONGITUDE} max={MAX_LONGITUDE} step={0.0001} oninput={(event) => event.currentTarget.value !== "" && applyCustomDataEdit(edits.updateMarker(project, marker.id, { lon: event.currentTarget.valueAsNumber }))} onValueChange={(lon) => lon !== marker.lon && applyCustomDataEdit(edits.updateMarker(project, marker.id, { lon }))} /><em>°</em></span>{/snippet}</Field>
+                      </div>
+                      <div class="marker-symbol-options" role="radiogroup" aria-label={`Marker ${index + 1} symbol`}>
+                        {#each MARKER_OPTIONS as option}
+                          <button type="button" role="radio" aria-label={option.label} title={option.label} aria-checked={marker.symbol === option.value} data-state={marker.symbol === option.value ? "on" : "off"} tabindex={marker.symbol === option.value ? 0 : -1} onclick={() => applyCustomDataEdit(edits.updateMarker(project, marker.id, { symbol: option.value }))} onkeydown={navigateChoice}>
+                            <svg viewBox="-11 -11 22 22" aria-hidden="true">{#each option.paths as path}<path d={pointsToPath(path)} />{/each}</svg>
+                          </button>
+                        {/each}
+                      </div>
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+              <small class="marker-note">Markers outside the selected crop remain saved but are not engraved.</small>
+            </div>
+
+            <div class="custom-line-editor">
+              <div class="subgroup-heading subgroup-heading--action">
+                <p><Route size={14} />Paths <span>{project.customLines.length}</span></p>
+                <button type="button" class="marker-add-button" onclick={() => applyCustomDataEdit(edits.addCustomLine(project, crypto.randomUUID()))} disabled={!edits.canAddCustomLine(project)}><Plus size={13} />Add path</button>
+              </div>
+              {#if project.customLines.length === 0}
+                <small class="marker-empty">Create a trail or boundary, then define its route with as many latitude/longitude points as needed.</small>
+              {:else}
+                <div class="marker-list">
+                  {#each project.customLines as line, lineIndex (line.id)}
+                    <div class="marker-card custom-line-card">
+                      <div class="marker-card__header">
+                        <b>Path {lineIndex + 1}</b>
+                        <button type="button" aria-label={`Remove path ${lineIndex + 1}`} title="Remove path" onclick={() => applyCustomDataEdit(edits.removeCustomLine(project, line.id))}><Trash2 size={14} /></button>
+                      </div>
+                      <div class="custom-line-kind-options" role="radiogroup" aria-label={`Path ${lineIndex + 1} type`}>
+                        {#each CUSTOM_LINE_OPTIONS as option}
+                          <button type="button" role="radio" aria-checked={line.kind === option.value} data-state={line.kind === option.value ? "on" : "off"} tabindex={line.kind === option.value ? 0 : -1} onclick={() => applyCustomDataEdit(edits.updateCustomLine(project, line.id, { kind: option.value }))} onkeydown={navigateChoice}>
+                            {#if option.value === "trail"}<Route size={14} />{:else}<MapIcon size={14} />{/if}{option.label}
+                          </button>
+                        {/each}
+                      </div>
+                      <div class="custom-point-list">
+                        {#each line.points as point, pointIndex}
+                          <div class="custom-point-row">
+                            <div class="custom-point-heading">
+                              <span>Point {pointIndex + 1}</span>
+                              <button type="button" aria-label={`Remove point ${pointIndex + 1} from path ${lineIndex + 1}`} title={line.points.length <= 2 ? "A path needs at least two points" : "Remove point"} disabled={line.points.length <= 2} onclick={() => applyCustomDataEdit(edits.removeCustomLinePoint(project, line.id, pointIndex))}><Trash2 size={12} /></button>
+                            </div>
+                            <div class="field-stack marker-coordinate-fields">
+                              <Field label="Latitude" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label={`Path ${lineIndex + 1} point ${pointIndex + 1} latitude`} value={point.lat} min={-MAX_LATITUDE} max={MAX_LATITUDE} step={0.0001} oninput={(event) => event.currentTarget.value !== "" && applyCustomDataEdit(edits.updateCustomLinePoint(project, line.id, pointIndex, { lat: event.currentTarget.valueAsNumber }))} onValueChange={(lat) => lat !== point.lat && applyCustomDataEdit(edits.updateCustomLinePoint(project, line.id, pointIndex, { lat }))} /><em>°</em></span>{/snippet}</Field>
+                              <Field label="Longitude" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label={`Path ${lineIndex + 1} point ${pointIndex + 1} longitude`} value={point.lon} min={-MAX_LONGITUDE} max={MAX_LONGITUDE} step={0.0001} oninput={(event) => event.currentTarget.value !== "" && applyCustomDataEdit(edits.updateCustomLinePoint(project, line.id, pointIndex, { lon: event.currentTarget.valueAsNumber }))} onValueChange={(lon) => lon !== point.lon && applyCustomDataEdit(edits.updateCustomLinePoint(project, line.id, pointIndex, { lon }))} /><em>°</em></span>{/snippet}</Field>
+                            </div>
+                          </div>
+                        {/each}
+                      </div>
+                      <button type="button" class="custom-point-add" onclick={() => applyCustomDataEdit(edits.addCustomLinePoint(project, line.id))} disabled={!edits.canAddCustomLinePoint(project, line)}><Plus size={13} />Add point</button>
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+              <small class="marker-note">Custom paths render even when built-in Trails or Boundaries are switched off.</small>
+            </div>
+          </div>
+        </Section>
+{/snippet}
+
+{#snippet parameterControls(openLakeDepthHelp: ((trigger: HTMLButtonElement) => void) | undefined = undefined)}
         <Section class="config-section" aria-labelledby="atomm-size-title">
           <button type="button" class="section-disclosure" id="atomm-size-title" aria-expanded={openSections.size} aria-controls="section-size" onclick={() => toggleSection("size")}>
             <span class="section-number">03</span>
@@ -734,8 +848,8 @@
           <div class="range-field">
             <span class="range-field__label vertical-exaggeration-heading"><b>Vertical exaggeration</b><span class="terrain-data-badge">Updates automatically</span></span>
             <div class="range-field__row">
-              <input type="range" aria-label="Vertical exaggeration slider" min={MIN_VERTICAL_EXAGGERATION} max={MAX_VERTICAL_EXAGGERATION} step="0.5" value={project.verticalExaggeration} oninput={(event) => updateVerticalExaggeration(Number(event.currentTarget.value))} />
-              <span class="number-input number-input--compact"><NumberField label="Vertical exaggeration" value={project.verticalExaggeration} min={MIN_VERTICAL_EXAGGERATION} max={MAX_VERTICAL_EXAGGERATION} step={0.5} oninput={(event) => event.currentTarget.value !== "" && updateVerticalExaggeration(event.currentTarget.valueAsNumber)} onValueChange={updateVerticalExaggeration} /><em>×</em></span>
+              <input type="range" aria-label="Vertical exaggeration slider" min={MIN_VERTICAL_EXAGGERATION} max={MAX_VERTICAL_EXAGGERATION} step="0.1" value={project.verticalExaggeration} oninput={(event) => updateVerticalExaggeration(Number(event.currentTarget.value))} />
+              <span class="number-input number-input--compact"><NumberField label="Vertical exaggeration" value={project.verticalExaggeration} min={MIN_VERTICAL_EXAGGERATION} max={MAX_VERTICAL_EXAGGERATION} step={0.1} oninput={(event) => event.currentTarget.value !== "" && updateVerticalExaggeration(event.currentTarget.valueAsNumber)} onValueChange={updateVerticalExaggeration} /><em>×</em></span>
             </div>
             <small><span>{MIN_VERTICAL_EXAGGERATION}×</span><span>{MAX_VERTICAL_EXAGGERATION}×</span></small>
           </div>
@@ -745,8 +859,11 @@
           <div class="relief-summary">
             <Mountain size={20} />
             <span>
-              <strong>{Math.round(displayElevation(geometry.maxElevationM - geometry.minElevationM, project.units)).toLocaleString()} {shownElevationUnit} relief → {stackPlan.layerCount} layers, {shownLength(stackPlan.stackHeightMm)} {shownLengthUnit} tall</strong>
+              <strong>{Math.round(displayElevation(geometry.maxElevationM - geometry.minElevationM, project.units)).toLocaleString()} {shownElevationUnit} relief → {stackLayerCount} layers, {shownLength(stackLayerCount * project.materialThicknessMm)} {shownLengthUnit} tall</strong>
               <small>{stackPlan.verticalExaggeration.toFixed(1)}× applied{stackPlan.horizontalScale > 0 ? ` · scale 1:${Math.round(1 / stackPlan.horizontalScale).toLocaleString()}` : ""} · ≈ {Math.round(displayElevation(stackPlan.metersPerLayer, project.units)).toLocaleString()} {shownElevationUnit} per layer</small>
+              {#if Math.abs(stackPlan.verticalExaggeration - project.verticalExaggeration) > 0.05}
+                <small>Exaggeration rounds to whole material layers, with a minimum of two. Thinner material gives finer height steps.</small>
+              {/if}
             </span>
           </div>
           {/if}
@@ -794,14 +911,21 @@
                     <div class="range-field">
                       <span class="range-field__label"><b>Depth exaggeration</b></span>
                       <div class="range-field__row">
-                        <input type="range" aria-label="Water depth exaggeration slider" min={MIN_WATER_DEPTH_EXAGGERATION} max={MAX_WATER_DEPTH_EXAGGERATION} step="0.25" value={project.waterDepthExaggeration} oninput={(event) => void updateFabrication({ waterDepthExaggeration: Number(event.currentTarget.value) })} />
-                        <span class="number-input number-input--compact"><NumberField label="Water depth exaggeration" value={project.waterDepthExaggeration} min={MIN_WATER_DEPTH_EXAGGERATION} max={MAX_WATER_DEPTH_EXAGGERATION} step={0.25} oninput={(event) => event.currentTarget.value !== "" && void updateFabrication({ waterDepthExaggeration: event.currentTarget.valueAsNumber })} onValueChange={(value) => value !== project.waterDepthExaggeration && void updateFabrication({ waterDepthExaggeration: value })} /><em>×</em></span>
+                        <input type="range" aria-label="Water depth exaggeration slider" min={MIN_WATER_DEPTH_EXAGGERATION} max={MAX_WATER_DEPTH_EXAGGERATION} step="0.05" value={project.waterDepthExaggeration} oninput={(event) => void updateFabrication({ waterDepthExaggeration: Number(event.currentTarget.value) })} />
+                        <span class="number-input number-input--compact"><NumberField label="Water depth exaggeration" value={project.waterDepthExaggeration} min={MIN_WATER_DEPTH_EXAGGERATION} max={MAX_WATER_DEPTH_EXAGGERATION} step={0.05} oninput={(event) => event.currentTarget.value !== "" && void updateFabrication({ waterDepthExaggeration: event.currentTarget.valueAsNumber })} onValueChange={(value) => value !== project.waterDepthExaggeration && void updateFabrication({ waterDepthExaggeration: value })} /><em>×</em></span>
                       </div>
                       <small><span>{MIN_WATER_DEPTH_EXAGGERATION}×</span><span>{MAX_WATER_DEPTH_EXAGGERATION}× terrain</span></small>
                     </div>
                     <small class="depth-note">Relative to the terrain's vertical scale, which water already follows. 1× keeps lakes and sea floor on the same scale as the hills.</small>
-                    <Switch checked={project.fitLakeDepth} onCheckedChange={(fitLakeDepth) => void updateFabrication({ fitLakeDepth })} aria-label="Fit lake depth to available layers"><span class="toggle-label">Fit lake depth to available layers</span></Switch>
-                    <small class="depth-note">Compresses lakes only when needed to preserve their floor shape within the stack. Shorelines stay fixed.</small>
+                    <Switch checked={project.waterDepthLayerLimit !== undefined} onCheckedChange={(limited) => void updateFabrication({ waterDepthLayerLimit: limited ? Math.max(1, stackPlan.depthLayerCount) : undefined, fitLakeDepth: false })} aria-label="Limit depth layers"><span class="toggle-label">Limit depth layers</span></Switch>
+                    {#if project.waterDepthLayerLimit !== undefined}
+                      <Field label="Depth layers" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label="Maximum depth layers" value={project.waterDepthLayerLimit} min={1} step={1} oninput={(event) => event.currentTarget.value !== "" && updateDepthLayerLimit(event.currentTarget.valueAsNumber)} onValueChange={updateDepthLayerLimit} /></span>{/snippet}</Field>
+                      <small class="depth-note">Up to {project.waterDepthLayerLimit} {project.waterDepthLayerLimit === 1 ? "layer" : "layers"} ({shownLength(project.waterDepthLayerLimit * project.materialThicknessMm)} {shownLengthUnit}) below the lowest land. Land height stays unchanged.</small>
+                      <Switch checked={project.fitLakeDepth} onCheckedChange={(fitLakeDepth) => void updateFabrication({ fitLakeDepth })} aria-label="Fit lake depth to available layers"><span class="toggle-label">Fit lake depth to available layers</span></Switch>
+                      <small class="depth-note">Compresses lakes into your depth allowance while preserving their floor shape and shorelines. With fitting off, deeper areas are clipped.</small>
+                    {:else}
+                      <small class="depth-note">Automatic: adds all layers needed for the requested water depth. Currently {stackPlan.depthLayerCount} depth {stackPlan.depthLayerCount === 1 ? "layer" : "layers"} ({shownLength(stackPlan.depthLayerCount * project.materialThicknessMm)} {shownLengthUnit}) below the lowest land.</small>
+                    {/if}
                     {#each geometry.waterSurfaces.filter((lake) => lake.depthFitScale !== undefined) as lake (lake.id)}
                       <small class="depth-note">{lake.name ?? "Lake"}: {lake.appliedDepthExaggeration!.toFixed(2)}× terrain depth applied · {Math.round(lake.depthFitScale! * 100)}% of requested depth.</small>
                     {/each}
@@ -824,7 +948,7 @@
                     <small class="depth-note">Estimated from shoreline terrain slopes and GLOBathy/HydroLAKES depths. This is a modeled lake floor.</small>
                   </div>
                 {/if}
-                <div class="depth-note"><FeedbackButton label="Report lake data quality" type="lake" getContext={getFeedbackContext} /> <a href={`${base}/guides/how-lake-depths-work`} target="_blank" rel="noopener noreferrer">How lake depths work<span class="ldt-visually-hidden"> (opens in a new tab)</span></a></div>
+                <div class="depth-note">{#if !embeddedInPlatform}<FeedbackButton label="Report lake data quality" type="lake" getContext={getFeedbackContext} />{/if} {@render lakeDepthHelp(openLakeDepthHelp)}</div>
               </div>
               {/if}
             </div>
@@ -920,93 +1044,7 @@
           </div>
         </Section>
 
-        <Section class="config-section custom-data-section" aria-labelledby="atomm-customData-title">
-          <button type="button" class="section-disclosure" id="atomm-customData-title" aria-expanded={openSections.customData} aria-controls="section-custom-data" onclick={() => toggleSection("customData")}>
-            <span class="section-number">06</span>
-            <span class="section-title">Custom Data<small>{sectionSummary("customData")}</small></span>
-            <ChevronDown size={16} class={openSections.customData ? "kicker-chevron kicker-chevron--open" : "kicker-chevron"} />
-          </button>
-          <div id="section-custom-data" class="section-content" hidden={!openSections.customData}>
-            <p class="custom-data-intro">Add your own geographic annotations. Coordinates stay attached to the project and are clipped to the selected map area during engraving.</p>
-
-            <div class="marker-editor">
-              <div class="subgroup-heading subgroup-heading--action">
-                <p><MapPin size={14} />Markers <span>{project.markers.length}</span></p>
-                <button type="button" class="marker-add-button" onclick={() => applyCustomDataEdit(edits.addMarker(project, crypto.randomUUID()))} disabled={!edits.canAddMarker(project)}><Plus size={13} />Add marker</button>
-              </div>
-              {#if project.markers.length === 0}
-                <small class="marker-empty">Add a marker, enter its latitude and longitude, then choose the symbol to engrave.</small>
-              {:else}
-                <div class="marker-list">
-                  {#each project.markers as marker, index (marker.id)}
-                    <div class="marker-card">
-                      <div class="marker-card__header">
-                        <b>Marker {index + 1}</b>
-                        <button type="button" aria-label={`Remove marker ${index + 1}`} title="Remove marker" onclick={() => applyCustomDataEdit(edits.removeMarker(project, marker.id))}><Trash2 size={14} /></button>
-                      </div>
-                      <div class="field-stack marker-coordinate-fields">
-                        <Field label="Latitude" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label={`Marker ${index + 1} latitude`} value={marker.lat} min={-MAX_LATITUDE} max={MAX_LATITUDE} step={0.0001} oninput={(event) => event.currentTarget.value !== "" && applyCustomDataEdit(edits.updateMarker(project, marker.id, { lat: event.currentTarget.valueAsNumber }))} onValueChange={(lat) => lat !== marker.lat && applyCustomDataEdit(edits.updateMarker(project, marker.id, { lat }))} /><em>°</em></span>{/snippet}</Field>
-                        <Field label="Longitude" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label={`Marker ${index + 1} longitude`} value={marker.lon} min={-MAX_LONGITUDE} max={MAX_LONGITUDE} step={0.0001} oninput={(event) => event.currentTarget.value !== "" && applyCustomDataEdit(edits.updateMarker(project, marker.id, { lon: event.currentTarget.valueAsNumber }))} onValueChange={(lon) => lon !== marker.lon && applyCustomDataEdit(edits.updateMarker(project, marker.id, { lon }))} /><em>°</em></span>{/snippet}</Field>
-                      </div>
-                      <div class="marker-symbol-options" role="radiogroup" aria-label={`Marker ${index + 1} symbol`}>
-                        {#each MARKER_OPTIONS as option}
-                          <button type="button" role="radio" aria-label={option.label} title={option.label} aria-checked={marker.symbol === option.value} data-state={marker.symbol === option.value ? "on" : "off"} tabindex={marker.symbol === option.value ? 0 : -1} onclick={() => applyCustomDataEdit(edits.updateMarker(project, marker.id, { symbol: option.value }))} onkeydown={navigateChoice}>
-                            <svg viewBox="-11 -11 22 22" aria-hidden="true">{#each option.paths as path}<path d={pointsToPath(path)} />{/each}</svg>
-                          </button>
-                        {/each}
-                      </div>
-                    </div>
-                  {/each}
-                </div>
-              {/if}
-              <small class="marker-note">Markers outside the selected crop remain saved but are not engraved.</small>
-            </div>
-
-            <div class="custom-line-editor">
-              <div class="subgroup-heading subgroup-heading--action">
-                <p><Route size={14} />Paths <span>{project.customLines.length}</span></p>
-                <button type="button" class="marker-add-button" onclick={() => applyCustomDataEdit(edits.addCustomLine(project, crypto.randomUUID()))} disabled={!edits.canAddCustomLine(project)}><Plus size={13} />Add path</button>
-              </div>
-              {#if project.customLines.length === 0}
-                <small class="marker-empty">Create a trail or boundary, then define its route with as many latitude/longitude points as needed.</small>
-              {:else}
-                <div class="marker-list">
-                  {#each project.customLines as line, lineIndex (line.id)}
-                    <div class="marker-card custom-line-card">
-                      <div class="marker-card__header">
-                        <b>Path {lineIndex + 1}</b>
-                        <button type="button" aria-label={`Remove path ${lineIndex + 1}`} title="Remove path" onclick={() => applyCustomDataEdit(edits.removeCustomLine(project, line.id))}><Trash2 size={14} /></button>
-                      </div>
-                      <div class="custom-line-kind-options" role="radiogroup" aria-label={`Path ${lineIndex + 1} type`}>
-                        {#each CUSTOM_LINE_OPTIONS as option}
-                          <button type="button" role="radio" aria-checked={line.kind === option.value} data-state={line.kind === option.value ? "on" : "off"} tabindex={line.kind === option.value ? 0 : -1} onclick={() => applyCustomDataEdit(edits.updateCustomLine(project, line.id, { kind: option.value }))} onkeydown={navigateChoice}>
-                            {#if option.value === "trail"}<Route size={14} />{:else}<MapIcon size={14} />{/if}{option.label}
-                          </button>
-                        {/each}
-                      </div>
-                      <div class="custom-point-list">
-                        {#each line.points as point, pointIndex}
-                          <div class="custom-point-row">
-                            <div class="custom-point-heading">
-                              <span>Point {pointIndex + 1}</span>
-                              <button type="button" aria-label={`Remove point ${pointIndex + 1} from path ${lineIndex + 1}`} title={line.points.length <= 2 ? "A path needs at least two points" : "Remove point"} disabled={line.points.length <= 2} onclick={() => applyCustomDataEdit(edits.removeCustomLinePoint(project, line.id, pointIndex))}><Trash2 size={12} /></button>
-                            </div>
-                            <div class="field-stack marker-coordinate-fields">
-                              <Field label="Latitude" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label={`Path ${lineIndex + 1} point ${pointIndex + 1} latitude`} value={point.lat} min={-MAX_LATITUDE} max={MAX_LATITUDE} step={0.0001} oninput={(event) => event.currentTarget.value !== "" && applyCustomDataEdit(edits.updateCustomLinePoint(project, line.id, pointIndex, { lat: event.currentTarget.valueAsNumber }))} onValueChange={(lat) => lat !== point.lat && applyCustomDataEdit(edits.updateCustomLinePoint(project, line.id, pointIndex, { lat }))} /><em>°</em></span>{/snippet}</Field>
-                              <Field label="Longitude" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label={`Path ${lineIndex + 1} point ${pointIndex + 1} longitude`} value={point.lon} min={-MAX_LONGITUDE} max={MAX_LONGITUDE} step={0.0001} oninput={(event) => event.currentTarget.value !== "" && applyCustomDataEdit(edits.updateCustomLinePoint(project, line.id, pointIndex, { lon: event.currentTarget.valueAsNumber }))} onValueChange={(lon) => lon !== point.lon && applyCustomDataEdit(edits.updateCustomLinePoint(project, line.id, pointIndex, { lon }))} /><em>°</em></span>{/snippet}</Field>
-                            </div>
-                          </div>
-                        {/each}
-                      </div>
-                      <button type="button" class="custom-point-add" onclick={() => applyCustomDataEdit(edits.addCustomLinePoint(project, line.id))} disabled={!edits.canAddCustomLinePoint(project, line)}><Plus size={13} />Add point</button>
-                    </div>
-                  {/each}
-                </div>
-              {/if}
-              <small class="marker-note">Custom paths render even when built-in Trails or Boundaries are switched off.</small>
-            </div>
-          </div>
-        </Section>
+        {#if !embeddedInPlatform}{@render customDataControls()}{/if}
 
         <Section class="config-section linework-section" aria-labelledby="atomm-linework-title">
           <button type="button" class="section-disclosure" id="atomm-linework-title" aria-expanded={openSections.linework} aria-controls="section-linework" onclick={() => toggleSection("linework")}>
@@ -1119,7 +1157,7 @@
         {#if geometry.terrainSelection}
           <details class="terrain-source-summary">
             <summary>Terrain sources</summary>
-            <FeedbackButton label="Report terrain data quality" type="terrain" getContext={getFeedbackContext} />
+            {#if !embeddedInPlatform}<FeedbackButton label="Report terrain data quality" type="terrain" getContext={getFeedbackContext} />{/if}
             {#each geometry.terrainSelection.sources as source}
               <p>{source.name} · {Math.round(source.fraction * 100)}%{#if source.nativeResolutionM} · {source.nativeResolutionM} m source{/if}<br />{source.verticalDatum}</p>
             {/each}
@@ -1133,15 +1171,15 @@
       </div>
 {/snippet}
 
-{#snippet previewContent()}
+{#snippet previewContent(openLakeDepthHelp: ((trigger: HTMLButtonElement) => void) | undefined = undefined)}
     <section class="preview-panel" class:engraving-preview-panel={project.outputMode === "engraving"}>
       <div class="preview-toolbar"><div class="ldt-toggle-group mode-switch" role="radiogroup" aria-label="Preview mode">{#each previewModeOptions as option}<button type="button" class="ldt-toggle-group__item" role="radio" aria-checked={mode === option.value} data-state={mode === option.value ? "on" : "off"} tabindex={mode === option.value ? 0 : -1} onclick={() => { if (option.value === "2d" && selectedLayer === 0) selectedLayer = featuredLayerIndex(geometry); previewNotice = ""; if (option.value === "3d") threeUnavailable = false; mode = option.value as PreviewMode; }} onkeydown={navigateChoice}>{#if option.value === "map"}<MapIcon size={15} />{:else if option.value === "engraving"}<PenTool size={15} />{:else if option.value === "2d"}<Layers3 size={15} />{:else}<Box size={15} />{/if}{embeddedInPlatform ? option.value === "2d" ? "2D" : option.value === "3d" ? "3D" : option.label : option.label}</button>{/each}</div><div class="preview-readout"><span>{shownLength(project.widthMm)} × {shownLength(project.heightMm)} {shownLengthUnit}</span><span>{Math.round(displayElevation(geometry.minElevationM, project.units)).toLocaleString()}–{Math.round(displayElevation(geometry.maxElevationM, project.units)).toLocaleString()} {shownElevationUnit}</span></div></div>
-      <div class="preview-stage" aria-busy={previewBusy} data-road-markings={detailCounts.road} data-trail-markings={detailCounts.trail} data-transportation-label-markings={detailCounts.transportationLabel} data-water-markings={detailCounts.water} data-contour-markings={detailCounts.contour} data-alignment-markings={detailCounts.alignment} data-elevation-markings={detailCounts.elevation} data-north-markings={detailCounts.north} data-scale-markings={detailCounts.scale} data-marker-markings={detailCounts.marker} data-custom-line-markings={detailCounts.customLine}><FeedbackButton edge getContext={getFeedbackContext} />{#if mode === "map"}{#if MapCanvas}<MapCanvas {project} onSelectionResize={(widthMm, heightMm, bounds) => { void updateFabrication({ widthMm, heightMm, location: { ...project.location, bounds } }); }} onUnavailable={(reason) => { mode = project.outputMode === "engraving" ? "engraving" : "2d"; previewNotice = reason === "load-failed" ? "Map could not load · check your connection or choose a location using search or coordinates" : "Map is unavailable in this browser · choose a location using search or coordinates"; }} onLocationChange={(lat: number, lon: number, zoom: number, bounds: GeoBounds) => updateLocation({ lat, lon, zoom, bounds, label: `${lat.toFixed(4)}, ${lon.toFixed(4)}` })} />{:else}<div class="preview-loading">Loading map…</div>{/if}{:else if mode === "engraving"}{#if EngravingPreview}<EngravingPreview {geometry} {project} cropShape={sourceProject.cropShape} />{:else if engravingPreview.failed}<div class="preview-loading preview-load-failed" role="alert">Engraving preview could not load<button type="button" class="btn btn-secondary" onclick={() => engravingPreview.load()}>Retry</button></div>{:else}<div class="preview-loading">Loading engraving…</div>{/if}{:else if mode === "2d"}{#if TwoDPreview}<TwoDPreview {geometry} {selectedLayer} />{:else if twoDPreview.failed}<div class="preview-loading preview-load-failed" role="alert">Cut preview could not load<button type="button" class="btn btn-secondary" onclick={() => twoDPreview.load()}>Retry</button></div>{:else}<div class="preview-loading">Loading cut preview…</div>{/if}{:else if ThreePreview}<ThreePreview {geometry} exploded={explodedPreview} onUnavailable={() => { threeUnavailable = true; mode = "2d"; previewNotice = "3D is unavailable in this browser · showing cut layers"; }} />{:else}<div class="preview-loading">Loading 3D preview…</div>{/if}{#if mode !== "map"}<div class="preview-attribution">Map data © <a href={OSM_ATTRIBUTION.url} target="_blank" rel="noreferrer">{OSM_ATTRIBUTION.name}</a> · <a href={`${base}/attribution`} target="_blank" rel="noopener noreferrer">All sources<span class="ldt-visually-hidden"> (opens in a new tab)</span></a></div>{/if}{#if previewBusy}<div class:preview-update-overlay={detailsUpdating && generationState !== "loading"} class="generation-overlay" role="status" aria-live="polite" style:pointer-events={detailsUpdating && generationState !== "loading" ? "none" : undefined}><div class="contour-loader"><span></span><span></span><span></span></div><strong>{previewBusyLabel}</strong><small>{status}</small>{#if embeddedInPlatform && generationState === "loading"}<span class="atomm-generation-step">Step {status.startsWith("Fetching") ? 1 : 2} of 2</span><button type="button" class="btn btn-secondary" onclick={cancelGeneration}>Cancel generation</button>{/if}</div>{/if}{#if visibleWarnings.length || previewNotice || lakeDepthFittingOn}
+      <div class="preview-stage" aria-busy={previewBusy} data-road-markings={detailCounts.road} data-trail-markings={detailCounts.trail} data-transportation-label-markings={detailCounts.transportationLabel} data-water-markings={detailCounts.water} data-contour-markings={detailCounts.contour} data-alignment-markings={detailCounts.alignment} data-elevation-markings={detailCounts.elevation} data-north-markings={detailCounts.north} data-scale-markings={detailCounts.scale} data-marker-markings={detailCounts.marker} data-custom-line-markings={detailCounts.customLine}>{#if !embeddedInPlatform}<FeedbackButton edge getContext={getFeedbackContext} />{/if}{#if mode === "map"}{#if MapCanvas}<MapCanvas {project} bind:aspectLocked={mapAspectLocked} onSelectionResize={(widthMm, heightMm, bounds) => { void updateFabrication({ widthMm, heightMm, location: { ...project.location, bounds } }); }} onUnavailable={(reason) => { mode = project.outputMode === "engraving" ? "engraving" : "2d"; previewNotice = reason === "load-failed" ? "Map could not load · check your connection or choose a location using search or coordinates" : "Map is unavailable in this browser · choose a location using search or coordinates"; }} onLocationChange={(lat: number, lon: number, zoom: number, bounds: GeoBounds) => updateLocation({ lat, lon, zoom, bounds, label: `${lat.toFixed(4)}, ${lon.toFixed(4)}` })} />{:else}<div class="preview-loading">Loading map…</div>{/if}{:else if mode === "engraving"}{#if EngravingPreview}<EngravingPreview {geometry} {project} cropShape={sourceProject.cropShape} />{:else if engravingPreview.failed}<div class="preview-loading preview-load-failed" role="alert">Engraving preview could not load<button type="button" class="btn btn-secondary" onclick={() => engravingPreview.load()}>Retry</button></div>{:else}<div class="preview-loading">Loading engraving…</div>{/if}{:else if mode === "2d"}{#if TwoDPreview}<TwoDPreview {geometry} {selectedLayer} />{:else if twoDPreview.failed}<div class="preview-loading preview-load-failed" role="alert">Cut preview could not load<button type="button" class="btn btn-secondary" onclick={() => twoDPreview.load()}>Retry</button></div>{:else}<div class="preview-loading">Loading cut preview…</div>{/if}{:else if ThreePreview}<ThreePreview {geometry} exploded={explodedPreview} onUnavailable={() => { threeUnavailable = true; mode = "2d"; previewNotice = "3D is unavailable in this browser · showing cut layers"; }} />{:else}<div class="preview-loading">Loading 3D preview…</div>{/if}{#if mode !== "map"}<div class="preview-attribution">Map data © <a href={OSM_ATTRIBUTION.url} target="_blank" rel="noreferrer">{OSM_ATTRIBUTION.name}</a> · <a href={`${base}/attribution${import.meta.env.VITE_SITE_ENV === "atomm" ? ".html" : ""}`} target="_blank" rel="noopener noreferrer">All sources<span class="ldt-visually-hidden"> (opens in a new tab)</span></a></div>{/if}{#if previewBusy}<div class:preview-update-overlay={detailsUpdating && generationState !== "loading"} class="generation-overlay" role="status" aria-live="polite" style:pointer-events={detailsUpdating && generationState !== "loading" ? "none" : undefined}><div class="contour-loader" aria-hidden="true"><span></span><span></span><span></span></div><strong>{previewBusyLabel}</strong><small>{status}</small>{#if generationState === "loading"}<span class="generation-step">Step {generationStep} of 3</span>{/if}{#if embeddedInPlatform && generationState === "loading"}<button type="button" class="btn btn-secondary" onclick={cancelGeneration}>Cancel generation</button>{/if}</div>{/if}{#if visibleWarnings.length || previewNotice || lakeDepthFittingOn}
           <div class="warning-stack">
             {#if lakeDepthFittingOn}
               <div class="preview-warning preview-notice" role="status">
                 <span class="warning-icon" aria-hidden="true"><Waves size={12} /></span>
-                <p>Lake depth fitting is on. <button type="button" class="warning-action" disabled={previewBusy} onclick={() => void updateFabrication({ fitLakeDepth: false })}>Use manual depth</button></p>
+                <p>Lake depth fitting is on. <Button class="warning-action" disabled={previewBusy} onclick={() => void updateFabrication({ fitLakeDepth: false })}>Use manual depth</Button></p>
               </div>
             {/if}
             {#if previewNotice}
@@ -1154,7 +1192,7 @@
             {#each visibleWarnings as warning (`${warning.code}-${warning.message}`)}
               <div class="preview-warning">
                 <span class="warning-icon" aria-hidden="true">!</span>
-                <p>{warning.message}{#if warning.code === "LAKE_DEPTH_PREDICTED"} <a href={`${base}/guides/how-lake-depths-work`} target="_blank" rel="noopener noreferrer">How lake depths work<span class="ldt-visually-hidden"> (opens in a new tab)</span></a>{/if}{#if warning.action === "fit-lake-depth" && !project.fitLakeDepth} <button type="button" class="warning-action" disabled={previewBusy} onclick={() => void updateFabrication({ fitLakeDepth: true })}>Fit depth</button>{/if}</p>
+                <p>{warning.message}{#if warning.code === "LAKE_DEPTH_PREDICTED"}&nbsp;{@render lakeDepthHelp(openLakeDepthHelp)}{/if}{#if warning.action === "fit-lake-depth" && !project.fitLakeDepth} <Button class="warning-action" disabled={previewBusy} onclick={() => void updateFabrication({ fitLakeDepth: true })}>Fit depth</Button>{/if}</p>
                 <button type="button" class="warning-dismiss" aria-label={`Dismiss warning: ${warning.message}`} title="Dismiss warning" onclick={(event) => dismissPreviewWarning(event, `${warning.code}-${warning.message}`)}><X size={14} aria-hidden="true" /></button>
               </div>
             {/each}
@@ -1165,7 +1203,7 @@
 {/snippet}
 
 {#snippet layerControls()}
-      {#if project.outputMode === "stack"}<div class="layer-dock"><div class="layer-heading"><span><Layers3 size={16} /><b>Layer {selectedLayer + 1}</b> of {geometry.layers.length}</span><strong>{layerTicks[selectedLayer]?.toLocaleString()} {shownElevationUnit}</strong></div><input class="layer-range" type="range" min="0" max={Math.max(0, geometry.layers.length - 1)} value={selectedLayer} oninput={(event) => { selectedLayer = Number(event.currentTarget.value); if (mode === "3d") mode = "2d"; }} /><div class="layer-scale"><span>{layerTicks[0]?.toLocaleString()} {shownElevationUnit}</span><span>{layerTicks[Math.floor(layerTicks.length / 2)]?.toLocaleString()} {shownElevationUnit}</span><span>{layerTicks.at(-1)?.toLocaleString()} {shownElevationUnit}</span></div>{#if mode === "3d"}<label class="explode-control"><span>Stack</span><input type="range" min="0" max="1" step="0.05" value={explodedPreview} oninput={(event) => { explodedDrag = Number(event.currentTarget.value); }} onchange={(event) => { explodedDrag = undefined; updateProject({ explodedPreview: Number(event.currentTarget.value) }); }} /><span>Exploded</span></label>{/if}</div>{/if}
+      {#if project.outputMode === "stack"}<div class="layer-dock"><div class="layer-heading"><span><Layers3 size={16} /><b>Layer {selectedLayer + 1}</b> of {geometry.layers.length}</span><strong>{layerTicks[selectedLayer]?.toLocaleString()} {shownElevationUnit}</strong></div><input class="layer-range" aria-label="Selected layer" type="range" min="0" max={Math.max(0, geometry.layers.length - 1)} value={selectedLayer} oninput={(event) => { selectedLayer = Number(event.currentTarget.value); if (mode === "3d") mode = "2d"; }} /><div class="layer-scale"><span>{layerTicks[0]?.toLocaleString()} {shownElevationUnit}</span><span>{layerTicks[Math.floor(layerTicks.length / 2)]?.toLocaleString()} {shownElevationUnit}</span><span>{layerTicks.at(-1)?.toLocaleString()} {shownElevationUnit}</span></div>{#if mode === "3d"}<label class="explode-control"><span>Stack</span><input aria-label="Stack separation" type="range" min="0" max="1" step="0.05" value={explodedPreview} oninput={(event) => { explodedDrag = Number(event.currentTarget.value); }} onchange={(event) => { explodedDrag = undefined; updateProject({ explodedPreview: Number(event.currentTarget.value) }); }} /><span>Exploded</span></label>{/if}</div>{/if}
 {/snippet}
 
 {#snippet locationSearch()}
@@ -1185,14 +1223,14 @@
 {#if embeddedInPlatform}
   {#if AtommWorkbench}<AtommWorkbench ready={atommReady} blockedReason={exportBlockedBy} preparing={exportPhase === "preparing"} {exportPhase} {exportTitle} {exportDetail}>
     {#snippet leadHeader()}{@render projectControls()}{/snippet}
-    {#snippet lead()}{@render outputControls()}{@render setupControls()}{/snippet}
+    {#snippet lead()}{@render outputControls()}{@render setupControls()}{@render customDataControls()}{/snippet}
     {#snippet generate()}{@render generationControls()}{/snippet}
     {#snippet parameterHeader()}
       {@render unitControls()}
       <button type="button" class="btn btn-secondary" onclick={() => void updateFabrication({ ...DEFAULT_PROJECT, id: project.id, name: project.name, location: project.location, outputMode: project.outputMode })}>Reset</button>
     {/snippet}
-    {#snippet parameters()}{@render parameterControls()}{@render layerControls()}{/snippet}
-    {#snippet preview()}{@render previewContent()}{/snippet}
+    {#snippet parameters(openLakeDepthHelp)}{@render layerControls()}{@render parameterControls(openLakeDepthHelp)}{/snippet}
+    {#snippet preview(openLakeDepthHelp)}{@render previewContent(openLakeDepthHelp)}{/snippet}
     {#snippet dialogs()}{@render locationSearch()}{/snippet}
   </AtommWorkbench>{:else}<main role="status">{atommLayoutFailed ? "The platform layout could not load. Reload to try again." : "Preparing terrain studio…"}</main>{/if}
 {:else}

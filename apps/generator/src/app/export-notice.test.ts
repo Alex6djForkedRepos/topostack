@@ -13,7 +13,7 @@ afterEach(() => { vi.useRealTimers(); });
 describe("export notice", () => {
   it("describes browser and Studio exports", () => {
     expect(describeExport({ phase: "preparing", intent: "openInStudio" })).toMatchObject({ title: "Preparing Studio artwork", status: "Preparing Studio artwork" });
-    expect(describeExport({ phase: "ready", intent: "download", fileCount: 1 })).toMatchObject({ title: "Download ready", status: "Download started · 1 file" });
+    expect(describeExport({ phase: "ready", intent: "download", fileCount: 1 })).toMatchObject({ title: "Download ready", status: "Download prepared · 1 file" });
     expect(describeExport({ phase: "error", intent: "download", message: "Nope" })).toEqual({ title: "Export failed", detail: "Nope", status: "Nope" });
   });
 
@@ -28,7 +28,7 @@ describe("export notice", () => {
     expect(notice).toMatchObject({ phase: "ready", title: "Download ready" });
     vi.advanceTimersByTime(1_000);
     expect(notice.phase).toBe("idle");
-    expect(statuses).toEqual(["Building your download", "Download started · 2 files"]);
+    expect(statuses).toEqual(["Building your download", "Download prepared · 2 files"]);
   });
 
   it("blocks sample-data exports but always allows project settings", async () => {

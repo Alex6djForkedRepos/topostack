@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildEngravingPackage, buildFabricationPackage, coordinateGridInterval, createSyntheticSource, DEFAULT_PROJECT, displayLength, engravingToSvg, generateGeometry, geoPointToMapPoint, labelDimensions, labelLineSegments, layerToSvg, longitudeInBounds, masterToSvg, MAX_DEPTH_LAYER_COUNT, MAX_LAYER_COUNT, millimetersFromDisplay, MIN_LAYER_COUNT, MM_PER_INCH, planTerrainStack, projectFingerprint, validateProject, waterPatternStrokes, type ProjectConfigV1, type SourceBundleV1, type WaterAreaV1 } from "./index.js";
+import { buildEngravingPackage, buildFabricationPackage, coordinateGridInterval, createSyntheticSource, DEFAULT_PROJECT, displayLength, engravingToSvg, generateGeometry, geoPointToMapPoint, labelDimensions, labelLineSegments, layerToSvg, longitudeInBounds, masterToSvg, millimetersFromDisplay, MIN_LAYER_COUNT, MM_PER_INCH, planTerrainStack, projectFingerprint, validateProject, waterPatternStrokes, type ProjectConfigV1, type SourceBundleV1, type WaterAreaV1 } from "./index.js";
 import { carveWaterDepth, distanceToShoreM, solveShapeExponent } from "./water.js";
 import { placeElevationLabel, placeLinearLabel } from "./label-placement.js";
 
@@ -122,7 +122,8 @@ describe("TopoStack geometry", () => {
     expect(foregroundCross.every((marking) => marking.points.length === 5)).toBe(true);
     const svg = engravingToSvg(result, project);
     expect(svg).toMatch(/id="map-marker-[^"]+"[^>]+fill="#2366FF"/);
-    expect(svg).toMatch(/id="map-marker-[^"]+-halo-[^"]+"[^>]+fill="#ffffff"[^>]+data-knockout="true"/);
+    expect(svg).not.toContain('fill="#ffffff"');
+    expect(svg).toMatch(/id="map-marker-[^"]+"[^>]+fill="#2366FF" stroke="none"/);
     expect(() => validateProject({ ...DEFAULT_PROJECT, markers: [{ ...markers[0]!, lat: 90 }] })).toThrow(/marker latitude/i);
     expect(() => validateProject({ ...DEFAULT_PROJECT, markers: [{ ...markers[0]!, symbol: "flag" as never }] })).toThrow(/marker symbol/i);
     expect(() => validateProject({ ...DEFAULT_PROJECT, markers: [markers[0]!, { ...markers[1]!, id: markers[0]!.id }] })).toThrow(/unique/i);
@@ -981,17 +982,34 @@ describe("TopoStack geometry", () => {
     expect(wide.layerCount).toBe(10);
   });
 
-  it("refits the exaggeration when the derived layer count hits its limits", () => {
-    const project = { ...DEFAULT_PROJECT, widthMm: 200, materialThicknessMm: 3, verticalExaggeration: 20 };
+  it("honors tall stacks and only refits to whole sheets or the minimum", () => {
+    const project = { ...DEFAULT_PROJECT, widthMm: 400, materialThicknessMm: 3, verticalExaggeration: 10 };
     const steep = planTerrainStack(project, 4_000, groundBounds(project, 20_000));
-    expect(steep.layerCount).toBe(MAX_LAYER_COUNT);
-    // 4000 m over 20 km at 200 mm is 40 mm of true relief; 24 sheets of 3 mm
-    // is 72 mm, so the requested 20x is reported as the 1.8x actually cut.
-    expect(steep.verticalExaggeration).toBeCloseTo(1.8, 6);
+    expect(steep.layerCount).toBe(267);
+    // 4000 m over 20 km at 400 mm is 80 mm of true relief. The requested
+    // 800 mm rounds to 267 sheets of 3 mm, rather than flattening at 24.
+    expect(steep.stackHeightMm).toBe(801);
+    expect(steep.verticalExaggeration).toBeCloseTo(10.0125, 6);
 
     const flat = planTerrainStack({ ...project, verticalExaggeration: 1 }, 5, groundBounds(project, 20_000));
     expect(flat.layerCount).toBe(MIN_LAYER_COUNT);
-    expect(flat.verticalExaggeration).toBeGreaterThan(20);
+    expect(flat.verticalExaggeration).toBeGreaterThan(10);
+  });
+
+  it("generates and exports every sheet in a stack larger than 24 layers", async () => {
+    const base = { ...DEFAULT_PROJECT, showWaterDepth: false, optimizeMaterialUse: false };
+    const [project, data] = scaledForLayers(base, gridSource(base, 32, (x) => 600 + 500 * x), 60);
+    const result = generateGeometry(project, data);
+    expect(result.layers).toHaveLength(60);
+    expect(result.verticalExaggeration).toBeCloseTo(project.verticalExaggeration, 8);
+    expect(result.layers.at(-1)!.polygons.length).toBeGreaterThan(0);
+    const output = buildFabricationPackage(result, project);
+    const manifest = JSON.parse(await output.files.find(file => file.filename.endsWith("-project.json"))!.blob.text());
+    expect(manifest.result.layers).toHaveLength(60);
+    const readme = await output.files.find(file => file.filename === "README.txt")!.blob.text();
+    expect(readme).toContain("60 layers");
+    expect(readme).toContain("180 mm");
+    expect(await output.master.blob.text()).toContain('layer-60');
   });
 
   it("falls back to the minimum stack for degenerate terrain and bounds", () => {
@@ -1006,8 +1024,10 @@ describe("TopoStack geometry", () => {
   });
 
   it("rejects out-of-range exaggeration and unknown crop shapes", () => {
+    expect(() => validateProject({ ...DEFAULT_PROJECT, verticalExaggeration: 10 })).not.toThrow();
+    expect(() => validateProject({ ...DEFAULT_PROJECT, verticalExaggeration: 1.1, waterDepthExaggeration: 1.05 })).not.toThrow();
     expect(() => validateProject({ ...DEFAULT_PROJECT, verticalExaggeration: 0.5 })).toThrow(/vertical exaggeration/i);
-    expect(() => validateProject({ ...DEFAULT_PROJECT, verticalExaggeration: 21 })).toThrow(/vertical exaggeration/i);
+    expect(() => validateProject({ ...DEFAULT_PROJECT, verticalExaggeration: 10.01 })).toThrow(/vertical exaggeration/i);
     expect(() => validateProject({ ...DEFAULT_PROJECT, cropShape: "hexagon" as ProjectConfigV1["cropShape"] })).toThrow(/rectangle or circle/i);
     expect(() => validateProject({ ...DEFAULT_PROJECT, textStyle: { font: "serif" as ProjectConfigV1["textStyle"]["font"], sizeMm: 3 } })).toThrow(/text font/i);
     expect(() => validateProject({ ...DEFAULT_PROJECT, textStyle: { font: "technical", sizeMm: 10.1 } })).toThrow(/text size/i);
@@ -1221,7 +1241,7 @@ describe("TopoStack geometry", () => {
     });
 
     it("steps the lake down through the sheets without punching the base", () => {
-      const base: ProjectConfigV1 = { ...DEFAULT_PROJECT, showWater: false, optimizeMaterialUse: false };
+      const base: ProjectConfigV1 = { ...DEFAULT_PROJECT, waterDepthLayerLimit: 6, showWater: false, optimizeMaterialUse: false };
       const source = flatLake(base);
       const [project, scaled] = scaledForLayers(base, source, 8);
       const withLake: SourceBundleV1 = { ...scaled, waterAreas: [lakeArea({ maxDepthM: 150, meanDepthM: 60 })] };
@@ -1272,15 +1292,16 @@ describe("TopoStack geometry", () => {
       // leaves the land a handful of sheets; planning from land alone is the fix.
       const landSheets = (result: typeof fixed) => result.layers.filter((layer) => layer.elevationM >= 0).length;
       expect(landSheets(squashed)).toBeLessThan(squashed.layers.length / 2);
-      expect(landSheets(fixed)).toBeGreaterThan(landSheets(squashed));
+      expect(landSheets(fixed)).toBeGreaterThanOrEqual(8);
       // The deepest cells sit in the border column, exactly on the crop edge the
       // ocean polygon was clipped to; if those fall out of the mask the land
       // minimum drops back to the sea floor and the fix silently stops working.
       expect(fixed.landReliefM).toBeLessThan(1000);
       expect(fixed.landReliefM).toBeLessThan(squashed.landReliefM);
       expect(fixed.waterDepthBelowLandM).toBeGreaterThan(0);
-      expect(fixed.layers.length).toBeLessThanOrEqual(MAX_LAYER_COUNT);
-      expect(fixed.layers.length - landSheets(fixed)).toBeLessThanOrEqual(MAX_DEPTH_LAYER_COUNT);
+      expect(fixed.verticalExaggeration).toBeCloseTo(planTerrainStack(project, fixed.landReliefM, bounds).verticalExaggeration, 9);
+      expect(fixed.layers[0]!.elevationM).toBeLessThanOrEqual(coastal.elevation.min);
+      expect(fixed.warnings.some(warning => warning.code === "WATER_DEPTH_CLAMPED")).toBe(false);
     });
 
     it("puts sea level exactly on a sheet boundary when there is an ocean", () => {
@@ -1303,10 +1324,8 @@ describe("TopoStack geometry", () => {
     });
 
     it("keeps the summit on the stack when the sea-level snap costs a sheet", () => {
-      // Mountains that already fill the sheet budget beside an ocean: the snap
-      // slides the ladder down by most of a step, so the span needs one sheet
-      // more than the plan allowed. Clamping the count back to the limit drops
-      // the top sheet instead - the summit - which is what the plan reserves for.
+      // Snapping a tall coastal stack to sea level must be allowed to add a
+      // sheet beyond the land/depth plan so the summit is never truncated.
       const base: ProjectConfigV1 = { ...DEFAULT_PROJECT, showWater: false };
       const coastal = gridSource(base, 96, (nx) => (nx < 0 ? 200 * nx : 100 + 3000 * nx));
       const bounds = groundBounds(base, 20000);
@@ -1321,25 +1340,38 @@ describe("TopoStack geometry", () => {
       };
       const result = generateGeometry({ ...base, location: { ...base.location, bounds } }, source);
       const step = result.layers[1]!.elevationM - result.layers[0]!.elevationM;
-      expect(result.layers.length).toBeLessThanOrEqual(MAX_LAYER_COUNT);
+      expect(result.layers.length).toBeGreaterThan(24);
       // Sea level still lands on a step, and no terrain sits a whole sheet above the top one.
       const stepsToSeaLevel = (0 - result.layers[0]!.elevationM) / step;
       expect(Math.abs(stepsToSeaLevel - Math.round(stepsToSeaLevel))).toBeLessThan(1e-6);
       expect(result.maxElevationM - result.layers.at(-1)!.elevationM).toBeLessThan(step * 1.05);
     });
 
+    it("covers a deep lake beneath flat land without empty upper sheets", () => {
+      const base = { ...DEFAULT_PROJECT, optimizeMaterialUse: false, showWater: false };
+      const data = gridSource(base, 32, () => 180);
+      data.bounds = groundBounds(base, 2000);
+      data.waterAreas = [lakeArea({ maxDepthM: 100, meanDepthM: 40, lmaxM: 500 })];
+      const result = generateGeometry(base, data);
+      expect(result.landReliefM).toBe(0);
+      expect(result.waterDepthBelowLandM).toBeGreaterThan(0);
+      expect(result.layers.length).toBeGreaterThan(2);
+      expect(result.layers.at(-1)!.elevationM).toBeCloseTo(180, 6);
+      expect(result.warnings.some(warning => warning.code === "EMPTY_LAYER" || warning.code === "WATER_DEPTH_CLAMPED")).toBe(false);
+    });
+
     it("flattens water the sheet budget cannot reach and says so", () => {
-      const base: ProjectConfigV1 = { ...DEFAULT_PROJECT, showWater: false, optimizeMaterialUse: false };
+      const base: ProjectConfigV1 = { ...DEFAULT_PROJECT, waterDepthLayerLimit: 6, showWater: false, optimizeMaterialUse: false };
       const source = flatLake(base);
       const [project, scaled] = scaledForLayers(base, source, 4);
-      // Far deeper than MAX_DEPTH_LAYER_COUNT sheets of this stack can hold.
+      // Far deeper than the explicitly chosen six depth sheets can hold.
       const withLake: SourceBundleV1 = { ...scaled, waterAreas: [lakeArea({ maxDepthM: 9000, meanDepthM: 3000 })] };
       const result = generateGeometry(project, withLake);
       expect(result.warnings.some((warning) => warning.code === "WATER_DEPTH_CLAMPED")).toBe(true);
     });
 
     it("fits a deep lake into the same stack, preserves source depth, and exports its applied scale", async () => {
-      const base: ProjectConfigV1 = { ...DEFAULT_PROJECT, showWater: false, optimizeMaterialUse: false };
+      const base: ProjectConfigV1 = { ...DEFAULT_PROJECT, waterDepthLayerLimit: 6, showWater: false, optimizeMaterialUse: false };
       const [project, scaled] = scaledForLayers(base, flatLake(base), 4);
       const withLake: SourceBundleV1 = { ...scaled, sourceKind: "real", vectorStatus: "available", lakeDataStatus: "available", waterAreas: [lakeArea({ maxDepthM: 9000, meanDepthM: 3000 })] };
       const clipped = generateGeometry(project, withLake);
@@ -1361,6 +1393,11 @@ describe("TopoStack geometry", () => {
       const restored = generateGeometry({ ...fitting, fitLakeDepth: false }, withLake);
       expect(restored.layers).toEqual(clipped.layers);
       expect(generateGeometry({ ...fitting, showWaterDepth: false }, withLake).waterSurfaces).toEqual([]);
+      const automatic = generateGeometry({ ...project, waterDepthLayerLimit: undefined }, withLake);
+      expect(automatic.layers.length).toBeGreaterThan(clipped.layers.length);
+      expect(automatic.warnings.some(warning => warning.code === "WATER_DEPTH_CLAMPED")).toBe(false);
+      expect(automatic.waterSurfaces[0]?.depthFitScale).toBeUndefined();
+      expect(automatic.verticalExaggeration).toBe(clipped.verticalExaggeration);
     });
 
     it("scales modeled and surveyed water alike, and 1x changes nothing", () => {
@@ -1393,7 +1430,7 @@ describe("TopoStack geometry", () => {
     });
 
     it("spends more sheets below the waterline as depth exaggeration rises", () => {
-      const base: ProjectConfigV1 = { ...DEFAULT_PROJECT, showWater: false, optimizeMaterialUse: false };
+      const base: ProjectConfigV1 = { ...DEFAULT_PROJECT, waterDepthLayerLimit: 6, showWater: false, optimizeMaterialUse: false };
       const source = flatLake(base);
       const [project, scaled] = scaledForLayers(base, source, 6);
       const withLake: SourceBundleV1 = { ...scaled, waterAreas: [lakeArea({ maxDepthM: 150, meanDepthM: 60 })] };

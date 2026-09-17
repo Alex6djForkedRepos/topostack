@@ -119,8 +119,13 @@ describe("TopoStack Svelte shell", () => {
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
     await tick();
+    target.querySelector<HTMLButtonElement>('button[role="switch"][aria-label="Limit depth layers"]')!.click();
+    await tick();
+    const allowance = target.querySelector<HTMLInputElement>('input[aria-label="Maximum depth layers"]')!;
+    allowance.value = "6";
+    allowance.dispatchEvent(new Event("input", { bubbles: true }));
     target.querySelector<HTMLButtonElement>(".generate-button")!.click();
-    const fitButton = () => [...target.querySelectorAll<HTMLButtonElement>(".preview-warning button")].find((button) => button.textContent === "Fit depth");
+    const fitButton = () => [...target.querySelectorAll<HTMLButtonElement>(".preview-warning button")].find((button) => button.textContent?.trim() === "Fit depth");
     await vi.waitFor(() => expect(fitButton()).toBeDefined());
     fitButton()!.click();
     const fitSwitch = () => target.querySelector<HTMLButtonElement>('button[role="switch"][aria-label="Fit lake depth to available layers"]')!;
@@ -128,12 +133,25 @@ describe("TopoStack Svelte shell", () => {
     await vi.waitFor(() => expect(target.textContent).toContain("% of requested depth"));
     expect(fitButton()).toBeUndefined();
     expect(target.textContent).not.toContain("so its floor is flattened");
-    [...target.querySelectorAll<HTMLButtonElement>(".warning-action")].find((button) => button.textContent === "Use manual depth")!.click();
+    [...target.querySelectorAll<HTMLButtonElement>(".warning-action")].find((button) => button.textContent?.trim() === "Use manual depth")!.click();
     await vi.waitFor(() => expect(fitSwitch().getAttribute("aria-checked")).toBe("false"));
     await vi.waitFor(() => expect(fitButton()).toBeDefined());
     expect(target.textContent).not.toContain("% of requested depth");
     expect(loadTerrainMock).toHaveBeenCalledTimes(1);
     expect(loadLakeAreasMock).not.toHaveBeenCalled();
+
+    // Returning to automatic coverage restores the full floor without fetching terrain.
+    const limitedLayers = Number(target.querySelector<HTMLInputElement>('.layer-range')!.max) + 1;
+    target.querySelector<HTMLButtonElement>('[aria-label="Limit depth layers"]')!.click();
+    await vi.waitFor(() => expect(target.querySelector<HTMLInputElement>('.layer-range')!.max).not.toBe(String(limitedLayers - 1)));
+    await vi.waitFor(() => expect(target.querySelector(".preview-stage")?.getAttribute("aria-busy")).toBe("false"));
+    expect(Number(target.querySelector<HTMLInputElement>('.layer-range')!.max) + 1).toBeGreaterThan(limitedLayers);
+    expect(target.querySelector('[aria-label="Maximum depth layers"]')).toBeNull();
+    expect(fitButton()).toBeUndefined();
+    target.querySelector<HTMLButtonElement>('button[aria-label="Undo"]')!.click();
+    await vi.waitFor(() => expect(fitButton()).toBeDefined());
+    expect(target.querySelector<HTMLInputElement>('[aria-label="Maximum depth layers"]')!.value).toBe("6");
+    expect(loadTerrainMock).toHaveBeenCalledTimes(1);
 
     // Keeping the preference enabled must not show a notice for a shallower lake.
     fitButton()!.click();
@@ -146,17 +164,17 @@ describe("TopoStack Svelte shell", () => {
     expect(fitSwitch().getAttribute("aria-checked")).toBe("true");
     expect(target.textContent).not.toContain("Lake depth fitting is on.");
     expect(target.textContent).not.toContain("% of requested depth");
-    expect([...target.querySelectorAll(".warning-action")].some((button) => button.textContent === "Use manual depth")).toBe(false);
+    expect([...target.querySelectorAll(".warning-action")].some((button) => button.textContent?.trim() === "Use manual depth")).toBe(false);
     expect(fitButton()).toBeUndefined();
   });
 
   it("hides the fitting notice for a restored preference without fitted lakes and saves manual depth", async () => {
     const { loadProject, saveProject } = await import("../storage");
     vi.mocked(saveProject).mockClear();
-    vi.mocked(loadProject).mockResolvedValueOnce({ ...DEFAULT_PROJECT, fitLakeDepth: true });
+    vi.mocked(loadProject).mockResolvedValueOnce({ ...DEFAULT_PROJECT, fitLakeDepth: true, waterDepthLayerLimit: 6 });
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
-    const manualButton = () => [...target.querySelectorAll<HTMLButtonElement>(".warning-action")].find((button) => button.textContent === "Use manual depth");
+    const manualButton = () => [...target.querySelectorAll<HTMLButtonElement>(".warning-action")].find((button) => button.textContent?.trim() === "Use manual depth");
     await vi.waitFor(() => expect(target.textContent).toContain("Local project restored"));
     expect(target.textContent).not.toContain("Lake depth fitting is on.");
     expect(manualButton()).toBeUndefined();
@@ -189,7 +207,7 @@ describe("TopoStack Svelte shell", () => {
     component = mount(App, { target, props: { initialPreview: preview } });
     await tick();
     expect(target.querySelectorAll(".preview-warning")).toHaveLength(2);
-    expect(target.querySelector(".preview-warning .warning-action")?.textContent).toBe("Fit depth");
+    expect(target.querySelector(".preview-warning .warning-action")?.textContent?.trim()).toBe("Fit depth");
     expect(target.querySelector(".warning-stack")?.textContent).toContain(prediction);
     expect(target.querySelector<HTMLAnchorElement>('.warning-stack a[href$="/guides/how-lake-depths-work"]')?.target).toBe("_blank");
     target.querySelector<HTMLButtonElement>(`button[aria-label="Dismiss warning: ${prediction}"]`)!.click();
@@ -209,7 +227,7 @@ describe("TopoStack Svelte shell", () => {
     component = mount(App, { target, props: { initialPreview: preview } });
     await tick();
     expect(target.querySelectorAll(".preview-warning")).toHaveLength(2);
-    expect(target.querySelector(".preview-warning .warning-action")?.textContent).toBe("Fit depth");
+    expect(target.querySelector(".preview-warning .warning-action")?.textContent?.trim()).toBe("Fit depth");
   });
 
   it("opens a directory lake after restoring settings and consumes the place link once", async () => {
@@ -652,8 +670,18 @@ describe("TopoStack Svelte shell", () => {
     generate.click();
     await tick();
     expect(generate.textContent).toContain("Cancel generation");
+    expect(target.querySelector(".generation-step")?.textContent).toBe("Step 1 of 3");
+    const onStage = loadTerrainMock.mock.calls.at(-1)![2];
+    onStage("preparing");
+    await tick();
+    expect(target.querySelector(".generation-step")?.textContent).toBe("Step 2 of 3");
+    expect(target.querySelector(".generation-overlay")?.textContent).toContain("Preparing terrain and lake depths");
     generate.click();
     await tick(); await Promise.resolve();
+    expect(target.querySelector(".status-line")?.textContent).toContain("Generation canceled");
+    expect(target.querySelector(".generation-overlay")).toBeNull();
+    onStage("fetching"); // Late progress must not replace the cancellation message.
+    await tick();
     expect(target.querySelector(".status-line")?.textContent).toContain("Generation canceled");
   });
 
@@ -799,7 +827,7 @@ describe("TopoStack Svelte shell", () => {
     const input = target.querySelector<HTMLInputElement>('input[type="file"]')!;
     Object.defineProperty(input, "files", { configurable: true, value: [new File(["not json"], "broken.json", { type: "application/json" })] });
     input.dispatchEvent(new Event("change", { bubbles: true }));
-    await vi.waitFor(() => expect(target.querySelector(".status-line")?.textContent).not.toContain("Fetching elevation tiles"));
+    await vi.waitFor(() => expect(target.querySelector(".status-line")?.textContent).not.toContain("Fetching elevation and map details"));
     expect(generate.textContent).toContain("Cancel generation");
     expect(target.querySelector(".preview-stage")?.getAttribute("aria-busy")).toBe("true");
   });

@@ -39,6 +39,9 @@ test("map handles resize the cut, lock proportions, and cancel", async ({ page }
   await page.keyboard.up("Shift");
   const shifted = (await guide.boundingBox())!;
   expect(shifted.width / shifted.height).toBeCloseTo(locked.width / locked.height, 2);
+  // Earlier committed resizes regenerate elevation asynchronously. Let that
+  // finish before comparing the full readout across a cancelled drag.
+  await expect(page.locator(".preview-stage")).toHaveAttribute("aria-busy", "false");
   const beforeCancel = await readout.textContent();
   await drag(20, 10, true);
   await expect(readout).toHaveText(beforeCancel!);

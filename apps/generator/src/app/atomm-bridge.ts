@@ -1,5 +1,5 @@
 import type { GeometryIRV1, ProjectConfigV1 } from "@topostack/core";
-import { createAtommExport, type ExportIntent } from "../export-policy";
+import type { ExportIntent } from "../export-policy";
 
 type CurrentExport = () => { geometry: GeometryIRV1; project: ProjectConfigV1 };
 
@@ -31,6 +31,7 @@ export function connectAtomm(getCurrent: CurrentExport, onReady: () => void, onE
       // serialization occupies the main thread.
       await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
       try {
+        const { createAtommExport } = await import("../export-policy");
         if (!currentExport) throw new Error("TopoStack is not ready to export.");
         const { geometry, project } = currentExport();
         const output = createAtommExport(geometry, project, intent);
