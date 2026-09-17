@@ -19,7 +19,7 @@ import {
   signedArea,
 } from "./geometry2d.js";
 import { sampleIndexAt, sampleOffset } from "./grid.js";
-import { labelDimensions } from "./labels.js";
+import { labelDimensions, labelLineSegments } from "./labels.js";
 import { addLabelObstacles, indexLabelLayer, placeElevationLabelStack, placeLabel, placeLinearLabel } from "./label-placement.js";
 import { geoPointToMapPoint, longitudeInBounds, markerSymbolCenterForAnchor, markerSymbolPaths } from "./markers.js";
 import { offsetClosedRing } from "./offset.js";
@@ -367,7 +367,7 @@ export function projectFingerprint(config: ProjectConfigV1): string {
     hash ^= input.charCodeAt(index);
     hash = Math.imul(hash, 16777619);
   }
-  return `v7-${(hash >>> 0).toString(16).padStart(8, "0")}`;
+  return `v8-${(hash >>> 0).toString(16).padStart(8, "0")}`;
 }
 
 /** East-west ground distance across the bounds, measured along their middle latitude. */
@@ -1086,10 +1086,11 @@ function routeMarkings(context: GenerationContext, clips: LayerClip[], ladder: E
   return labels;
 }
 
-/** North arrow and scale bar. Each must fit whole; clipped scales and compasses mislead the fabricator. */
-function placeAnnotations({ config, source, clip, warnings }: GenerationContext, baseLayer: LayerIR): void {
+/** Annotations must fit the crop whole; the compass follows the exposed stack surface. */
+function placeAnnotations({ config, source, clip, warnings, flatEngraving }: GenerationContext, clips: LayerClip[]): void {
+  const baseLayer = clips[0]!.layer;
   // All crop boundaries are convex, so endpoint/label-box checks suffice.
-  const addAnnotation = (markings: OperationPath[], name: string): void => {
+  const addAnnotation = (markings: OperationPath[], name: string, followSurface = false): void => {
     const fits = markings.every((marking) => {
       const points = [...marking.points];
       if (marking.label && marking.points[0]) {
@@ -1100,12 +1101,36 @@ function placeAnnotations({ config, source, clip, warnings }: GenerationContext,
       const inset = config.lineStyle.annotationMm / 2;
       return points.every(({ x, y }) => [[-inset, -inset], [inset, -inset], [inset, inset], [-inset, inset]].every(([dx, dy]) => pointInRing({ x: x + dx!, y: y + dy! }, clip)));
     });
-    if (fits) baseLayer.markings.push(...markings);
-    else warnings.push({ code: "LABEL_OMITTED", message: `${name} was omitted because it does not fit the material. Increase the output size or reduce the annotation size.` });
+    if (!fits) {
+      warnings.push({ code: "LABEL_OMITTED", message: `${name} was omitted because it does not fit the material. Increase the output size or reduce the annotation size.` });
+      return;
+    }
+    if (!followSurface || flatEngraving) {
+      baseLayer.markings.push(...markings);
+      return;
+    }
+    // Route the complete design onto final material, excluding every sheet above.
+    // Letters use the same strokes as preview/SVG text so they remain complete
+    // even when a contour passes through a glyph.
+    for (const marking of markings) {
+      const paths = marking.label && marking.points[0]
+        ? labelLineSegments(marking.label, marking.points[0], 0, 0, marking.labelRotationRad, marking.textStyle).map(({ start, end }) => [start, end])
+        : [marking.points];
+      for (const { layer, material, covering } of clips) {
+        paths.forEach((path, pathIndex) => {
+          clipPolyline(path, material, covering).forEach((points, clipIndex) => layer.markings.push({
+            id: `${marking.id}-${layer.index}-${pathIndex}-${clipIndex}`,
+            operation: marking.operation,
+            kind: marking.kind,
+            points,
+          }));
+        });
+      }
+    }
   };
 
   if (config.showNorthArrow) {
-    addAnnotation(northArrowMarkings(config), "North arrow");
+    addAnnotation(northArrowMarkings(config), "North arrow", true);
   }
   if (config.showScaleBar) {
     const radius = cropRadiusMm(config);
@@ -1278,10 +1303,8 @@ export function generateGeometry(config: ProjectConfigV1, source: SourceBundleV1
   const fabricationNests = flatEngraving ? [] : addMaterialNests(config, layers);
   // Nesting has finished carving cavities, so layer material is final for routing.
   const clips = layerClips(layers);
-  const baseLayer = layers[0]!;
-
   const transportationLabels = routeMarkings(context, clips, ladder);
-  placeAnnotations(context, baseLayer);
+  placeAnnotations(context, clips);
   if (!flatEngraving && config.showAlignmentGuides) addAlignmentGuides(config, clips);
   placeTransportationLabels(config, transportationLabels);
   if (config.showElevationLabels) placeElevationLabels(context, layers);

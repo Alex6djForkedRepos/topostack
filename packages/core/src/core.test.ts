@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildEngravingPackage, buildFabricationPackage, coordinateGridInterval, createSyntheticSource, DEFAULT_PROJECT, displayLength, engravingToSvg, generateGeometry, geoPointToMapPoint, labelDimensions, labelLineSegments, layerToSvg, longitudeInBounds, masterToSvg, millimetersFromDisplay, MIN_LAYER_COUNT, MM_PER_INCH, planTerrainStack, projectFingerprint, validateProject, waterPatternStrokes, type ProjectConfigV1, type SourceBundleV1, type WaterAreaV1 } from "./index.js";
+import { buildEngravingPackage, buildFabricationPackage, coordinateGridInterval, createSyntheticSource, DEFAULT_PROJECT, displayLength, engravingToSvg, generateGeometry, geoPointToMapPoint, labelDimensions, labelLineSegments, layerToSvg, longitudeInBounds, masterToSvg, millimetersFromDisplay, MIN_LAYER_COUNT, MM_PER_INCH, northArrowMarkings, planTerrainStack, projectFingerprint, validateProject, waterPatternStrokes, type ProjectConfigV1, type SourceBundleV1, type WaterAreaV1 } from "./index.js";
+import { pointInPreparedPolygons, preparePolygons } from "./geometry2d.js";
 import { carveWaterDepth, distanceToShoreM, solveShapeExponent } from "./water.js";
 import { placeElevationLabel, placeLinearLabel } from "./label-placement.js";
 
@@ -1067,7 +1068,7 @@ describe("TopoStack geometry", () => {
       mariner: [],
     } as const;
     const maximumRadius = (sizeMm: number, style: keyof typeof expectedLabels): number => {
-      const project = { ...DEFAULT_PROJECT, northArrowStyle: style, northArrowSizeMm: sizeMm, northArrowPlacement: { anchor: "center" as const, offset: { x: 0, y: 0 } } };
+      const project = { ...DEFAULT_PROJECT, outputMode: "engraving" as const, northArrowStyle: style, northArrowSizeMm: sizeMm, northArrowPlacement: { anchor: "center" as const, offset: { x: 0, y: 0 } } };
       const result = generateGeometry(project, realSource(project));
       const markings = result.layers[0]!.markings.filter((marking) => marking.id.startsWith("north-"));
       expect(new Set(markings.map((marking) => marking.id)).size).toBe(markings.length);
@@ -1093,6 +1094,7 @@ describe("TopoStack geometry", () => {
       const project = {
         ...DEFAULT_PROJECT,
         cropShape,
+        outputMode: "engraving" as const,
         widthMm: 200,
         heightMm: 200,
         northArrowStyle: "mariner" as const,
@@ -1106,6 +1108,48 @@ describe("TopoStack geometry", () => {
     }
   });
 
+  it.each(["minimal", "classic", "mariner"] as const)("carries the %s north arrow and its letters across exposed terrain into SVG exports", (northArrowStyle) => {
+    for (const cropShape of ["rectangle", "circle"] as const) {
+      const base = {
+        ...DEFAULT_PROJECT, widthMm: 200, heightMm: 200, cropShape,
+        northArrowStyle, northArrowSizeMm: 80, optimizeMaterialUse: false,
+        showWaterDepth: false, markers: [],
+        northArrowPlacement: { anchor: "center" as const, offset: { x: 0, y: 0 } },
+      };
+      const [project, source] = scaledForLayers(base, gridSource(base, 64, (nx, ny) => 1000 + nx * 500 + ny * 100), 10);
+      const result = generateGeometry(project, { ...source, markings: [] });
+      const expectedSegments = northArrowMarkings(project).flatMap((marking) => marking.label
+        ? labelLineSegments(marking.label, marking.points[0]!, 0, 0, marking.labelRotationRad, marking.textStyle)
+        : marking.points.slice(1).map((end, index) => ({ start: marking.points[index]!, end })));
+      const expectedLength = expectedSegments.reduce((sum, { start, end }) => sum + Math.hypot(end.x - start.x, end.y - start.y), 0);
+      const master = masterToSvg(result);
+      let actualLength = 0;
+      let markedLayers = 0;
+      for (const layer of result.layers) {
+        const markings = layer.markings.filter((marking) => marking.id.startsWith("north-"));
+        if (markings.length) markedLayers += 1;
+        const material = preparePolygons(layer.polygons);
+        const covering = preparePolygons(result.layers.slice(layer.index + 1).flatMap((upper) => upper.polygons));
+        const svg = layerToSvg(result, layer);
+        for (const marking of markings) {
+          expect(svg).toContain(`id="${marking.id}"`);
+          expect(master.split(`id="${marking.id}"`)).toHaveLength(2);
+          for (let index = 1; index < marking.points.length; index += 1) {
+            const start = marking.points[index - 1]!;
+            const end = marking.points[index]!;
+            actualLength += Math.hypot(end.x - start.x, end.y - start.y);
+            const midpoint = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+            expect(pointInPreparedPolygons(midpoint, material)).toBe(true);
+            expect(pointInPreparedPolygons(midpoint, covering)).toBe(false);
+            expect(expectedSegments.some((segment) => distanceToSegment(midpoint, segment.start, segment.end) < 1e-6)).toBe(true);
+          }
+        }
+      }
+      expect(markedLayers).toBeGreaterThan(1);
+      expect(actualLength).toBeCloseTo(expectedLength, 5);
+    }
+  });
+
   it("reserves base-layer material beneath the north arrow when nesting is enabled", () => {
     const base = {
       ...DEFAULT_PROJECT,
@@ -1116,7 +1160,7 @@ describe("TopoStack geometry", () => {
     };
     const [project, source] = scaledForLayers(base, gridSource(base, 64, (nx, ny) => 1_500 - Math.hypot(nx, ny) * 900), 6);
     const result = generateGeometry(project, source);
-    expect(result.layers[0]!.markings.some((marking) => marking.id.startsWith("north-"))).toBe(true);
+    expect(result.layers.slice(1).some((layer) => layer.markings.some((marking) => marking.id.startsWith("north-")))).toBe(true);
     expect(result.fabricationNests.some((nest) => nest.donorLayerIndex === 0)).toBe(false);
   });
 

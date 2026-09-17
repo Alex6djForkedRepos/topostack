@@ -11,9 +11,12 @@ describe("Atomm export policy", () => {
     expect(exportBlockReason(geometry("synthetic"), DEFAULT_PROJECT)).toMatch(/real terrain/i);
     expect(exportBlockReason(geometry("preview"), DEFAULT_PROJECT)).toMatch(/real terrain/i);
     expect(exportBlockReason(geometry(), { ...DEFAULT_PROJECT, verticalExaggeration: 9 })).toMatch(/settings changed/i);
-    const capped = geometry();
-    capped.configFingerprint = capped.configFingerprint!.replace(/^v7-/, "v6-");
-    expect(exportBlockReason(capped, DEFAULT_PROJECT)).toMatch(/settings changed/i);
+    // Older capped terrain and base-only compass geometry both need regeneration.
+    for (const version of ["v6", "v7"]) {
+      const stale = geometry();
+      stale.configFingerprint = stale.configFingerprint!.replace(/^v\d+-/, `${version}-`);
+      expect(exportBlockReason(stale, DEFAULT_PROJECT)).toMatch(/settings changed/i);
+    }
   });
 
   it("blocks incomplete requested vector data", () => {
