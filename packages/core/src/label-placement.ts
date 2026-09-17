@@ -254,16 +254,19 @@ export function placeLinearLabel(label: string, config: ProjectConfigV1, layer: 
       cumulative.push(cumulative.at(-1)! + Math.hypot(end.x - start.x, end.y - start.y));
     }
     const total = cumulative.at(-1)!;
-    if (total < requiredSpan) return [];
+    if (total < 1) return [];
+    // A contour may leave only a short piece of road on this sheet. Its
+    // tangent can still anchor a longer label if the whole text fits nearby.
+    const span = Math.min(requiredSpan, total);
     return [0.5, 0.35, 0.65, 0.2, 0.8].flatMap((fraction) => {
       const centerDistance = total * fraction;
-      if (centerDistance < requiredSpan / 2 || total - centerDistance < requiredSpan / 2) return [];
-      const start = pointAlongPolyline(points, cumulative, centerDistance - requiredSpan / 2);
-      const end = pointAlongPolyline(points, cumulative, centerDistance + requiredSpan / 2);
+      if (centerDistance < span / 2 || total - centerDistance < span / 2) return [];
+      const start = pointAlongPolyline(points, cumulative, centerDistance - span / 2);
+      const end = pointAlongPolyline(points, cumulative, centerDistance + span / 2);
       const length = Math.hypot(end.x - start.x, end.y - start.y);
       // A very curved span would make a straight engraved label misleading and
       // may cross back over the road. Gentle multi-segment bends are allowed.
-      if (length < dimensions.width + 1) return [];
+      if (length < Math.min(dimensions.width + 1, span * 0.9)) return [];
       return [{ start, end, length, routeLength: total }];
     });
   }).sort((left, right) => right.routeLength - left.routeLength || right.length - left.length || left.start.y - right.start.y || left.start.x - right.start.x);
@@ -276,11 +279,13 @@ export function placeLinearLabel(label: string, config: ProjectConfigV1, layer: 
     if (rotationRad > Math.PI / 2 || rotationRad < -Math.PI / 2) rotationRad += rotationRad > 0 ? -Math.PI : Math.PI;
     const center = pointAt(start, end, 0.5);
     const normal = { x: -(end.y - start.y) / length, y: (end.x - start.x) / length };
-    const offset = dimensions.height + 2;
-    for (const side of [1, -1]) {
+    // Try close to the road first; a full text-height offset skips narrow
+    // terraces even when they have enough exposed material for the label.
+    const offsets = [dimensions.height / 2 + 1, dimensions.height + 2];
+    for (const offset of offsets) for (const side of [1, -1]) {
       const labelCenter = { x: center.x + normal.x * offset * side, y: center.y + normal.y * offset * side };
       const point = labelOriginAtCenter(label, labelCenter, rotationRad, config.textStyle);
-      const footprint = labelFootprint(label, point, rotationRad, config.textStyle);
+      const footprint = labelFootprint(label, point, rotationRad, config.textStyle, Math.max(config.lineStyle.annotationMm / 2, 0.2));
       const bounds = ringBounds(footprint);
       if (!material.some(({ polygon, bounds: box }) => boundsContainBounds(box, bounds) && ringFitsInsidePolygon(footprint, polygon, 0))) continue;
       if (footprintIntersectsPolygons(footprint, excluded)) continue;

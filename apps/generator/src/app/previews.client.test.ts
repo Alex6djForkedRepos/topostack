@@ -139,6 +139,38 @@ describe("preview resource cleanup", () => {
     expect(area).toBeCloseTo(384);
   });
 
+  it("renders transportation glyphs and visible grid dashes in the 3D stack", async () => {
+    const geometry = generateGeometry({ ...DEFAULT_PROJECT, verticalExaggeration: 4, showTransportationLabels: true, showCoordinateGrid: true, showElevationLabels: false, showNorthArrow: false, showScaleBar: false }, createSamplePreviewSource());
+    const labels = geometry.layers.flatMap(layer => layer.markings.filter(mark => mark.id.startsWith("transport-label-")));
+    expect(labels.length).toBeGreaterThan(0);
+    const target = document.createElement("div");
+    component = mount(ThreePreview, { target, props: { geometry, exploded: 0 } });
+    flushSync();
+    const renderer = three.renderers[0]!;
+    const labelLines: THREE.Line[] = [];
+    const gridLines: THREE.Line[] = [];
+    await vi.waitFor(() => {
+      labelLines.length = 0; gridLines.length = 0;
+      expect(renderer.render).toHaveBeenCalled();
+      (renderer.render.mock.lastCall![0] as THREE.Scene).traverse(object => {
+        if (!(object instanceof THREE.Line)) return;
+        const material = object.material as THREE.LineBasicMaterial;
+        if (material.color.getHex() === 0x21170f) labelLines.push(object);
+        if (material.color.getHex() === 0x34404b) gridLines.push(object);
+      });
+      expect(labelLines.length).toBeGreaterThan(0);
+      expect(gridLines.length).toBeGreaterThan(0);
+    });
+    expect(labelLines.every(line => line.geometry.getAttribute("position").count > 2)).toBe(true);
+    for (const line of gridLines) {
+      const material = line.material as THREE.LineDashedMaterial;
+      // At fitted zoom, marks need a useful duty cycle rather than tiny
+      // capless segments that disappear between screen pixels.
+      expect(material.dashSize / (material.dashSize + material.gapSize)).toBeGreaterThanOrEqual(0.4);
+      expect(material.toneMapped).toBe(false);
+    }
+  });
+
   it("re-extrudes only the layers whose cut polygons changed, and still frees them", async () => {
     const geometry = generateGeometry(DEFAULT_PROJECT, createSamplePreviewSource());
     const target = document.createElement("div");

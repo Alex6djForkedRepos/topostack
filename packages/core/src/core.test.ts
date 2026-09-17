@@ -722,6 +722,37 @@ describe("TopoStack geometry", () => {
     expect(Math.abs(placement!.rotationRad)).toBeLessThan(0.2);
   });
 
+  it("fits a full road name beside a short segment on a narrow exposed terrace", () => {
+    const points = [{ x: -4, y: -1.5 }, { x: 4, y: -1.5 }];
+    const layer = {
+      id: "terrace", index: 0, elevationM: 0, materialThicknessMm: 3,
+      polygons: [{ outer: [{ x: -50, y: -3.5 }, { x: 50, y: -3.5 }, { x: 50, y: 3.5 }, { x: -50, y: 3.5 }, { x: -50, y: -3.5 }], holes: [] }],
+      markings: [{ id: "road", operation: "engrave" as const, kind: "road" as const, points }],
+    };
+    const placement = placeLinearLabel("BEND ROAD", DEFAULT_PROJECT, layer, [points]);
+    expect(placement).toBeDefined();
+    const strokes = labelLineSegments("BEND ROAD", placement!.point, 0, 0, placement!.rotationRad, DEFAULT_PROJECT.textStyle);
+    for (const point of strokes.flatMap(({ start, end }) => [start, end])) {
+      expect(point.x).toBeGreaterThan(-50 + DEFAULT_PROJECT.lineStyle.annotationMm / 2);
+      expect(point.x).toBeLessThan(50 - DEFAULT_PROJECT.lineStyle.annotationMm / 2);
+      expect(point.y).toBeGreaterThan(-3.5 + DEFAULT_PROJECT.lineStyle.annotationMm / 2);
+      expect(point.y).toBeLessThan(3.5 - DEFAULT_PROJECT.lineStyle.annotationMm / 2);
+    }
+    // A higher sheet covering that space still prevents the label.
+    const covering = [{ outer: [{ x: -50, y: -1 }, { x: 50, y: -1 }, { x: 50, y: 3.5 }, { x: -50, y: 3.5 }, { x: -50, y: -1 }], holes: [] }];
+    expect(placeLinearLabel("BEND ROAD", DEFAULT_PROJECT, layer, [points], covering)).toBeUndefined();
+  });
+
+  it("explains when transportation names cannot fit instead of silently showing no labels", () => {
+    const project = { ...DEFAULT_PROJECT, outputMode: "engraving" as const, widthMm: 20, heightMm: 20, northArrowSizeMm: 12, showTransportationLabels: true };
+    const source = realSource(project);
+    source.markings = [{ id: "long-name", kind: "road", operation: "engrave", label: "A VERY LONG ROAD NAME THAT CANNOT FIT HERE", points: [{ x: -8, y: 0 }, { x: 8, y: 0 }] }];
+    const result = generateGeometry(project, source);
+    expect(result.layers.flatMap(layer => layer.markings).some(mark => mark.id.startsWith("transport-label-"))).toBe(false);
+    expect(result.warnings).toContainEqual(expect.objectContaining({ code: "LABEL_OMITTED", message: expect.stringContaining("Transportation labels do not fit") }));
+    expect(generateGeometry({ ...project, showTransportationLabels: false }, source).warnings.some(warning => warning.message.startsWith("Transportation labels"))).toBe(false);
+  });
+
   it("keeps marking ids unique when one feature re-enters an elevation layer", () => {
     const source = realSource();
     source.markings = [{ id: "switchback", kind: "road", operation: "engrave", points: [{ x: -140, y: -80 }, { x: 0, y: 0 }, { x: 140, y: -80 }, { x: 0, y: 0 }, { x: -140, y: -80 }] }];

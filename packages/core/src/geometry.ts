@@ -1153,7 +1153,7 @@ function placeAnnotations({ config, source, clip, warnings, flatEngraving }: Gen
   }
 }
 
-function placeTransportationLabels(config: ProjectConfigV1, labels: TransportationLabelCandidates): void {
+function placeTransportationLabels(config: ProjectConfigV1, labels: TransportationLabelCandidates): number {
   let transportationLabelIndex = 0;
   const labelEntries = [...labels].map(([label, candidates]) => {
     const lengths = candidates.map((candidate) => ({ candidate, length: longestPath(candidate.paths) }));
@@ -1177,6 +1177,7 @@ function placeTransportationLabels(config: ProjectConfigV1, labels: Transportati
       break;
     }
   }
+  return transportationLabelIndex;
 }
 
 function placeElevationLabels({ config, flatEngraving, warnings }: GenerationContext, layers: LayerIR[]): void {
@@ -1297,7 +1298,11 @@ export function generateGeometry(config: ProjectConfigV1, source: SourceBundleV1
   const transportationLabels = routeMarkings(context, clips, ladder);
   placeAnnotations(context, clips);
   if (!flatEngraving && config.showAlignmentGuides) addAlignmentGuides(config, clips);
-  placeTransportationLabels(config, transportationLabels);
+  const placedTransportationLabels = placeTransportationLabels(config, transportationLabels);
+  if (transportationLabels.size && !placedTransportationLabels) context.warnings.push({
+    code: "LABEL_OMITTED",
+    message: "Transportation labels do not fit the exposed material. Reduce Text size or Vertical exaggeration, or increase the artwork size.",
+  });
   if (config.showElevationLabels) placeElevationLabels(context, layers);
   placeMarkers(context, clips);
   dedupeMarkingIds(layers);

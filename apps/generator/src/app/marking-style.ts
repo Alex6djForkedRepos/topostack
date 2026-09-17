@@ -19,7 +19,7 @@ export const MARKING_COLORS: Record<MarkingStyleKey, string> = {
   "local-road": "#62442f",
   trail: "#8a5e35",
   boundary: "#6f4057",
-  grid: "#59636e",
+  grid: "#34404b",
   engrave: "#2b2119",
 };
 

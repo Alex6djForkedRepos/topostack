@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_PROJECT, generateGeometry } from "@topostack/core";
+import { DEFAULT_PROJECT, generateGeometry, layerToSvg } from "@topostack/core";
 import { boundsForProject } from "./data-provider";
 import { createSamplePreviewSource } from "./sample-preview";
 
@@ -47,10 +47,12 @@ describe("Crater Lake bundled preview", () => {
     expect(suspiciousClosures).toEqual([]);
   });
 
-  it("shows named roads when transportation labels are enabled", { timeout: GEOMETRY_TEST_TIMEOUT_MS }, () => {
-    const geometry = generateGeometry({ ...DEFAULT_PROJECT, showTransportationLabels: true }, createSamplePreviewSource());
+  it.each([false, true])("shows named roads on narrow terrain terraces with coordinate grid %s", { timeout: GEOMETRY_TEST_TIMEOUT_MS }, (showCoordinateGrid) => {
+    const geometry = generateGeometry({ ...DEFAULT_PROJECT, verticalExaggeration: 4, showTransportationLabels: true, showCoordinateGrid }, createSamplePreviewSource());
     const labels = geometry.layers.flatMap((layer) => layer.markings).filter((marking) => marking.id.startsWith("transport-label-"));
     expect(labels.length).toBeGreaterThan(0);
     expect(labels.every((marking) => marking.operation === "engrave" && marking.label)).toBe(true);
+    const layer = geometry.layers.find(layer => layer.markings.some(marking => marking.id.startsWith("transport-label-")))!;
+    expect(layerToSvg(geometry, layer)).toContain(`id="${layer.id}-ENGRAVE-transport-labels"`);
   });
 });

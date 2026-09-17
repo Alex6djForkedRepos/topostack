@@ -300,12 +300,14 @@
           });
       const scoreMaterial = new THREE.LineBasicMaterial({ color: MARKING_COLORS.score, linewidth: style.waterMm });
       const boundaryMaterial = new THREE.LineDashedMaterial({ color: MARKING_COLORS.boundary, linewidth: style.boundaryMm, dashSize: Math.max(style.boundaryMm * 8, 1.6), gapSize: Math.max(style.boundaryMm * 5, 1) });
-      const coordinateGridMaterial = new THREE.LineDashedMaterial({ color: MARKING_COLORS.grid, linewidth: style.coordinateGridMm, dashSize: 0.05, gapSize: Math.max(style.coordinateGridMm * 5, 0.9) });
+      // WebGL line dashes have no round caps: SVG-style near-zero dots
+      // disappear at fitted zoom. Give the preview marks visible length.
+      const coordinateGridMaterial = new THREE.LineDashedMaterial({ color: MARKING_COLORS.grid, toneMapped: false, linewidth: style.coordinateGridMm, dashSize: Math.max(style.coordinateGridMm * 2, 0.5), gapSize: Math.max(style.coordinateGridMm * 4, 0.7) });
       const lineMaterials: Record<MarkingStyleKey, THREE.LineBasicMaterial | THREE.LineDashedMaterial> = {
         score: scoreMaterial, "major-road": majorRoadMaterial, "local-road": localRoadMaterial, trail: trailMaterial,
         boundary: boundaryMaterial, grid: coordinateGridMaterial, engrave: engraveMaterial,
       };
-      const labelMaterial = new THREE.LineBasicMaterial({ color: 0x21170f, linewidth: style.annotationMm });
+      const labelMaterial = new THREE.LineBasicMaterial({ color: 0x21170f, toneMapped: false, linewidth: style.annotationMm });
       const markerFillMaterial = new THREE.MeshBasicMaterial({ color: 0x2b2119, side: THREE.DoubleSide });
       // Water reads as a pane resting over the basin rather than as another
       // sheet of stock, so it is transmissive and never casts a shadow into the
