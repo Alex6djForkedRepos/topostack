@@ -1,6 +1,6 @@
 import { decodeTerrainPng } from "../../../../packages/core/src/terrain-png";
 import { BodyTooLargeError, readBounded } from "../body";
-import { readCache, writeCache } from "../cache";
+import { headCache, readCache, writeCache } from "../cache";
 import { etagMatches, json, rateLimitExceeded, upstreamFailure, upstreamSignal } from "../http";
 
 const MAX_TERRAIN_BYTES = 2_000_000;
@@ -65,15 +65,9 @@ async function r2Etag(body: Uint8Array<ArrayBuffer>): Promise<string> {
   return `"${Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("")}"`;
 }
 
-async function readTerrainCache(request: Request, env: Env, key: string): Promise<R2Object | R2ObjectBody | null> {
+function readTerrainCache(request: Request, env: Env, key: string): Promise<R2Object | R2ObjectBody | null> {
   const etag = singleEtag(request.headers.get("if-none-match"));
-  if (!etag) return readCache(env.MAP_CACHE, key, "terrain");
-  try {
-    return await env.MAP_CACHE.get(key, { onlyIf: { etagDoesNotMatch: etag } });
-  } catch {
-    console.warn(JSON.stringify({ message: "cache_failed", operation: "read", source: "terrain" }));
-    return null;
-  }
+  return etag ? readCache(env.MAP_CACHE, key, "terrain", { etagDoesNotMatch: etag }) : readCache(env.MAP_CACHE, key, "terrain");
 }
 
 async function fetchUpstreamTile(request: Request, env: Env, tile: Tile): Promise<Response | { body: Uint8Array<ArrayBuffer>; imagerySources: string }> {
@@ -134,22 +128,20 @@ export interface TerrainOptions {
 
 /**
  * HEAD is answered from R2 metadata only, so probes never cost an origin fetch,
- * PNG decode or cache write. On a miss the tile still exists upstream, so the
- * answer stays 200; RFC 9110 section 9.3.2 lets HEAD omit fields (etag, length)
- * that are only known after generating the content, and no-store keeps shared
- * caches from pinning that validator-less answer.
+ * PNG decode or cache write. The caller charges the per-client request budget
+ * first because each HEAD still costs one R2 read.
  */
 async function terrainHeadResponse(request: Request, env: Env, key: string): Promise<Response> {
-  let object: R2Object | null = null;
-  try {
-    object = await env.MAP_CACHE.head(key);
-  } catch {
-    console.warn(JSON.stringify({ message: "cache_failed", operation: "read", source: "terrain" }));
-  }
+  const object = await headCache(env.MAP_CACHE, key, "terrain");
   if (object && isCurrentEntry(object.customMetadata)) {
     const headers = cachedHeaders(object, env, "HIT");
     return etagMatches(request.headers.get("if-none-match"), object.httpEtag) ? notModified(headers) : new Response(null, { headers });
   }
+  // Uncached tile: 200 means "addressable", not "a GET will succeed". The origin
+  // has not been contacted, so a later GET may still answer 502/504. Clients
+  // must read `x-topostack-cache: MISS` as "unverified". RFC 9110 section 9.3.2
+  // lets HEAD omit fields (etag, length) only known after generating content,
+  // and no-store keeps shared caches from pinning this validator-less answer.
   return new Response(null, { headers: {
     "content-type": "image/png",
     "cache-control": "no-store",

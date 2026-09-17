@@ -123,10 +123,14 @@ describe("map API validation", () => {
     expect(parseRangeHeader("bytes=-500", 100)).toEqual({ kind: "partial", offset: 0, length: 100 });
     expect(parseRangeHeader("bytes=0-999", 100)).toEqual({ kind: "partial", offset: 0, length: 100 });
     expect(parseRangeHeader("bytes=999999999999-", 100)).toEqual({ kind: "unsatisfiable" });
-    expect(parseRangeHeader("bytes=0-1,5-6", 100)).toEqual({ kind: "unsatisfiable" });
     expect(parseRangeHeader("bytes=-0", 100)).toEqual({ kind: "unsatisfiable" });
-    expect(parseRangeHeader("bytes=abc", 100)).toEqual({ kind: "unsatisfiable" });
-    expect(parseRangeHeader("bytes=9-1", 100)).toEqual({ kind: "unsatisfiable" });
+    // Syntax errors are 400s: PMTiles clients read any 416 as an archive change.
+    expect(parseRangeHeader("bytes=0-1,5-6", 100)).toEqual({ kind: "malformed" });
+    expect(parseRangeHeader("bytes=abc", 100)).toEqual({ kind: "malformed" });
+    expect(parseRangeHeader("bytes=-", 100)).toEqual({ kind: "malformed" });
+    expect(parseRangeHeader("items=0-1", 100)).toEqual({ kind: "malformed" });
+    expect(parseRangeHeader("bytes=9-1", 100)).toEqual({ kind: "malformed" });
+    expect(parseRangeHeader("bytes=9-1", 0)).toEqual({ kind: "malformed" });
     expect(parseRangeHeader("bytes=0-16777216", 20_000_000)).toEqual({ kind: "too_large" });
     expect(parseRangeHeader("bytes=0-", 0)).toEqual({ kind: "unsatisfiable" });
   });
@@ -320,19 +324,18 @@ describe("vector archive", () => {
     expect(new Uint8Array(await suffix.arrayBuffer())).toEqual(archive.slice(229));
   });
 
-  it("rejects unsatisfiable and multipart ranges with 416 instead of 500", async () => {
+  it("answers unsatisfiable ranges with 416 but malformed and multipart ranges with 400", async () => {
     await seedArchive();
     const unsatisfiable = await exports.default.fetch("http://example.com/v1/osm.pmtiles", { headers: { ...origin, range: "bytes=999999999999-" } });
     expect(unsatisfiable.status).toBe(416);
     expect(unsatisfiable.headers.get("content-range")).toBe("bytes */256");
 
-    const multipart = await exports.default.fetch("http://example.com/v1/osm.pmtiles", { headers: { ...origin, range: "bytes=0-1,5-6" } });
-    expect(multipart.status).toBe(416);
-    expect(multipart.headers.get("content-range")).toBe("bytes */256");
-
-    const malformed = await exports.default.fetch("http://example.com/v1/osm.pmtiles", { headers: { ...origin, range: "bytes=abc" } });
-    expect(malformed.status).toBe(416);
-    expect(malformed.headers.get("content-range")).toBe("bytes */256");
+    for (const range of ["bytes=0-1,5-6", "bytes=abc", "bytes=9-1"]) {
+      const malformed = await exports.default.fetch("http://example.com/v1/osm.pmtiles", { headers: { ...origin, range } });
+      expect(malformed.status).toBe(400);
+      expect(malformed.headers.has("content-range")).toBe(false);
+      expect(await malformed.json()).toMatchObject({ error: expect.stringContaining("single bytes=start-end range") });
+    }
   });
 });
 
@@ -386,6 +389,8 @@ describe.each(["noaa-great-lakes-v1", "usgs-crater-lake-v1", "usgs-lake-tahoe-v1
     await workerEnv.VECTOR_DATA.delete(key);
     expect((await exports.default.fetch(url, { headers: origin })).status).toBe(404);
     await workerEnv.VECTOR_DATA.put(key, new Uint8Array([1, 2, 3, 4]));
+    // The 404 is memoized briefly; skip that window instead of waiting it out.
+    resetArchiveHeadCache();
     const response = await exports.default.fetch(url, { headers: { ...origin, range: "bytes=1-2" } });
     expect(response.status).toBe(206);
     expect(response.headers.get("content-range")).toBe("bytes 1-2/4");

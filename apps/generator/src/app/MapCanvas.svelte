@@ -217,16 +217,25 @@
     return () => { resizeObserver.disconnect(); mapMarkers.forEach((marker) => marker.remove()); mapMarkers.clear(); map?.remove(); map = undefined; };
   });
 
+  // Deriveds only notify when the value itself changes, so a rename or slider
+  // tick that replaces `project` does not refit the map or resync overlays.
+  const selectedLocation = $derived(project.location);
+  const cropShape = $derived(project.cropShape);
+  const widthMm = $derived(project.widthMm);
+  const heightMm = $derived(project.heightMm);
+  const markers = $derived(project.markers);
+  const customLines = $derived(project.customLines);
+
   $effect(() => {
-    void project.location;
-    void project.cropShape;
-    void project.widthMm;
-    void project.heightMm;
+    void selectedLocation;
+    void cropShape;
+    void widthMm;
+    void heightMm;
     untrack(() => { if (skipSelectionFit) { skipSelectionFit = false; return; } fitSelection(); });
   });
 
   $effect(() => {
-    const configuredMarkers = project.markers;
+    const configuredMarkers = markers;
     if (!map) return;
     const activeIds = new Set(configuredMarkers.map((marker) => marker.id));
     for (const [id, rendered] of mapMarkers) {
@@ -249,7 +258,7 @@
   });
 
   $effect(() => {
-    const lines = project.customLines;
+    const lines = customLines;
     syncCustomLines(lines);
   });
 </script>

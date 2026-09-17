@@ -22,6 +22,8 @@ from shapely import build_area
 from shapely.geometry import shape, mapping
 from shapely.ops import unary_union
 
+from terrain_release import atomic_write
+
 
 def line_parts(geometry):
     if geometry.geom_type == 'LineString':
@@ -162,9 +164,7 @@ def prepare_regional_tiles(job):
         grid = tile_writer.grids[0]
         tile_writer.db.close()
         # The receipt marks the per-grid cache complete, so write it atomically.
-        partial = receipt.with_name(receipt.name + '.part')
-        partial.write_text(json.dumps(grid))
-        partial.replace(receipt)
+        atomic_write(receipt, json.dumps(grid).encode())
     if grid['tilesWritten'] == 0:
         return key, title, None, None, 'No coverage at served tile resolution'
     grid.update(title=title, aliases=[], note='Survey contours interpolated within available coverage; not a live water level.')

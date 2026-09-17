@@ -1,7 +1,9 @@
 <script module lang="ts">
   // Persist the user's orbit across preview-mode switches: the component is
   // destroyed when leaving 3D mode, so the camera pose lives at module level.
-  let savedCamera: { position: [number, number, number]; target: [number, number, number] } | undefined;
+  // The fit signature and fitted view travel with the pose, so a remounted
+  // preview of the same model keeps the orbit instead of refitting it.
+  let savedCamera: { position: [number, number, number]; target: [number, number, number]; fitSignature?: string; fitDistance: number; fitTarget: [number, number, number] } | undefined;
 </script>
 
 <script lang="ts">
@@ -164,7 +166,7 @@
     scene.add(new THREE.HemisphereLight(0x9fb8ad, 0x2d2118, 0.9));
     const rig = new THREE.Group(); const content = new THREE.Group(); content.scale.y = -1; rig.add(content); scene.add(rig);
     const controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.dampingFactor = 0.065; controls.maxPolarAngle = Math.PI * 0.95; controls.minDistance = 120; controls.maxDistance = 1800; controls.target.set(0, 0, 10); camera.position.set(15, -165, 270); controls.update();
-    if (savedCamera) { camera.position.set(...savedCamera.position); controls.target.set(...savedCamera.target); controls.update(); }
+    if (savedCamera) { camera.position.set(...savedCamera.position); controls.target.set(...savedCamera.target); controls.update(); fitDistance = savedCamera.fitDistance; fitTarget = new THREE.Vector3(...savedCamera.fitTarget); }
     const texture = makeWoodTexture();
     let contextLost = false;
     const requestRender = () => {
@@ -198,21 +200,27 @@
       controls.removeEventListener("change", requestRender);
       controls.removeEventListener("change", updateZoom);
     };
-    runtime = { renderer, camera, controls, rig, content, resizeObserver, frame: 0, environmentTarget, texture, keyLight, detachContextHandlers, requestRender, sceneResources: [] };
+    runtime = { renderer, camera, controls, rig, content, resizeObserver, frame: 0, environmentTarget, texture, keyLight, detachContextHandlers, requestRender, sceneResources: [], fitSignature: savedCamera?.fitSignature };
     requestRender();
     return () => {
       if (!runtime) return;
       const { position } = runtime.camera; const { target } = runtime.controls;
-      savedCamera = { position: [position.x, position.y, position.z], target: [target.x, target.y, target.z] };
+      savedCamera = { position: [position.x, position.y, position.z], target: [target.x, target.y, target.z], fitSignature: runtime.fitSignature, fitDistance, fitTarget: [fitTarget.x, fitTarget.y, fitTarget.z] };
       cancelAnimationFrame(runtime.frame); runtime.detachContextHandlers(); runtime.resizeObserver.disconnect(); disposeContent(runtime.content, runtime.sceneResources); runtime.texture.dispose(); runtime.environmentTarget.dispose(); scene.environment = null; runtime.keyLight.shadow.dispose(); runtime.controls.dispose(); runtime.renderer.dispose();
       // Browsers cap live WebGL contexts; release this one now instead of at GC.
       runtime.renderer.forceContextLoss(); runtime.renderer.domElement.remove(); runtime = undefined;
     };
   });
 
-  // Full rebuild only when the geometry itself changes.
+  // Full rebuild only when the modeled content changes. A rename replaces the
+  // geometry object but keeps these references, so it does not rebuild the scene.
+  const layers = $derived(geometry.layers);
+  const waterSurfaces = $derived(geometry.waterSurfaces);
+  const lineStyle = $derived(geometry.lineStyle);
+  const widthMm = $derived(geometry.widthMm);
+  const heightMm = $derived(geometry.heightMm);
   $effect(() => {
-    const activeGeometry = geometry;
+    const activeGeometry = { layers, waterSurfaces, lineStyle, widthMm, heightMm };
     const timeout = window.setTimeout(() => {
       if (!runtime) return;
       disposeContent(runtime.content, runtime.sceneResources);

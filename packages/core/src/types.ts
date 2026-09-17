@@ -90,7 +90,6 @@ export const DEFAULT_LINE_STYLE: LineStyleV1 = {
   roadCap: "round",
 };
 
-export const TEXT_FONTS: readonly TextFont[] = ["technical", "rounded", "stencil"];
 export const DEFAULT_TEXT_STYLE: TextStyleV1 = { font: "technical", sizeMm: 3.1 };
 
 export const MIN_LAYER_COUNT = 2;
@@ -459,10 +458,6 @@ export interface FabricationPackageV1 {
   files: ExportFile[];
   /** Convenience pointer to the master-layout SVG; the same file is also present in `files`. */
   master: ExportFile;
-}
-
-export interface MapDataProvider {
-  getElevation(config: ProjectConfigV1, signal?: AbortSignal): Promise<SourceBundleV1>;
 }
 
 export const DEFAULT_PROJECT: ProjectConfigV1 = {

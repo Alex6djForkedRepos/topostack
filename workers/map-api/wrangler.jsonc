@@ -27,10 +27,17 @@
     { "binding": "MAP_CACHE", "bucket_name": "topostack-map-cache-development" },
     { "binding": "VECTOR_DATA", "bucket_name": "topostack-vector-data-development" }
   ],
+  // Ratelimit bindings count per Cloudflare location. Shared (GLOBAL) budgets
+  // sit at 10x the matching per-client budget so a few busy clients cannot
+  // exhaust a feature for everyone else in a colo; they are abuse ceilings, not
+  // spend control. The Geoapify dashboard's daily request cap is the real limit
+  // on provider spend. Each limiter takes three consecutive namespace ids:
+  // top-level, development, production.
   "ratelimits": [
     { "name": "REQUEST_LIMITER", "namespace_id": "1001", "simple": { "limit": 240, "period": 60 } },
     { "name": "GEOCODE_LIMITER", "namespace_id": "1004", "simple": { "limit": 30, "period": 60 } },
-    { "name": "GEOCODE_GLOBAL_LIMITER", "namespace_id": "1007", "simple": { "limit": 60, "period": 60 } }
+    { "name": "GEOCODE_GLOBAL_LIMITER", "namespace_id": "1007", "simple": { "limit": 300, "period": 60 } },
+    { "name": "TERRAIN_GLOBAL_LIMITER", "namespace_id": "1010", "simple": { "limit": 2400, "period": 60 } }
   ],
   "observability": {
     "enabled": true,
@@ -62,7 +69,8 @@
       "ratelimits": [
         { "name": "REQUEST_LIMITER", "namespace_id": "1002", "simple": { "limit": 240, "period": 60 } },
         { "name": "GEOCODE_LIMITER", "namespace_id": "1005", "simple": { "limit": 30, "period": 60 } },
-        { "name": "GEOCODE_GLOBAL_LIMITER", "namespace_id": "1008", "simple": { "limit": 60, "period": 60 } }
+        { "name": "GEOCODE_GLOBAL_LIMITER", "namespace_id": "1008", "simple": { "limit": 300, "period": 60 } },
+        { "name": "TERRAIN_GLOBAL_LIMITER", "namespace_id": "1011", "simple": { "limit": 2400, "period": 60 } }
       ]
     },
     "production": {
@@ -89,7 +97,8 @@
       "ratelimits": [
         { "name": "REQUEST_LIMITER", "namespace_id": "1003", "simple": { "limit": 240, "period": 60 } },
         { "name": "GEOCODE_LIMITER", "namespace_id": "1006", "simple": { "limit": 30, "period": 60 } },
-        { "name": "GEOCODE_GLOBAL_LIMITER", "namespace_id": "1009", "simple": { "limit": 60, "period": 60 } }
+        { "name": "GEOCODE_GLOBAL_LIMITER", "namespace_id": "1009", "simple": { "limit": 300, "period": 60 } },
+        { "name": "TERRAIN_GLOBAL_LIMITER", "namespace_id": "1012", "simple": { "limit": 2400, "period": 60 } }
       ]
     }
   }

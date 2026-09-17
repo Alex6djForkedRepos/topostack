@@ -1,5 +1,6 @@
 import type { GeometryIRV1, ProjectConfigV1, SourceBundleV1 } from "@topostack/core";
 import type { GeometryWorkerClient } from "./geometry-worker-client";
+import { ModuleLoadError } from "./lazy-load";
 
 export const isAbortError = (error: unknown): boolean => error instanceof DOMException && error.name === "AbortError";
 
@@ -27,7 +28,10 @@ export class PreviewPipeline {
   private disposed = false;
 
   /** The worker client loads on first use, keeping it out of the startup bundle. */
-  constructor(private readonly loadClient: () => Promise<GeometryWorkerClient> = async () => new (await import("./geometry-worker-client")).GeometryWorkerClient()) {}
+  constructor(private readonly loadClient: () => Promise<GeometryWorkerClient> = async () => {
+    const module = await import("./geometry-worker-client").catch((error: unknown) => { throw new ModuleLoadError("The geometry engine", error); });
+    return new module.GeometryWorkerClient();
+  }) {}
 
   invalidate(reason?: unknown): void {
     this.revision += 1;
@@ -42,11 +46,17 @@ export class PreviewPipeline {
 
   /** Generate on the shared worker, unless `revision` was superseded while the client loaded. */
   async generate(config: ProjectConfigV1, source: SourceBundleV1, revision = this.revision): Promise<GeometryIRV1> {
-    this.clientLoad ??= this.loadClient().then((client) => {
-      if (this.disposed) client.dispose();
-      this.client = client;
-      return client;
-    });
+    if (!this.clientLoad) {
+      const load = this.loadClient().then((client) => {
+        if (this.disposed) client.dispose();
+        this.client = client;
+        return client;
+      });
+      this.clientLoad = load;
+      // A failed chunk load (a deploy replaced it, or the network dropped) must
+      // not stick: forget it so the next generation retries the import.
+      load.catch(() => { if (this.clientLoad === load) this.clientLoad = undefined; });
+    }
     const client = this.client ?? await this.clientLoad;
     if (revision !== this.revision || this.disposed) throw new DOMException("Preview superseded", "AbortError");
     return client.run(config, source);

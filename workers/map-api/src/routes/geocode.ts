@@ -1,5 +1,5 @@
 import { BodyTooLargeError, readBounded } from "../body";
-import { readCache, writeCache } from "../cache";
+import { headCache, readCache, writeCache } from "../cache";
 import { clientKey, json, rateLimitExceeded, upstreamFailure, upstreamSignal } from "../http";
 
 const MAX_GEOCODER_BYTES = 256_000;
@@ -44,8 +44,9 @@ export function normalizeGeocodeQuery(query: string): string {
   return query.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
+/** `query` must already be normalized by normalizeGeocodeQuery. */
 async function cacheKey(env: Env, query: string, limit: number): Promise<string> {
-  const keyHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${env.GEOCODER_ORIGIN}|geoapify-v1|${normalizeGeocodeQuery(query)}|${limit}`));
+  const keyHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${env.GEOCODER_ORIGIN}|geoapify-v1|${query}|${limit}`));
   return `geocode/${Array.from(new Uint8Array(keyHash)).map((byte) => byte.toString(16).padStart(2, "0")).join("")}.json`;
 }
 
@@ -53,27 +54,61 @@ function jsonHeaders(maxAge: number, cache: string): Headers {
   return new Headers({ "content-type": "application/json; charset=utf-8", "cache-control": `public, max-age=${maxAge}`, "x-topostack-cache": cache });
 }
 
-export async function geocodeResponse(request: Request, env: Env, ctx: ExecutionContext, url: URL, bypassCache = false): Promise<Response> {
-  const query = (url.searchParams.get("q") ?? "").trim().replace(/\s+/g, " ").slice(0, 160);
+export interface GeocodeOptions {
+  /** Skip the R2 result cache in both directions (health probes). */
+  bypassCache?: boolean;
+  /** Skip the public per-client and shared limiters (the internal hourly probe). */
+  bypassLimits?: boolean;
+}
+
+function freshSeconds(object: R2Object): number {
+  return GEOCODE_CACHE_SECONDS - Math.max(0, (Date.now() - object.uploaded.getTime()) / 1000);
+}
+
+// Entries of "[]" predate the empty-result policy and are refreshed.
+function isServable(object: R2Object): boolean {
+  return freshSeconds(object) > 0 && object.size > 2;
+}
+
+/**
+ * HEAD never reaches the provider or spends the geocode budgets: it reports a
+ * fresh cached answer by metadata, otherwise an unverified 200 that no cache
+ * may keep. Only GET pays for a provider lookup.
+ */
+async function geocodeHeadResponse(env: Env, key: string): Promise<Response> {
+  const cached = await headCache(env.MAP_CACHE, key, "geocoder");
+  if (cached && isServable(cached)) return new Response(null, { headers: jsonHeaders(Math.floor(freshSeconds(cached)), "HIT") });
+  if (!isGeocoderConfigured(env)) return json({ error: "Geocoder is not configured." }, { status: 503 });
+  return new Response(null, { headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "x-topostack-cache": "MISS" } });
+}
+
+export async function geocodeResponse(request: Request, env: Env, ctx: ExecutionContext, url: URL, options: GeocodeOptions = {}): Promise<Response> {
+  const { bypassCache = false, bypassLimits = false } = options;
+  const query = normalizeGeocodeQuery(url.searchParams.get("q") ?? "").slice(0, 160).trim();
   const limit = geocodeLimit(url.searchParams.get("limit"));
   if (query.length < 2) return json({ error: "Query must contain at least two characters." }, { status: 400 });
   const key = await cacheKey(env, query, limit);
+  if (request.method === "HEAD") return geocodeHeadResponse(env, key);
   const cached = bypassCache ? null : await readCache(env.MAP_CACHE, key, "geocoder");
-  const ageSeconds = cached ? Math.max(0, (Date.now() - cached.uploaded.getTime()) / 1000) : Infinity;
-  // Entries of "[]" predate the empty-result policy and are refreshed.
-  if (cached && ageSeconds < GEOCODE_CACHE_SECONDS && cached.size > 2) {
-    return new Response(cached.body, { headers: jsonHeaders(Math.max(0, Math.floor(GEOCODE_CACHE_SECONDS - ageSeconds)), "HIT") });
+  if (cached && isServable(cached)) {
+    return new Response(cached.body, { headers: jsonHeaders(Math.floor(freshSeconds(cached)), "HIT") });
   }
   if (cached) await cached.body.cancel();
 
   const apiKey = env.GEOCODER_API_KEY;
   if (!apiKey || !isGeocoderConfigured(env)) return json({ error: "Geocoder is not configured." }, { status: 503 });
-  const perClient = await env.GEOCODE_LIMITER.limit({ key: `${clientKey(request)}:geocode` });
-  if (!perClient.success) return rateLimitExceeded("Place-search rate limit exceeded. Try again shortly.");
-  const global = await env.GEOCODE_GLOBAL_LIMITER.limit({ key: GEOCODE_GLOBAL_LIMIT_KEY });
-  if (!global.success) {
-    console.warn(JSON.stringify({ message: "geocode_global_budget_exceeded" }));
-    return rateLimitExceeded("Place search is busy. Try again shortly.");
+  if (!bypassLimits) {
+    // Per-client first: a rejected client must not also spend the shared budget,
+    // otherwise one caller spamming past its own limit drains search for every
+    // client in the colo. The cost is that a request refused by the shared
+    // budget has already used one per-client token.
+    const perClient = await env.GEOCODE_LIMITER.limit({ key: `${clientKey(request)}:geocode` });
+    if (!perClient.success) return rateLimitExceeded("Place-search rate limit exceeded. Try again shortly.");
+    const global = await env.GEOCODE_GLOBAL_LIMITER.limit({ key: GEOCODE_GLOBAL_LIMIT_KEY });
+    if (!global.success) {
+      console.warn(JSON.stringify({ message: "geocode_global_budget_exceeded" }));
+      return rateLimitExceeded("Place search is busy. Try again shortly.");
+    }
   }
   const upstreamUrl = new URL("/v1/geocode/search", env.GEOCODER_ORIGIN);
   upstreamUrl.searchParams.set("text", query);

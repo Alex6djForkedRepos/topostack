@@ -1,5 +1,5 @@
 import { generateGeometry, type SourceBundleV1 } from "@topostack/core";
-import type { GeometryWorkerRequest, GeometryWorkerResponse } from "./app/geometry-worker-client";
+import type { GeometryWorkerReady, GeometryWorkerRequest, GeometryWorkerResponse } from "./app/geometry-worker-client";
 
 // The worker is long-lived and keeps the last source it was sent, so edits that
 // only change project settings avoid re-cloning large elevation and depth grids.
@@ -17,3 +17,6 @@ self.onmessage = (event: MessageEvent<GeometryWorkerRequest>) => {
     reply({ id, error: error instanceof Error ? error.message : "Geometry generation failed." });
   }
 };
+
+// Module imports have evaluated by now, so the script demonstrably loaded.
+self.postMessage({ ready: true } satisfies GeometryWorkerReady);

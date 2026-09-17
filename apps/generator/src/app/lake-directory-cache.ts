@@ -1,4 +1,5 @@
 import { base } from "$app/paths";
+import { networkSignal } from "../archive";
 import { indexLakeDirectory, type IndexedLake, type LakeDirectory } from "../lib/lake-directory";
 import { uniqueLocationLakes } from "../lib/location-results";
 
@@ -7,7 +8,9 @@ import { uniqueLocationLakes } from "../lib/location-results";
 let cached: Promise<IndexedLake[]> | undefined;
 
 async function fetchLocationLakes(): Promise<IndexedLake[]> {
-  const response = await fetch(`${base}/data/lake-depth-directory.json`);
+  // Bounded like every other data request: a stalled fetch or body read
+  // rejects, which clears the cache so the next dialog open retries.
+  const response = await fetch(`${base}/data/lake-depth-directory.json`, { signal: networkSignal() });
   if (!response.ok) throw new Error("Lake directory unavailable");
   const data = await response.json() as LakeDirectory;
   if (data.schemaVersion !== 1 || !Array.isArray(data.lakes) || !Array.isArray(data.sources)) throw new Error("Invalid lake directory");

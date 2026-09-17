@@ -84,17 +84,18 @@ def build(source, pin, snapshot_path, output):
         ('topostack_source_etag', pin['etag']),
     ])
     writer.add(snapshot_path, pin['item'])
-    writer.finish([pin])
-    receipt_path = output.with_suffix('.sources.json')
-    receipt = json.loads(receipt_path.read_text())
-    receipt.update(schemaVersion=1, encoding=source['encoding'], verticalDatum=source['verticalDatum'],
-                   verticalUnits='metre', coverage=coverage,
-                   normalization={'horizontalCrs': 'EPSG:3857', 'resampling': 'bilinear',
-                                  'verticalTransform': 'none; pinned provider CGVD2013 metres'},
-                   tools={'python': platform.python_version(), 'rasterio': rasterio.__version__,
-                          'gdal': rasterio.__gdal_version__, 'numpy': np.__version__})
-    validate_receipt(source, pin, receipt)
-    receipt_path.write_text(json.dumps(receipt, indent=2) + '\n')
+    def complete_receipt(receipt):
+        receipt.update(schemaVersion=1, encoding=source['encoding'], verticalDatum=source['verticalDatum'],
+                       verticalUnits='metre', coverage=coverage,
+                       normalization={'horizontalCrs': 'EPSG:3857', 'resampling': 'bilinear',
+                                      'verticalTransform': 'none; pinned provider CGVD2013 metres'},
+                       tools={'python': platform.python_version(), 'rasterio': rasterio.__version__,
+                              'gdal': rasterio.__gdal_version__, 'numpy': np.__version__})
+        validate_receipt(source, pin, receipt)
+
+    # The receipt is enriched and validated before its single atomic write, so a
+    # validation failure never leaves a schema-less receipt beside the archive.
+    writer.finish([pin], complete_receipt)
 
 
 def main():

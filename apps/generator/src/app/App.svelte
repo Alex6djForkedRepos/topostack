@@ -4,7 +4,7 @@
   import { House } from "@lucide/svelte";
   import { Box, ChevronDown, Circle, Compass, Download, Grid3X3, Layers3, Map as MapIcon, MapPin, Minus, Mountain, PenTool, Plus, Route, Search, Sparkles, Square, Trash2, Undo2, Redo2, Upload, Waves, X } from "@lucide/svelte";
   import { AppShell, Brand, Button, ContextBar, Field, IconButton, Input, Section, Sidebar, ThemeToggle, Topbar, Workspace } from "@loidolt/theme-svelte";
-  import { sourceRequirements, buildProjectPackage, createSyntheticSource, DEFAULT_PROJECT, displayElevation, displayLength, elevationUnit, generateGeometry, labelPathData, lengthUnit, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, MAX_WATER_DEPTH_EXAGGERATION, millimetersFromDisplay, MIN_VERTICAL_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, NORTH_ARROW_MIN_SIZE_MM, planTerrainStack, validateProject, type GeoBounds, type GeometryIRV1, type LineStyleV1, type OperationPath, type ProjectConfigV1, type SourceBundleV1 } from "@topostack/core";
+  import { sourceRequirements, createSyntheticSource, DEFAULT_PROJECT, displayElevation, displayLength, elevationUnit, generateGeometry, labelPathData, lengthUnit, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, MAX_WATER_DEPTH_EXAGGERATION, millimetersFromDisplay, MIN_VERTICAL_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, NORTH_ARROW_MIN_SIZE_MM, planTerrainStack, validateProject, type GeoBounds, type GeometryIRV1, type LineStyleV1, type OperationPath, type ProjectConfigV1, type SourceBundleV1 } from "@topostack/core";
   import { assembleWater, boundsForProject, loadLakeAreas, loadSurveyedLakeDepths, loadTerrain, loadVectorMarkings, type PlaceResult } from "../data-provider";
   import { applySurveyProvenance } from "../bathymetry";
   import { resolveLakeOutlines } from "../lake-outlines";
@@ -14,8 +14,9 @@
   import { createSamplePreviewSource } from "../sample-preview";
   import { exportBlockReason } from "../export-policy";
   import { loadProject, parseProject, saveProject } from "../storage";
-  import { connectAtomm, type ExportUpdate } from "./atomm-bridge";
-  import { prepareProjectSettings, prepareSelectedDownload, startBrowserDownload, type DownloadOption } from "./native-export";
+  import { connectAtomm } from "./atomm-bridge";
+  import type { DownloadOption } from "./native-export";
+  import { downloadProject as downloadWithNotice, ExportNotice } from "./export-notice";
   import FeedbackButton from "../lib/FeedbackButton.svelte";
   import { studioFeedbackContext } from "../lib/feedback";
   import ExportDialog from "./ExportDialog.svelte";
@@ -26,6 +27,10 @@
   import * as edits from "./project-edits";
   import { MAX_LATITUDE, MAX_LONGITUDE } from "../coordinates";
   import { isAbortError, PreviewPipeline } from "./preview-pipeline";
+  import { LazyComponent } from "./lazy-component";
+  import { restoreStartupProject } from "./startup-restore";
+  import { activeLinePreset as findActiveLinePreset, CONFIG_SECTION_IDS, countDetailMarkings, featuredLayerIndex, layerForEnabledDetail, modeledLakes as findModeledLakes, sectionSummary as summarizeSection, visibleWarnings as summarizeWarnings, type ConfigSectionId } from "./preview-summary";
+  import { retryingLoader } from "./lazy-load";
   import { sameMapArea } from "./project-diff";
   import { changedProjectKeys, projectPatch } from "./project-patch";
   import type { SourcePreparationCache } from "./source-refresh";
@@ -36,9 +41,6 @@
 
   type PreviewMode = "map" | "engraving" | "2d" | "3d";
   type GenerateState = "idle" | "loading" | "ready" | "error";
-  type ExportPhase = "idle" | "preparing" | "ready" | "error";
-  type ConfigSectionId = "setup" | "size" | "terrain" | "details" | "customData" | "linework" | "advanced";
-  const CONFIG_SECTION_IDS: ConfigSectionId[] = ["setup", "size", "terrain", "details", "customData", "linework", "advanced"];
   const MENU_STATE_KEY = "topostack-menu-sections-v1";
   const MAX_PROJECT_FILE_BYTES = 2_000_000;
   const OSM_ATTRIBUTION = MAP_DATA_ATTRIBUTION.find((entry) => entry.name === "OpenStreetMap contributors") ?? { name: "OpenStreetMap contributors", url: "https://www.openstreetmap.org/copyright" };
@@ -51,31 +53,6 @@
   function addPreviewWarning(result: GeometryIRV1, source: SourceBundleV1): void {
     if (source.sourceKind === "real" || result.warnings.some((warning) => warning.code === "DATA_FALLBACK")) return;
     result.warnings.push({ code: "DATA_FALLBACK", message: source.sourceKind === "preview" ? "Bundled real-data preview. Generate fresh terrain before exporting." : "Sample preview only. Generate real terrain before exporting." });
-  }
-
-  function featuredLayerIndex(result: GeometryIRV1): number {
-    let best = { index: 0, score: -1 };
-    result.layers.forEach((layer) => {
-      const score = layer.markings.reduce((total, marking) => total + (marking.kind === "road" || marking.kind === "trail" || marking.kind === "water" || marking.kind === "boundary" || marking.kind === "grid" ? 3 : marking.id.startsWith("north-") || marking.id.startsWith("scale-") ? 0 : 1), 0);
-      if (score > best.score) best = { index: layer.index, score };
-    });
-    return best.index;
-  }
-
-  function layerForEnabledDetail(result: GeometryIRV1, patch: Partial<ProjectConfigV1>): number | undefined {
-    if (patch.showWaterDepth) return result.waterSurfaces[0]?.layerIndex;
-    const matcher = patch.showRoads ? (id: string, kind: string) => kind === "road" :
-      patch.showTrails ? (id: string, kind: string) => kind === "trail" :
-      patch.showTransportationLabels ? (id: string) => id.startsWith("transport-label-") :
-      patch.showWater ? (id: string, kind: string) => kind === "water" :
-      patch.showBoundaries ? (id: string, kind: string) => kind === "boundary" :
-      patch.showCoordinateGrid ? (id: string, kind: string) => kind === "grid" :
-      patch.showAlignmentGuides ? (id: string) => id.startsWith("alignment-") :
-      patch.showElevationLabels ? (id: string) => id.startsWith("elevation-") :
-      patch.showNorthArrow ? (id: string) => id.startsWith("north-") :
-      patch.showScaleBar ? (id: string) => id.startsWith("scale-") : undefined;
-    if (!matcher) return undefined;
-    return result.layers.find((layer) => layer.markings.some((marking) => matcher(marking.id, marking.kind)))?.index;
   }
 
   const defaultPreviewSource = createSamplePreviewSource();
@@ -112,10 +89,10 @@
   let embeddedInPlatform = $state(false);
   setContext("atomm-embedded", () => embeddedInPlatform);
   let exportOpen = $state(false);
-  let exportPhase = $state<ExportPhase>("idle");
-  let exportTitle = $state("");
-  let exportDetail = $state("");
-  let exportNoticeTimeout: number | undefined;
+  const exportNotice = new ExportNotice((message) => { status = message; });
+  const exportPhase = $derived(exportNotice.phase);
+  const exportTitle = $derived(exportNotice.title);
+  const exportDetail = $derived(exportNotice.detail);
   let themeColor = $state("");
   let booted = $state(false);
   let historyAvailability = $state({ canUndo: false, canRedo: false });
@@ -124,20 +101,38 @@
   // Worker lifecycle, edit revisions, and debounced refreshes. Every edit that
   // affects generation invalidates it, so stale work can never commit.
   const pipeline = new PreviewPipeline();
-  // Map-data refresh code loads with the first preview edit, not at startup.
+  // Map-data refresh code loads with the first preview edit, not at startup. A
+  // failed load is forgotten, so the next edit retries it.
+  const loadSourcePreparation = retryingLoader(async () => new (await import("./source-refresh")).SourcePreparationCache({ loadVectorMarkings, loadLakeAreas, loadSurveyedLakeDepths, applySurveyProvenance, resolveLakeOutlines, assembleWater }), "Map data refresh");
   let sourcePreparation: Promise<SourcePreparationCache> | undefined;
-  const preparedSources = () => sourcePreparation ??= import("./source-refresh")
-    .then((module) => new module.SourcePreparationCache({ loadVectorMarkings, loadLakeAreas, loadSurveyedLakeDepths, applySurveyProvenance, resolveLakeOutlines, assembleWater }));
+  const preparedSources = () => sourcePreparation = loadSourcePreparation();
   // Continuous controls (sliders, typed numbers) fire on every input tick. The
   // project value updates immediately; the preview refresh trails the last tick.
   const PREVIEW_REFRESH_DELAY_MS = 120;
   let generationAbort: AbortController | undefined;
   // Preview and modal components load on first use, keeping inactive workflows out of the initial bundle.
-  let LocationDialog = $state.raw<typeof import("./LocationDialog.svelte").default | undefined>(undefined);
-  let EngravingPreview = $state.raw<typeof import("./EngravingPreview.svelte").default | undefined>(undefined);
-  let TwoDPreview = $state.raw<typeof import("./TwoDPreview.svelte").default | undefined>(undefined);
-  let MapCanvas = $state.raw<typeof import("./MapCanvas.svelte").default | undefined>(undefined);
-  let ThreePreview = $state.raw<typeof import("./ThreePreview.svelte").default | undefined>(undefined);
+  const locationDialog = new LazyComponent(() => import("./LocationDialog.svelte"), (error) => {
+    console.error("TopoStack could not load place search.", error); searchOpen = false; status = "Place search could not load · reload to update TopoStack";
+  });
+  const mapCanvas = new LazyComponent(() => import("./MapCanvas.svelte"), (error) => {
+    console.error("TopoStack could not load the map preview.", error);
+    if (mode === "map") { mode = project.outputMode === "engraving" ? "engraving" : "2d"; previewNotice = "Map preview could not load · reload to update TopoStack"; }
+  });
+  const engravingPreview = new LazyComponent(() => import("./EngravingPreview.svelte"), (error) => {
+    console.error("TopoStack could not load the engraving preview.", error); status = "Engraving preview could not load · retry or reload to update TopoStack";
+  });
+  const twoDPreview = new LazyComponent(() => import("./TwoDPreview.svelte"), (error) => {
+    console.error("TopoStack could not load the cut preview.", error); status = "Cut preview could not load · retry or reload to update TopoStack";
+  });
+  const threePreview = new LazyComponent(() => import("./ThreePreview.svelte"), (error) => {
+    console.error("TopoStack could not load the 3D preview.", error);
+    if (mode === "3d") { threeUnavailable = true; mode = "2d"; previewNotice = "3D preview could not load · reload to update TopoStack"; }
+  });
+  const LocationDialog = $derived(locationDialog.component);
+  const MapCanvas = $derived(mapCanvas.component);
+  const EngravingPreview = $derived(engravingPreview.component);
+  const TwoDPreview = $derived(twoDPreview.component);
+  const ThreePreview = $derived(threePreview.component);
 
   $effect(() => {
     const outputMode = project.outputMode;
@@ -150,35 +145,15 @@
     themeColor = getComputedStyle(document.documentElement).getPropertyValue("--loidolt-background").trim();
   });
 
+  // Opening place search, the map, or 3D again retries a failed load: their
+  // failure handlers already moved away. The engraving and cut previews have
+  // no fallback view, so they wait for the Retry button instead of looping.
   $effect(() => {
-    if (searchOpen && !LocationDialog) {
-      void import("./LocationDialog.svelte")
-        .then((module) => { LocationDialog = module.default; })
-        .catch((error) => { console.error("TopoStack could not load place search.", error); searchOpen = false; status = "Place search could not load · reload to retry"; });
-    }
-    if (mode === "map" && !MapCanvas) {
-      void import("./MapCanvas.svelte")
-        .then((module) => { MapCanvas = module.default; })
-        .catch((error) => {
-          console.error("TopoStack could not load the map preview.", error);
-          if (mode === "map") { mode = project.outputMode === "engraving" ? "engraving" : "2d"; previewNotice = "Map preview could not load · reload to retry"; }
-        });
-    } else if (mode === "engraving" && !EngravingPreview) {
-      void import("./EngravingPreview.svelte")
-        .then((module) => { EngravingPreview = module.default; })
-        .catch((error) => { console.error("TopoStack could not load the engraving preview.", error); status = "Engraving preview could not load · reload to retry"; });
-    } else if (mode === "2d" && !TwoDPreview) {
-      void import("./TwoDPreview.svelte")
-        .then((module) => { TwoDPreview = module.default; })
-        .catch((error) => { console.error("TopoStack could not load the cut preview.", error); status = "Cut preview could not load · reload to retry"; });
-    } else if (mode === "3d" && !ThreePreview) {
-      void import("./ThreePreview.svelte")
-        .then((module) => { ThreePreview = module.default; })
-        .catch((error) => {
-          console.error("TopoStack could not load the 3D preview.", error);
-          if (mode === "3d") { threeUnavailable = true; mode = "2d"; previewNotice = "3D preview could not load · reload to retry"; }
-        });
-    }
+    if (searchOpen) locationDialog.load();
+    if (mode === "map") mapCanvas.load();
+    else if (mode === "engraving") engravingPreview.ensure();
+    else if (mode === "2d") twoDPreview.ensure();
+    else if (mode === "3d") threePreview.load();
   });
 
   const totalHeight = $derived(geometry.layers.length * project.materialThicknessMm);
@@ -199,16 +174,7 @@
   const platformExportAvailable = $derived(atommReady && embeddedInPlatform);
   const lakeDepthFittingOn = $derived(project.outputMode === "stack" && project.showWaterDepth && project.fitLakeDepth
     && geometry.waterSurfaces.some((surface) => surface.kind === "lake" && surface.depthFitScale !== undefined && surface.depthFitScale < 1));
-  // Several unnamed lakes can emit the same coverage warning. Render and
-  // dismiss that message once so keyed rows remain unique.
-  // Keep the depth provenance notice visible alongside a depth-fitting action,
-  // even when lower-priority messages exceed the preview's two-warning limit.
-  const warningPriority = (warning: GeometryIRV1["warnings"][number]) =>
-    warning.action === "fit-lake-depth" ? 2 : warning.code === "LAKE_DEPTH_PREDICTED" ? 1 : 0;
-  const visibleWarnings = $derived([...new Map(geometry.warnings.map((warning) => [`${warning.code}-${warning.message}`, warning])).values()]
-    .filter((warning) => !dismissedWarnings.includes(`${warning.code}-${warning.message}`))
-    .sort((a, b) => warningPriority(b) - warningPriority(a))
-    .slice(0, 2));
+  const visibleWarnings = $derived(summarizeWarnings(geometry.warnings, dismissedWarnings));
 
   function dismissPreviewWarning(event: MouseEvent, warningKey?: string): void {
     const button = event.currentTarget as HTMLButtonElement;
@@ -224,59 +190,13 @@
   const shownLengthUnit = $derived(lengthUnit(project.units));
   const shownElevationUnit = $derived(elevationUnit(project.units));
   const northArrowSizeLimitMm = $derived(edits.northArrowMaximumMm(project.widthMm, project.heightMm));
-  const activeLinePreset = $derived(LINE_PRESETS.find((preset) => JSON.stringify(preset.style) === JSON.stringify(project.lineStyle))?.value);
-  const activeDetailCount = $derived([
-    project.showRoads,
-    project.showTrails,
-    project.showTransportationLabels,
-    project.showWater,
-    project.showBoundaries,
-    project.showCoordinateGrid,
-    project.showElevationLabels,
-    project.showNorthArrow,
-    project.showScaleBar,
-    project.outputMode === "stack" && project.showWaterDepth,
-    project.outputMode === "stack" && project.showAlignmentGuides,
-    project.outputMode === "engraving" && project.showEngravingBorder,
-  ].filter(Boolean).length);
-  const detailCounts = $derived.by(() => {
-    const counts = { road: 0, trail: 0, transportationLabel: 0, water: 0, contour: project.outputMode === "engraving" ? Math.max(0, geometry.layers.length - 1) : 0, alignment: 0, elevation: 0, north: 0, scale: 0, marker: 0, customLine: 0 };
-    for (const layer of geometry.layers) {
-      for (const marking of layer.markings) {
-        if (marking.kind === "road") counts.road += 1;
-        else if (marking.kind === "trail") counts.trail += 1;
-        else if (marking.kind === "water") counts.water += 1;
-        else if (marking.kind === "contour") counts.contour += 1;
-        if (marking.id.startsWith("custom-data-line-")) counts.customLine += 1;
-        else if (marking.id.startsWith("alignment-")) counts.alignment += 1;
-        else if (marking.id.startsWith("transport-label-")) counts.transportationLabel += 1;
-        else if (marking.id.startsWith("elevation-")) counts.elevation += 1;
-        else if (marking.id.startsWith("north-")) counts.north += 1;
-        else if (marking.id.startsWith("scale-")) counts.scale += 1;
-        else if (marking.id.startsWith("map-marker-")) counts.marker += 1;
-      }
-    }
-    return counts;
-  });
-
-  /**
-   * Lakes deep enough to be worth a control, largest basin first. HydroLAKES
-   * only names waterbodies of 500 km2 and up, so the label falls back to the
-   * OSM name and then to a plain index.
-   */
-  const modeledLakes = $derived((geometry.waterSurfaces ?? [])
-    // A maximum-depth override only affects modeled basins. Surveyed beds come
-    // from the DEM or NOAA, so showing the same control for them would be a no-op.
-    .filter((surface) => surface.kind === "lake" && surface.hylakId !== undefined && surface.depthSource !== "surveyed" && surface.maxDepthM !== undefined)
-    .map((surface, index) => ({
-      id: surface.id,
-      hylakId: surface.hylakId!,
-      name: surface.name ?? `Lake ${index + 1}`,
-      maxDepthM: surface.maxDepthM ?? surface.surfaceElevationM - surface.bedElevationM,
-      depthSource: surface.depthSource,
-    }))
-    .sort((left, right) => right.maxDepthM - left.maxDepthM)
-    .slice(0, 4));
+  const activeLinePreset = $derived(findActiveLinePreset(project.lineStyle));
+  // Renames and slider ticks replace `project` and `geometry` without touching
+  // these, so the counts are only recomputed when the layers or mode change.
+  const geometryLayers = $derived(geometry.layers);
+  const outputMode = $derived(project.outputMode);
+  const detailCounts = $derived(countDetailMarkings(geometryLayers, outputMode));
+  const modeledLakes = $derived(findModeledLakes(geometry.waterSurfaces));
   const hasDepthOverride = $derived(Object.keys(project.waterDepthOverrides).length > 0);
 
   function shownDepth(valueM: number): number {
@@ -346,46 +266,9 @@
   }
 
   function sectionSummary(section: ConfigSectionId): string {
-    switch (section) {
-      case "setup": return `${project.outputMode === "engraving" ? "Flat engraving" : "Layered relief"} · ${project.location.label.split(",")[0]}`;
-      case "size": return `${project.cropShape === "circle" ? "Circle" : "Rectangle"} · ${shownLength(project.widthMm)} × ${shownLength(project.heightMm)} ${shownLengthUnit}`;
-      case "terrain": return project.outputMode === "engraving" ? `${project.engravingContourCount} contours · index every ${project.engravingIndexInterval}` : `${stackPlan.layerCount} layers · ${shownLength(project.materialThicknessMm)} ${shownLengthUnit} material`;
-      case "details": return `${activeDetailCount} ${activeDetailCount === 1 ? "detail" : "details"} enabled`;
-      case "customData": return `${project.markers.length} ${project.markers.length === 1 ? "marker" : "markers"} · ${project.customLines.length} ${project.customLines.length === 1 ? "path" : "paths"}`;
-      case "linework": return activeLinePreset ? `${LINE_PRESETS.find((preset) => preset.value === activeLinePreset)?.label ?? activeLinePreset} preset` : "Custom stroke widths";
-      case "advanced": return project.smoothing === 1 ? "Smooth contours" : "Standard contours";
-    }
+    return summarizeSection(section, project, stackPlan.layerCount);
   }
 
-  function handleExportUpdate(update: ExportUpdate): void {
-    if (exportNoticeTimeout !== undefined) window.clearTimeout(exportNoticeTimeout);
-    exportPhase = update.phase;
-    if (update.phase === "preparing") {
-      exportTitle = update.intent === "openInStudio" ? "Preparing Studio artwork" : "Building your download";
-      exportDetail = update.intent === "openInStudio"
-        ? "Creating one editable master SVG…"
-        : "Preparing your selected files…";
-      status = exportTitle;
-      return;
-    }
-    if (update.phase === "ready") {
-      exportTitle = update.intent === "openInStudio" ? "Artwork ready" : "Download ready";
-      exportDetail = update.intent === "openInStudio"
-        ? "The master SVG was handed to Atomm for Studio."
-        : `${update.fileCount} ${update.fileCount === 1 ? "file" : "files"} prepared. Your browser should save them as one download.`;
-      status = update.intent === "openInStudio"
-        ? "Master SVG prepared for Studio"
-        : `Download started · ${update.fileCount} ${update.fileCount === 1 ? "file" : "files"}`;
-    } else {
-      exportTitle = "Export failed";
-      exportDetail = update.message;
-      status = update.message;
-    }
-    exportNoticeTimeout = window.setTimeout(() => {
-      exportPhase = "idle";
-      exportNoticeTimeout = undefined;
-    }, 8_000);
-  }
   onMount(() => {
     let cancelled = false;
     try {
@@ -403,50 +286,41 @@
       atommReady = true;
       if (embeddedInPlatform && window.atomm) void readAtommLocale(window.atomm).then((locale) => { if (!cancelled) document.documentElement.lang = locale; });
     }, (update) => {
-      handleExportUpdate(update);
+      exportNotice.apply(update);
       if (update.phase === "ready") trackUsage("export_prepared", project.outputMode, "atomm");
       if (update.phase === "error") trackUsage("export_failed", project.outputMode, "atomm");
     });
-    void (async () => {
-      try {
-        const saved = await loadProject();
-        if (cancelled) return;
-        if (saved) {
-          // A Generate or edit started before the restore finished belongs to
-          // the default project; it must neither overwrite nor be undone into it.
-          invalidatePendingPreview();
-          projectHistory.reset();
-          replaceSourceProject(saved, createSyntheticSource(saved));
-          status = "Local project restored · generate to refresh terrain";
-        }
-        const linkedLake = new URLSearchParams(window.location.search).has("lake")
-          ? (await import("../lib/lake-location")).lakeLocationFromSearch(window.location.search, project.widthMm, project.heightMm)
-          : undefined;
-        if (cancelled) return;
-        if (linkedLake) {
-          const { replaceState } = await import("$app/navigation");
-          if (cancelled) return;
-          invalidatePendingPreview();
-          const previous = project;
-          const next = { ...project, name: linkedLake.label.slice(0, MAX_PROJECT_NAME_LENGTH), location: linkedLake, outputMode: "stack" as const, showWaterDepth: true };
-          projectHistory.push(previous);
-          replaceSourceProject(next, createSyntheticSource(next));
-          status = "Lake selected from the depth directory · generate terrain to load survey data";
-          // Consume the link once so a later refresh restores subsequent edits.
-          const url = new URL(window.location.href);
-          url.searchParams.delete("lake"); url.searchParams.delete("bounds");
-          replaceState(url, {});
-        }
-      } catch (error) {
-        if (cancelled) return;
-        console.error("TopoStack could not restore the saved project.", error);
-        status = "Saved project could not be restored · starting from the sample preview";
-      } finally {
-        // Autosave must start even when restoring failed, or later edits are lost.
-        if (!cancelled) booted = true;
-      }
-    })();
-    return () => { cancelled = true; disconnectAtomm(); if (exportNoticeTimeout !== undefined) window.clearTimeout(exportNoticeTimeout); generationAbort?.abort(); pipeline.dispose(); };
+    void restoreStartupProject({
+      loadProject,
+      search: window.location.search,
+      loadLakeLocation: () => import("../lib/lake-location"),
+      consumeLakeLink: async () => {
+        const { replaceState } = await import("$app/navigation");
+        const url = new URL(window.location.href);
+        url.searchParams.delete("lake"); url.searchParams.delete("bounds");
+        replaceState(url, {});
+      },
+      isCancelled: () => cancelled,
+      currentProject: () => project,
+      restoreSaved: (saved) => {
+        // A Generate or edit started before the restore finished belongs to
+        // the default project; it must neither overwrite nor be undone into it.
+        invalidatePendingPreview();
+        projectHistory.reset();
+        replaceSourceProject(saved, createSyntheticSource(saved));
+      },
+      openLinkedLake: (next, previous) => {
+        invalidatePendingPreview();
+        projectHistory.push(previous);
+        replaceSourceProject(next, createSyntheticSource(next));
+      },
+      setStatus: (message) => { status = message; },
+    }).then(({ autosave }) => {
+      // Autosave must start even when restoring failed, or later edits are lost,
+      // unless it would overwrite a saved project that could not be backed up.
+      if (!cancelled && autosave) booted = true;
+    });
+    return () => { cancelled = true; disconnectAtomm(); exportNotice.dispose(); generationAbort?.abort(); pipeline.dispose(); };
   });
 
   $effect(() => {
@@ -556,22 +430,27 @@
     if (wasGenerating) generationState = "idle";
   }
 
+  const styleOf = (config: ProjectConfigV1) => JSON.stringify([config.lineStyle, config.textStyle]);
+
   function projectForPreview(config: ProjectConfigV1, base = sourceProject): ProjectConfigV1 {
     return config.outputMode === "stack" && base.verticalExaggeration !== config.verticalExaggeration
       ? { ...config, verticalExaggeration: base.verticalExaggeration }
       : config;
   }
 
-  /** Rebuild the preview for the current project from the retained source, loading only missing map data. */
-  function refreshPreview(kind: PreviewUpdateKind, delayMs: number): Promise<void> {
+  /**
+   * Rebuild the preview for the current project from the retained source, loading only missing map data.
+   * A `quiet` refresh keeps the status line and generation state, so a failure or cancellation message stays visible.
+   */
+  function refreshPreview(kind: PreviewUpdateKind, delayMs: number, { quiet = false }: { quiet?: boolean } = {}): Promise<void> {
     const nextProject = project;
     const previewProject = projectForPreview(nextProject);
-    if (!sameMapArea(sourceProject, nextProject)) { status = previewStaleAreaStatus(kind, nextProject); return Promise.resolve(); }
+    if (!sameMapArea(sourceProject, nextProject)) { if (!quiet) status = previewStaleAreaStatus(kind, nextProject); return Promise.resolve(); }
     const fromProject = sourceProject;
     const fromSource = activeSource;
     const patch = projectPatch(fromProject, previewProject);
     detailsUpdating = true;
-    status = previewPendingStatus(kind, nextProject);
+    if (!quiet) status = previewPendingStatus(kind, nextProject);
     return pipeline.runPreviewUpdate({
       config: previewProject,
       prepareSource: async (signal) => (await preparedSources()).prepare(fromSource, fromProject, previewProject, nextProject, signal),
@@ -579,11 +458,13 @@
         addPreviewWarning(next, source);
         // Cosmetic edits do not supersede a refresh, so keep the latest name.
         geometry = { ...next, projectName: project.name }; activeSource = source; sourceProject = previewProject;
-        if (generationState === "error") generationState = "ready";
         selectedLayer = (kind === "details" ? layerForEnabledDetail(next, patch) : undefined) ?? Math.min(selectedLayer, Math.max(0, next.layers.length - 1));
+        if (quiet) return;
+        if (generationState === "error") generationState = "ready";
         status = previewUpdatedStatus(kind, source, nextProject, sourceRequirements(nextProject));
       },
       onError: (error) => {
+        if (quiet) { console.error("TopoStack could not restyle the preview.", error); return; }
         generationState = "error";
         status = error instanceof Error ? error.message : kind === "details" ? "Could not update map details." : "Could not update the output geometry.";
       },
@@ -628,7 +509,6 @@
       let next = await pipeline.generate(builtProject, loaded.source, revision);
       checkpoint();
       // Styling edited during the run did not cancel it; render again until the style is current.
-      const styleOf = (config: ProjectConfigV1) => JSON.stringify([config.lineStyle, config.textStyle]);
       while (styleOf(builtProject) !== styleOf(project)) {
         builtProject = { ...builtProject, lineStyle: project.lineStyle, textStyle: project.textStyle };
         next = await pipeline.generate(builtProject, loaded.source, revision);
@@ -641,7 +521,7 @@
       const completedProject = { ...builtProject, name: project.name, explodedPreview: project.explodedPreview };
       const completedGeometry = { ...next, projectName: completedProject.name };
       dismissedWarnings = [];
-      void sourcePreparation?.then((cache) => cache.clear());
+      void sourcePreparation?.then((cache) => cache.clear(), () => undefined);
       geometry = completedGeometry; project = completedProject; activeSource = loaded.source; sourceProject = completedProject; selectedLayer = featuredLayerIndex(completedGeometry); mode = completedProject.outputMode === "engraving" ? "engraving" : threeUnavailable ? "2d" : "3d"; generationState = "ready";
       trackUsage(exportBlockReason(completedGeometry, completedProject) ? "generation_failed" : "generation_succeeded", completedProject.outputMode);
       const outcome = {
@@ -657,6 +537,9 @@
       trackUsage(canceled ? "generation_cancelled" : "generation_failed", generationProject.outputMode);
       if (canceled) { generationState = "idle"; status = "Generation canceled"; }
       else { generationState = "error"; status = error instanceof Error ? error.message : "Generation failed. Check the location and try again."; void showToast({ type: "error", message: "Could not generate terrain" }); }
+      // Style edits made during the run skipped their own refresh, expecting this
+      // generation to render them. Apply them to the retained preview instead.
+      if (styleOf(project) !== styleOf(sourceProject)) void refreshPreview("fabrication", 0, { quiet: true });
     } finally {
       if (generationAbort === controller) generationAbort = undefined;
       void progressToast.then((toast) => toast && window.atomm ? window.atomm.ui.closeToast(toast) : undefined).catch(() => undefined);
@@ -669,34 +552,16 @@
     return window.atomm.ui.toast(options).catch(() => undefined);
   }
 
-  async function downloadProject(option: DownloadOption): Promise<void> {
-    if (exportPhase === "preparing") return;
-    const reason = option === "project" ? undefined : exportBlockReason(geometry, project);
-    if (reason) {
-      handleExportUpdate({ phase: "error", intent: "download", message: reason });
-      trackUsage("export_failed", project.outputMode, "browser");
-      return;
-    }
-    handleExportUpdate({ phase: "preparing", intent: "download" });
-    await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
-    try {
-      const download = option === "project"
-        ? prepareProjectSettings(project)
-        : await prepareSelectedDownload(buildProjectPackage(geometry, project), option);
-      startBrowserDownload(download);
-      if (option !== "project" && option !== "assembly") trackUsage("export_prepared", project.outputMode, "browser");
-      handleExportUpdate({ phase: "ready", intent: "download", fileCount: download.fileCount });
-    } catch (error) {
-      if (option !== "project" && option !== "assembly") trackUsage("export_failed", project.outputMode, "browser");
-      const message = error instanceof Error ? error.message : "TopoStack could not prepare this download.";
-      handleExportUpdate({ phase: "error", intent: "download", message });
-    }
+  function downloadProject(option: DownloadOption): Promise<void> {
+    return downloadWithNotice({ option, geometry, project, notice: exportNotice, track: (event) => trackUsage(event, project.outputMode, "browser") });
   }
   async function importProject(file: File | undefined): Promise<void> {
     if (!file) return;
-    if (file.size > MAX_PROJECT_FILE_BYTES) { status = "Project file must be 2 MB or smaller."; generationState = "error"; if (importInput) importInput.value = ""; return; }
+    // A rejected file leaves a running Generate alone: report it on the status line only.
+    const reportImportError = (message: string) => { status = message; if (generationState !== "loading") generationState = "error"; };
+    if (file.size > MAX_PROJECT_FILE_BYTES) { reportImportError("Project file must be 2 MB or smaller."); if (importInput) importInput.value = ""; return; }
     try { const parsed: unknown = JSON.parse(await file.text()); const candidate = parsed && typeof parsed === "object" && "project" in parsed ? (parsed as { project: unknown }).project : parsed; const imported = parseProject(candidate); const source = createSyntheticSource(imported); invalidatePendingPreview(); projectHistory.push(project); dismissedWarnings = []; replaceSourceProject(imported, source); generationState = "ready"; status = "Project imported · generate to refresh its terrain"; }
-    catch (error) { status = error instanceof Error ? error.message : "Could not import this project."; generationState = "error"; }
+    catch (error) { reportImportError(error instanceof Error ? error.message : "Could not import this project."); }
     finally { if (importInput) importInput.value = ""; }
   }
 </script>
@@ -1217,7 +1082,7 @@
 {#snippet previewContent()}
     <section class="preview-panel" class:engraving-preview-panel={project.outputMode === "engraving"}>
       <div class="preview-toolbar"><div class="ldt-toggle-group mode-switch" role="radiogroup" aria-label="Preview mode">{#each previewModeOptions as option}<button type="button" class="ldt-toggle-group__item" role="radio" aria-checked={mode === option.value} data-state={mode === option.value ? "on" : "off"} tabindex={mode === option.value ? 0 : -1} onclick={() => { if (option.value === "2d" && selectedLayer === 0) selectedLayer = featuredLayerIndex(geometry); previewNotice = ""; if (option.value === "3d") threeUnavailable = false; mode = option.value as PreviewMode; }} onkeydown={navigateChoice}>{#if option.value === "map"}<MapIcon size={15} />{:else if option.value === "engraving"}<PenTool size={15} />{:else if option.value === "2d"}<Layers3 size={15} />{:else}<Box size={15} />{/if}{embeddedInPlatform ? option.value === "2d" ? "2D" : option.value === "3d" ? "3D" : option.label : option.label}</button>{/each}</div><div class="preview-readout"><span>{shownLength(project.widthMm)} × {shownLength(project.heightMm)} {shownLengthUnit}</span><span>{Math.round(displayElevation(geometry.minElevationM, project.units)).toLocaleString()}–{Math.round(displayElevation(geometry.maxElevationM, project.units)).toLocaleString()} {shownElevationUnit}</span></div></div>
-      <div class="preview-stage" aria-busy={previewBusy} data-road-markings={detailCounts.road} data-trail-markings={detailCounts.trail} data-transportation-label-markings={detailCounts.transportationLabel} data-water-markings={detailCounts.water} data-contour-markings={detailCounts.contour} data-alignment-markings={detailCounts.alignment} data-elevation-markings={detailCounts.elevation} data-north-markings={detailCounts.north} data-scale-markings={detailCounts.scale} data-marker-markings={detailCounts.marker} data-custom-line-markings={detailCounts.customLine}><FeedbackButton edge getContext={getFeedbackContext} />{#if mode === "map"}{#if MapCanvas}<MapCanvas {project} onSelectionResize={(widthMm, heightMm, bounds) => { void updateFabrication({ widthMm, heightMm, location: { ...project.location, bounds } }); }} onUnavailable={(reason) => { mode = project.outputMode === "engraving" ? "engraving" : "2d"; previewNotice = reason === "load-failed" ? "Map could not load · check your connection or choose a location using search or coordinates" : "Map is unavailable in this browser · choose a location using search or coordinates"; }} onLocationChange={(lat: number, lon: number, zoom: number, bounds: GeoBounds) => updateLocation({ lat, lon, zoom, bounds, label: `${lat.toFixed(4)}, ${lon.toFixed(4)}` })} />{:else}<div class="preview-loading">Loading map…</div>{/if}{:else if mode === "engraving"}{#if EngravingPreview}<EngravingPreview {geometry} {project} />{:else}<div class="preview-loading">Loading engraving…</div>{/if}{:else if mode === "2d"}{#if TwoDPreview}<TwoDPreview {geometry} {selectedLayer} />{:else}<div class="preview-loading">Loading cut preview…</div>{/if}{:else if ThreePreview}<ThreePreview {geometry} exploded={project.explodedPreview} onUnavailable={() => { threeUnavailable = true; mode = "2d"; previewNotice = "3D is unavailable in this browser · showing cut layers"; }} />{:else}<div class="preview-loading">Loading 3D preview…</div>{/if}{#if mode !== "map"}<div class="preview-attribution">Map data © <a href={OSM_ATTRIBUTION.url} target="_blank" rel="noreferrer">{OSM_ATTRIBUTION.name}</a> · <a href={`${base}/attribution`} target="_blank" rel="noopener noreferrer">All sources<span class="ldt-visually-hidden"> (opens in a new tab)</span></a></div>{/if}{#if previewBusy}<div class:preview-update-overlay={detailsUpdating && generationState !== "loading"} class="generation-overlay" role="status" aria-live="polite" style:pointer-events={detailsUpdating && generationState !== "loading" ? "none" : undefined}><div class="contour-loader"><span></span><span></span><span></span></div><strong>{previewBusyLabel}</strong><small>{status}</small>{#if embeddedInPlatform && generationState === "loading"}<span class="atomm-generation-step">Step {status.startsWith("Fetching") ? 1 : 2} of 2</span><button type="button" class="btn btn-secondary" onclick={cancelGeneration}>Cancel generation</button>{/if}</div>{/if}{#if visibleWarnings.length || previewNotice || lakeDepthFittingOn}
+      <div class="preview-stage" aria-busy={previewBusy} data-road-markings={detailCounts.road} data-trail-markings={detailCounts.trail} data-transportation-label-markings={detailCounts.transportationLabel} data-water-markings={detailCounts.water} data-contour-markings={detailCounts.contour} data-alignment-markings={detailCounts.alignment} data-elevation-markings={detailCounts.elevation} data-north-markings={detailCounts.north} data-scale-markings={detailCounts.scale} data-marker-markings={detailCounts.marker} data-custom-line-markings={detailCounts.customLine}><FeedbackButton edge getContext={getFeedbackContext} />{#if mode === "map"}{#if MapCanvas}<MapCanvas {project} onSelectionResize={(widthMm, heightMm, bounds) => { void updateFabrication({ widthMm, heightMm, location: { ...project.location, bounds } }); }} onUnavailable={(reason) => { mode = project.outputMode === "engraving" ? "engraving" : "2d"; previewNotice = reason === "load-failed" ? "Map could not load · check your connection or choose a location using search or coordinates" : "Map is unavailable in this browser · choose a location using search or coordinates"; }} onLocationChange={(lat: number, lon: number, zoom: number, bounds: GeoBounds) => updateLocation({ lat, lon, zoom, bounds, label: `${lat.toFixed(4)}, ${lon.toFixed(4)}` })} />{:else}<div class="preview-loading">Loading map…</div>{/if}{:else if mode === "engraving"}{#if EngravingPreview}<EngravingPreview {geometry} {project} />{:else if engravingPreview.failed}<div class="preview-loading preview-load-failed" role="alert">Engraving preview could not load<button type="button" class="btn btn-secondary" onclick={() => engravingPreview.load()}>Retry</button></div>{:else}<div class="preview-loading">Loading engraving…</div>{/if}{:else if mode === "2d"}{#if TwoDPreview}<TwoDPreview {geometry} {selectedLayer} />{:else if twoDPreview.failed}<div class="preview-loading preview-load-failed" role="alert">Cut preview could not load<button type="button" class="btn btn-secondary" onclick={() => twoDPreview.load()}>Retry</button></div>{:else}<div class="preview-loading">Loading cut preview…</div>{/if}{:else if ThreePreview}<ThreePreview {geometry} exploded={project.explodedPreview} onUnavailable={() => { threeUnavailable = true; mode = "2d"; previewNotice = "3D is unavailable in this browser · showing cut layers"; }} />{:else}<div class="preview-loading">Loading 3D preview…</div>{/if}{#if mode !== "map"}<div class="preview-attribution">Map data © <a href={OSM_ATTRIBUTION.url} target="_blank" rel="noreferrer">{OSM_ATTRIBUTION.name}</a> · <a href={`${base}/attribution`} target="_blank" rel="noopener noreferrer">All sources<span class="ldt-visually-hidden"> (opens in a new tab)</span></a></div>{/if}{#if previewBusy}<div class:preview-update-overlay={detailsUpdating && generationState !== "loading"} class="generation-overlay" role="status" aria-live="polite" style:pointer-events={detailsUpdating && generationState !== "loading" ? "none" : undefined}><div class="contour-loader"><span></span><span></span><span></span></div><strong>{previewBusyLabel}</strong><small>{status}</small>{#if embeddedInPlatform && generationState === "loading"}<span class="atomm-generation-step">Step {status.startsWith("Fetching") ? 1 : 2} of 2</span><button type="button" class="btn btn-secondary" onclick={cancelGeneration}>Cancel generation</button>{/if}</div>{/if}{#if visibleWarnings.length || previewNotice || lakeDepthFittingOn}
           <div class="warning-stack">
             {#if lakeDepthFittingOn}
               <div class="preview-warning preview-notice" role="status">
@@ -1322,3 +1187,4 @@
 </AppShell>
 
 {/if}
+

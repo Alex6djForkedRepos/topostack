@@ -60,6 +60,36 @@ class BuildReceiptTests(unittest.TestCase):
                 hrdem.build(source, pin, snapshot, root / 'bad.pmtiles')
             self.assertFalse((root / 'bad.mbtiles').exists())
 
+    def test_receipt_is_written_once_only_after_validation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = {'id': 'x', 'name': 'x', 'maxZoom': 0, 'bounds': [0, 0, 1, 1], 'encoding': 'elevation-terrarium-v1', 'url': 'u', 'license': 'l'}
+            snapshot = root / 'grid.tif'
+            hrdem.tile_writer.write_grid(snapshot, np.ones((8, 8), dtype=np.float32), from_bounds(0, 0, 1, 1, 8, 8), 'EPSG:4326')
+            self.assertEqual(sorted(p.name for p in root.iterdir()), ['grid.tif'])
+
+            def invalid(receipt):
+                raise ValueError('schema')
+
+            def fake_convert(args, check):
+                Path(args[-1]).write_bytes(b'pmtiles')
+            output = root / 'out.pmtiles'
+            writer = hrdem.tile_writer.TileWriter(output, source)
+            writer.add(snapshot, 'grid')
+            with patch.object(hrdem.tile_writer.subprocess, 'run', side_effect=fake_convert):
+                with self.assertRaisesRegex(ValueError, 'schema'):
+                    writer.finish([], invalid)
+            self.assertFalse(output.with_suffix('.sources.json').exists())
+            self.assertFalse(any(p.name.endswith('.part') for p in root.iterdir()))
+
+            output = root / 'good.pmtiles'
+            writer = hrdem.tile_writer.TileWriter(output, source)
+            writer.add(snapshot, 'grid')
+            with patch.object(hrdem.tile_writer.subprocess, 'run', side_effect=fake_convert):
+                writer.finish([], lambda receipt: receipt.update(schemaVersion=1))
+            import json
+            self.assertEqual(json.loads(output.with_suffix('.sources.json').read_text())['schemaVersion'], 1)
+
 
 if __name__ == '__main__':
     unittest.main()

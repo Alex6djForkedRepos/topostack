@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { NETWORK_TIMEOUT_MS } from "../archive";
 import { loadLocationLakes, resetLocationLakes } from "./lake-directory-cache";
 
 const directory = {
@@ -9,7 +10,7 @@ const directory = {
 };
 
 describe("location lake directory cache", () => {
-  afterEach(() => { resetLocationLakes(); vi.unstubAllGlobals(); });
+  afterEach(() => { resetLocationLakes(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
   it("fetches and indexes the directory once for repeated dialog opens", async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify(directory)));
@@ -32,5 +33,22 @@ describe("location lake directory cache", () => {
     await expect(loadLocationLakes()).resolves.toHaveLength(1);
     await loadLocationLakes();
     expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("times out a stalled directory request and retries on the next open", async () => {
+    const deadline = new AbortController();
+    const timeout = vi.spyOn(AbortSignal, "timeout").mockReturnValueOnce(deadline.signal);
+    const fetchMock = vi.fn()
+      .mockImplementationOnce((_url: string, init: RequestInit) => new Promise((_, reject) => {
+        init.signal!.addEventListener("abort", () => reject(init.signal!.reason), { once: true });
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(directory)));
+    vi.stubGlobal("fetch", fetchMock);
+    const stalled = loadLocationLakes();
+    expect(timeout).toHaveBeenCalledWith(NETWORK_TIMEOUT_MS);
+    deadline.abort(new DOMException("Timed out", "TimeoutError"));
+    await expect(stalled).rejects.toMatchObject({ name: "TimeoutError" });
+    await expect(loadLocationLakes()).resolves.toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

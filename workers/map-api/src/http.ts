@@ -88,8 +88,59 @@ export function upstreamFailure(error: unknown, service: string): Response {
   return json({ error: timedOut ? `${service} timed out` : `${service} unavailable` }, { status: timedOut ? 504 : 502 });
 }
 
+const IPV4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+
+function parseIpv4(text: string): number[] | null {
+  const match = IPV4.exec(text);
+  if (!match) return null;
+  const octets = match.slice(1).map(Number);
+  return octets.every((octet) => octet <= 255) ? octets : null;
+}
+
+/** Expands an IPv6 address (compressed `::`, embedded IPv4, zone id) into 8 hextets. */
+function parseIpv6(text: string): number[] | null {
+  let address = text.toLowerCase().replace(/%.*$/, "");
+  const lastColon = address.lastIndexOf(":");
+  const tail = address.slice(lastColon + 1);
+  if (tail.includes(".")) {
+    const octets = parseIpv4(tail);
+    if (!octets) return null;
+    const [a = 0, b = 0, c = 0, d = 0] = octets;
+    address = `${address.slice(0, lastColon + 1)}${((a << 8) | b).toString(16)}:${((c << 8) | d).toString(16)}`;
+  }
+  const halves = address.split("::");
+  if (halves.length > 2) return null;
+  const toGroups = (part: string) => (part === "" ? [] : part.split(":"));
+  const head = toGroups(halves[0] ?? "");
+  const tailGroups = halves.length === 2 ? toGroups(halves[1] ?? "") : [];
+  const missing = 8 - head.length - tailGroups.length;
+  if (halves.length === 2 ? missing < 1 : missing !== 0) return null;
+  const groups = [...head, ...Array<string>(halves.length === 2 ? missing : 0).fill("0"), ...tailGroups];
+  if (!groups.every((group) => /^[0-9a-f]{1,4}$/.test(group))) return null;
+  return groups.map((group) => parseInt(group, 16));
+}
+
+/**
+ * Rate-limit identity for a client address. IPv6 hosts routinely receive a
+ * whole /64 and can rotate through it at will, so v6 clients are keyed by
+ * their /64 prefix; IPv4-mapped v6 addresses collapse to the IPv4 address.
+ */
+export function normalizeClientAddress(address: string): string {
+  const trimmed = address.trim();
+  if (parseIpv4(trimmed)) return trimmed;
+  const groups = trimmed.includes(":") ? parseIpv6(trimmed) : null;
+  if (!groups) return trimmed.toLowerCase();
+  const isMappedV4 = groups.slice(0, 5).every((group) => group === 0) && groups[5] === 0xffff;
+  if (isMappedV4) {
+    const [high = 0, low = 0] = groups.slice(6);
+    return [high >> 8, high & 0xff, low >> 8, low & 0xff].join(".");
+  }
+  return `${groups.slice(0, 4).map((group) => group.toString(16)).join(":")}::/64`;
+}
+
 export function clientKey(request: Request): string {
-  return request.headers.get("cf-connecting-ip") ?? "anonymous";
+  const address = request.headers.get("cf-connecting-ip");
+  return address ? normalizeClientAddress(address) : "anonymous";
 }
 
 export function etagMatches(ifNoneMatch: string | null, etag: string): boolean {

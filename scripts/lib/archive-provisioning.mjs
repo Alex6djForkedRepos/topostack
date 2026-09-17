@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { access, rename, rm, stat, writeFile } from "node:fs/promises";
+import { access, open, rename, rm, stat } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 import { AwsClient } from "aws4fetch";
 import { parseArchiveRelease } from "../../packages/core/src/archive-release.ts";
@@ -164,11 +164,21 @@ export async function verifyPmtilesHeader({ run, capture, pmtilesBin, archivePat
   return JSON.parse(await capture(pmtilesBin, ["show", archivePath, "--header-json"]));
 }
 
-/** Replaces `target` only with a completely written file. */
+/**
+ * Replaces `target` only with a completely written, fsynced file. The temporary
+ * name is unique so concurrent writers never share or clobber a partial file.
+ */
 export async function writeJsonAtomic(target, value) {
-  const part = `${target}.part`;
+  const contents = JSON.stringify(value, null, 2) + "\n";
+  const part = `${target}.${process.pid}.${randomUUID()}.part`;
   try {
-    await writeFile(part, JSON.stringify(value, null, 2) + "\n", "utf8");
+    const handle = await open(part, "wx");
+    try {
+      await handle.writeFile(contents, "utf8");
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
     await rename(part, target);
   } catch (error) {
     await rm(part, { force: true });

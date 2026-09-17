@@ -33,18 +33,23 @@ export const ARCHIVE_ROUTES: ReadonlyMap<string, ArchiveRoute> = new Map<string,
 type ParsedRange =
   | { kind: "missing" }
   | { kind: "partial"; offset: number; length: number }
+  | { kind: "malformed" }
   | { kind: "unsatisfiable" }
   | { kind: "too_large" };
 
-// Single-range parsing only. Multipart range requests (`bytes=0-1,5-6`) are
-// rejected with 416 rather than answered with a multipart/byteranges body.
+// Single-range parsing only. PMTiles clients treat any 416 as "the archive
+// changed" (except at offset 0, where they re-request using the size in
+// Content-Range), so 416 is reserved for well-formed ranges this archive cannot
+// satisfy. Syntax errors, reversed bounds and multipart requests
+// (`bytes=0-1,5-6`, never sent by PMTiles) are client errors: 400.
 // Full archive downloads are intentionally unavailable: PMTiles clients only
 // need bounded byte ranges, and the underlying archives are multi-GB.
 export function parseRangeHeader(header: string | null, size: number): ParsedRange {
   if (header === null) return { kind: "missing" };
-  if (header.includes(",")) return { kind: "unsatisfiable" };
+  if (header.includes(",")) return { kind: "malformed" };
   const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
-  if (!match || (match[1] === "" && match[2] === "")) return { kind: "unsatisfiable" };
+  if (!match || (match[1] === "" && match[2] === "")) return { kind: "malformed" };
+  if (match[1] !== "" && match[2] !== "" && Number(match[2]) < Number(match[1])) return { kind: "malformed" };
   if (size === 0) return { kind: "unsatisfiable" };
   let offset: number;
   let length: number;
@@ -61,7 +66,7 @@ export function parseRangeHeader(header: string | null, size: number): ParsedRan
       length = size - start;
     } else {
       const end = Number(match[2]);
-      if (!Number.isSafeInteger(end) || end < start) return { kind: "unsatisfiable" };
+      if (!Number.isSafeInteger(end)) return { kind: "unsatisfiable" };
       length = Math.min(end, size - 1) - start + 1;
     }
   }
@@ -69,6 +74,10 @@ export function parseRangeHeader(header: string | null, size: number): ParsedRan
 }
 
 export async function pmtilesResponse(request: Request, env: Env, archive: ArchiveRoute, retried = false): Promise<Response> {
+  // HEAD and If-None-Match answer with size and validator alone, with no
+  // conditional body read to catch an in-place overwrite, so they re-resolve
+  // from R2 (refreshing the memo) instead of trusting a cached head.
+  if (!retried && (request.method === "HEAD" || request.headers.has("if-none-match"))) evictArchiveHead(archive.key);
   let resolved;
   try {
     resolved = await cachedArchiveHead(env.VECTOR_DATA, archive.key);
@@ -96,6 +105,9 @@ export async function pmtilesResponse(request: Request, env: Env, archive: Archi
   const range = parseRangeHeader(request.headers.get("range"), head.size);
   if (range.kind === "missing") {
     return json({ error: "A bounded Range header is required for PMTiles archives." }, { status: 400, headers });
+  }
+  if (range.kind === "malformed") {
+    return json({ error: "Range must be a single bytes=start-end range." }, { status: 400, headers });
   }
   // 413, not 416: PMTiles clients treat 416 as an archive change and reload.
   if (range.kind === "too_large") {

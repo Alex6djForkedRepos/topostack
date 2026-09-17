@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { DEFAULT_PROJECT, generateGeometry, type GeometryIRV1 } from "@topostack/core";
   import { createSamplePreviewSource } from "../../sample-preview";
-  import type { GeometryWorkerRequest, GeometryWorkerResponse } from "../../app/geometry-worker-client";
+  import type { GeometryWorkerReady, GeometryWorkerRequest, GeometryWorkerResponse } from "../../app/geometry-worker-client";
   let App = $state.raw<typeof import("../../app/App.svelte").default>();
   import "../../app/styles.css";
 
@@ -13,7 +13,7 @@
     void import("../../app/App.svelte").then((module) => { if (active) App = module.default; }).catch(() => { if (active) error = true; });
     const source = createSamplePreviewSource();
     let worker: Worker | undefined;
-    const stopWorker = () => { if (worker) { worker.onmessage = null; worker.onerror = null; worker.terminate(); worker = undefined; } };
+    const stopWorker = () => { if (worker) { worker.onmessage = null; worker.onerror = null; worker.onmessageerror = null; worker.terminate(); worker = undefined; } };
     // Workers can be missing, blocked by CSP inside a host frame, or fail to
     // load; the sample preview is small enough to finish on the main thread.
     const generateHere = () => {
@@ -25,11 +25,14 @@
     if (typeof Worker === "undefined") { generateHere(); return () => { active = false; }; }
     try { worker = new Worker(new URL("../../geometry.worker.ts", import.meta.url), { type: "module" }); }
     catch { generateHere(); return () => { active = false; }; }
-    worker.onmessage = (event: MessageEvent<GeometryWorkerResponse>) => {
+    worker.onmessage = (event: MessageEvent<GeometryWorkerResponse | GeometryWorkerReady>) => {
+      if (event.data.ready) return;
       if (event.data.result) { stopWorker(); if (active) preview = event.data.result; }
       else generateHere();
     };
     worker.onerror = (event) => { event.preventDefault(); generateHere(); };
+    // An unreadable reply never reaches onmessage; without this the startup screen would wait forever.
+    worker.onmessageerror = () => generateHere();
     const request: GeometryWorkerRequest = { id: 0, config: DEFAULT_PROJECT, sourceId: 0, source };
     try { worker.postMessage(request); }
     catch { generateHere(); }

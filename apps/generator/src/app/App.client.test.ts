@@ -249,7 +249,7 @@ describe("TopoStack Svelte shell", () => {
     [...target.querySelectorAll("button")].find((button) => button.textContent?.includes("Cut layers"))!.click();
     await vi.waitFor(() => expect(target.querySelector('svg[aria-label^="Cut preview for layer"]')).not.toBeNull());
     await vi.waitFor(() => expect(target.querySelector('[data-marking-kind="road"]')).not.toBeNull());
-    expect(target.querySelector(".layer-heading")?.textContent).toMatch(/Layer \d+ of 13/);
+    expect(target.querySelector(".layer-heading")?.textContent).toMatch(/Layer \d+ of 12/);
   });
 
   it("refreshes the preview and export state when undoing and redoing a fabrication change", async () => {
@@ -745,6 +745,58 @@ describe("TopoStack Svelte shell", () => {
     await vi.waitFor(() => expect(target.querySelector(".status-line")?.textContent).toContain("Real terrain ready"));
     expect(target.querySelector<HTMLInputElement>('input[aria-label="Text size slider"]')?.value).toBe("5");
     expect(target.querySelector(".context-export-status")?.textContent).toContain("Ready to export");
+  });
+
+  it("applies style edits made during a generation that fails or is canceled", async () => {
+    const { connectAtomm } = await import("./atomm-bridge");
+    let failTerrain: (() => void) | undefined;
+    loadTerrainMock.mockImplementation((_project, signal: AbortSignal) => new Promise((_resolve, reject) => {
+      failTerrain = () => reject(new Error("Elevation service unavailable"));
+      signal.addEventListener("abort", () => reject(new DOMException("Canceled", "AbortError")), { once: true });
+    }));
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await tick();
+    const current = vi.mocked(connectAtomm).mock.lastCall![0] as () => { geometry: GeometryIRV1 };
+    const generate = target.querySelector<HTMLButtonElement>(".generate-button")!;
+    target.querySelector<HTMLButtonElement>(".linework-customize")!.click();
+    await tick();
+    const chooseTrailPattern = async (label: string) => {
+      [...target.querySelectorAll<HTMLButtonElement>('.trail-pattern-options button[role="radio"]')].find((button) => button.textContent?.includes(label))!.click();
+      await tick();
+    };
+
+    generate.click();
+    await vi.waitFor(() => expect(loadTerrainMock).toHaveBeenCalledOnce());
+    await chooseTrailPattern("Dotted");
+    expect(generate.textContent).toContain("Cancel generation");
+    expect(current().geometry.lineStyle.trailPattern).not.toBe("dotted");
+    failTerrain!();
+    await vi.waitFor(() => expect(current().geometry.lineStyle.trailPattern).toBe("dotted"));
+    expect(target.querySelector(".status-line")?.textContent).toContain("Elevation service unavailable");
+
+    generate.click();
+    await vi.waitFor(() => expect(loadTerrainMock).toHaveBeenCalledTimes(2));
+    await chooseTrailPattern("Dashed");
+    generate.click();
+    await vi.waitFor(() => expect(current().geometry.lineStyle.trailPattern).toBe("dashed"));
+    expect(target.querySelector(".status-line")?.textContent).toContain("Generation canceled");
+  });
+
+  it("reports a rejected import on the status line without ending a running generation", async () => {
+    loadTerrainMock.mockImplementation((_project, signal: AbortSignal) => new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(new DOMException("Canceled", "AbortError")), { once: true })));
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await tick();
+    const generate = target.querySelector<HTMLButtonElement>(".generate-button")!;
+    generate.click();
+    await vi.waitFor(() => expect(loadTerrainMock).toHaveBeenCalledOnce());
+    const input = target.querySelector<HTMLInputElement>('input[type="file"]')!;
+    Object.defineProperty(input, "files", { configurable: true, value: [new File(["not json"], "broken.json", { type: "application/json" })] });
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    await vi.waitFor(() => expect(target.querySelector(".status-line")?.textContent).not.toContain("Fetching elevation tiles"));
+    expect(generate.textContent).toContain("Cancel generation");
+    expect(target.querySelector(".preview-stage")?.getAttribute("aria-busy")).toBe("true");
   });
 
   it("does not let an unresolved platform toast block generation", async () => {

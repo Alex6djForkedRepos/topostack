@@ -9,7 +9,14 @@ export interface GeometryWorkerRequest {
   /** Omitted when the worker already holds `sourceId`, so a slider tick posts only config. */
   source?: SourceBundleV1;
 }
+/**
+ * Posted once when the worker script has loaded and evaluated. It separates a
+ * worker that never started (blocked by CSP, missing chunk) from a started
+ * worker that later crashed (for example out of memory on a large generation).
+ */
+export interface GeometryWorkerReady { ready: true }
 export interface GeometryWorkerResponse {
+  ready?: undefined;
   id: number;
   result?: GeometryIRV1;
   error?: string;
@@ -132,7 +139,7 @@ export class GeometryWorkerClient {
     }
     this.worker = worker;
     this.workerSourceId = 0;
-    worker.onmessage = (event: MessageEvent<GeometryWorkerResponse>) => this.handleMessage(worker, event.data);
+    worker.onmessage = (event: MessageEvent<GeometryWorkerResponse | GeometryWorkerReady>) => this.handleMessage(worker, event.data);
     worker.onerror = (event) => { event.preventDefault?.(); this.handleFailure(worker, new Error(event.message || "Geometry worker failed.")); };
     worker.onmessageerror = () => this.handleFailure(worker, new Error("Geometry worker returned an unreadable result."));
     return worker;
@@ -187,9 +194,10 @@ export class GeometryWorkerClient {
     this.post(request, true);
   }
 
-  private handleMessage(worker: Worker, data: GeometryWorkerResponse): void {
+  private handleMessage(worker: Worker, data: GeometryWorkerResponse | GeometryWorkerReady): void {
     if (worker !== this.worker) return;
     this.workerProven = true;
+    if (data.ready) return;
     const request = this.pending;
     // Late replies to a superseded request are dropped by id.
     if (!request || request.worker !== worker || data.id !== request.id) {
@@ -215,9 +223,10 @@ export class GeometryWorkerClient {
     const abandonedWork = [...this.outstanding.keys()].some((id) => id !== request?.id);
     this.discardWorker(worker);
     if (!request) return;
-    // A worker that never answered in this session was most likely blocked
-    // from loading (CSP in an embedding host). Finish this request on the main
-    // thread and stop trying workers, instead of failing every future edit.
+    // A worker that never started or answered in this session was most likely
+    // blocked from loading (CSP in an embedding host). Finish this request on
+    // the main thread and stop trying workers, instead of failing every future
+    // edit. A worker that reported ready and then crashed stays enabled.
     if (neverWorked) {
       this.pending = undefined;
       this.unavailable = true;

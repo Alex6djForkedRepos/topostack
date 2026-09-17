@@ -19,10 +19,11 @@ import {
   signedArea,
 } from "./geometry2d.js";
 import { labelDimensions } from "./labels.js";
-import { placeElevationLabelStack, placeLabel, placeLinearLabel } from "./label-placement.js";
+import { addLabelObstacles, indexLabelLayer, placeElevationLabelStack, placeLabel, placeLinearLabel } from "./label-placement.js";
 import { geoPointToMapPoint, longitudeInBounds, markerSymbolCenterForAnchor, markerSymbolPaths } from "./markers.js";
 import { offsetClosedRing } from "./offset.js";
 import { northArrowFootprint, northArrowMarkings } from "./north-arrow.js";
+import { sourceRequirements } from "./source-requirements.js";
 import { displayElevation, elevationUnit, FEET_PER_METER } from "./units.js";
 import { CUSTOM_LINE_KINDS, MAP_MARKER_CLEARANCE_MM, MAP_MARKER_SIZE_MM, MARKER_SYMBOLS, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_DEPTH_LAYER_COUNT, MAX_LAYER_COUNT, MAX_MAP_MARKERS, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_WATER_DEPTH_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, MAX_VERTICAL_EXAGGERATION, MIN_LAYER_COUNT, MIN_VERTICAL_EXAGGERATION, NORTH_ARROW_ANCHORS, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, NORTH_ARROW_STYLES, SEA_LEVEL_M } from "./types.js";
 import { type CarvedWater, carveWaterDepth, clampCarveToLadder, fitLakesToLadder } from "./water.js";
@@ -190,13 +191,16 @@ function offsetPolyline(points: Point2D[], distanceMm: number): Point2D[] {
   });
 }
 
+/** Unclipped outline paths for a feature drawn as an outlined major road; undefined when it is drawn as its centerline. */
+function transportationOutlines(points: Point2D[], transportationClass: TransportationClass, config: ProjectConfigV1): Point2D[][] | undefined {
+  if (transportationClass !== "major-road" || config.lineStyle.roadStyle !== "outlined") return undefined;
+  const offsetMm = config.lineStyle.majorRoadSpacingMm / 2;
+  return [offsetPolyline(points, -offsetMm), offsetPolyline(points, offsetMm)];
+}
+
 /** `centerline` is the already-clipped source path, reused whenever the style draws it as-is. */
-function styledTransportationPaths(points: Point2D[], transportationClass: TransportationClass, config: ProjectConfigV1, centerline: Point2D[][], polygons: PreparedPolygons, excludedPolygons?: PreparedPolygons): Point2D[][] {
-  if (transportationClass === "major-road" && config.lineStyle.roadStyle === "outlined") {
-    const offsetMm = config.lineStyle.majorRoadSpacingMm / 2;
-    return [-offsetMm, offsetMm].flatMap((distance) => clipPolyline(offsetPolyline(points, distance), polygons, excludedPolygons));
-  }
-  return centerline;
+function styledTransportationPaths(outlines: Point2D[][] | undefined, centerline: Point2D[][], polygons: PreparedPolygons, excludedPolygons?: PreparedPolygons): Point2D[][] {
+  return outlines ? outlines.flatMap((outline) => clipPolyline(outline, polygons, excludedPolygons)) : centerline;
 }
 
 function fabricationLabel(value: string): string | undefined {
@@ -285,25 +289,26 @@ function addAlignmentGuides(config: ProjectConfigV1, clips: LayerClip[]): void {
     if (!layer || !material || !nextLayer || nextLayer.polygons.length === 0) continue;
     const layerNumber = String(layer.index + 1).padStart(2, "0");
     const nextLayerNumber = String(nextLayer.index + 1).padStart(2, "0");
+    const labelIndex = indexLabelLayer(layer.polygons, layer.markings);
     nextLayer.polygons.forEach((polygon, polygonIndex) => {
+      const guides: OperationPath[] = [];
       offsetClosedRing(polygon.outer, -config.laserKerfMm, "round").forEach((inset, insetIndex) => {
-        clipPolyline(inset, material).forEach((points, clipIndex) => layer.markings.push({
+        clipPolyline(inset, material).forEach((points, clipIndex) => guides.push({
           id: `alignment-layer-${layerNumber}-to-${nextLayerNumber}-${polygonIndex}-inset-${insetIndex}-outline-${clipIndex}`,
           operation: "engrave",
           kind: "guide",
           points,
         }));
       });
+      addLabelObstacles(labelIndex, guides);
       const label = `L${nextLayerNumber}`;
-      const point = placeLabel(label, config, layer.polygons, layer.markings, polygonCenter(polygon, config), [polygon]);
-      if (point) layer.markings.push({
-        id: `alignment-layer-${layerNumber}-to-${nextLayerNumber}-${polygonIndex}-label`,
-        operation: "engrave",
-        kind: "guide",
-        points: [point],
-        label,
-        textStyle: config.textStyle,
-      });
+      const point = placeLabel(label, config, labelIndex, polygonCenter(polygon, config), [polygon]);
+      if (point) {
+        const guideLabel: OperationPath = { id: `alignment-layer-${layerNumber}-to-${nextLayerNumber}-${polygonIndex}-label`, operation: "engrave", kind: "guide", points: [point], label, textStyle: config.textStyle };
+        guides.push(guideLabel);
+        addLabelObstacles(labelIndex, [guideLabel]);
+      }
+      layer.markings.push(...guides);
     });
   }
 }
@@ -514,10 +519,10 @@ function contourToMm(point: [number, number], grid: ElevationGrid, config: Proje
   };
 }
 
-function clipContours(raw: MultiPolygon, clip: Point2D[], minimumFeatureMm: number): Polygon2D[] {
+/** Pass `simplificationTolerance` 0 for rings already simplified, or simplifying again flattens their rounded corners. */
+function clipContours(raw: MultiPolygon, clip: Point2D[], minimumFeatureMm: number, simplificationTolerance = minimumFeatureMm * CONTOUR_SIMPLIFICATION_FACTOR): Polygon2D[] {
   const result = polygonClipping.intersection(raw, [[toRing(clip)]]) as MultiPolygon;
   const polygons: Polygon2D[] = [];
-  const simplificationTolerance = minimumFeatureMm * CONTOUR_SIMPLIFICATION_FACTOR;
   for (const polygon of result) {
     const [outerRing, ...holeRings] = polygon;
     if (!outerRing) continue;
@@ -715,7 +720,7 @@ function addSourceWarnings({ config, source, usesWaterDepth, warnings }: Generat
     code: "ELEVATION_REPAIRED",
     message: "Isolated depth spikes in the elevation data were replaced with estimates from nearby terrain. Review the terrain before cutting.",
   });
-  const wantsVectorData = config.showRoads || config.showTrails || config.showWater || config.showBoundaries || usesWaterDepth;
+  const wantsVectorData = sourceRequirements(config).vectors;
   if (source.vectorStatus === "partial" && wantsVectorData) warnings.push({
     code: "VECTOR_DATA_PARTIAL",
     message: "The map detail feature limit was reached, so some roads, trails, water lines, or boundaries may be missing.",
@@ -781,8 +786,10 @@ function buildLadder(context: GenerationContext, carved: CarvedWater, waterAreas
   // the sheet count is taken from the span the ladder actually has to cover.
   // Keeping the planned count instead would drop the summit off the top. The
   // step itself is unchanged, so the planned exaggeration still describes the cut.
+  // A flat engraving of flat ground has no contours to draw: every threshold
+  // would coincide and repeat the crop outline, so only the base remains.
   const ladderLayerCount = flatEngraving
-    ? config.engravingContourCount + 1
+    ? landRelief > 0 ? config.engravingContourCount + 1 : 1
     : stack.metersPerLayer > 0
       ? clamp(Math.round((landMax - ladderBase) / stack.metersPerLayer), MIN_LAYER_COUNT, MAX_LAYER_COUNT)
       : stack.layerCount;
@@ -828,7 +835,7 @@ function contourLayers({ config, flatEngraving, clip, warnings }: GenerationCont
         .map(({ x, y }) => [x, y] as Pair);
       return config.smoothing > 0 ? roundContourRing(baseline, maximumCornerTrimMm) : baseline;
     }));
-    const polygons = clipContours(raw, clip, config.minimumFeatureMm);
+    const polygons = clipContours(raw, clip, config.minimumFeatureMm, 0);
     const index = generatedIndex + 1;
     layers.push({
       id: `layer-${String(index + 1).padStart(2, "0")}`,
@@ -936,7 +943,7 @@ function routeFlatMarking(config: ProjectConfigV1, feature: MarkingFeature, feat
   const transportationClass = transportationClassOf(feature);
   if (transportationClass) {
     const clipped = clipPolyline(feature.points, baseMaterial);
-    styledTransportationPaths(feature.points, transportationClass, config, clipped, baseMaterial).forEach((points, styleIndex) => baseLayer.markings.push({
+    styledTransportationPaths(transportationOutlines(feature.points, transportationClass, config), clipped, baseMaterial).forEach((points, styleIndex) => baseLayer.markings.push({
       id: `${featureId}-flat-transport-${styleIndex}`,
       operation: "engrave",
       kind: transportationClass === "trail" ? "trail" : "road",
@@ -959,16 +966,17 @@ function routeStackMarking(config: ProjectConfigV1, feature: MarkingFeature, fea
   const layers = clips.map(({ layer }) => layer);
   const transportationClass = transportationClassOf(feature);
   if (transportationClass) {
+    const outlines = transportationOutlines(feature.points, transportationClass, config);
+    const label = feature.label && config.showTransportationLabels ? fabricationLabel(feature.label) : undefined;
     clips.forEach(({ layer, material, covering }) => {
       const clipped = clipPolyline(feature.points, material, covering);
-      styledTransportationPaths(feature.points, transportationClass, config, clipped, material, covering).forEach((points, styleIndex) => layer.markings.push({
+      styledTransportationPaths(outlines, clipped, material, covering).forEach((points, styleIndex) => layer.markings.push({
         id: `${featureId}-${layer.index}-transport-${styleIndex}`,
         operation: "engrave",
         kind: transportationClass === "trail" ? "trail" : "road",
         transportationClass,
         points,
       }));
-      const label = feature.label && config.showTransportationLabels ? fabricationLabel(feature.label) : undefined;
       if (label && clipped.length) addTransportationLabelCandidate(labels, label, { layer, paths: clipped, transportationClass, excludedPolygons: covering.polygons });
     });
     return;
@@ -1160,9 +1168,9 @@ function placeMarkers({ config, source, flatEngraving }: GenerationContext, clip
     // Contour smoothing and minimum-feature filtering can move the cut edge
     // away from the sampled elevation, especially on a modeled lake floor.
     // Place the marker on the highest sheet that actually retains its anchor.
-    const target = flatEngraving ? clips[0] : [...clips].reverse().find((candidate) =>
-      candidate.layer.polygons.some((polygon) => pointInPolygon(anchor, polygon)));
-    if (!target || !target.layer.polygons.some((polygon) => pointInPolygon(anchor, polygon))) return;
+    const retainsAnchor = (candidate: LayerClip) => candidate.layer.polygons.some((polygon) => pointInPolygon(anchor, polygon));
+    const target = flatEngraving ? clips[0] : [...clips].reverse().find(retainsAnchor);
+    if (!target || (flatEngraving && !retainsAnchor(target))) return;
     const { layer, material } = target;
     const symbolCenter = markerSymbolCenterForAnchor(marker.symbol, anchor, MAP_MARKER_SIZE_MM);
     const paths = markerSymbolPaths(marker.symbol, symbolCenter, MAP_MARKER_SIZE_MM)

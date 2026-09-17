@@ -79,6 +79,33 @@ describe("archive request lifecycle", () => {
     await expect(createArchive("https://example.test/map.pmtiles").getHeader()).resolves.toMatchObject({ specVersion: 3 });
   });
 
+  it("retries once on a fresh reader when a cached header predates a data release", async () => {
+    let etag = '"fixture"';
+    const fetchMock = vi.fn(async () => new Response(archiveBytes(), { status: 206, headers: { etag } }));
+    vi.stubGlobal("fetch", fetchMock);
+    await createArchive("https://example.test/map.pmtiles").getHeader();
+    etag = '"release"';
+    const archive = createArchive("https://example.test/map.pmtiles");
+    await expect(archive.getHeader()).resolves.toMatchObject({ etag: '"fixture"' });
+    await expect(archive.getZxy(0, 0, 0)).resolves.toBeDefined();
+    // Stale tile read, fresh header, retried tile.
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    // Later operations reuse the refreshed reader.
+    await createArchive("https://example.test/map.pmtiles").getZxy(0, 0, 0);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+  });
+
+  it("does not retry a generation change after the operation returned tile data", async () => {
+    let etag = '"fixture"';
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(archiveBytes(), { status: 206, headers: { etag } })));
+    await createArchive("https://example.test/map.pmtiles").getHeader();
+    const archive = createArchive("https://example.test/map.pmtiles");
+    await archive.getZxy(0, 0, 0);
+    etag = '"release"';
+    clearArchiveCache();
+    await expect(archive.getZxy(0, 0, 0)).rejects.toThrow("Archive changed");
+  });
+
   it.each(["header", "directory", "tile"])("cancels during the %s request", async (phase) => {
     const controller = new AbortController();
     const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {

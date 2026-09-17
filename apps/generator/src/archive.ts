@@ -26,7 +26,12 @@ const readers = new Map<string, CachedArchive>();
 /** Forget every cached archive reader. */
 export function clearArchiveCache(): void { readers.clear(); }
 
-const changed = (cause?: unknown) => new Error("Archive changed during generation. Try generating again.", cause === undefined ? undefined : { cause });
+class ArchiveChangedError extends Error {}
+const changed = (cause?: unknown) => new ArchiveChangedError("Archive changed during generation. Try generating again.", cause === undefined ? undefined : { cause });
+
+/** Header fields callers plan tile requests from; directory offsets may differ between archive generations. */
+const PLANNING_HEADER_FIELDS = ["specVersion", "tileType", "tileCompression", "minZoom", "maxZoom", "minLon", "minLat", "maxLon", "maxLat", "centerZoom", "centerLon", "centerLat"] as const;
+const samePlanningHeader = (left: Header, right: Header) => PLANNING_HEADER_FIELDS.every((field) => left[field] === right[field]);
 
 function readerFor(url: string): CachedArchive {
   const existing = readers.get(url);
@@ -87,20 +92,60 @@ function abortable<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
  */
 export function createArchive(url: string, operationSignal?: AbortSignal): Archive {
   let entry: CachedArchive | undefined;
-  let operationEtag: string | undefined;
+  let operationHeader: Header | undefined;
+  /** The operation started on a reader cached by an earlier one, whose header may predate a data release. */
+  let reusedReader = false;
+  /** Metadata or tiles were returned, so a later generation change can no longer be retried safely. */
+  let delivered = false;
+  let refresh: Promise<void> | undefined;
   const evict = () => { if (entry && readers.get(url) === entry) readers.delete(url); };
 
-  const run = async <T>(task: (entry: CachedArchive, signal?: AbortSignal) => Promise<T>, signal?: AbortSignal): Promise<T> => {
+  const attempt = async <T>(current: CachedArchive, task: (entry: CachedArchive, signal?: AbortSignal) => Promise<T>, signal?: AbortSignal): Promise<T> => {
+    const header = await current.reader.getHeader();
+    if (operationHeader && header.etag !== operationHeader.etag) throw changed();
+    operationHeader ??= header;
+    return task(current, signal);
+  };
+
+  /**
+   * A cached reader can hold the header of an archive that was since replaced.
+   * Its first data request then fails with a generation change even though this
+   * operation has read nothing stale but the header. Start over on a fresh
+   * reader once, as long as the tile layout callers planned from is unchanged.
+   */
+  const refreshReader = async (stale: CachedArchive): Promise<void> => {
+    if (readers.get(url) === stale) readers.delete(url);
+    const fresh = readerFor(url);
+    const header = await fresh.reader.getHeader();
+    if (operationHeader && !samePlanningHeader(operationHeader, header)) throw changed();
+    entry = fresh;
+    operationHeader = header;
+  };
+
+  const run = async <T>(task: (entry: CachedArchive, signal?: AbortSignal) => Promise<T>, signal?: AbortSignal, returnsData = true): Promise<T> => {
     const signals = [operationSignal, signal].filter((item): item is AbortSignal => !!item);
     const combined = signals.length > 1 ? AbortSignal.any(signals) : signals[0];
     combined?.throwIfAborted();
-    entry ??= readerFor(url);
+    if (!entry) { reusedReader = readers.has(url); entry = readerFor(url); }
     const current = entry;
     const work = (async () => {
-      const header = await current.reader.getHeader();
-      if (operationEtag && header.etag !== operationEtag) throw changed();
-      operationEtag ??= header.etag;
-      return task(current, combined);
+      try {
+        const result = await attempt(current, task, combined);
+        if (returnsData) delivered = true;
+        return result;
+      } catch (error) {
+        if (!(error instanceof ArchiveChangedError) || combined?.aborted) throw error;
+        if (current === entry) {
+          if (!reusedReader || delivered) throw error;
+          reusedReader = false;
+          refresh = refreshReader(current);
+        }
+        if (!refresh) throw error;
+        await refresh;
+        const result = await attempt(entry!, task, combined);
+        if (returnsData) delivered = true;
+        return result;
+      }
     })();
     // Evict on genuine failures even if this operation stopped waiting.
     work.catch(() => { if (!combined?.aborted) evict(); });
@@ -108,7 +153,7 @@ export function createArchive(url: string, operationSignal?: AbortSignal): Archi
   };
 
   return {
-    getHeader: () => run(async ({ reader }): Promise<Header> => reader.getHeader()),
+    getHeader: () => run(async ({ reader }): Promise<Header> => reader.getHeader(), undefined, false),
     getMetadata: () => run(async (cached) => {
       const metadata = cached.metadata ??= cached.reader.getMetadata();
       return await metadata;

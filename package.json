@@ -21,6 +21,8 @@
     "lint": "eslint . --max-warnings=0",
     "budget:web": "node scripts/check-web-budget.mjs",
     "data:provision": "node scripts/provision-vector-data.mjs",
+    "data:verify-lake-directory": "node scripts/verify-lake-directory.mjs",
+    "assets:icons": "node scripts/generate-icons.mjs",
     "package:atomm": "node scripts/package-atomm.mjs",
     "release:atomm": "npm run package:atomm && node scripts/checksum-atomm.mjs",
     "test:scripts": "node scripts/check-node.mjs && node --test scripts/test/*.test.mjs",

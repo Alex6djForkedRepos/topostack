@@ -32,14 +32,14 @@ function compensatedCutPaths(points: Point2D[], distanceMm: number): Point2D[][]
   return offsetClosedRing(points, distanceMm, "miter");
 }
 
-function layerCutPaths(layer: LayerIR, laserKerfMm: number, offsetX = 0, offsetY = 0, omittedHoles = new Map<number, Set<number>>()): string {
+function layerCutPaths(layer: LayerIR, laserKerfMm: number, omittedHoles = new Map<number, Set<number>>()): string {
   const compensationMm = laserKerfMm / 2;
   return layer.polygons.flatMap((polygon, polygonIndex) => {
     const omittedHoleIndexes = omittedHoles.get(polygonIndex) ?? new Set<number>();
     return [
-      ...compensatedCutPaths(polygon.outer, compensationMm).map((ring, offsetIndex) => `<path id="${layer.id}-cut-${polygonIndex + 1}-offset-${offsetIndex + 1}" d="${pathData(ring, offsetX, offsetY, true)}"/>`),
+      ...compensatedCutPaths(polygon.outer, compensationMm).map((ring, offsetIndex) => `<path id="${layer.id}-cut-${polygonIndex + 1}-offset-${offsetIndex + 1}" d="${pathData(ring, 0, 0, true)}"/>`),
       ...polygon.holes.flatMap((hole, holeIndex) => omittedHoleIndexes.has(holeIndex) ? [] : [
-        ...compensatedCutPaths(hole, -compensationMm).map((ring, offsetIndex) => `<path id="${layer.id}-cut-${polygonIndex + 1}-hole-${holeIndex + 1}-offset-${offsetIndex + 1}" d="${pathData(ring, offsetX, offsetY, true)}"/>`),
+        ...compensatedCutPaths(hole, -compensationMm).map((ring, offsetIndex) => `<path id="${layer.id}-cut-${polygonIndex + 1}-hole-${holeIndex + 1}-offset-${offsetIndex + 1}" d="${pathData(ring, 0, 0, true)}"/>`),
       ]),
     ];
   }).join("");
@@ -74,18 +74,18 @@ function categoryStrokeAttributes(category: EngravingCategory, style: LineStyleV
   return ` stroke-width="${format(width)}" stroke-dasharray="${dash}" stroke-linecap="round"`;
 }
 
-function markingPath(mark: LayerIR["markings"][number], offsetX: number, offsetY: number): string {
-  if (mark.label && mark.points[0]) return `<path id="${escapeXml(mark.id)}" d="${labelPathData(mark.label, mark.points[0], offsetX, offsetY, mark.labelRotationRad, mark.textStyle)}"${mark.textStyle?.font === "rounded" ? ' stroke-linecap="round" stroke-linejoin="round"' : ""}/>`;
+function markingPath(mark: LayerIR["markings"][number]): string {
+  if (mark.label && mark.points[0]) return `<path id="${escapeXml(mark.id)}" d="${labelPathData(mark.label, mark.points[0], 0, 0, mark.labelRotationRad, mark.textStyle)}"${mark.textStyle?.font === "rounded" ? ' stroke-linecap="round" stroke-linejoin="round"' : ""}/>`;
   const color = mark.knockout ? "#ffffff" : mark.operation === "score" ? SCORE : ENGRAVE;
   const fill = mark.filled ? ` fill="${color}"` : "";
   const knockout = mark.knockout ? ` stroke="#ffffff" data-knockout="true"` : "";
-  return mark.points.length > 1 ? `<path id="${escapeXml(mark.id)}" d="${pathData(mark.points, offsetX, offsetY)}"${fill}${knockout}/>` : "";
+  return mark.points.length > 1 ? `<path id="${escapeXml(mark.id)}" d="${pathData(mark.points)}"${fill}${knockout}/>` : "";
 }
 
-function layerMarkingPaths(layer: LayerIR, operation: "score" | "engrave", style: LineStyleV1, offsetX = 0, offsetY = 0): string {
+function layerMarkingPaths(layer: LayerIR, operation: "score" | "engrave", style: LineStyleV1): string {
   const markings = layer.markings.filter((mark) => mark.operation === operation);
   return ENGRAVING_CATEGORIES.map((category) => {
-    const paths = markings.filter((mark) => engravingCategory(mark) === category).map((mark) => markingPath(mark, offsetX, offsetY)).join("");
+    const paths = markings.filter((mark) => engravingCategory(mark) === category).map((mark) => markingPath(mark)).join("");
     return paths ? `<g id="${layer.id}-${operation.toUpperCase()}-${category}"${categoryStrokeAttributes(category, style)}>${paths}</g>` : "";
   }).join("");
 }
@@ -129,37 +129,34 @@ function omittedNestHoles(nests: FabricationNest[], layerIndex: number): Map<num
   return result;
 }
 
-function panelOperationGroup(ir: GeometryIRV1, panel: FabricationPanel, operation: "cut" | "score" | "engrave", offsetX = 0, offsetY = 0): string {
-  const layerIds = panel.layerIndexes.map((index) => ir.layers[index]?.id).filter(Boolean).join(" ");
+type Operation = "cut" | "score" | "engrave";
+const OPERATIONS: readonly Operation[] = ["engrave", "score", "cut"];
+/** A panel's per-operation layer groups in panel coordinates, built once and shared by every file that shows the panel. */
+type PanelBodies = Record<Operation, string>;
+
+function panelBodies(ir: GeometryIRV1, panel: FabricationPanel): PanelBodies {
   const layers = panel.layerIndexes.map((index) => ir.layers[index]).filter((layer): layer is LayerIR => Boolean(layer));
-  const operationName = operation.toUpperCase();
-  const body = layers.map((layer) => `<g id="${layer.id}-${operationName}">${operation === "cut" ? layerCutPaths(layer, ir.laserKerfMm, offsetX, offsetY, omittedNestHoles(ir.fabricationNests, layer.index)) : layerMarkingPaths(layer, operation, ir.lineStyle, offsetX, offsetY)}</g>`).join("");
-  return `<g id="fabrication-panel-${panel.rootLayerIndex + 1}-${operationName}" data-layers="${escapeXml(layerIds)}">${body}</g>`;
+  const body = (operation: Operation) => layers.map((layer) => `<g id="${layer.id}-${operation.toUpperCase()}">${operation === "cut" ? layerCutPaths(layer, ir.laserKerfMm, omittedNestHoles(ir.fabricationNests, layer.index)) : layerMarkingPaths(layer, operation, ir.lineStyle)}</g>`).join("");
+  return { engrave: body("engrave"), score: body("score"), cut: body("cut") };
 }
 
-function operationGroup(operation: "cut" | "score" | "engrave", body: string, style: LineStyleV1): string {
+function panelOperationGroup(ir: GeometryIRV1, panel: FabricationPanel, operation: Operation, body: string, offsetX = 0, offsetY = 0): string {
+  const layerIds = panel.layerIndexes.map((index) => ir.layers[index]?.id).filter(Boolean).join(" ");
+  const transform = offsetX || offsetY ? ` transform="translate(${format(offsetX)} ${format(offsetY)})"` : "";
+  return `<g id="fabrication-panel-${panel.rootLayerIndex + 1}-${operation.toUpperCase()}" data-layers="${escapeXml(layerIds)}"${transform}>${body}</g>`;
+}
+
+function operationGroup(operation: Operation, body: string, style: LineStyleV1): string {
   const name = operation.toUpperCase();
   const color = operation === "cut" ? CUT : operation === "score" ? SCORE : ENGRAVE;
   const width = operation === "cut" ? "0.1" : format(operation === "score" ? style.waterMm : style.annotationMm);
   return `<g id="${name}" data-operation="${name}" fill="none" stroke="${color}" stroke-width="${width}"${operation === "cut" ? ' fill-rule="evenodd"' : ""}>${body}</g>`;
 }
 
-function panelGroups(ir: GeometryIRV1, panel: FabricationPanel, offsetX = 0, offsetY = 0, operations: Array<"cut" | "score" | "engrave"> = ["engrave", "score", "cut"]): string {
-  return operations.map((operation) => operationGroup(operation, panelOperationGroup(ir, panel, operation, offsetX, offsetY), ir.lineStyle)).join("");
-}
-
-function panelToSvg(ir: GeometryIRV1, panel: FabricationPanel): string {
+function panelToSvg(ir: GeometryIRV1, panel: FabricationPanel, bodies: PanelBodies, operations: readonly Operation[], kind: string): string {
   const layerIds = panel.layerIndexes.map((index) => ir.layers[index]?.id).filter(Boolean).join(", ");
-  const width = ir.widthMm + ir.laserKerfMm;
-  const height = ir.heightMm + ir.laserKerfMm;
-  return svgDocument(width, height, panelGroups(ir, panel), `${ir.projectName} — fabrication panel — ${layerIds}`);
-}
-
-function engravingPanelToSvg(ir: GeometryIRV1, panel: FabricationPanel): string {
-  const layerIds = panel.layerIndexes.map((index) => ir.layers[index]?.id).filter(Boolean).join(", ");
-  const width = ir.widthMm + ir.laserKerfMm;
-  const height = ir.heightMm + ir.laserKerfMm;
-  return svgDocument(width, height, panelGroups(ir, panel, 0, 0, ["engrave"]), `${ir.projectName} — engraving panel — ${layerIds}`);
+  const body = operations.map((operation) => operationGroup(operation, panelOperationGroup(ir, panel, operation, bodies[operation]), ir.lineStyle)).join("");
+  return svgDocument(ir.widthMm + ir.laserKerfMm, ir.heightMm + ir.laserKerfMm, body, `${ir.projectName} — ${kind} panel — ${layerIds}`);
 }
 
 function segmentOnCropBoundary(start: Point2D, end: Point2D, config: ProjectConfigV1): boolean {
@@ -225,7 +222,7 @@ function flatMarkingPaths(ir: GeometryIRV1): string {
   const markings = ir.layers.flatMap((layer) => layer.markings)
     .filter((mark) => !mark.id.startsWith("alignment-"));
   return ENGRAVING_CATEGORIES.map((category) => {
-    const paths = markings.filter((mark) => engravingCategory(mark) === category).map((mark) => markingPath(mark, 0, 0)).join("");
+    const paths = markings.filter((mark) => engravingCategory(mark) === category).map((mark) => markingPath(mark)).join("");
     return paths ? `<g id="ENGRAVE-${category}"${categoryStrokeAttributes(category, ir.lineStyle)}>${paths}</g>` : "";
   }).join("");
 }
@@ -252,9 +249,8 @@ export function engravingToSvg(ir: GeometryIRV1, config: ProjectConfigV1): strin
   return svgDocument(config.widthMm, config.heightMm, body, `${ir.projectName} — flat topographic engraving`);
 }
 
-export function masterToSvg(ir: GeometryIRV1): string {
+export function masterToSvg(ir: GeometryIRV1, panels = fabricationPanels(ir), bodies = panels.map((panel) => panelBodies(ir, panel))): string {
   const gap = 12;
-  const panels = fabricationPanels(ir);
   const panelWidth = ir.widthMm + ir.laserKerfMm;
   const panelHeight = ir.heightMm + ir.laserKerfMm;
   const columns = Math.min(4, Math.max(1, Math.ceil(Math.sqrt(panels.length))));
@@ -263,14 +259,13 @@ export function masterToSvg(ir: GeometryIRV1): string {
   const height = rows * panelHeight + (rows - 1) * gap;
   const startX = -width / 2 + panelWidth / 2;
   const startY = -height / 2 + panelHeight / 2;
-  const positioned = panels.map((panel, index) => {
-    const column = index % columns;
-    const row = Math.floor(index / columns);
-    const offsetX = startX + column * (panelWidth + gap);
-    const offsetY = startY + row * (panelHeight + gap);
-    return { panel, offsetX, offsetY };
-  });
-  const body = (["engrave", "score", "cut"] as const).map((operation) => operationGroup(operation, positioned.map(({ panel, offsetX, offsetY }) => panelOperationGroup(ir, panel, operation, offsetX, offsetY)).join(""), ir.lineStyle)).join("");
+  // Panels keep panel coordinates and are placed by a group transform, so the
+  // master reuses each panel's path data instead of re-offsetting every point.
+  const body = OPERATIONS.map((operation) => operationGroup(operation, panels.map((panel, index) => {
+    const offsetX = startX + (index % columns) * (panelWidth + gap);
+    const offsetY = startY + Math.floor(index / columns) * (panelHeight + gap);
+    return panelOperationGroup(ir, panel, operation, bodies[index]![operation], offsetX, offsetY);
+  }).join(""), ir.lineStyle)).join("");
   return svgDocument(width, height, body, `${ir.projectName} — master layout`, -width / 2, -height / 2);
 }
 
@@ -314,18 +309,19 @@ export function buildFabricationPackage(generated: GeometryIRV1, config: Project
   if (reason) throw new Error(reason);
   const base = safeName(config.name);
   const panels = fabricationPanels(ir);
+  const bodies = panels.map((panel) => panelBodies(ir, panel));
   const panelFiles = panels.map((panel, index) => {
     const layers = panel.layerIndexes.map((layerIndex) => ir.layers[layerIndex]?.id.replace("layer-", "")).filter(Boolean).join("-");
     const filename = panel.layerIndexes.length === 1 ? `${base}-${ir.layers[panel.rootLayerIndex]?.id}.svg` : `${base}-panel-${String(index + 1).padStart(2, "0")}-layers-${layers}.svg`;
     const engravingFilename = filename.replace(/\.svg$/, "-engrave.svg");
     return {
       panel,
-      file: { filename, blob: new Blob([panelToSvg(ir, panel)], { type: "image/svg+xml" }) } satisfies ExportFile,
-      engravingFile: { filename: engravingFilename, blob: new Blob([engravingPanelToSvg(ir, panel)], { type: "image/svg+xml" }) } satisfies ExportFile,
+      file: { filename, blob: new Blob([panelToSvg(ir, panel, bodies[index]!, OPERATIONS, "fabrication")], { type: "image/svg+xml" }) } satisfies ExportFile,
+      engravingFile: { filename: engravingFilename, blob: new Blob([panelToSvg(ir, panel, bodies[index]!, ["engrave"], "engraving")], { type: "image/svg+xml" }) } satisfies ExportFile,
     };
   });
   const filenameByLayer = new Map(panelFiles.flatMap(({ panel, file }) => panel.layerIndexes.map((layerIndex) => [layerIndex, file.filename] as const)));
-  const master: ExportFile = { filename: `${base}-master.svg`, blob: new Blob([masterToSvg(ir)], { type: "image/svg+xml" }) };
+  const master: ExportFile = { filename: `${base}-master.svg`, blob: new Blob([masterToSvg(ir, panels, bodies)], { type: "image/svg+xml" }) };
   const manifest = {
     schemaVersion: 1,
     project: config,

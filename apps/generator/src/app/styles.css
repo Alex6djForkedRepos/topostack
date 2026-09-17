@@ -2420,3 +2420,9 @@ body:has(.app-shell) {
 @media (pointer: coarse), (max-width: 760px) {
   .about-link { min-width: 44px; min-height: 44px; }
 }
+
+.preview-load-failed {
+  align-content: center;
+  gap: 10px;
+  pointer-events: auto;
+}

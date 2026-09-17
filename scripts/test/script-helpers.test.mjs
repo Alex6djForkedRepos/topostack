@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { assertDigestPinPolicy, parseArchiveFlags, provisionWithReceipt, verifyArchiveDigest, writeJsonAtomic } from "../lib/archive-provisioning.mjs";
 import { cloudflareClient } from "../lib/cloudflare-client.mjs";
 import { filesBelow } from "../lib/files.mjs";
+import { capture, run } from "../lib/process.mjs";
 
 const accountId = "a".repeat(32);
 const quiet = { log: () => {}, warn: () => {} };
@@ -118,3 +119,11 @@ test("filesBelow lists nested files as file URLs", () => withTemporaryDirectory(
   assert.deepEqual(files.map((file) => fileURLToPath(file).slice(directory.length + 1)).sort(), ["assets/deep/app one.js", "index.html"]);
   assert.equal((await filesBelow(directory)).length, 2);
 }));
+
+test("process helpers wait for all output before resolving", async () => {
+  const bytes = 4 * 1024 * 1024;
+  const output = await capture(process.execPath, ["-e", `process.stdout.write("x".repeat(${bytes}))`]);
+  assert.equal(output.length, bytes);
+  await run(process.execPath, ["-e", ""], {});
+  await assert.rejects(capture(process.execPath, ["-e", "process.exit(3)"]), /code 3/);
+});

@@ -5,6 +5,7 @@ Requires rasterio, numpy, Pillow and the pmtiles CLI. No runtime NOAA requests.
 See docs/noaa-bathymetry.md for datums, coverage and reproducible provisioning.
 """
 import argparse
+from contextlib import closing
 import hashlib
 import io
 import json
@@ -81,7 +82,8 @@ def main():
     if database.exists():
         parser.error("Intermediate MBTiles already exists; choose a new path.")
     sources = []
-    with sqlite3.connect(database) as db:
+    # closing() releases the handle; the inner context still commits or rolls back.
+    with closing(sqlite3.connect(database)) as db, db:
         db.executescript("CREATE TABLE metadata (name TEXT, value TEXT); CREATE TABLE tiles (zoom_level INTEGER, tile_column INTEGER, tile_row INTEGER, tile_data BLOB, PRIMARY KEY (zoom_level,tile_column,tile_row));")
         for lake in CATALOG["lakes"]:
             path, provenance = download_grid(lake, args.cache)

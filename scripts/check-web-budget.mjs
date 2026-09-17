@@ -5,8 +5,10 @@ import { filesBelow } from "./lib/files.mjs";
 const dist = new URL("../apps/generator/dist/", import.meta.url);
 // Budget the lightweight homepage separately from the editor and its default
 // 3D preview. Moving the editor must not hide its cost behind a smaller entry page.
-// Production baseline with Node 24.18.0 and VITE_MAP_API_URL=https://ci.invalid:
+// Production baseline measured with Node 24.18.0 and VITE_MAP_API_URL=https://ci.invalid:
 // homepage 54.8 kB, startup 435.2 kB, all JS 874.9 kB, standalone CSS 32.8 kB.
+// CI and .nvmrc build with Node 22.22.2; these numbers have not been re-measured
+// there, so compare a Node 22.22.2 build before tightening or raising budgets.
 // Includes terrain-informed lake depths, the interactive depth guide, and the
 // integrated studio release. Keep roughly 2% JS headroom for platform/minifier
 // variation; compare a fresh build before accepting future budget increases.

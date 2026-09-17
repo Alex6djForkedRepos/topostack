@@ -189,6 +189,20 @@ describe("geometry worker client", () => {
     warn.mockRestore();
   });
 
+  it("keeps workers enabled when a started worker crashes before its first answer", async () => {
+    const { client, workers, factory, generate } = setup();
+    const crashed = client.run(DEFAULT_PROJECT, source());
+    // The script loaded and evaluated, then the first large generation ran out of memory.
+    workers[0]!.onmessage!({ data: { ready: true } as unknown as GeometryWorkerResponse });
+    workers[0]!.onerror!({ message: "Out of memory" });
+    await expect(crashed).rejects.toThrow("Out of memory");
+    expect(generate).not.toHaveBeenCalled();
+    const next = client.run(DEFAULT_PROJECT, source());
+    expect(factory).toHaveBeenCalledTimes(2);
+    workers[1]!.reply({ id: workers[1]!.last.id, result: geometry("worker") });
+    await expect(next).resolves.toMatchObject({ projectName: "worker" });
+  });
+
   it("rejects and replaces a proven worker after a runtime or deserialization error", async () => {
     const { client, workers } = setup();
     const first = client.run(DEFAULT_PROJECT, source());
@@ -266,6 +280,18 @@ describe("preview pipeline", () => {
     expect(stale.onCommit).not.toHaveBeenCalled();
     expect(stale.onError).not.toHaveBeenCalled();
     expect(stale.onSettled).toHaveBeenCalledWith(false);
+  });
+
+  it("retries a failed worker-client chunk load on the next generation", async () => {
+    const loadClient = vi.fn()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch dynamically imported module"))
+      .mockImplementation(async () => new GeometryWorkerClient(undefined, () => geometry("sync")));
+    const pipeline = new PreviewPipeline(loadClient);
+    await expect(pipeline.generate(DEFAULT_PROJECT, source())).rejects.toThrow("dynamically imported module");
+    await expect(pipeline.generate(DEFAULT_PROJECT, source())).resolves.toMatchObject({ projectName: "sync" });
+    await pipeline.generate(DEFAULT_PROJECT, source());
+    expect(loadClient).toHaveBeenCalledTimes(2);
+    pipeline.dispose();
   });
 
   it("reports failures of the current refresh", async () => {

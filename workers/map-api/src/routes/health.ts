@@ -70,7 +70,11 @@ export async function upstreamHealth(env: Env): Promise<Response> {
 export async function probeUpstreams(env: Env, ctx: ExecutionContext): Promise<void> {
   const checks = [
     { source: "terrain", run: () => terrainResponse(new Request("https://probe.invalid/v1/terrain/0/0/0.png"), env, ctx, { z: 0, x: 0, y: 0 }, { bypassCache: true }) },
-    { source: "geocoder", run: () => { const url = new URL("https://probe.invalid/v1/geocode?q=Crater%20Lake&limit=1"); return geocodeResponse(new Request(url), env, ctx, url, true); } },
+    { source: "geocoder", run: () => {
+      const url = new URL("https://probe.invalid/v1/geocode?q=Crater%20Lake&limit=1");
+      // The probe is internal and hourly: public limiters would report a busy colo as an outage.
+      return geocodeResponse(new Request(url), env, ctx, url, { bypassCache: true, bypassLimits: true });
+    } },
   ];
   const results = await Promise.all(checks.map(async ({ source, run }) => {
     const start = Date.now();

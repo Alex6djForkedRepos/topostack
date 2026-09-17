@@ -1,4 +1,4 @@
-import { clipPolyline, pointInPolygon, preparePolygons } from "./geometry2d.js";
+import { clipPolyline, pointInPreparedPolygons, preparePolygons } from "./geometry2d.js";
 import type { Point2D, Polygon2D, WaterFillPattern } from "./types.js";
 
 /**
@@ -16,6 +16,7 @@ export function waterPatternStrokes(
   const halfWidth = widthMm / 2;
   const halfHeight = heightMm / 2;
   const spacing = Math.max(2.5, strokeWidthMm * 8);
+  const prepared = preparePolygons(polygons);
 
   if (pattern === "dots") {
     const dots: Point2D[][] = [];
@@ -27,14 +28,13 @@ export function waterPatternStrokes(
       const y = -halfHeight + dotSpacing / 2 + row * dotSpacing;
       const offset = row % 2 === 0 ? dotSpacing / 2 : 0;
       for (let x = -halfWidth + dotSpacing / 2 + offset; x < halfWidth; x += dotSpacing) {
-        if (polygons.some((polygon) => pointInPolygon({ x, y }, polygon))) dots.push([{ x: x - 0.001, y }, { x: x + 0.001, y }]);
+        if (pointInPreparedPolygons({ x, y }, prepared)) dots.push([{ x: x - 0.001, y }, { x: x + 0.001, y }]);
       }
     }
     return dots;
   }
 
   const strokes: Point2D[][] = [];
-  const prepared = preparePolygons(polygons);
   for (let y = -halfHeight + spacing / 2; y < halfHeight; y += spacing) {
     if (pattern === "lines") {
       strokes.push(...clipPolyline([{ x: -halfWidth, y }, { x: halfWidth, y }], prepared));

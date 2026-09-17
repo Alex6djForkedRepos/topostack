@@ -2,6 +2,19 @@ import { get, set } from "idb-keyval";
 import { DEFAULT_PROJECT, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_NAME_LENGTH, validateProject, type CustomLineFeatureV1, type CustomLineKind, type MapMarkerV1, type MarkerSymbol, type NorthArrowAnchor, type NorthArrowStyle, type ProjectConfigV1 } from "@topostack/core";
 
 const PROJECT_KEY = "topostack:project:v1";
+/** Where an unreadable saved project is copied before autosave replaces it. */
+export const PROJECT_BACKUP_KEY = "topostack:project:v1:unreadable-backup";
+
+/**
+ * The saved project exists but does not parse. Its raw value was copied to
+ * `backupKey` when that succeeded; without a backup, autosave must not run.
+ */
+export class UnreadableSavedProjectError extends Error {
+  override readonly name = "UnreadableSavedProjectError";
+  constructor(readonly backupKey: string | undefined, cause: unknown) {
+    super(backupKey ? "Saved project could not be read · a backup copy was kept" : "Saved project could not be read · autosave paused to protect it", { cause });
+  }
+}
 
 function numberValue(value: unknown): number { return typeof value === "number" ? value : Number.NaN; }
 function booleanValue(value: unknown, label: string): boolean {
@@ -97,14 +110,31 @@ function customLinesValue(value: unknown): CustomLineFeatureV1[] {
   });
 }
 
+/**
+ * Load the autosaved project. Storage that cannot be read restores nothing. A
+ * value that no longer parses (an older or newer build wrote it) is copied to
+ * `PROJECT_BACKUP_KEY` and reported, so the next autosave never silently
+ * destroys the only copy.
+ */
 export async function loadProject(): Promise<ProjectConfigV1 | undefined> {
+  let value: unknown;
   try {
-    const value = await get<unknown>(PROJECT_KEY);
-    if (value === undefined) return undefined;
+    value = await get<unknown>(PROJECT_KEY);
+  } catch (error) {
+    console.warn("TopoStack: saved projects are unavailable in this browser.", error);
+    return undefined;
+  }
+  if (value === undefined) return undefined;
+  try {
     return parseProject(value);
   } catch (error) {
-    console.warn("TopoStack: ignoring a saved project that could not be restored.", error);
-    return undefined;
+    console.warn("TopoStack: the saved project could not be restored.", error);
+    try {
+      await set(PROJECT_BACKUP_KEY, { backedUpAt: new Date().toISOString(), reason: error instanceof Error ? error.message : String(error), value });
+    } catch (backupError) {
+      throw new UnreadableSavedProjectError(undefined, backupError);
+    }
+    throw new UnreadableSavedProjectError(PROJECT_BACKUP_KEY, error);
   }
 }
 

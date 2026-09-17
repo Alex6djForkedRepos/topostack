@@ -9,7 +9,7 @@ export function run(command, args, { env = process.env, cwd } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { env, cwd, stdio: "inherit" });
     child.once("error", reject);
-    child.once("exit", (code, signal) => code === 0 ? resolve() : reject(exitError(command, code, signal)));
+    child.once("close", (code, signal) => code === 0 ? resolve() : reject(exitError(command, code, signal)));
   });
 }
 
@@ -21,7 +21,7 @@ export function capture(command, args, { env = process.env, cwd } = {}) {
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", (chunk) => { output += chunk; });
     child.once("error", reject);
-    child.once("exit", (code, signal) => code === 0 ? resolve(output) : reject(exitError(command, code, signal)));
+    child.once("close", (code, signal) => code === 0 ? resolve(output) : reject(exitError(command, code, signal)));
   });
 }
 

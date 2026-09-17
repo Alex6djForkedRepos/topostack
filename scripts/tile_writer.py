@@ -4,18 +4,24 @@ Encodes float grids as Terrarium-style RGBA PNG tiles in an MBTiles staging
 database, then converts and verifies a PMTiles archive with a receipt.
 Has no import-time side effects so either builder can import it directly.
 """
+from contextlib import closing
 import hashlib
 import io
 import json
 import math
+import os
+from pathlib import Path
 import sqlite3
 import subprocess
+import tempfile
 
 import numpy as np
 from PIL import Image
 import rasterio
 from rasterio.transform import from_bounds
 from rasterio.warp import reproject, Resampling, transform_bounds
+
+from terrain_release import atomic_write
 
 WORLD = 20037508.342789244
 
@@ -35,20 +41,26 @@ def encode(values, elevation=False):
 
 def write_text_atomic(path, text):
     """Replace path only with complete contents; builders reuse files that exist."""
-    partial = path.with_name(path.name + '.part')
-    partial.write_text(text)
-    partial.replace(path)
+    atomic_write(path, text.encode())
     return path
 
 
 def write_grid(path, values, transform, crs):
     path.parent.mkdir(parents=True, exist_ok=True)
     # Prepared grids are reused whenever they exist, so never expose a partial GeoTIFF.
-    partial = path.with_suffix('.part.tif')
-    with rasterio.open(partial, 'w', driver='GTiff', height=values.shape[0], width=values.shape[1], count=1,
-                       dtype='float32', crs=crs, transform=transform, nodata=np.nan, compress='deflate', tiled=True) as dst:
-        dst.write(values.astype(np.float32), 1)
-    partial.replace(path)
+    # A unique temporary name keeps concurrent builders from sharing a partial file.
+    fd, name = tempfile.mkstemp(prefix=path.stem + '.', suffix='.part.tif', dir=path.parent)
+    os.close(fd)
+    partial = Path(name)
+    try:
+        with rasterio.open(partial, 'w', driver='GTiff', height=values.shape[0], width=values.shape[1], count=1,
+                           dtype='float32', crs=crs, transform=transform, nodata=np.nan, compress='deflate', tiled=True) as dst:
+            dst.write(values.astype(np.float32), 1)
+        with partial.open('rb') as written:
+            os.fsync(written.fileno())
+        partial.replace(path)
+    finally:
+        partial.unlink(missing_ok=True)
     return path
 
 
@@ -93,7 +105,8 @@ class TileWriter:
 
     def merge_tiles(self, database, grid):
         """Merge an independently prepared grid's tiles in original priority order."""
-        with sqlite3.connect(f'file:{database}?mode=ro', uri=True) as source:
+        # sqlite3's own context manager only ends the transaction; closing() releases the handle.
+        with closing(sqlite3.connect(f'file:{database}?mode=ro', uri=True)) as source, source:
             for z, x, y, data in source.execute('SELECT zoom_level,tile_column,tile_row,tile_data FROM tiles ORDER BY zoom_level,tile_column,tile_row'):
                 old = self.db.execute('SELECT tile_data FROM tiles WHERE zoom_level=? AND tile_column=? AND tile_row=?', (z,x,y)).fetchone()
                 if old:
@@ -107,7 +120,12 @@ class TileWriter:
         self.db.commit()
         self.grids.append(grid)
 
-    def finish(self, pins):
+    def finish(self, pins, complete_receipt=None):
+        """Convert and verify the archive, then write its receipt once, atomically.
+
+        complete_receipt(receipt) may enrich and validate the receipt before it is
+        written; if it raises, no receipt is left beside the archive.
+        """
         metadata = {'name':self.source['name'], 'format':'png', 'type':'overlay', 'version':'1', 'minzoom':str(self.db.execute('SELECT min(zoom_level) FROM tiles').fetchone()[0]),
                     'center':f"{(self.source['bounds'][0]+self.source['bounds'][2])/2},{(self.source['bounds'][1]+self.source['bounds'][3])/2},8",
                     'maxzoom':str(self.source['maxZoom']), 'bounds':','.join(map(str,self.source['bounds'])),
@@ -123,5 +141,7 @@ class TileWriter:
         subprocess.run(['pmtiles','verify',str(self.output)], check=True)
         receipt = {'dataset':self.source['id'], 'sha256':digest(self.output), 'bytes':self.output.stat().st_size, 'tiles':count,
                    'sources':pins, 'grids':self.grids}
+        if complete_receipt:
+            complete_receipt(receipt)
         write_text_atomic(self.output.with_suffix('.sources.json'), json.dumps(receipt,indent=2)+'\n')
         print(f"Built {self.source['id']}: {count} tiles; SHA256 {receipt['sha256']}", flush=True)

@@ -132,10 +132,12 @@ export function clipPolyline(points: Point2D[], polygons: Polygon2D[] | Prepared
   const included = asPrepared(polygons);
   if (!included.polygons.length) return [];
   const pathBounds = ringBounds(points);
+  const reach = { minX: pathBounds.minX - BOUNDS_SLACK, minY: pathBounds.minY - BOUNDS_SLACK, maxX: pathBounds.maxX + BOUNDS_SLACK, maxY: pathBounds.maxY + BOUNDS_SLACK };
   // No piece of a line wholly outside the material's box can be inside it.
-  if (!boundsOverlap({ minX: pathBounds.minX - BOUNDS_SLACK, minY: pathBounds.minY - BOUNDS_SLACK, maxX: pathBounds.maxX + BOUNDS_SLACK, maxY: pathBounds.maxY + BOUNDS_SLACK }, included.bounds)) return [];
-  const excluded = asPrepared(excludedPolygons);
-  const rings = excluded.rings.length ? [...included.rings, ...excluded.rings] : included.rings;
+  if (!boundsOverlap(reach, included.bounds)) return [];
+  // Likewise an exclusion set whose box misses the line can neither cut nor contain it.
+  const excludedSet = asPrepared(excludedPolygons);
+  const excluded = boundsOverlap(reach, excludedSet.bounds) ? excludedSet : NO_POLYGONS;
   const result: Point2D[][] = [];
   let active: Point2D[] = [];
   for (let index = 0; index < points.length - 1; index += 1) {
@@ -149,11 +151,13 @@ export function clipPolyline(points: Point2D[], polygons: Polygon2D[] | Prepared
       maxY: Math.max(a.y, b.y) + 1e-6,
     };
     const cuts = [0, 1];
-    for (const { ring, bounds } of rings) {
-      if (!boundsOverlap(segmentBounds, bounds)) continue;
-      for (let edge = 0; edge < ring.length - 1; edge += 1) {
-        const t = ring[edge] && ring[edge + 1] ? segmentIntersectionT(a, b, ring[edge]!, ring[edge + 1]!) : undefined;
-        if (t !== undefined) cuts.push(t);
+    for (let set = 0; set < 2; set += 1) {
+      for (const { ring, bounds } of set === 0 ? included.rings : excluded.rings) {
+        if (!boundsOverlap(segmentBounds, bounds)) continue;
+        for (let edge = 0; edge < ring.length - 1; edge += 1) {
+          const t = ring[edge] && ring[edge + 1] ? segmentIntersectionT(a, b, ring[edge]!, ring[edge + 1]!) : undefined;
+          if (t !== undefined) cuts.push(t);
+        }
       }
     }
     cuts.sort((left, right) => left - right);
@@ -194,7 +198,7 @@ export function orientation(a: Point2D, b: Point2D, c: Point2D): number {
   return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
 }
 
-export function pointOnSegment(point: Point2D, a: Point2D, b: Point2D): boolean {
+function pointOnSegment(point: Point2D, a: Point2D, b: Point2D): boolean {
   return Math.abs(orientation(a, b, point)) < 1e-8 &&
     point.x >= Math.min(a.x, b.x) - 1e-8 && point.x <= Math.max(a.x, b.x) + 1e-8 &&
     point.y >= Math.min(a.y, b.y) - 1e-8 && point.y <= Math.max(a.y, b.y) + 1e-8;

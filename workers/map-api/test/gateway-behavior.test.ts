@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { env as workerEnv } from "cloudflare:workers";
 import worker from "../src/index";
-import { ARCHIVE_HEAD_TTL_MS, cachedArchiveHead, resetArchiveHeadCache } from "../src/archive-release";
+import { ARCHIVE_HEAD_TTL_MS, ARCHIVE_NEGATIVE_TTL_MS, cachedArchiveHead, resetArchiveHeadCache } from "../src/archive-release";
+import { normalizeClientAddress } from "../src/http";
+import { probeUpstreams } from "../src/routes/health";
 import { terrainPng } from "./terrain-fixture";
 
 const env = { ...workerEnv, GEOCODER_API_KEY: "test-provider-key" } as unknown as Env;
@@ -9,6 +11,7 @@ const jobs: Promise<unknown>[] = [];
 const context = { waitUntil: (job: Promise<unknown>) => { jobs.push(job); }, passThroughOnException: () => {} } as unknown as ExecutionContext;
 const allowedOrigin = "http://localhost:5273";
 const request = (path: string, init: RequestInit = {}) => new Request(`https://example.test${path}`, { ...init, headers: { origin: allowedOrigin, ...(init.headers as Record<string, string> | undefined) } });
+const allowAll = () => ({ limit: vi.fn(async (_options: RateLimitOptions) => ({ success: true })) });
 const denyAll = () => ({ limit: vi.fn(async (_options: RateLimitOptions) => ({ success: false })) });
 const terrainKey = (path: string) => `terrain/${env.DATASET_VERSION}/terrarium/${path}.png`;
 const current = { terrainValidation: "png-v1", provenance: "v2" };
@@ -97,6 +100,65 @@ describe("PMTiles archive releases", () => {
     expect(replaced.headers.get("content-range")).toBe("bytes 38-39/40");
     expect(new Uint8Array(await replaced.arrayBuffer())).toEqual(new Uint8Array([9, 9]));
   });
+
+  it("answers HEAD and If-None-Match from a fresh R2 head after an in-place overwrite", async () => {
+    await env.VECTOR_DATA.put(logicalKey, new Uint8Array(150).fill(1));
+    const warm = await worker.fetch(request("/v1/lakes.pmtiles", { headers: { range: "bytes=0-0" } }), env, context);
+    const oldEtag = warm.headers.get("etag")!;
+    await warm.arrayBuffer();
+    const replacement = (await env.VECTOR_DATA.put(logicalKey, new Uint8Array(40).fill(9)))!;
+    const limiter = allowAll();
+    const meteredEnv = { ...env, REQUEST_LIMITER: limiter } as unknown as Env;
+
+    const head = await worker.fetch(request("/v1/lakes.pmtiles", { method: "HEAD" }), meteredEnv, context);
+    expect(head.status).toBe(200);
+    expect(head.headers.get("content-length")).toBe("40");
+    expect(head.headers.get("etag")).toBe(replacement.httpEtag);
+
+    const stale = await worker.fetch(request("/v1/lakes.pmtiles", { headers: { "if-none-match": oldEtag, range: "bytes=0-1" } }), meteredEnv, context);
+    expect(stale.status).toBe(206);
+    expect(stale.headers.get("etag")).toBe(replacement.httpEtag);
+    await stale.arrayBuffer();
+    await env.VECTOR_DATA.put(logicalKey, new Uint8Array(41).fill(8));
+    const changed = await worker.fetch(request("/v1/lakes.pmtiles", { headers: { "if-none-match": replacement.httpEtag } }), meteredEnv, context);
+    expect(changed.status).not.toBe(304);
+    await changed.arrayBuffer();
+    expect(limiter.limit.mock.calls.map(([options]) => options.key)).toEqual(Array(3).fill("anonymous:archive-meta"));
+  });
+
+  it("memoizes missing archives and invalid pointers briefly", async () => {
+    await env.VECTOR_DATA.delete(logicalKey);
+    const head = vi.spyOn(env.VECTOR_DATA, "head");
+    expect((await cachedArchiveHead(env.VECTOR_DATA, logicalKey, 1_000)).head).toBeNull();
+    await env.VECTOR_DATA.put(logicalKey, new Uint8Array(4));
+    expect((await cachedArchiveHead(env.VECTOR_DATA, logicalKey, 1_000 + ARCHIVE_NEGATIVE_TTL_MS - 1)).head).toBeNull();
+    expect(head).toHaveBeenCalledTimes(1);
+    expect((await cachedArchiveHead(env.VECTOR_DATA, logicalKey, 1_000 + ARCHIVE_NEGATIVE_TTL_MS)).head?.size).toBe(4);
+    await env.VECTOR_DATA.delete(logicalKey);
+
+    resetArchiveHeadCache();
+    await env.VECTOR_DATA.put(`releases/${logicalKey}.json`, "{not json");
+    const get = vi.spyOn(env.VECTOR_DATA, "get");
+    await expect(cachedArchiveHead(env.VECTOR_DATA, logicalKey, 1_000)).rejects.toThrow();
+    await expect(cachedArchiveHead(env.VECTOR_DATA, logicalKey, 1_000 + ARCHIVE_NEGATIVE_TTL_MS - 1)).rejects.toThrow();
+    expect(get).toHaveBeenCalledTimes(1);
+  });
+
+  it("charges archive 404 and 503 answers to the not-found bucket", async () => {
+    await env.VECTOR_DATA.delete(logicalKey);
+    const allowed = allowAll();
+    const missing = await worker.fetch(request("/v1/lakes.pmtiles", { headers: { range: "bytes=0-1" } }), { ...env, REQUEST_LIMITER: allowed } as unknown as Env, context);
+    expect(missing.status).toBe(404);
+    expect(allowed.limit).toHaveBeenCalledWith({ key: "anonymous:not-found" });
+
+    resetArchiveHeadCache();
+    await env.VECTOR_DATA.put(`releases/${logicalKey}.json`, "{not json");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const denied = denyAll();
+    const invalid = await worker.fetch(request("/v1/lakes.pmtiles", { headers: { range: "bytes=0-1" } }), { ...env, REQUEST_LIMITER: denied } as unknown as Env, context);
+    expect(invalid.status).toBe(429);
+    expect(denied.limit).toHaveBeenCalledWith({ key: "anonymous:not-found" });
+  });
 });
 
 describe("archive range errors", () => {
@@ -147,6 +209,51 @@ describe("request budgets", () => {
 
     const manifest = await worker.fetch(request("/v1/manifest"), limitedEnv, context);
     expect(manifest.status).toBe(429);
+  });
+
+  it("caps terrain upstream fetches with a shared budget checked after the per-client one", async () => {
+    await env.MAP_CACHE.delete(terrainKey("3/2/2"));
+    const upstream = vi.fn(async () => new Response(terrainPng.slice(), { headers: { "content-type": "image/png" } }));
+    vi.stubGlobal("fetch", upstream);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const perClient = allowAll();
+    const shared = denyAll();
+    const busy = await worker.fetch(request("/v1/terrain/3/2/2.png"), { ...env, REQUEST_LIMITER: perClient, TERRAIN_GLOBAL_LIMITER: shared } as unknown as Env, context);
+    expect(busy.status).toBe(429);
+    expect(upstream).not.toHaveBeenCalled();
+    expect(shared.limit).toHaveBeenCalledWith({ key: "terrain-global" });
+
+    const overClient = denyAll();
+    const unused = allowAll();
+    const limited = await worker.fetch(request("/v1/terrain/3/2/2.png"), { ...env, REQUEST_LIMITER: overClient, TERRAIN_GLOBAL_LIMITER: unused } as unknown as Env, context);
+    expect(limited.status).toBe(429);
+    expect(unused.limit).not.toHaveBeenCalled();
+  });
+
+  it("does not spend the shared geocode budget on clients over their own limit", async () => {
+    const global = allowAll();
+    const budgetEnv = { ...env, REQUEST_LIMITER: allowAll(), GEOCODE_LIMITER: denyAll(), GEOCODE_GLOBAL_LIMITER: global } as unknown as Env;
+    const upstream = vi.fn();
+    vi.stubGlobal("fetch", upstream);
+    const response = await worker.fetch(request("/v1/geocode?q=over%20client%20budget"), budgetEnv, context);
+    expect(response.status).toBe(429);
+    expect(global.limit).not.toHaveBeenCalled();
+    expect(upstream).not.toHaveBeenCalled();
+  });
+
+  it("keys IPv6 clients by /64 so address rotation shares one budget", async () => {
+    const limiter = allowAll();
+    const budgetEnv = { ...env, REQUEST_LIMITER: limiter } as unknown as Env;
+    for (const address of ["2001:db8:1:2::1", "2001:0DB8:0001:0002:ffff:eeee:dddd:cccc", "::ffff:198.51.100.7"]) {
+      const response = await worker.fetch(request("/v1/manifest", { headers: { "cf-connecting-ip": address } }), budgetEnv, context);
+      await response.arrayBuffer();
+    }
+    expect(limiter.limit.mock.calls.map(([options]) => options.key)).toEqual(["2001:db8:1:2::/64:manifest", "2001:db8:1:2::/64:manifest", "198.51.100.7:manifest"]);
+  });
+
+  it("no longer routes / through the Worker (static assets own it)", async () => {
+    const response = await worker.fetch(request("/"), { ...env, REQUEST_LIMITER: allowAll() } as unknown as Env, context);
+    expect(response.status).toBe(404);
   });
 
   it("caps geocoder cache misses with a dedicated shared budget across clients", async () => {
@@ -257,9 +364,11 @@ describe("terrain validators and provenance", () => {
     await env.MAP_CACHE.delete(key);
     const upstream = vi.fn(async () => new Response(terrainPng.slice(), { headers: { "content-type": "image/png" } }));
     vi.stubGlobal("fetch", upstream);
-    const limiter = denyAll();
-    const response = await worker.fetch(request("/v1/terrain/6/1/2.png", { method: "HEAD" }), { ...env, REQUEST_LIMITER: limiter } as unknown as Env, context);
+    const allow = vi.fn(async (_options: RateLimitOptions) => ({ success: true }));
+    const terrainGlobal = denyAll();
+    const response = await worker.fetch(request("/v1/terrain/6/1/2.png", { method: "HEAD" }), { ...env, REQUEST_LIMITER: { limit: allow }, TERRAIN_GLOBAL_LIMITER: terrainGlobal } as unknown as Env, context);
     await Promise.all(jobs.splice(0));
+    // 200 + MISS means "not verified": the origin was not asked, so a GET may still fail.
     expect(response.status).toBe(200);
     expect(response.headers.get("x-topostack-cache")).toBe("MISS");
     expect(response.headers.get("cache-control")).toBe("no-store");
@@ -267,8 +376,19 @@ describe("terrain validators and provenance", () => {
     expect(await response.text()).toBe("");
     expectCors(response);
     expect(upstream).not.toHaveBeenCalled();
-    expect(limiter.limit).not.toHaveBeenCalled();
+    // HEAD costs an R2 read, so it is metered per client, never against the shared upstream budget.
+    expect(allow.mock.calls.map(([options]) => options.key)).toEqual(["anonymous:terrain-head"]);
+    expect(terrainGlobal.limit).not.toHaveBeenCalled();
     expect(await env.MAP_CACHE.head(key)).toBeNull();
+  });
+
+  it("rate-limits terrain HEAD per client before reading R2", async () => {
+    const head = vi.spyOn(env.MAP_CACHE, "head");
+    const limiter = denyAll();
+    const response = await worker.fetch(request("/v1/terrain/6/1/2.png", { method: "HEAD", headers: { "cf-connecting-ip": "2001:db8:aa:bb:1:2:3:4" } }), { ...env, REQUEST_LIMITER: limiter } as unknown as Env, context);
+    expect(response.status).toBe(429);
+    expect(head).not.toHaveBeenCalled();
+    expect(limiter.limit).toHaveBeenCalledWith({ key: "2001:db8:aa:bb::/64:terrain-head" });
   });
 
   it("revalidates HEAD on a cached terrain tile from metadata alone", async () => {
@@ -318,12 +438,74 @@ describe("geocoder caching", () => {
     expect(new URL(String((upstream.mock.calls[0] as unknown[])[0])).searchParams.get("text")).toBe("lake tahoe whitespace");
   });
 
-  it("answers HEAD on geocode without a body", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ results: [{ formatted: "Head place", lat: 1, lon: 2 }] })));
-    const response = await worker.fetch(request("/v1/geocode?q=head%20place", { method: "HEAD" }), env, context);
-    expect(response.status).toBe(200);
-    expect(response.headers.get("content-type")).toContain("application/json");
-    expect(await response.text()).toBe("");
-    expectCors(response);
+  it("answers HEAD on geocode from cache metadata without the provider or geocode budgets", async () => {
+    const upstream = vi.fn(async () => Response.json({ results: [{ formatted: "Head place", lat: 1, lon: 2 }] }));
+    vi.stubGlobal("fetch", upstream);
+    const perClient = denyAll();
+    const global = denyAll();
+    const headEnv = { ...env, GEOCODE_LIMITER: perClient, GEOCODE_GLOBAL_LIMITER: global } as unknown as Env;
+    const miss = await worker.fetch(request("/v1/geocode?q=head%20place%20uncached", { method: "HEAD" }), headEnv, context);
+    expect(miss.status).toBe(200);
+    expect(miss.headers.get("content-type")).toContain("application/json");
+    expect(miss.headers.get("x-topostack-cache")).toBe("MISS");
+    expect(miss.headers.get("cache-control")).toBe("no-store");
+    expect(await miss.text()).toBe("");
+    expectCors(miss);
+
+    const filled = await worker.fetch(request("/v1/geocode?q=head%20place%20cached"), env, context);
+    await filled.arrayBuffer();
+    await Promise.all(jobs.splice(0));
+    const get = vi.spyOn(env.MAP_CACHE, "get");
+    const hit = await worker.fetch(request("/v1/geocode?q=Head%20Place%20Cached", { method: "HEAD" }), headEnv, context);
+    expect(hit.status).toBe(200);
+    expect(hit.headers.get("x-topostack-cache")).toBe("HIT");
+    expect(hit.headers.get("cache-control")).toMatch(/^public, max-age=\d+$/);
+    expect(await hit.text()).toBe("");
+    expect(get).not.toHaveBeenCalled();
+    expect(upstream).toHaveBeenCalledOnce();
+    expect(perClient.limit).not.toHaveBeenCalled();
+    expect(global.limit).not.toHaveBeenCalled();
+  });
+});
+
+describe("client address keys", () => {
+  it.each([
+    ["203.0.113.9", "203.0.113.9"],
+    ["2001:db8::1", "2001:db8:0:0::/64"],
+    ["2001:DB8:0:0:8:800:200C:417A", "2001:db8:0:0::/64"],
+    ["2001:db8:1:2:3:4:5:6", "2001:db8:1:2::/64"],
+    ["::1", "0:0:0:0::/64"],
+    ["::", "0:0:0:0::/64"],
+    ["fe80::1%eth0", "fe80:0:0:0::/64"],
+    ["::ffff:192.0.2.128", "192.0.2.128"],
+    ["::FFFF:c000:0280", "192.0.2.128"],
+    ["64:ff9b::192.0.2.33", "64:ff9b:0:0::/64"],
+    ["not-an-address", "not-an-address"],
+    ["1:2:3:4:5:6:7:8:9", "1:2:3:4:5:6:7:8:9"],
+    ["1::2::3", "1::2::3"],
+    ["::ffff:300.1.1.1", "::ffff:300.1.1.1"],
+  ])("normalizes %s to %s", (address, expected) => {
+    expect(normalizeClientAddress(address)).toBe(expected);
+  });
+});
+
+describe("upstream probe", () => {
+  it("bypasses public geocode limiters so a busy colo is not reported as an outage", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (url: string | URL) => String(url).includes("terrarium")
+      ? new Response(terrainPng.slice(), { headers: { "content-type": "image/png" } })
+      : Response.json({ results: [{ lat: 42, lon: -122, formatted: "Crater Lake" }] })));
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const perClient = denyAll();
+    const global = denyAll();
+    const probeEnv = { ...env, REQUEST_LIMITER: denyAll(), TERRAIN_GLOBAL_LIMITER: denyAll(), GEOCODE_LIMITER: perClient, GEOCODE_GLOBAL_LIMITER: global } as unknown as Env;
+    try {
+      await probeUpstreams(probeEnv, context);
+      const stored = await env.MAP_CACHE.get("health/upstreams-v1.json");
+      expect(await stored!.json()).toMatchObject({ ok: true });
+      expect(perClient.limit).not.toHaveBeenCalled();
+      expect(global.limit).not.toHaveBeenCalled();
+    } finally {
+      await env.MAP_CACHE.delete("health/upstreams-v1.json");
+    }
   });
 });
