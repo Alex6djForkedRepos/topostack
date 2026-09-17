@@ -1,10 +1,11 @@
 import { measureBucket } from "./data-metrics";
 import { clientKey, corsHeaders, isAllowedOrigin, json, rateLimitExceeded, withCors } from "./http";
 import { buildManifest } from "./manifest";
-import { ARCHIVE_ROUTES, bathymetryArchives, type ArchiveRoute, parseRangeHeader, pmtilesResponse, terrainArchives } from "./routes/archive";
+import { ARCHIVE_ROUTES, bathymetryArchives, type ArchiveRoute, isArchiveMetadataRequest, parseRangeHeader, pmtilesResponse, terrainArchives } from "./routes/archive";
 import { geocodeLimit, geocodeResponse, isGeocoderConfigured, normalizeGeoapify } from "./routes/geocode";
 import { healthResponse, probeUpstreams, readinessResponse, upstreamHealth } from "./routes/health";
 import { terrainResponse, validTile } from "./routes/terrain";
+import { isTerrainRefused, recordTerrainRefusal } from "./terrain-refusal";
 import { collectUsage } from "./usage-events";
 
 type Handler = (request: Request, env: Env, ctx: ExecutionContext, url: URL) => Promise<Response> | Response;
@@ -25,19 +26,22 @@ const TERRAIN_GLOBAL_LIMIT_KEY = "terrain-global";
 
 // Per-client first so a client already over its own budget cannot also drain
 // the shared per-colo ceiling that protects origin fetches and cache writes.
+// A per-client refusal is remembered so the following requests skip the R2
+// cache read they would otherwise make before reaching this check.
 async function withinTerrainUpstreamBudget(request: Request, env: Env): Promise<boolean> {
-  if (!(await withinRequestBudget(request, env, "terrain"))) return false;
+  if (!(await withinRequestBudget(request, env, "terrain"))) { recordTerrainRefusal(clientKey(request)); return false; }
   const { success } = await env.TERRAIN_GLOBAL_LIMITER.limit({ key: TERRAIN_GLOBAL_LIMIT_KEY });
   if (!success) console.warn(JSON.stringify({ message: "terrain_global_budget_exceeded" }));
   return success;
 }
 
-// Range reads of a present archive stay unmetered. Metadata-only requests
-// (HEAD, If-None-Match) re-resolve from R2 each time, and missing or invalid
-// archives answer 404/503; both are charged so they cannot become an unmetered
-// R2 read loop.
+// Range reads of a present archive stay unmetered, including the conditional
+// ones a browser sends to revalidate them. Metadata-only requests (HEAD, or
+// If-None-Match without a Range) re-resolve from R2 each time, and missing or
+// invalid archives answer 404/503; both are charged so they cannot become an
+// unmetered R2 read loop.
 async function archiveResponse(request: Request, env: Env, ctx: ExecutionContext, archive: ArchiveRoute): Promise<Response> {
-  if ((request.method === "HEAD" || request.headers.has("if-none-match")) && !(await withinRequestBudget(request, env, "archive-meta"))) {
+  if (isArchiveMetadataRequest(request) && !(await withinRequestBudget(request, env, "archive-meta"))) {
     return rateLimitExceeded();
   }
   const response = await pmtilesResponse(request, env, ctx, archive);
@@ -85,6 +89,9 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
     // HEAD reads R2 metadata on every call (no memo), so it is metered in its
     // own bucket rather than competing with the upstream-miss budget.
     if (request.method === "HEAD" && !(await withinRequestBudget(request, env, "terrain-head"))) return rateLimitExceeded();
+    // Already over budget in this window: refuse before the R2 cache read, so a
+    // walk across distinct coordinates cannot keep billing reads for 429s.
+    if (isTerrainRefused(clientKey(request))) return rateLimitExceeded();
     return terrainResponse(request, env, ctx, tile, { admitUpstream: () => withinTerrainUpstreamBudget(request, env) });
   }
   // One fixed bucket: a path-derived key would let callers mint fresh budgets

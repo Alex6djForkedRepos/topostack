@@ -123,7 +123,33 @@ describe("PMTiles archive releases", () => {
     const changed = await worker.fetch(request("/v1/lakes.pmtiles", { headers: { "if-none-match": replacement.httpEtag } }), meteredEnv, context);
     expect(changed.status).not.toBe(304);
     await changed.arrayBuffer();
-    expect(limiter.limit.mock.calls.map(([options]) => options.key)).toEqual(Array(3).fill("anonymous:archive-meta"));
+    // The ranged conditional in between is an ordinary range read, so only the
+    // two metadata-only requests are charged.
+    expect(limiter.limit.mock.calls.map(([options]) => options.key)).toEqual(Array(2).fill("anonymous:archive-meta"));
+  });
+
+  it("keeps a browser revalidating cached ranges off the metadata budget and memo", async () => {
+    // Ranges are served with max-age, so a returning visitor revalidates each
+    // one with If-None-Match. Charging those, or evicting the memo for them,
+    // turned hundreds of cached reads per generation back into R2 reads and 429s.
+    await seedRelease(logicalKey, 5);
+    const limiter = allowAll();
+    const meteredEnv = { ...env, REQUEST_LIMITER: limiter } as unknown as Env;
+    const warm = await worker.fetch(request("/v1/lakes.pmtiles", { headers: { range: "bytes=0-1" } }), meteredEnv, context);
+    const etag = warm.headers.get("etag")!;
+    await warm.arrayBuffer();
+
+    const revalidated = await worker.fetch(request("/v1/lakes.pmtiles", { headers: { "if-none-match": etag, range: "bytes=0-1" } }), meteredEnv, context);
+    expect(revalidated.status).toBe(304);
+    expect(revalidated.headers.get("x-topostack-r2-reads")).toBe("0");
+    expect(limiter.limit).not.toHaveBeenCalled();
+
+    const ranged = await worker.fetch(request("/v1/lakes.pmtiles", { headers: { "if-none-match": '"stale"', range: "bytes=0-1" } }), meteredEnv, context);
+    expect(ranged.status).toBe(206);
+    // Only the ranged get itself: the release pointer and head stay memoized.
+    expect(ranged.headers.get("x-topostack-r2-reads")).toBe("1");
+    await ranged.arrayBuffer();
+    expect(limiter.limit).not.toHaveBeenCalled();
   });
 
   it("memoizes missing archives and invalid pointers briefly", async () => {
@@ -228,6 +254,27 @@ describe("request budgets", () => {
     const limited = await worker.fetch(request("/v1/terrain/3/2/2.png"), { ...env, REQUEST_LIMITER: overClient, TERRAIN_GLOBAL_LIMITER: unused } as unknown as Env, context);
     expect(limited.status).toBe(429);
     expect(unused.limit).not.toHaveBeenCalled();
+  });
+
+  it("stops reading R2 for a client already over its terrain budget", async () => {
+    // A cached tile must stay free, so the cache read happens before the budget
+    // check. Without remembering the refusal, a walk across distinct
+    // coordinates bills one R2 read per 429 for as long as it keeps going.
+    const overClient = denyAll();
+    const budgetEnv = { ...env, REQUEST_LIMITER: overClient, TERRAIN_GLOBAL_LIMITER: allowAll() } as unknown as Env;
+    const first = await worker.fetch(request("/v1/terrain/7/11/22.png"), budgetEnv, context);
+    expect(first.status).toBe(429);
+    expect(first.headers.get("x-topostack-r2-reads")).toBe("1");
+
+    const next = await worker.fetch(request("/v1/terrain/7/11/23.png"), budgetEnv, context);
+    expect(next.status).toBe(429);
+    expect(next.headers.get("x-topostack-r2-reads")).toBe("0");
+    // The refusal is remembered per client, so it costs no further limiter call.
+    expect(overClient.limit).toHaveBeenCalledTimes(1);
+
+    const other = await worker.fetch(request("/v1/terrain/7/11/24.png", { headers: { "cf-connecting-ip": "203.0.113.9" } }), { ...env, REQUEST_LIMITER: allowAll(), TERRAIN_GLOBAL_LIMITER: denyAll() } as unknown as Env, context);
+    expect(other.status).toBe(429);
+    expect(other.headers.get("x-topostack-r2-reads")).toBe("1");
   });
 
   it("does not spend the shared geocode budget on clients over their own limit", async () => {

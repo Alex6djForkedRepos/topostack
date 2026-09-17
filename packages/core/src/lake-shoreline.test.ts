@@ -34,6 +34,18 @@ describe("lake shoreline smoothing", () => {
     expect(smoothLakeShorelines(source, { ...DEFAULT_PROJECT, smoothing: 0 })).toBe(source);
   });
 
+  it("survives a sliver whose tip returns to an existing vertex", () => {
+    // Vector tiles quantize to integers, so a spike that comes back to exactly
+    // its start point is ordinary input. Removing it used to leave coincident
+    // neighbours, divide the trim by a zero-length leg and hand NaN vertices to
+    // polygon-clipping, which throws instead of returning an empty result.
+    const spiked = { outer: close([{ x: -10, y: -10 }, { x: 10, y: -10 }, { x: 10, y: 5 },
+      { x: 11, y: 5.01 }, { x: 10, y: 5 }, { x: 10, y: 10 }, { x: -10, y: 10 }]), holes: [] };
+    const result = smoothLakePolygon(spiked, 1);
+    expect(result.outer.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y))).toBe(true);
+    expect(Math.abs(signedArea(result.outer) / signedArea(close(spiked.outer)) - 1)).toBeLessThan(0.05);
+  });
+
   it("rejects smoothing that would cut through an island near the bank", () => {
     const original = { outer: close([{ x: -10, y: -10 }, { x: 10, y: -10 }, { x: 10, y: 10 }, { x: -10, y: 10 }]),
       holes: [close([{ x: 9.7, y: 9.7 }, { x: 9.7, y: 9.9 }, { x: 9.9, y: 9.9 }, { x: 9.9, y: 9.7 }])] };

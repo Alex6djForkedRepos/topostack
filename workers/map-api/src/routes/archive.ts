@@ -77,11 +77,25 @@ export function parseRangeHeader(header: string | null, size: number): ParsedRan
   return length > MAX_ARCHIVE_RANGE_BYTES ? { kind: "too_large" } : { kind: "partial", offset, length };
 }
 
+/**
+ * A metadata-only request answers with size and validator alone, with no
+ * conditional body read to catch an in-place overwrite, so it re-resolves from
+ * R2 instead of trusting the memo, and is charged for those reads.
+ *
+ * A conditional request that carries a Range is not one of these: it is an
+ * ordinary range read that a browser is revalidating after `max-age`. Those
+ * arrive in the same hundreds-per-generation bursts as unconditional ranges, so
+ * charging them would 429 a returning visitor mid-generation, and evicting the
+ * memo would re-resolve the release pointer for every one of them. Their 304 or
+ * body is safe from the memo: the range read itself is conditional on the
+ * memoized etag and retries once the precondition fails.
+ */
+export function isArchiveMetadataRequest(request: Request): boolean {
+  return request.method === "HEAD" || (request.headers.has("if-none-match") && !request.headers.has("range"));
+}
+
 export async function pmtilesResponse(request: Request, env: Env, ctx: ExecutionContext, archive: ArchiveRoute, retried = false): Promise<Response> {
-  // HEAD and If-None-Match answer with size and validator alone, with no
-  // conditional body read to catch an in-place overwrite, so they re-resolve
-  // from R2 (refreshing the memo) instead of trusting a cached head.
-  if (!retried && (request.method === "HEAD" || request.headers.has("if-none-match"))) evictArchiveHead(archive.key);
+  if (!retried && isArchiveMetadataRequest(request)) evictArchiveHead(archive.key);
   let resolved;
   try {
     resolved = await cachedArchiveHead(env.VECTOR_DATA, archive.key);

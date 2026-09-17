@@ -2,13 +2,18 @@ import polygonClipping, { type Pair } from "polygon-clipping";
 import { close, distanceToSegment, signedArea } from "./geometry2d.js";
 import type { Point2D, Polygon2D, ProjectConfigV1, SourceBundleV1 } from "./types.js";
 
+/** Drop points that coincide with their predecessor around a closed ring. */
+function withoutRepeats(ring: Point2D[]): Point2D[] {
+  return ring.filter((p, i, all) => {
+    const previous = all[(i + all.length - 1) % all.length]!;
+    return Math.hypot(p.x - previous.x, p.y - previous.y) > 1e-7;
+  });
+}
+
 /** Round sparse shore samples without extrapolating beyond their local edges. */
 export function smoothLakePolygon(polygon: Polygon2D, minimumFeatureMm: number): Polygon2D {
   const smooth = (ring: Point2D[]): Point2D[] => {
-    const points = close(ring).slice(0, -1).filter((p, i, all) => {
-      const previous = all[(i + all.length - 1) % all.length]!;
-      return Math.hypot(p.x - previous.x, p.y - previous.y) > 1e-7;
-    });
+    let points = withoutRepeats(close(ring).slice(0, -1));
     if (points.length < 3) return ring;
     // Remove sub-feature slivers: a near reversal can be long enough to survive
     // ordinary simplification while its width is too small to fabricate.
@@ -20,6 +25,11 @@ export function smoothLakePolygon(polygon: Polygon2D, minimumFeatureMm: number):
       if (ax * bx + ay * by < -0.8 * la * lb && width < minimumFeatureMm * 0.18 &&
         distanceToSegment(p, a, b) <= Math.min(2, minimumFeatureMm * 2)) points.splice(i, 1);
     }
+    // A removed spike can leave its two neighbours coincident: without a second
+    // dedupe, a zero-length leg divides the trim by 0 and NaN vertices reach the
+    // union below, which throws on a degenerate segment.
+    points = withoutRepeats(points);
+    if (points.length < 3) return ring;
     const result: Point2D[] = [];
     points.forEach((p, i) => {
       const a = points[(i + points.length - 1) % points.length]!;
@@ -41,6 +51,9 @@ export function smoothLakePolygon(polygon: Polygon2D, minimumFeatureMm: number):
   };
   const candidate = { outer: smooth(polygon.outer), holes: polygon.holes.map(smooth) };
   const rings = [candidate.outer, ...candidate.holes];
+  // Degenerate input must fall back to the original outline rather than reach
+  // polygon-clipping, which throws rather than returning an empty result.
+  if (rings.some(ring => ring.some(p => !Number.isFinite(p.x) || !Number.isFinite(p.y)))) return polygon;
   // Reject changes that collapse/split a lake or merge an island into its bank.
   // Comparing signed ring area with the normalized union also catches crossings.
   const normalized = polygonClipping.union([rings.map(r => r.map(p => [p.x, p.y] as Pair))]);
