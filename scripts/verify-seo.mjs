@@ -28,7 +28,10 @@ for (const file of files) {
   assert.ok(!titles.has(document.title), file + ": distinct title");
   titles.add(document.title);
   assert.equal(document.querySelectorAll("h1").length, 1, file + ": useful initial HTML");
-  assert.equal(document.querySelector('meta[property="og:image"]').content, origin + "/images/studio-crater-lake.png");
+  assert.equal(document.querySelector('meta[property="og:image"]').content, origin + "/images/social-crater-lake.png");
+  assert.equal(document.querySelector('meta[name="twitter:image"]').content, origin + "/images/social-crater-lake.png");
+  assert.equal(document.querySelector('meta[property="og:image:width"]').content, "1200");
+  assert.equal(document.querySelector('meta[property="og:image:height"]').content, "630");
   assert.equal(document.querySelector('meta[name="twitter:card"]').content, "summary_large_image");
   const structured = document.querySelector('script[type="application/ld+json"]');
   assert.ok(structured, file + ": structured data");
@@ -61,4 +64,5 @@ assert.equal(/\/\*\n {2}X-Robots-Tag: noindex/.test(headers), !production, "Glob
 const redirects = await readFile(new URL("_redirects", dist), "utf8");
 assert.ok(redirects.includes("/about / 308"));
 assert.ok((await readFile(new URL("images/studio-crater-lake.png", dist))).byteLength > 0);
+assert.ok((await readFile(new URL("images/social-crater-lake.png", dist))).byteLength > 0);
 console.log("Verified " + environment + " metadata, crawl files, links, sharing image and indexing policy (" + files.length + " HTML files).");

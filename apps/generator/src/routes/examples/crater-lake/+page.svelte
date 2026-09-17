@@ -5,15 +5,15 @@
 
 <Article title="Explore a Crater Lake topographic map" intro="Start with the landscape already waiting in TopoStack. The Crater Lake preview shows how real elevation and map details become a layered terrain project.">
   <figure>
-    <img src={`${base}/images/studio-crater-lake.png`} width="1280" height="900" alt="Crater Lake's bundled terrain preview in TopoStack, shown as an exploded 3D stack with project and layer controls." />
-    <figcaption>A screenshot of the bundled preview, not a photograph of a fabricated object. Generate fresh terrain before exporting your own artwork.</figcaption>
+    <img src={`${base}/images/studio-crater-lake.png`} width="1280" height="900" alt="Freshly generated Crater Lake relief in TopoStack with USGS surveyed lake-floor bathymetry." />
+    <figcaption>Freshly generated Crater Lake relief with USGS surveyed lake-floor data where available. Gaps use existing terrain or modeled depths; depth is exaggerated.</figcaption>
   </figure>
-  <h2>Recreate the starting project</h2>
+  <h2>Recreate the pictured project</h2>
   <ol>
     <li><a href={`${base}/studio`}>Open the terrain studio</a>. A new browser starts with the Crater Lake preview. If a saved project opens instead, choose the <strong>Crater Lake</strong> location preset.</li>
-    <li>Select <strong>Layered relief</strong>. For a starting size like the pictured project, choose a rectangle, 300 mm wide by 200 mm high, with 3 mm sheet material.</li>
-    <li>Inspect the selected map area and set the vertical exaggeration to suit the relief you want. The studio calculates the layer count; the pictured count is a preview result, not a guaranteed result for every framing or data update.</li>
-    <li>Choose roads, water and other details, then select <strong>Generate terrain</strong>.</li>
+    <li>Select <strong>Layered relief</strong>. For a starting size like the pictured project, choose a rectangle, 406.4 mm wide by 270.933 mm high, with 3.175 mm sheet material.</li>
+    <li>Inspect the selected map area and request 4× terrain exaggeration. The studio fits the relief to its layer limit, which can reduce the applied scale. The pictured project uses 24 layers; different framing or data updates can change the result.</li>
+    <li>Enable <strong>Water depth</strong>, set depth exaggeration to <strong>1.75×</strong>, and enable <strong>Fit lake depth to available layers</strong>. Choose roads, water and other details, then select <strong>Generate terrain</strong>.</li>
     <li>Inspect the layers and the exploded 3D view, then export the complete project and read its assembly guide.</li>
   </ol>
   <p>Choosing the location preset changes the place; it does not reset all of a saved project's other settings. Check output mode, size, material thickness and map details explicitly.</p>

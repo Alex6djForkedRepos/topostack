@@ -19,7 +19,9 @@ Layered projects also support modeled lake depth, alignment guides, and material
 
 ### Inside the studio
 
-![TopoStack studio showing the Crater Lake sample as a 3D terrain stack, with project controls and the layer and exploded-view sliders](docs/images/studio-crater-lake.png)
+![TopoStack studio showing freshly generated Crater Lake terrain with USGS surveyed lake-floor relief](docs/images/studio-crater-lake.png)
+
+Crater Lake with USGS surveyed lake-floor data where available; existing terrain or modeled depths fill gaps. Depth is exaggerated for display.
 
 *The bundled Crater Lake preview in the studio's 3D stack view. Generate fresh terrain before exporting fabrication files.*
 

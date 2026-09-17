@@ -34,15 +34,15 @@
   <meta property="og:title" content={title} />
   <meta property="og:description" content={description} />
   <meta property="og:url" content={canonical} />
-  <meta property="og:image" content={SITE_ORIGIN + "/images/studio-crater-lake.png"} />
-  <meta property="og:image:width" content="1280" />
-  <meta property="og:image:height" content="900" />
-  <meta property="og:image:alt" content="TopoStack studio showing the Crater Lake terrain preview as an exploded stack of layers." />
+  <meta property="og:image" content={SITE_ORIGIN + "/images/social-crater-lake.png"} />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="TopoStack Crater Lake relief with USGS surveyed lake-floor bathymetry and exaggerated depth." />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content={title} />
   <meta name="twitter:description" content={description} />
-  <meta name="twitter:image" content={SITE_ORIGIN + "/images/studio-crater-lake.png"} />
-  <meta name="twitter:image:alt" content="Crater Lake terrain preview in the TopoStack studio." />
+  <meta name="twitter:image" content={SITE_ORIGIN + "/images/social-crater-lake.png"} />
+  <meta name="twitter:image:alt" content="Crater Lake relief with surveyed bathymetry in TopoStack." />
   {#if metadata}
     <!-- JSON is serialized from known metadata and escapes every less-than sign. -->
     <!-- eslint-disable-next-line svelte/no-at-html-tags -->
