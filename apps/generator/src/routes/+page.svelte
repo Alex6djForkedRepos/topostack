@@ -23,6 +23,7 @@
     {#snippet brand()}<Brand name="TopoStack" meta="Studio" href={`${base}/`} />{/snippet}
     {#snippet actions()}
       <a class="header-guide" href="#how-it-works">How it works</a>
+      <a class="header-guide" href={`${base}/guides`}>Guides</a>
       <a class="primary-link header-cta" href={studioUrl}>Start creating <ArrowRight size={16} aria-hidden="true" /></a>
       <ThemeToggle {theme} />
     {/snippet}
@@ -141,7 +142,7 @@
     </section>
   </main>
 
-  <footer><span>TopoStack <span class="footer-note">/ Terrain studio</span></span><a href={`${base}/guides/lake-depth-data`}>Lake depth directory</a><a href={`${base}/attribution`}>Sources and attribution</a><a href={`${base}/privacy`}>Privacy</a><FeedbackButton /><a href={studioUrl}>Open terrain studio <ArrowUpRight size={14} aria-hidden="true" /></a></footer>
+  <footer><span>TopoStack <span class="footer-note">/ Terrain studio</span></span><a href={`${base}/guides`}>Guides</a><a href={`${base}/guides/lake-depth-data`}>Lake depth directory</a><a href={`${base}/attribution`}>Sources and attribution</a><a href={`${base}/privacy`}>Privacy</a><FeedbackButton /><a href={studioUrl}>Open terrain studio <ArrowUpRight size={14} aria-hidden="true" /></a></footer>
 </div>
 
 {/if}

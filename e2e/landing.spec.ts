@@ -96,7 +96,12 @@ test("mobile readers can navigate guides, examples and the studio with correct m
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://topostack.echofoxtrot.works/guides/laser-cut-topographic-map");
   await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toContainText("Layered map guide");
   expect(await page.evaluate(() => document.body.scrollWidth <= innerWidth)).toBe(true);
-  await page.getByRole("link", { name: "Crater Lake example", exact: true }).first().click();
+  await expect(page.getByRole("navigation", { name: "Guides", exact: true })).toBeHidden();
+  await page.getByText("Browse guides", { exact: true }).click();
+  await page.getByRole("navigation", { name: "Guides menu" }).getByRole("link", { name: "Crater Lake example", exact: true }).click();
+  await expect(page).toHaveTitle("Crater Lake Topographic Map: A Terrain Project | TopoStack");
+  await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toContainText("Get started");
+  await expect(page.getByRole("navigation", { name: "Previous and next guides" }).getByRole("link", { name: /Next\s*Layered map guide/ })).toBeVisible();
   await expect(page.locator("article img")).toBeVisible();
   await page.getByRole("link", { name: "Open the terrain studio", exact: true }).click();
   await expect(page).toHaveURL(baseURL + "/studio");
@@ -113,5 +118,23 @@ test("a guide explains the workflow with JavaScript disabled", async ({ browser,
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Create a topographic map SVG for laser engraving");
   await expect(page.getByText("The primary file ends in", { exact: false })).toBeVisible();
   await expect(page.getByRole("link", { name: "Open the studio", exact: true })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Guides", exact: true }).getByRole("link", { name: "Engraving guide" })).toHaveAttribute("aria-current", "page");
   await context.close();
+});
+
+test("the guides hub lists every guide and marks the current page in the sidebar", async ({ page, baseURL }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await page.getByRole("link", { name: "Guides", exact: true }).first().click();
+  await expect(page).toHaveURL(baseURL + "/guides");
+  await expect(page).toHaveTitle("Topographic Map Guides and Documentation | TopoStack");
+  await expect(page.getByRole("heading", { level: 2, name: "Lakes and depth" })).toBeVisible();
+  await page.getByRole("main").getByRole("link", { name: /^How lake depths work/ }).click();
+  const sidebar = page.getByRole("navigation", { name: "Guides", exact: true });
+  await expect(sidebar.getByRole("link", { name: "How lake depths work" })).toHaveAttribute("aria-current", "page");
+  const toc = page.getByRole("navigation", { name: "On this page" });
+  await expect(toc.getByRole("link", { name: "Three kinds of information, different jobs" })).toHaveAttribute("href", "#sources-title");
+  await toc.getByRole("link", { name: "How to read the result" }).click();
+  await expect(toc.getByRole("link", { name: "How to read the result" })).toHaveAttribute("aria-current", "location");
+  expect(await page.evaluate(() => document.body.scrollWidth <= innerWidth)).toBe(true);
 });
