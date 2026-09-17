@@ -695,6 +695,7 @@ html:has(.atomm-workbench), body:has(.atomm-workbench) { height: 100%; margin: 0
   --loidolt-border: var(--color-stroke-default);
   --loidolt-border-soft: var(--color-stroke-divider);
   --loidolt-accent: var(--color-brand-default);
+  --loidolt-on-accent: var(--color-text-inverse);
   --loidolt-accent-text: var(--color-text-inverse);
   --loidolt-border-radius: var(--radius-medium);
   --loidolt-font-body: var(--font-sans);
