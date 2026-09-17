@@ -59,8 +59,8 @@
   <p>Warnings appear over the preview. Dismiss each once you have read it; see <a href={`${base}/guides/troubleshooting`}>troubleshooting</a> for what they mean.</p>
 
   <h2>What needs fresh terrain</h2>
-  <p>Changing the location or map area, changing the cut's aspect ratio, and changing vertical exaggeration all need <strong>Regenerate terrain</strong> before export. Badges beside those controls say <strong>Regeneration pending</strong> until you do.</p>
-  <p>Everything else, including size at the same proportions, map details, custom data, linework and fabrication settings, updates the preview on its own. Turning on a detail that was not loaded fetches its data in the background.</p>
+  <p>Changing the location or map area, including a cut aspect-ratio change that selects a new area, needs <strong>Regenerate terrain</strong> before export. Badges beside those controls say <strong>Regeneration pending</strong> until you do.</p>
+  <p>Terrain exaggeration and other settings, including size at the same proportions, map details, custom data, linework and fabrication settings, updates the preview on its own. Turning on a detail that was not loaded fetches its data in the background.</p>
 
   <h2>Saving your work</h2>
   <p>Projects save automatically in this browser as you work, and reopen when you return. To keep a backup or move to another device, export <strong>Project settings</strong> and import it with <strong>Import project JSON</strong>. Imported projects need fresh terrain before export. Clearing site data or using a private window starts from scratch.</p>
@@ -68,9 +68,3 @@
   <h2>Next steps</h2>
   <p>Follow the <a href={`${base}/examples/crater-lake`}>Crater Lake example</a> for a first project, then the <a href={`${base}/guides/laser-cut-topographic-map`}>layered map guide</a> or the <a href={`${base}/guides/topographic-map-engraving`}>engraving guide</a>.</p>
 </Article>
-
-<style>
-  table { width: 100%; border-collapse: collapse; margin-block: 16px 24px; font-size: 15px; }
-  th, td { padding: 10px 12px 10px 0; border-bottom: 1px solid var(--loidolt-border); text-align: left; vertical-align: top; line-height: 1.6; }
-  th { font-size: 13px; color: var(--loidolt-text-muted); font-weight: 600; }
-</style>

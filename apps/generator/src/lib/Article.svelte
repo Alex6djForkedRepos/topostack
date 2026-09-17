@@ -104,6 +104,9 @@
 </div>
 
 <style>
+  :where(.article-page) :global(table) { width: 100%; border-collapse: collapse; margin-block: 16px 24px; font-size: 15px; }
+  :where(.article-page) :global(th), :where(.article-page) :global(td) { padding: 10px 12px 10px 0; border-bottom: 1px solid var(--loidolt-border); text-align: left; vertical-align: top; line-height: 1.6; }
+  :where(.article-page) :global(th) { font-size: 13px; color: var(--loidolt-text-muted); font-weight: 600; }
   .article-page { min-height: 100dvh; background: var(--loidolt-background); color: var(--loidolt-text); }
   .docs-layout { display: grid; grid-template-columns: 210px minmax(0, 760px) 200px; justify-content: center; gap: 56px; width: calc(100% - 40px); margin-inline: auto; }
   main { padding-block: 32px 64px; min-width: 0; }

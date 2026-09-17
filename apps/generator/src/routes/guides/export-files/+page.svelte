@@ -80,9 +80,6 @@
   dt { font-weight: 600; }
   dt span { margin-left: 8px; font: 12px var(--loidolt-font-utility); color: var(--loidolt-text-muted); }
   dd { margin: 6px 0 0; line-height: 1.7; }
-  table { width: 100%; border-collapse: collapse; margin-block: 16px 24px; font-size: 15px; }
-  th, td { padding: 10px 12px 10px 0; border-bottom: 1px solid var(--loidolt-border); text-align: left; vertical-align: top; line-height: 1.6; }
-  th { font-size: 13px; color: var(--loidolt-text-muted); font-weight: 600; }
   td code { overflow-wrap: anywhere; }
   .swatch { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 2px; }
   .swatch.cut { background: #fe0002; }
