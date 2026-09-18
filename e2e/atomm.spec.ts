@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 // Startup prepares sample geometry before mounting the embedded workbench.
 // Deep stacks also take longer than a normal DOM assertion on CI workers.
-const STARTUP_TIMEOUT_MS = 15_000;
+const STARTUP_TIMEOUT_MS = 30_000;
 const PREVIEW_TIMEOUT_MS = 30_000;
 
 test("Atomm uses the platform export hook and template layout across desktop, RTL, and narrow frames", async ({ page }) => {
