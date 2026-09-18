@@ -20,7 +20,7 @@
 
   <h2>What the stencil covers</h2>
   <ul>
-    <li>Each stencil is the cut piece at its nominal size with the visible water cut away. The window reaches 1.5 mm under the layer above, so a slightly misplaced stencil leaves no bare edge at the foot of the step.</li>
+    <li>Each stencil is the cut piece at its nominal size with the visible water cut away, as one outline. The window reaches 1.5 mm under the layer above, so a slightly misplaced stencil leaves no bare edge at the foot of the step. Where water meets the piece edge the stencil stops short of that edge, so register it on the edges and tabs it keeps; a piece painted edge to edge needs no stencil and gets none.</li>
     <li>Where water meets the edge of the piece, the stencil stops short of that edge. Line it up on the edges and puzzle tabs it keeps.</li>
     <li>Paper strips narrower than the <strong>Minimum feature</strong> are opened up rather than left as fragile bridges.</li>
   </ul>

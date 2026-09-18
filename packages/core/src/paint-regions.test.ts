@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildFabricationPackage, createSyntheticSource, DEFAULT_PROJECT, generateGeometry, validateProject, type GeometryIRV1, type LayerIR, type Point2D, type Polygon2D, type ProjectConfigV1, type SourceBundleV1, type WaterAreaV1 } from "./index.js";
 import { distanceToSegment, pointInPolygon, pointInPreparedPolygons, preparePolygons } from "./geometry2d.js";
-import { PAINT_BLEED_MM, paintRegions } from "./paint-regions.js";
+import { PAINT_BLEED_MM, PAINT_LOOSE_SHEET_MIN_MM, PAINT_PAPER_MIN_MM, paintRegions, paintStencil } from "./paint-regions.js";
 import { sourceRequirements } from "./source-requirements.js";
 
 const EARTH_RADIUS_M = 6_371_008.8;
@@ -98,6 +98,55 @@ describe("paint regions", () => {
     const radii = vertices(below[0]!.polygons).map((point) => Math.hypot(point.x, point.y));
     expect(Math.max(...radii)).toBeCloseTo(32, 1);
     expect(Math.min(...radii)).toBeGreaterThan(31.9);
+  });
+
+  it("cuts the stencil as one outline: an edge window reshapes the edge and a thin bridge opens up", () => {
+    const piece: Polygon2D = { outer: square(0, 0, 100, 60), holes: [] };
+    // Water along the bottom edge, leaving 0.3 mm of paper under it near the left, none at the right.
+    const window: Polygon2D = { outer: [{ x: 10, y: 0.3 }, { x: 60, y: 0.3 }, { x: 60, y: 0 }, { x: 90, y: 0 }, { x: 90, y: 20 }, { x: 10, y: 20 }, { x: 10, y: 0.3 }], holes: [] };
+    const paper = paintStencil(piece, [window], 0.8);
+    expect(paper).toHaveLength(1);
+    expect(paper[0]!.holes).toEqual([]);
+    const points = paper[0]!.outer;
+    // The bridge is gone: nothing of the paper sits under the window.
+    expect(points.some((point) => point.x > 10.5 && point.x < 89.5 && point.y < 19.9)).toBe(false);
+    // The piece corners survive the opening exactly.
+    for (const corner of [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 60 }, { x: 0, y: 60 }]) expect(points.some((point) => Math.hypot(point.x - corner.x, point.y - corner.y) < 0.01)).toBe(true);
+    const area = Math.abs(points.reduce((sum, point, index) => sum + (index ? points[index - 1]!.x * point.y - point.x * points[index - 1]!.y : 0), 0)) / 2;
+    expect(area).toBeCloseTo(100 * 60 - 80 * 20, 0);
+
+    // An interior window is a hole; an island in it becomes its own sheet.
+    const island = paintStencil(piece, [{ outer: circleRing(50, 30, 20), holes: [circleRing(50, 30, 8)] }], 0.8);
+    expect(island).toHaveLength(2);
+    expect(island.map((sheet) => sheet.holes.length).sort()).toEqual([0, 1]);
+    // A loose sliver of land pinched off against the edge is dropped rather than left as a scrap nobody can place.
+    const flake = paintStencil(piece, [{ outer: [{ x: 10, y: 0 }, { x: 46, y: 0 }, { x: 46, y: 3 }, { x: 50, y: 3 }, { x: 50, y: 0 }, { x: 90, y: 0 }, { x: 90, y: 20 }, { x: 10, y: 20 }, { x: 10, y: 0 }], holes: [] }], 0.8);
+    expect(flake).toHaveLength(1);
+    expect(flake[0]!.outer.some((point) => point.y < 19.9 && point.x > 10.5 && point.x < 89.5)).toBe(false);
+    expect(PAINT_LOOSE_SHEET_MIN_MM).toBeGreaterThan(4);
+    // Long does not help a sliver: a 2 mm strip 40 mm long is still a scrap, while the main sheet is kept whatever its shape.
+    const strip = paintStencil(piece, [{ outer: [{ x: 10, y: 0 }, { x: 30, y: 0 }, { x: 30, y: 2 }, { x: 70, y: 2 }, { x: 70, y: 0 }, { x: 90, y: 0 }, { x: 90, y: 20 }, { x: 10, y: 20 }, { x: 10, y: 0 }], holes: [] }], 0.8);
+    expect(strip).toHaveLength(1);
+    expect(strip[0]!.outer.some((point) => point.y < 19.9 && point.x > 10.5 && point.x < 89.5)).toBe(false);
+    // A ribbon of beach thinner than the paper minimum is opened up even where it hangs off the sheet; a sound strip stays.
+    const ribbons = paintStencil(piece, [{ outer: [{ x: 10, y: 0 }, { x: 90, y: 0 }, { x: 90, y: 20 }, { x: 62, y: 20 }, { x: 62, y: 5 }, { x: 60, y: 5 }, { x: 60, y: 20 }, { x: 41, y: 20 }, { x: 41, y: 5 }, { x: 40, y: 5 }, { x: 40, y: 20 }, { x: 10, y: 20 }, { x: 10, y: 0 }], holes: [] }], 0.8);
+    expect(ribbons).toHaveLength(1);
+    expect(ribbons[0]!.outer.some((point) => point.x > 39.5 && point.x < 41.5 && point.y < 19.9)).toBe(false);
+    expect(ribbons[0]!.outer.some((point) => point.x > 59.5 && point.x < 62.5 && point.y < 5.1)).toBe(true);
+    expect(PAINT_PAPER_MIN_MM).toBeLessThan(1.8);
+    // Water edge to edge leaves no paper, so no stencil.
+    expect(paintStencil(piece, [piece], 0.8)).toEqual([]);
+  });
+
+  it("carries each region's stencil, cut from the piece without its nest cavities", () => {
+    const layer: LayerIR = { id: "layer-01", index: 0, elevationM: 0, materialThicknessMm: 3, polygons: [{ outer: square(-50, -50, 50, 50), holes: [square(-45, 20, -35, 30), square(35, 20, 45, 30)] }], markings: [], pieces: [] };
+    const sources = { waterSurfaces: [{ id: "lake", kind: "lake" as const, polygons: [{ outer: circleRing(0, -20, 15), holes: [] }], surfaceElevationM: 0, bedElevationM: 0, layerIndex: 0, depthSource: "modeled" as const }], flatWater: [], cellPitchMm: 1 };
+    const nests = [{ id: "nest", donorLayerIndex: 0, nestedLayerIndex: 1, glueMarginMm: 8, cavities: [{ donorPolygonIndex: 0, donorHoleIndex: 1, nestedPolygonIndex: 0 }] }];
+    const [region] = paintRegions(base, [{ layer, covering: preparePolygons([]) }], sources, nests);
+    expect(region?.paper).toHaveLength(1);
+    // The window and the kept hole; the cavity is left whole for the paper.
+    expect(region!.paper![0]!.holes).toHaveLength(2);
+    expect(region!.paper![0]!.holes.some((hole) => hole.some((point) => point.x > 35))).toBe(false);
   });
 
   it("returns nothing for a flat engraving, an empty kind list, or a layer with no water", () => {
@@ -214,8 +263,8 @@ describe("paint template export", () => {
     const [templateSvg, panelSvg] = await Promise.all([template.blob.text(), panel.blob.text()]);
     // Same canvas as the panel, so the paper registers to the cut piece.
     expect(templateSvg.match(/viewBox="[^"]+"/)?.[0]).toBe(panelSvg.match(/viewBox="[^"]+"/)?.[0]);
-    expect(templateSvg).toContain('data-role="window"');
-    expect(templateSvg).toContain('data-role="outline"');
+    expect(templateSvg).toContain('data-role="stencil"');
+    expect(templateSvg).not.toContain('data-role="window"');
     expect(templateSvg).toContain('data-operation="CUT"');
     expect(templateSvg).not.toContain('data-operation="ENGRAVE"');
     expect(templateSvg).toContain("water paint template");

@@ -127,11 +127,14 @@ describe("preview resource cleanup", () => {
     expect(toggle.getAttribute("aria-checked")).toBe("false");
     toggle.click();
     flushSync();
-    const paper = target.querySelector("[data-paint-template] path")!;
-    // Piece outline plus the window and its island: three rings under evenodd.
-    expect(paper.getAttribute("d")?.match(/M/g)).toHaveLength(3);
-    expect(paper.getAttribute("fill-rule")).toBe("evenodd");
-    expect(target.querySelectorAll('[data-paint-template] path[stroke="#c9302c"]')).toHaveLength(1);
+    const sheets = target.querySelectorAll("[data-paint-template] path");
+    // The stencil as cut: the piece with the window as a hole, and the island inside it as its own sheet.
+    expect(sheets).toHaveLength(2);
+    expect([...sheets].map((sheet) => sheet.getAttribute("d")?.match(/M/g)?.length).sort()).toEqual([1, 2]);
+    for (const sheet of sheets) {
+      expect(sheet.getAttribute("fill-rule")).toBe("evenodd");
+      expect(sheet.getAttribute("stroke")).toBe("#c9302c");
+    }
   });
 
   it("keeps covered marker areas empty in the 3D mesh", async () => {

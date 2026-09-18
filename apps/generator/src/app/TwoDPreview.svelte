@@ -1,6 +1,6 @@
 <script lang="ts">
   import SvgViewport from "./SvgViewport.svelte";
-  import { displayElevation, elevationUnit, labelPathData, type GeometryIRV1 } from "@topostack/core";
+  import { displayElevation, elevationUnit, labelPathData, paintStencil, type GeometryIRV1 } from "@topostack/core";
   import { Switch } from "@loidolt/theme-svelte";
   import { markingColor, markingDash, markingWidth } from "./marking-style";
   import { markingPath, pointsToPath } from "./svg-path";
@@ -11,15 +11,16 @@
   const submerged = $derived((geometry.waterSurfaces ?? []).filter((surface) => (layer?.index ?? 0) <= surface.layerIndex));
   // The stencil windows for this sheet: exposed water plus the bleed under the layer above.
   const paint = $derived((geometry.paintRegions ?? []).filter((region) => region.layerIndex === (layer?.index ?? 0)));
-  // Lays the paper stencil over the sheet as it would be cut: the piece
-  // outline with the windows punched out, so the paint shows only through them.
+  // Lays the paper stencil over the sheet as it is cut: the piece less its
+  // windows as one outline, so the paint shows only where the paper is gone.
   let showTemplate = $state(false);
   const ringPath = (ring: { x: number; y: number }[]) => `${pointsToPath(ring)} Z`;
   const templates = $derived(paint.flatMap((region) => {
     const polygon = layer?.polygons[region.polygonIndex];
     if (!polygon) return [];
-    const windows = region.polygons.map((window) => [window.outer, ...window.holes].map(ringPath).join(" "));
-    return [{ key: `${region.kind}-${region.polygonIndex}`, paper: `${[polygon.outer, ...polygon.holes].map(ringPath).join(" ")} ${windows.join(" ")}`, windows }];
+    // IR from before stencils were merged carries windows only: cut the paper here, bridges and all.
+    const paper = region.paper ?? paintStencil(polygon, region.polygons, 0);
+    return [{ key: `${region.kind}-${region.polygonIndex}`, sheets: paper.map((sheet) => [sheet.outer, ...sheet.holes].map(ringPath).join(" ")) }];
   }));
 </script>
 
@@ -57,9 +58,8 @@
       {#if showTemplate}
         {#each templates as template (template.key)}
           <g data-paint-template>
-            <path d={template.paper} fill="#f6f1e6" fill-opacity="0.88" stroke="none" fill-rule="evenodd" />
-            {#each template.windows as window}
-              <path d={window} fill="none" stroke="#c9302c" stroke-width="0.35" fill-rule="evenodd" />
+            {#each template.sheets as sheet}
+              <path d={sheet} fill="#f6f1e6" fill-opacity="0.88" stroke="#c9302c" stroke-width="0.35" fill-rule="evenodd" />
             {/each}
           </g>
         {/each}

@@ -1,7 +1,7 @@
 import polygonClipping, { type MultiPolygon } from "polygon-clipping";
-import { boundsOverlap, normalizeMultiPolygon, preparePolygons, ringBounds, toRing, type PreparedPolygons } from "./geometry2d.js";
-import { offsetClosedRing } from "./offset.js";
-import type { LayerIR, PaintRegionIR, PaintRegionKind, Point2D, Polygon2D, ProjectConfigV1, WaterSurfaceIR } from "./types.js";
+import { boundsOverlap, normalizeMultiPolygon, preparePolygons, ringBounds, signedArea, toRing, type PreparedPolygons } from "./geometry2d.js";
+import { clipPolygons, offsetPolygons } from "./offset.js";
+import type { FabricationNest, LayerIR, PaintRegionIR, PaintRegionKind, Point2D, Polygon2D, ProjectConfigV1, WaterSurfaceIR } from "./types.js";
 
 /**
  * How far a paint window reaches under the layer stacked above it. A stencil
@@ -10,6 +10,26 @@ import type { LayerIR, PaintRegionIR, PaintRegionKind, Point2D, Polygon2D, Proje
  * upper piece a touch larger than nominal, so the loss of bond is negligible.
  */
 export const PAINT_BLEED_MM = 1.5;
+
+/**
+ * The narrowest strip of paper a stencil keeps. A window on a piece edge is
+ * the vector shoreline against the DEM contour, and the two disagree by a
+ * millimetre here and there, which leaves ribbons of "beach" paper along the
+ * shore that tear or flap and let paint under them; that beach takes paint
+ * instead. Fixed rather than the wood's minimum feature: a seam key tab has a
+ * neck of at least 1.8 mm, and the stencil must keep every tab it registers on.
+ */
+export const PAINT_PAPER_MIN_MM = 1.5;
+
+/**
+ * How wide a loose sheet must be somewhere - a disc this size must fit in it -
+ * for a stencil to keep it beside its main sheet. Where water runs along a
+ * piece edge the dry land between them ends up as slivers of paper attached
+ * to nothing; nobody can place a 1 mm scrap, so they go and that sliver of
+ * land takes paint. An island in a lake stays its own sheet once it is this
+ * big. The largest sheet is always kept: it is the stencil.
+ */
+export const PAINT_LOOSE_SHEET_MIN_MM = 10;
 
 /** One layer's material and everything stacked above it, as `generateGeometry` indexes them. */
 export interface PaintLayerClip {
@@ -64,17 +84,39 @@ function tinyRing(points: Point2D[], minimumFeatureMm: number): boolean {
   return bounds.maxX - bounds.minX < minimumFeatureMm || bounds.maxY - bounds.minY < minimumFeatureMm;
 }
 
+/** Nest cavities per donor piece: holes the paper stencil skips, since the cut sheet keeps the donor whole there. */
+export function omittedNestHoles(nests: FabricationNest[], layerIndex: number): Map<number, Set<number>> {
+  const result = new Map<number, Set<number>>();
+  nests.filter((nest) => nest.donorLayerIndex === layerIndex).forEach((nest) => nest.cavities.forEach((cavity) => {
+    result.set(cavity.donorPolygonIndex, new Set([...(result.get(cavity.donorPolygonIndex) ?? []), cavity.donorHoleIndex]));
+  }));
+  return result;
+}
+
 /**
- * Grow polygons by `distanceMm` with round joins. Outers grow and holes shrink
- * independently, then the shrunk holes are subtracted from the grown outers, so
- * a hole narrower than twice the distance closes up as it should.
+ * The stencil as it is cut: the piece less its windows, as one polygon set.
+ * A window that reaches the piece edge then simply reshapes that edge instead
+ * of being a second cut along it, and paper narrower than
+ * `PAINT_PAPER_MIN_MM` - a bridge between a window and the edge, a ribbon of
+ * beach along the shore - is opened up, because it tears or flaps and lets
+ * paint under it. The opening uses miter joins, so corners the piece keeps -
+ * crop corners, key tabs - come back sharp; only spikes sharper than the
+ * miter limit are trimmed. Rings under the minimum feature are dropped.
+ * Loose sheets narrower than `PAINT_LOOSE_SHEET_MIN_MM` everywhere are
+ * dropped, and a piece that keeps no sheet at all is simply painted whole.
  */
-function dilatePolygons(polygons: Polygon2D[], distanceMm: number): Polygon2D[] {
-  const outers = polygons.flatMap((polygon) => offsetClosedRing(polygon.outer, distanceMm, "round")).map((ring) => [toRing(ring)]) as MultiPolygon;
-  if (!outers.length) return [];
-  const holes = polygons.flatMap((polygon) => polygon.holes.flatMap((hole) => offsetClosedRing(hole, -distanceMm, "round"))).map((ring) => [toRing(ring)]) as MultiPolygon;
-  const grown = polygonClipping.union(outers);
-  return normalizeMultiPolygon(holes.length ? polygonClipping.difference(grown, holes) : grown);
+export function paintStencil(piece: Polygon2D, windows: Polygon2D[], minimumFeatureMm: number): Polygon2D[] {
+  const keep = (polygons: Polygon2D[]) => polygons
+    .filter((sheet) => !tinyRing(sheet.outer, minimumFeatureMm))
+    .map((sheet) => ({ outer: sheet.outer, holes: sheet.holes.filter((hole) => !tinyRing(hole, minimumFeatureMm)) }));
+  const paper = keep(windows.length ? clipPolygons([piece], windows, "difference") : [piece]);
+  if (!paper.length || !(minimumFeatureMm > 0)) return paper;
+  const eroded = offsetPolygons(paper, -PAINT_PAPER_MIN_MM / 2, "miter");
+  const opened = eroded.length ? keep(offsetPolygons(eroded, PAINT_PAPER_MIN_MM / 2, "miter")) : [];
+  if (opened.length < 2) return opened;
+  const area = (ring: Point2D[]) => Math.abs(signedArea(ring));
+  const largest = opened.reduce((best, sheet) => (area(sheet.outer) > area(best.outer) ? sheet : best));
+  return opened.filter((sheet) => sheet === largest || offsetPolygons([sheet], -PAINT_LOOSE_SHEET_MIN_MM / 2, "miter").length > 0);
 }
 
 /**
@@ -83,11 +125,12 @@ function dilatePolygons(polygons: Polygon2D[], distanceMm: number): Polygon2D[] 
  * onto the same layer's dry exposed material.
  *
  * Runs after splitting and nesting, so a polygon here is one cut piece and
- * cavities are already holes in it. Boolean ops throw on degenerate rings; one
- * sliver of water must not cost the whole generation, so each piece is its
- * own attempt.
+ * cavities are already holes in it. Each region also carries the stencil
+ * `paper` those windows leave of the piece - see `paintStencil`. Boolean ops
+ * throw on degenerate rings; one sliver of water must not cost the whole
+ * generation, so each piece is its own attempt.
  */
-export function paintRegions(config: ProjectConfigV1, clips: PaintLayerClip[], sources: PaintRegionSources): PaintRegionIR[] {
+export function paintRegions(config: ProjectConfigV1, clips: PaintLayerClip[], sources: PaintRegionSources, nests: FabricationNest[] = []): PaintRegionIR[] {
   if (config.outputMode !== "stack" || !config.paintTemplates.length) return [];
   const regions: PaintRegionIR[] = [];
   const refine = (ring: Point2D[]) => (tinyRing(ring, config.minimumFeatureMm) ? undefined : ring);
@@ -99,7 +142,7 @@ export function paintRegions(config: ProjectConfigV1, clips: PaintLayerClip[], s
     let result = grown.get(key);
     if (!result) {
       try {
-        result = dilatePolygons(polygons, sources.cellPitchMm);
+        result = offsetPolygons(polygons, sources.cellPitchMm, "round");
       } catch {
         result = polygons;
       }
@@ -113,6 +156,7 @@ export function paintRegions(config: ProjectConfigV1, clips: PaintLayerClip[], s
       if (!region.length) continue;
       const regionPrepared = preparePolygons(region);
       const regionMulti = toMultiPolygon(region);
+      const omitted = omittedNestHoles(nests, layer.index);
       layer.polygons.forEach((polygon, polygonIndex) => {
         const box = ringBounds(polygon.outer);
         if (!boundsOverlap(box, regionPrepared.bounds)) return;
@@ -126,10 +170,13 @@ export function paintRegions(config: ProjectConfigV1, clips: PaintLayerClip[], s
           if (!exact.length) return;
           const covered = near.length ? polygonClipping.intersection(piece, nearMulti) : [];
           const allowed = covered.length ? polygonClipping.union(exact, covered) : exact;
-          const dilated = dilatePolygons(normalizeMultiPolygon(exact), PAINT_BLEED_MM);
+          const dilated = offsetPolygons(normalizeMultiPolygon(exact), PAINT_BLEED_MM, "round");
           const window = dilated.length ? polygonClipping.intersection(toMultiPolygon(dilated), allowed) : exact;
           const polygons = normalizeMultiPolygon(window, refine);
-          if (polygons.length) regions.push({ kind, layerIndex: layer.index, polygonIndex, polygons });
+          if (!polygons.length) return;
+          const omittedHoles = omitted.get(polygonIndex) ?? new Set<number>();
+          const sheet = omittedHoles.size ? { outer: polygon.outer, holes: polygon.holes.filter((_, holeIndex) => !omittedHoles.has(holeIndex)) } : polygon;
+          regions.push({ kind, layerIndex: layer.index, polygonIndex, polygons, paper: paintStencil(sheet, polygons, config.minimumFeatureMm) });
         } catch {
           // A degenerate ring the clipper refuses: skip this piece's windows.
         }
