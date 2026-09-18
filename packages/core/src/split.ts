@@ -57,8 +57,13 @@ function planAxis(spanMm: number, usableMm: number, requestedOffsetMm: number): 
  * tiles beside a sliver remainder. One kerf is subtracted from each axis
  * because a panel's cut envelope is `span + laserKerfMm`, matching how
  * `layerToSvg` already sizes its canvas.
+ *
+ * A flat engraving is never split: nothing is cut, it exports as one SVG, and
+ * its contour lines are drawn from layer polygons, so every seam and key tab
+ * would be engraved into the artwork as a stray contour.
  */
 export function planSeamGrid(config: ProjectConfigV1): SeamPlanV1 | undefined {
+  if (config.outputMode === "engraving") return undefined;
   const usableWidthMm = config.workAreaWidthMm > 0 ? config.workAreaWidthMm - config.laserKerfMm : Number.POSITIVE_INFINITY;
   const usableHeightMm = config.workAreaHeightMm > 0 ? config.workAreaHeightMm - config.laserKerfMm : Number.POSITIVE_INFINITY;
   const x = planAxis(config.widthMm, usableWidthMm, config.seamOffsetMm);

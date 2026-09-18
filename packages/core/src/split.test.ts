@@ -515,13 +515,15 @@ describe("machine work-area splitting", () => {
     expect(materialArea(ir)).toBeCloseTo(materialArea(whole), 6);
   });
 
-  it("splits a flat engraving too, without engraving ids on it", () => {
+  it("leaves a flat engraving whole, so no seam or tab becomes a contour", () => {
     const [config, source] = conicalProject({ outputMode: "engraving", workAreaWidthMm: 160, workAreaHeightMm: 120 });
+    const whole = generateGeometry({ ...config, workAreaWidthMm: 0, workAreaHeightMm: 0 }, source);
     const ir = generateGeometry(config, source);
-    expect(ir.splitPlan).toBeDefined();
-    expect(ir.layers[0]!.pieces.length).toBeGreaterThan(1);
-    // Nothing is stacked over a flat artwork, so an id could never be hidden.
-    expect(ir.layers.flatMap((layer) => layer.markings).some((mark) => mark.id.startsWith("piece-"))).toBe(false);
+    expect(planSeamGrid(config)).toBeUndefined();
+    expect(ir.splitPlan).toBeUndefined();
+    expect(ir.layers.every((layer) => layer.pieces.length === 0)).toBe(true);
+    expect(ir.layers.map((layer) => layer.polygons)).toEqual(whole.layers.map((layer) => layer.polygons));
+    expect(ir.warnings.some((warning) => warning.code.startsWith("WORK_AREA"))).toBe(false);
   });
 
   it("rejects an unusable work area", () => {
