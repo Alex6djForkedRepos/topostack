@@ -72,7 +72,7 @@ Request completion logs include R2 read/write counters; `x-topostack-r2-reads` e
 ```sh
 npm ci
 npx playwright install chromium
-PUBLIC_APP_URL=https://topostack.echofoxtrot.works npm run data:benchmark
+PUBLIC_APP_URL=https://topostack.app npm run data:benchmark
 # Optional single case: crater-lake, dense-seattle, or large-cascades.
 DATA_BENCHMARK_CASE=crater-lake PUBLIC_APP_URL=http://localhost:5273 npm run data:benchmark
 ```

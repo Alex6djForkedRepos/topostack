@@ -10,7 +10,7 @@ test("rejects loopback, reserved placeholder, and Workers preview hosts", () => 
 });
 
 test("accepts deployed production hosts", () => {
-  for (const host of ["topostack.echofoxtrot.works", "dev-topostack.echofoxtrot.works", "api.testing.com", "localhosting.net"]) {
+  for (const host of ["topostack.app", "dev.topostack.app", "api.testing.com", "localhosting.net"]) {
     assert.equal(isForbiddenApiHost(host), false, host);
   }
 });

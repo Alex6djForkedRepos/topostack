@@ -5,7 +5,7 @@ import { PMTiles } from "pmtiles";
 import Pbf from "pbf";
 import polygonClipping from "polygon-clipping";
 
-const API_BASE = (process.env.VITE_MAP_API_URL ?? "https://topostack.echofoxtrot.works").replace(/\/$/, "");
+const API_BASE = (process.env.VITE_MAP_API_URL ?? "https://topostack.app").replace(/\/$/, "");
 const VECTOR_ARCHIVE_URL = "https://build.protomaps.com/20260905.pmtiles";
 const LAKE_ARCHIVE_URL = `${API_BASE}/v1/lakes.pmtiles`;
 const OUTPUT = new URL("../apps/generator/src/sample-preview.generated.ts", import.meta.url);

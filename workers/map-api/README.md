@@ -73,12 +73,21 @@ CI normally synchronizes this secret from the matching GitHub environment during
 
 | Git branch | GitHub environment | Wrangler environment | Worker | Public URL | Map cache | Vector data |
 | --- | --- | --- | --- | --- | --- | --- |
-| `dev` | `development` | `development` | `topostack-dev` | `https://dev-topostack.echofoxtrot.works` | `topostack-map-cache-development` | `topostack-vector-data-development` |
-| `main` | `production` | `production` | `topostack` | `https://topostack.echofoxtrot.works` | `topostack-map-cache` | `topostack-vector-data` |
+| `dev` | `development` | `development` | `topostack-dev` | `https://dev.topostack.app` | `topostack-map-cache-development` | `topostack-vector-data-development` |
+| `main` | `production` | `production` | `topostack` | `https://topostack.app` | `topostack-map-cache` | `topostack-vector-data` |
 
-The development frontend and API are deployed at `https://dev-topostack.echofoxtrot.works`; production remains at `https://topostack.echofoxtrot.works`. Wrangler uploads `apps/generator/dist` as static assets, while `/health` and `/v1/*` run the API Worker. Atomm and third-party browser clients can call the read-only API cross-origin.
+The development frontend and API are deployed at `https://dev.topostack.app`; production is at `https://topostack.app`. Wrangler uploads `apps/generator/dist` as static assets, while `/health` and `/v1/*` run the API Worker. Atomm and third-party browser clients can call the read-only API cross-origin.
 
-Configure `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and `GEOCODER_API_KEY` as secrets in both GitHub environments. The Cloudflare token needs Workers Scripts edit and R2 edit at the account level plus Workers Routes edit for the `echofoxtrot.works` zone so both environments can manage their Custom Domains. Restrict the development environment to `dev` and production to `main`; production should also use required reviewers. Pull requests run validation without environment access or Cloudflare credentials.
+The former hosts, `topostack.echofoxtrot.works` and `dev-topostack.echofoxtrot.works`, stay attached to the same Workers as second Custom Domains so Atomm packages published before the move keep reaching the API (CORS preflights cannot follow redirects). Everything else on those hosts is sent to the same path on the new origin with a 301 by a Single Redirect rule in the `echofoxtrot.works` zone, which runs before the Worker and its static assets. The rules live in code; preview them, then apply them with a token that has Zone Read and Single Redirect Edit on `echofoxtrot.works`:
+
+```sh
+CLOUDFLARE_API_TOKEN=... node scripts/configure-legacy-redirects.mjs
+CLOUDFLARE_API_TOKEN=... node scripts/configure-legacy-redirects.mjs --apply
+```
+
+The script replaces only its own `topostack_legacy_*` rules and leaves any other redirect rules in the zone untouched.
+
+Configure `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and `GEOCODER_API_KEY` as secrets in both GitHub environments. The Cloudflare token needs Workers Scripts edit and R2 edit at the account level plus Workers Routes edit for the `topostack.app` and `echofoxtrot.works` zones so both environments can manage their Custom Domains. Restrict the development environment to `dev` and production to `main`; production should also use required reviewers. Pull requests run validation without environment access or Cloudflare credentials.
 
 ## Freshness and launch operations
 

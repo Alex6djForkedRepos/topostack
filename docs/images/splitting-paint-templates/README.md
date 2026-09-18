@@ -16,7 +16,7 @@ The second and third images show the same layer with the paint template switched
 To regenerate, start a normal development frontend with the public data API:
 
 ```sh
-VITE_MAP_API_URL=https://topostack.echofoxtrot.works npm run dev -w @topostack/generator -- --port 5274
+VITE_MAP_API_URL=https://topostack.app npm run dev -w @topostack/generator -- --port 5274
 ```
 
 Then, from the repository root:

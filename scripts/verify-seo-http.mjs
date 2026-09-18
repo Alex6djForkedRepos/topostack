@@ -40,7 +40,7 @@ export async function verifyHttpSeo(origin, environment, { propagationTimeoutMs 
     const noindex = !production || path === "/studio";
     assert.equal(document.querySelector('meta[name="robots"]')?.content.includes("noindex"), noindex, path);
     assert.equal(Boolean(response.headers.get("x-robots-tag")?.includes("noindex")), noindex, path + " header");
-    assert.equal(document.querySelector('link[rel="canonical"]')?.href, "https://topostack.echofoxtrot.works" + path, path);
+    assert.equal(document.querySelector('link[rel="canonical"]')?.href, "https://topostack.app" + path, path);
     assert.ok(response.headers.get("content-security-policy")?.includes("https://static.cloudflareinsights.com"));
   }
   const missing = await get("/seo-verification-missing-page", 404);
