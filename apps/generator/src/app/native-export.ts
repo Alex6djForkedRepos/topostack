@@ -1,7 +1,7 @@
 import { zip, type AsyncZippable } from "fflate";
 import type { FabricationPackageV1, ProjectConfigV1 } from "@topostack/core";
 
-export type DownloadOption = "all" | "master" | "panels" | "engravings" | "assembly" | "project";
+export type DownloadOption = "all" | "master" | "panels" | "engravings" | "paint" | "assembly" | "project";
 
 export interface PreparedDownload {
   blob: Blob;
@@ -67,14 +67,18 @@ export async function prepareSelectedDownload(output: FabricationPackageV1, opti
   const files = output.files.filter((file) => {
     if (option === "assembly") return file.filename.endsWith("-assembly-guide.svg");
     // Match only the generated suffix so project names cannot affect selection.
-    return option === "engravings"
-      ? /-(?:layer-\d+|panel-\d+-layers-[\d-]+)-engrave\.svg$/.test(file.filename)
-      : /-(?:layer-\d+|panel-\d+-layers-[\d-]+)\.svg$/.test(file.filename);
+    // A work-area split appends the seam cell ("-a1", or "-a1-2" for a piece
+    // shipped on its own sheet).
+    if (option === "engravings") return /-(?:layer-\d+|panel-\d+-layers-[\d-]+)(?:-[a-z]\d+(?:-\d+)?)?-engrave\.svg$/.test(file.filename);
+    // A paint stencil is the panel filename plus its region kind.
+    if (option === "paint") return /-(?:layer-\d+|panel-\d+-layers-[\d-]+)(?:-[a-z]\d+(?:-\d+)?)?-paint-[a-z-]+\.svg$/.test(file.filename);
+    return /-(?:layer-\d+|panel-\d+-layers-[\d-]+)(?:-[a-z]\d+(?:-\d+)?)?\.svg$/.test(file.filename);
   });
-  if (!files.length) throw new Error("This export is not available for the current output type.");
+  if (!files.length) throw new Error(option === "paint" ? "No panel has visible water to paint, so there are no paint templates." : "This export is not available for the current output type.");
   if (option === "assembly") return { ...files[0], fileCount: 1 };
   // Keep fabrication instructions and source credits with panel bundles.
   files.push(...output.files.filter((file) => file.filename === "README.txt" || file.filename === "ATTRIBUTION.txt"));
   const download = await prepareProjectDownload({ ...output, files });
-  return { ...download, filename: download.blob.type === "application/zip" ? archiveFilename(output.master.filename, option === "panels" ? "cut-panels" : "engraving-panels") : download.filename };
+  const suffix = { panels: "cut-panels", engravings: "engraving-panels", paint: "paint-templates" }[option];
+  return { ...download, filename: download.blob.type === "application/zip" ? archiveFilename(output.master.filename, suffix) : download.filename };
 }

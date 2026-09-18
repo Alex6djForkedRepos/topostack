@@ -33,6 +33,15 @@ export const MAX_CUSTOM_LINES = 250;
 export const MAX_CUSTOM_LINE_POINTS = 2_000;
 export const MAX_CUSTOM_DATA_POINTS = 10_000;
 
+/** A machine bed smaller than this cannot hold a piece worth cutting. */
+export const MIN_WORK_AREA_MM = 20;
+/** Seam divisions per axis. Caps the piece count and keeps cell letters inside A-Z. */
+export const MAX_SEAM_DIVISIONS = 12;
+/** Largest seam offset between adjacent layers; a wider stagger buys no more strength. */
+export const MAX_SEAM_OFFSET_MM = 50;
+/** Total pieces across the stack. Past this the split is abandoned, never emitted partially. */
+export const MAX_WORK_AREA_PIECES = 400;
+
 export interface CustomLineFeatureV1 {
   id: string;
   kind: CustomLineKind;
@@ -200,6 +209,34 @@ export interface ProjectConfigV1 {
   optimizeMaterialUse: boolean;
   glueMarginMm: number;
   laserKerfMm: number;
+  /**
+   * Machine work area in millimeters. A model larger than the bed is cut as
+   * several pieces that butt together along a seam grid. 0 on an axis means
+   * that axis is unlimited (a roll feeder, a pass-through slot); 0 on both
+   * disables splitting entirely.
+   */
+  workAreaWidthMm: number;
+  workAreaHeightMm: number;
+  /**
+   * How far a seam in one layer sits from the matching seam in the layers
+   * glued above and below it, so the joints never stack into one crack. Half
+   * of it is added to the end cells, which can cost an extra division when
+   * the model barely overflows the bed.
+   */
+  seamOffsetMm: number;
+  /**
+   * Cuts interlocking jigsaw tabs into split seams wherever the next layer
+   * hides them, so each piece only fits its true neighbour and self-aligns.
+   */
+  seamTabs: boolean;
+  /** Engraves a covered piece id on every piece of a split layer. */
+  showAssemblyLabels: boolean;
+  /**
+   * Region kinds that get a paper paint stencil per fabrication panel, cut to
+   * the piece outline with windows over the region that stays visible after
+   * assembly. Layered output only; each kind is listed at most once.
+   */
+  paintTemplates: PaintRegionKind[];
   showElevationLabels: boolean;
   elevationLabelPosition: Point2D;
   textStyle: TextStyleV1;
@@ -280,6 +317,28 @@ export interface WaterAreaV1 {
     /** Ground spacing of the sampled survey raster, before alignment to terrain. */
     sampleSpacingM?: number;
   };
+}
+
+/** Region kinds a paint stencil can be windowed to. Extend here and in the paint-regions source registry. */
+export const PAINT_REGION_KINDS = ["water"] as const;
+export type PaintRegionKind = (typeof PAINT_REGION_KINDS)[number];
+
+/**
+ * One piece polygon's paint windows for a region kind: the part of the region
+ * exposed after assembly, extended a small bleed under the layer above. Never
+ * stored empty.
+ */
+export interface PaintRegionIR {
+  kind: PaintRegionKind;
+  layerIndex: number;
+  polygonIndex: number;
+  /** The windows: region exposed after assembly plus the bleed under the layer above. */
+  polygons: Polygon2D[];
+  /**
+   * The stencil as cut: the piece less its windows, thin paper bridges opened
+   * up. Absent from IR recorded before stencils were merged into one outline.
+   */
+  paper?: Polygon2D[];
 }
 
 export interface WaterSurfaceIR {
@@ -374,6 +433,31 @@ export interface OperationPath {
   knockout?: boolean;
 }
 
+/**
+ * One physical piece of a split layer. Identity lives here rather than on
+ * `Polygon2D` so rings stay pure geometry and every existing index into
+ * `LayerIR.polygons` - `FabricationNestCavity.donorPolygonIndex` above all -
+ * keeps meaning exactly what it meant before.
+ */
+export interface LayerPieceV1 {
+  /** Index into the owning layer's `polygons`. */
+  polygonIndex: number;
+  /**
+   * Engraved assembly id, e.g. "L03-B2" ("L03-B2-2" for a second component in
+   * one cell). Seams are offset on alternating layers, so cell B on an odd
+   * layer covers a slightly different span than cell B on an even one; the `Lnn-` prefix is what makes
+   * the id unambiguous across the model.
+   */
+  id: string;
+  /** 0-based seam cell. Only comparable within one layer. */
+  column: number;
+  row: number;
+  /** True when the piece was kept whole because its own bounds already fit the work area. */
+  exempt: boolean;
+  widthMm: number;
+  heightMm: number;
+}
+
 export interface LayerIR {
   id: string;
   index: number;
@@ -381,6 +465,8 @@ export interface LayerIR {
   materialThicknessMm: number;
   polygons: Polygon2D[];
   markings: OperationPath[];
+  /** Physical pieces this layer is cut as. Empty when the layer is one piece per polygon. */
+  pieces: LayerPieceV1[];
 }
 
 export interface FabricationNestCavity {
@@ -397,8 +483,45 @@ export interface FabricationNest {
   cavities: FabricationNestCavity[];
 }
 
+/**
+ * The seam grid a model is cut along so every piece fits the machine bed.
+ * Divisions are equal by construction - `pitch = span / count` - so a split
+ * never leaves a full tile beside a sliver remainder.
+ */
+export interface SeamPlanV1 {
+  /** Divisions along x; 1 means the axis is not split. */
+  columns: number;
+  rows: number;
+  pitchXMm: number;
+  pitchYMm: number;
+  /** Distance between adjacent layers' seams along x; 0 when the axis is not split. */
+  seamOffsetXMm: number;
+  seamOffsetYMm: number;
+  /** Work area less the full kerf: the largest piece bounding box that still fits. */
+  usableWidthMm: number;
+  usableHeightMm: number;
+}
+
+/**
+ * One sheet of the fabrication package: a nest family, narrowed to a single
+ * seam cell when the model is split. Pieces keep their model coordinates and
+ * are placed by a group translate, so the planner still never rotates or
+ * translates terrain relative to its neighbours.
+ */
+export interface FabricationPanelV1 {
+  rootLayerIndex: number;
+  layerIndexes: number[];
+  /** Seam cell whose pieces this panel holds; absent when the project is cut whole. */
+  cellName?: string;
+  /** Panel content bounding box in model coordinates, kerf included. */
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
 export interface GeometryWarning {
-  code: "TERRAIN_SOURCE_FALLBACK" | "ELEVATION_REPAIRED" | "LOW_RELIEF" | "EMPTY_LAYER" | "SMALL_FEATURES" | "DATA_FALLBACK" | "VECTOR_DATA_PARTIAL" | "VECTOR_DATA_UNAVAILABLE" | "LAKE_DATA_UNAVAILABLE" | "BATHYMETRY_FALLBACK" | "LAKE_DEPTH_PREDICTED" | "LABEL_OMITTED" | "WATER_DEPTH_CLAMPED";
+  code: "TERRAIN_SOURCE_FALLBACK" | "ELEVATION_REPAIRED" | "LOW_RELIEF" | "EMPTY_LAYER" | "SMALL_FEATURES" | "DATA_FALLBACK" | "VECTOR_DATA_PARTIAL" | "VECTOR_DATA_UNAVAILABLE" | "LAKE_DATA_UNAVAILABLE" | "BATHYMETRY_FALLBACK" | "LAKE_DEPTH_PREDICTED" | "LABEL_OMITTED" | "WATER_DEPTH_CLAMPED" | "WORK_AREA_OVERSIZE" | "WORK_AREA_UNSPLIT";
   message: string;
   action?: "fit-lake-depth";
 }
@@ -439,6 +562,10 @@ export interface GeometryIRV1 {
   /** Crop-clipped water polygons used by optional flat-engraving fills. */
   waterPatternAreas: Polygon2D[];
   fabricationNests: FabricationNest[];
+  /** Paint stencil windows per piece; optional so IR recorded before it still renders. */
+  paintRegions?: PaintRegionIR[];
+  /** Present only when a machine work area split the layers. */
+  splitPlan?: SeamPlanV1;
   warnings: GeometryWarning[];
   attribution: SourceAttribution[];
   generatedAt: string;
@@ -489,6 +616,12 @@ export const DEFAULT_PROJECT: ProjectConfigV1 = {
   optimizeMaterialUse: true,
   glueMarginMm: 8,
   laserKerfMm: 0.15,
+  workAreaWidthMm: 0,
+  workAreaHeightMm: 0,
+  seamOffsetMm: 10,
+  seamTabs: true,
+  showAssemblyLabels: true,
+  paintTemplates: [],
   showElevationLabels: true,
   elevationLabelPosition: { x: -0.55, y: 0.55 },
   textStyle: { ...DEFAULT_TEXT_STYLE },

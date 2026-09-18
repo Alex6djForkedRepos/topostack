@@ -18,7 +18,9 @@ const budgets = {
   // troubleshooting guides: 55,9xx -> 56,141 with Node 22.14.0.
   // Raised again 2026-09-17 for the studio tour, map details, custom data and
   // settings reference guides: 56,141 -> 56,676 with Node 22.14.0.
-  landingJavaScriptGzip: 57_200,
+  // Raised 2026-09-18 for the split-large-maps and water-paint-templates
+  // guides: measured at 57,252 with Node 22.14.0.
+  landingJavaScriptGzip: 57_800,
   landingHtmlGzip: 10_000,
   initialJavaScriptGzip: 180_000,
   // Includes the editor, default 3D preview, and geometry worker. Lake modeling
@@ -28,12 +30,25 @@ const budgets = {
   // Raised again 2026-09-17 for the export-files and troubleshooting guide
   // routes: 446,818 -> 453,585 with Node 22.14.0.
   // Raised again 2026-09-17 for four more guide routes: 453,585 -> 464,010.
-  startupJavaScriptGzip: 466_000,
+  // Raised 2026-09-18 for machine work-area splitting: the seam planner and the
+  // per-cell panel writer are part of generateGeometry, which the studio route
+  // imports directly for its first preview. Measured with Node 22.22.2 at
+  // 463,134 startup and 914,639 total on the rebased branch.
+  // Raised 2026-09-18 for merged paint stencils: the Clipper boolean and set
+  // offset behind paintStencil ship in generateGeometry, and the cut-layer
+  // overlay imports it for legacy IR. CI measured 474,123 with Node 22.22.2,
+  // 123 bytes over the old line.
+  startupJavaScriptGzip: 480_000,
   // All routes, lazy-loaded tools, and workers, including the interactive lake
   // guide and MapLibre's worker. The fetched lake catalog is budgeted below.
   // Raised 2026-09-17 for the same two guide routes: 888,934 -> 895,695.
   // Raised again 2026-09-17 for four more guide routes: 895,695 -> 906,116.
-  totalJavaScriptGzip: 908_000,
+  // Raised 2026-09-18 for machine work-area splitting.
+  // Raised 2026-09-18 for water paint templates (paint-region clipping in the
+  // geometry worker, the stencil writer, the export card and the cut-layer
+  // overlay): measured with Node 22.22.2 at 919,013 on dev -> 922,607 on the
+  // merged branch, a 3,594 byte delta.
+  totalJavaScriptGzip: 930_000,
   largestJavaScriptGzip: 300_000,
   // Public guides add styles outside the studio. Keep a separate allowance for
   // the Atomm template, which is loaded only inside the platform iframe.

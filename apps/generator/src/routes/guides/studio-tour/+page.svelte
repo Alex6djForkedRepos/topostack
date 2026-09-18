@@ -10,6 +10,7 @@
   <h2>1. The top bar</h2>
   <ul>
     <li><strong>Project name</strong> names your project and its exported files.</li>
+    <li><strong>Reset project</strong> restores the Crater Lake preview and all default settings, clearing custom markers and lines. The reset saves automatically; use Undo to recover your previous settings.</li>
     <li><strong>Undo</strong> and <strong>Redo</strong> step through your edits.</li>
     <li><strong>Import project JSON</strong> opens a project settings file (up to 2 MB) you exported earlier.</li>
     <li>A summary shows the layer count, cut panels and stack height for layered output, or the contour count for flat output.</li>

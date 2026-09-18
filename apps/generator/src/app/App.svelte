@@ -2,9 +2,9 @@
   import { onMount, untrack, setContext } from "svelte";
   import { base } from "$app/paths";
   import { House } from "@lucide/svelte";
-  import { Box, ChevronDown, Circle, Compass, Download, Grid3X3, Layers3, Map as MapIcon, MapPin, Minus, Mountain, PenTool, Plus, Route, Search, Sparkles, Square, Trash2, Undo2, Redo2, Upload, Waves, X } from "@lucide/svelte";
+  import { Box, ChevronDown, Circle, Compass, Download, Grid3X3, Layers3, Map as MapIcon, MapPin, Minus, Mountain, PenTool, Plus, Puzzle, Route, RotateCcw, Search, Sparkles, SprayCan, Square, Trash2, Undo2, Redo2, Upload, Waves, X } from "@lucide/svelte";
   import { AppShell, Brand, Button, ContextBar, Field, IconButton, Input, Section, Sidebar, ThemeToggle, Topbar, Workspace } from "@loidolt/theme-svelte";
-  import { sourceRequirements, createSyntheticSource, DEFAULT_PROJECT, displayElevation, displayLength, elevationUnit, generateGeometry, labelPathData, lengthUnit, MAP_MARKER_SIZE_MM, MAP_MARKER_MIN_SIZE_MM, MAP_MARKER_MAX_SIZE_MM, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, MAX_WATER_DEPTH_EXAGGERATION, millimetersFromDisplay, MIN_VERTICAL_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, NORTH_ARROW_MIN_SIZE_MM, planTerrainStack, projectFingerprint, validateProject, type GeoBounds, type GeometryIRV1, type LineStyleV1, type OperationPath, type ProjectConfigV1, type SourceBundleV1 } from "@topostack/core";
+  import { sourceRequirements, DEFAULT_PROJECT, planSeamGrid, displayElevation, displayLength, elevationUnit, generateGeometry, labelDimensions, labelPathData, lengthUnit, MAP_MARKER_SIZE_MM, MAP_MARKER_MIN_SIZE_MM, MAP_MARKER_MAX_SIZE_MM, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_SEAM_OFFSET_MM, MAX_VERTICAL_EXAGGERATION, MAX_WATER_DEPTH_EXAGGERATION, millimetersFromDisplay, MIN_VERTICAL_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, NORTH_ARROW_MIN_SIZE_MM, planTerrainStack, projectFingerprint, validateProject, type GeoBounds, type GeometryIRV1, type LineStyleV1, type OperationPath, type ProjectConfigV1, type SourceBundleV1 } from "@topostack/core";
   import { assembleWater, boundsForProject, loadLakeAreas, loadSurveyedLakeDepths, loadTerrain, loadVectorMarkings, type PlaceResult } from "../data-provider";
   import { applySurveyProvenance } from "../bathymetry";
   import { resolveLakeOutlines } from "../lake-outlines";
@@ -20,6 +20,7 @@
   import FeedbackButton from "../lib/FeedbackButton.svelte";
   import { studioFeedbackContext } from "../lib/feedback";
   import ExportDialog from "./ExportDialog.svelte";
+  import ResetProjectDialog from "./ResetProjectDialog.svelte";
   import { readAtommLocale } from "./atomm-locale";
   import NumberField from "./StudioNumberField.svelte";
   import LengthField from "./StudioLengthField.svelte";
@@ -29,11 +30,12 @@
   import { MAX_LATITUDE, MAX_LONGITUDE } from "../coordinates";
   import { isAbortError, PreviewPipeline } from "./preview-pipeline";
   import { LazyComponent } from "./lazy-component";
+  import { createProjectPreviewSource } from "./project-preview";
   import { restoreStartupProject } from "./startup-restore";
   import { activeLinePreset as findActiveLinePreset, CONFIG_SECTION_IDS, countDetailMarkings, featuredLayerIndex, layerForEnabledDetail, modeledLakes as findModeledLakes, sectionSummary as summarizeSection, visibleWarnings as summarizeWarnings, type ConfigSectionId } from "./preview-summary";
   import { retryingLoader } from "./lazy-load";
   import { sameMapArea } from "./project-diff";
-  import { pointsToPath } from "./svg-path";
+  import { pointsToPath, symbolPath } from "./svg-path";
   import { changedProjectKeys, projectPatch } from "./project-patch";
   import type { SourcePreparationCache } from "./source-refresh";
   import { generationStatus, generationToast, previewPendingStatus, previewUpdatedStatus, statusLine, type PreviewUpdateKind } from "./status-messages";
@@ -98,6 +100,7 @@
   let embeddedInPlatform = $state(false);
   setContext("atomm-embedded", () => embeddedInPlatform);
   let exportOpen = $state(false);
+  let resetOpen = $state(false);
   const exportNotice = new ExportNotice((message) => { status = message; });
   const exportPhase = $derived(exportNotice.phase);
   const exportTitle = $derived(exportNotice.title);
@@ -200,6 +203,12 @@
 
   const layerTicks = $derived(geometry.layers.map((layer) => Math.round(displayElevation(layer.elevationM, project.units))));
   const shownLengthUnit = $derived(lengthUnit(project.units));
+  const seamGrid = $derived(planSeamGrid(project));
+  const seamSummary = $derived(seamGrid
+    ? `${seamGrid.columns} × ${seamGrid.rows} sheets per layer · ${shownLength(seamGrid.pitchXMm)} × ${shownLength(seamGrid.pitchYMm)} ${shownLengthUnit} tiles`
+    : project.workAreaWidthMm > 0 || project.workAreaHeightMm > 0
+      ? "Fits the work area in one piece."
+      : "Leave at 0 to cut the model in one piece.");
   const shownElevationUnit = $derived(elevationUnit(project.units));
   const northArrowSizeLimitMm = $derived(edits.northArrowMaximumMm(project.widthMm, project.heightMm));
   const activeLinePreset = $derived(findActiveLinePreset(project.lineStyle));
@@ -227,6 +236,11 @@
 
   function storedLength(value: number): number {
     return millimetersFromDisplay(value, project.units);
+  }
+
+  /** 0 means "no limit on this axis", so it must survive unit conversion exactly. */
+  function workAreaLength(value: number): number {
+    return value > 0 ? millimetersFromDisplay(value, project.units) : 0;
   }
 
   function shownTextSize(valueMm: number): number {
@@ -319,12 +333,12 @@
         // the default project; it must neither overwrite nor be undone into it.
         invalidatePendingPreview();
         projectHistory.reset();
-        replaceSourceProject(saved, createSyntheticSource(saved));
+        replaceSourceProject(saved, createProjectPreviewSource(saved));
       },
       openLinkedLake: (next, previous) => {
         invalidatePendingPreview();
         projectHistory.push(previous);
-        replaceSourceProject(next, createSyntheticSource(next));
+        replaceSourceProject(next, createProjectPreviewSource(next));
       },
       setStatus: (message) => { status = message; },
     }).then(({ autosave }) => {
@@ -478,6 +492,19 @@
     const kind: PreviewUpdateKind = sourceChanged.some((key) => key.startsWith("show")) ? "details" : sourceChanged.every((key) => key === "markers" || key === "customLines") ? "customData" : "fabrication";
     void refreshPreview(kind, 0);
   }
+  function resetProject(): void {
+    invalidatePendingPreview();
+    projectHistory.push(project);
+    dismissedWarnings = [];
+    explodedDrag = undefined;
+    mapAspectLocked = false;
+    previewNotice = "";
+    mode = threeUnavailable ? "2d" : "3d";
+    replaceSourceProject(structuredClone(DEFAULT_PROJECT), createSamplePreviewSource());
+    generationState = "ready";
+    status = "Project reset to Crater Lake defaults · Undo restores your previous settings";
+  }
+
   function undo(): void { const previous = projectHistory.undo(project); if (previous) restoreProject(previous, "Undo"); }
   function redo(): void { const next = projectHistory.redo(project); if (next) restoreProject(next, "Redo"); }
 
@@ -625,7 +652,7 @@
     // A rejected file leaves a running Generate alone: report it on the status line only.
     const reportImportError = (message: string) => { status = message; if (generationState !== "loading") generationState = "error"; };
     if (file.size > MAX_PROJECT_FILE_BYTES) { reportImportError("Project file must be 2 MB or smaller."); if (importInput) importInput.value = ""; return; }
-    try { const parsed: unknown = JSON.parse(await file.text()); const candidate = parsed && typeof parsed === "object" && "project" in parsed ? (parsed as { project: unknown }).project : parsed; const imported = parseProject(candidate); const source = createSyntheticSource(imported); invalidatePendingPreview(); projectHistory.push(project); dismissedWarnings = []; replaceSourceProject(imported, source); generationState = "ready"; status = "Project imported · generate to refresh its terrain"; }
+    try { const parsed: unknown = JSON.parse(await file.text()); const candidate = parsed && typeof parsed === "object" && "project" in parsed ? (parsed as { project: unknown }).project : parsed; const imported = parseProject(candidate); const source = createProjectPreviewSource(imported); invalidatePendingPreview(); projectHistory.push(project); dismissedWarnings = []; replaceSourceProject(imported, source); generationState = "ready"; status = "Project imported · generate to refresh its terrain"; }
     catch (error) { reportImportError(error instanceof Error ? error.message : "Could not import this project."); }
     finally { if (importInput) importInput.value = ""; }
   }
@@ -640,6 +667,7 @@
           <div class="history-actions">
             <IconButton label="Undo" onclick={undo} disabled={!historyAvailability.canUndo}><Undo2 size={17} /></IconButton>
             <IconButton label="Redo" onclick={redo} disabled={!historyAvailability.canRedo}><Redo2 size={17} /></IconButton>
+            <IconButton label="Reset project" aria-haspopup="dialog" onclick={(event: MouseEvent) => { if (event.currentTarget instanceof HTMLElement) event.currentTarget.focus(); resetOpen = true; }} disabled={!booted}><RotateCcw size={17} /></IconButton>
             <IconButton label="Import project JSON" onclick={() => importInput.click()}><Upload size={17} /></IconButton>
             <input bind:this={importInput} class="ldt-visually-hidden" type="file" accept="application/json,.json" onchange={(event) => void importProject(event.currentTarget.files?.[0])} />
           </div>
@@ -740,7 +768,7 @@
                       <div class="marker-symbol-options" role="radiogroup" aria-label={`Marker ${index + 1} symbol`}>
                         {#each MARKER_OPTIONS as option}
                           <button type="button" role="radio" aria-label={option.label} title={option.label} aria-checked={marker.symbol === option.value} data-state={marker.symbol === option.value ? "on" : "off"} tabindex={marker.symbol === option.value ? 0 : -1} onclick={() => applyCustomDataEdit(edits.updateMarker(project, marker.id, { symbol: option.value }))} onkeydown={navigateChoice}>
-                            <svg viewBox="-11 -11 22 22" aria-hidden="true">{#each option.paths as path}<path d={pointsToPath(path)} />{/each}</svg>
+                            <svg viewBox="-11 -11 22 22" aria-hidden="true"><path d={symbolPath(option.paths)} fill-rule="evenodd" /></svg>
                           </button>
                         {/each}
                       </div>
@@ -1026,8 +1054,10 @@
             <p class="subgroup-heading">Text engraving</p>
             <div class="swatch-options" role="radiogroup" aria-label="Engraving font">
               {#each FONT_OPTIONS as option}
+                {@const sampleStyle = { font: option.value, sizeMm: 3.1 }}
                 <button type="button" role="radio" aria-checked={project.textStyle.font === option.value} data-state={project.textStyle.font === option.value ? "on" : "off"} tabindex={project.textStyle.font === option.value ? 0 : -1} onclick={() => void updateFabrication({ textStyle: { ...project.textStyle, font: option.value } })} onkeydown={navigateChoice}>
-                  <svg viewBox="0 -0.4 17 4.2" aria-hidden="true"><path stroke-linecap={option.value === "rounded" ? "round" : "butt"} stroke-linejoin={option.value === "rounded" ? "round" : "miter"} d={labelPathData("123m", { x: 0, y: 0 }, 0, 0, 0, { font: option.value, sizeMm: 3.1 })} /></svg>
+                  <!-- Glyphs run right and down from their origin, so start the sample half its size up and left of the box centre. -->
+                  <svg viewBox="-8.5 -2.1 17 4.2" aria-hidden="true"><path stroke-linecap={option.value === "rounded" ? "round" : "butt"} stroke-linejoin={option.value === "rounded" ? "round" : "miter"} d={labelPathData("123m", { x: -labelDimensions("123m", sampleStyle).width / 2, y: -1.4 }, 0, 0, 0, sampleStyle)} /></svg>
                   <span>{option.label}</span>
                 </button>
               {/each}
@@ -1141,13 +1171,20 @@
             <div class="advanced-fields">
               <div class="toggle-stack">
                 {#if project.outputMode === "stack"}<Switch checked={project.optimizeMaterialUse} onCheckedChange={(optimizeMaterialUse) => void updateFabrication({ optimizeMaterialUse })} aria-label="Material-saving nests"><span class="toggle-label"><Layers3 size={16} />Material-saving nests</span></Switch>{/if}
+                {#if project.outputMode === "stack" && seamGrid}<Switch checked={project.showAssemblyLabels} onCheckedChange={(showAssemblyLabels) => void updateFabrication({ showAssemblyLabels })} aria-label="Assembly labels"><span class="toggle-label"><Grid3X3 size={16} />Assembly labels</span></Switch>{/if}
+                {#if project.outputMode === "stack" && seamGrid}<Switch checked={project.seamTabs} onCheckedChange={(seamTabs) => void updateFabrication({ seamTabs })} aria-label="Puzzle seam tabs"><span class="toggle-label"><Puzzle size={16} />Puzzle seam tabs</span></Switch>{/if}
+                {#if project.outputMode === "stack"}<Switch checked={project.paintTemplates.includes("water")} onCheckedChange={(on) => void updateFabrication({ paintTemplates: on ? ["water"] : [] })} aria-label="Water paint templates"><span class="toggle-label"><SprayCan size={16} />Water paint templates</span></Switch>{/if}
                 <Switch checked={project.smoothing === 1} onCheckedChange={(smooth) => void updateFabrication({ smoothing: smooth ? 1 : 0 })} aria-label="Smooth contours"><span class="toggle-label"><Waves size={16} />Smooth contours</span></Switch>
               </div>
               <div class="field-stack">
                 {#if project.outputMode === "stack" && project.optimizeMaterialUse}<LengthField label="Glue margin" unit={shownLengthUnit} value={shownLength(project.glueMarginMm)} min={shownLength(2)} max={shownLength(25)} step={project.units === "imperial" ? 0.01 : 0.5} onCommit={(shown) => { const glueMarginMm = storedLength(shown); if (glueMarginMm !== project.glueMarginMm) void updateFabrication({ glueMarginMm }); }} />{/if}
                 {#if project.outputMode === "stack"}<LengthField label="Laser kerf" unit={shownLengthUnit} value={shownLength(project.laserKerfMm)} min={0} max={shownLength(1)} step={project.units === "imperial" ? 0.001 : 0.01} onCommit={(shown) => { const laserKerfMm = storedLength(shown); if (laserKerfMm !== project.laserKerfMm) void updateFabrication({ laserKerfMm }); }} />{/if}
                 <LengthField label="Minimum feature" unit={shownLengthUnit} value={shownLength(project.minimumFeatureMm)} min={shownLength(0.2)} max={shownLength(5)} step={project.units === "imperial" ? 0.01 : 0.1} onCommit={(shown) => { const minimumFeatureMm = storedLength(shown); if (minimumFeatureMm !== project.minimumFeatureMm) void updateFabrication({ minimumFeatureMm }); }} />
+                {#if project.outputMode === "stack"}<LengthField label="Work area width" unit={shownLengthUnit} value={shownLength(project.workAreaWidthMm)} min={0} max={displayLength(MAX_PROJECT_DIMENSION_MM, project.units)} step={project.units === "imperial" ? 0.1 : 1} onCommit={(shown) => { const workAreaWidthMm = workAreaLength(shown); if (workAreaWidthMm !== project.workAreaWidthMm) void updateFabrication({ workAreaWidthMm }); }} />{/if}
+                {#if project.outputMode === "stack"}<LengthField label="Work area height" unit={shownLengthUnit} value={shownLength(project.workAreaHeightMm)} min={0} max={displayLength(MAX_PROJECT_DIMENSION_MM, project.units)} step={project.units === "imperial" ? 0.1 : 1} onCommit={(shown) => { const workAreaHeightMm = workAreaLength(shown); if (workAreaHeightMm !== project.workAreaHeightMm) void updateFabrication({ workAreaHeightMm }); }} />{/if}
+                {#if project.outputMode === "stack" && seamGrid}<LengthField label="Seam offset" unit={shownLengthUnit} value={shownLength(project.seamOffsetMm)} min={0} max={shownLength(MAX_SEAM_OFFSET_MM)} step={project.units === "imperial" ? 0.01 : 1} onCommit={(shown) => { const seamOffsetMm = storedLength(shown); if (seamOffsetMm !== project.seamOffsetMm) void updateFabrication({ seamOffsetMm }); }} />{/if}
               </div>
+              {#if project.outputMode === "stack"}<p class="seam-summary">{seamSummary}</p>{/if}
             </div>
           </div>
         </Section>
@@ -1287,3 +1324,5 @@
 
 {/if}
 
+
+{#if resetOpen}<ResetProjectDialog onConfirm={() => { resetOpen = false; resetProject(); }} onClose={() => resetOpen = false} />{/if}

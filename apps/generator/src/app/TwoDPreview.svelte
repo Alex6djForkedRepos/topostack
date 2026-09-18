@@ -1,6 +1,7 @@
 <script lang="ts">
   import SvgViewport from "./SvgViewport.svelte";
-  import { displayElevation, elevationUnit, labelPathData, type GeometryIRV1 } from "@topostack/core";
+  import { displayElevation, elevationUnit, labelPathData, paintStencil, type GeometryIRV1 } from "@topostack/core";
+  import { Switch } from "@loidolt/theme-svelte";
   import { markingColor, markingDash, markingWidth } from "./marking-style";
   import { markingPath, pointsToPath } from "./svg-path";
   let { geometry, selectedLayer }: { geometry: GeometryIRV1; selectedLayer: number } = $props();
@@ -8,6 +9,19 @@
   // Every sheet at or below the waterline sits under water, so the tint marks
   // which part of this sheet the basin covers.
   const submerged = $derived((geometry.waterSurfaces ?? []).filter((surface) => (layer?.index ?? 0) <= surface.layerIndex));
+  // The stencil windows for this sheet: exposed water plus the bleed under the layer above.
+  const paint = $derived((geometry.paintRegions ?? []).filter((region) => region.layerIndex === (layer?.index ?? 0)));
+  // Lays the paper stencil over the sheet as it is cut: the piece less its
+  // windows as one outline, so the paint shows only where the paper is gone.
+  let showTemplate = $state(false);
+  const ringPath = (ring: { x: number; y: number }[]) => `${pointsToPath(ring)} Z`;
+  const templates = $derived(paint.flatMap((region) => {
+    const polygon = layer?.polygons[region.polygonIndex];
+    if (!polygon) return [];
+    // IR from before stencils were merged carries windows only: cut the paper here, bridges and all.
+    const paper = region.paper ?? paintStencil(polygon, region.polygons, 0);
+    return [{ key: `${region.kind}-${region.polygonIndex}`, sheets: paper.map((sheet) => [sheet.outer, ...sheet.holes].map(ringPath).join(" ")) }];
+  }));
 </script>
 
 {#if layer}
@@ -33,10 +47,29 @@
           <path d={`${pointsToPath(polygon.outer)} Z ${polygon.holes.map((hole) => `${pointsToPath(hole)} Z`).join(" ")}`} fill="#7fb2cc" fill-opacity="0.38" stroke="none" fill-rule="evenodd" />
         {/each}
       {/each}
+      {#each paint as region (`${region.kind}-${region.polygonIndex}`)}
+        {#each region.polygons as polygon}
+          <path data-paint-kind={region.kind} d={`${pointsToPath(polygon.outer)} Z ${polygon.holes.map((hole) => `${pointsToPath(hole)} Z`).join(" ")}`} fill="#2f7fb0" fill-opacity="0.55" stroke="#1f5f88" stroke-width="0.3" stroke-dasharray="1 0.8" fill-rule="evenodd" />
+        {/each}
+      {/each}
       {#each layer.markings as marking (marking.id)}
         <g data-marking-id={marking.id} data-marking-kind={marking.kind} data-transportation-class={marking.transportationClass}><path d={markingPath(marking)} fill-rule="evenodd" fill={marking.knockout ? "#e7c391" : marking.filled ? markingColor(marking) : "none"} stroke={marking.filled ? "none" : markingColor(marking)} stroke-width={markingWidth(marking, geometry.lineStyle)} stroke-dasharray={markingDash(marking, geometry.lineStyle)} stroke-linecap={marking.kind === "road" ? geometry.lineStyle.roadCap : marking.kind === "grid" ? "round" : undefined} stroke-linejoin={marking.kind === "road" ? "round" : undefined} />{#if marking.label && marking.points[0]}<path d={labelPathData(marking.label, marking.points[0], 0, 0, marking.labelRotationRad, marking.textStyle)} fill="none" stroke={markingColor(marking)} stroke-width={geometry.lineStyle.annotationMm} stroke-linecap={marking.textStyle?.font === "rounded" ? "round" : "butt"} stroke-linejoin={marking.textStyle?.font === "rounded" ? "round" : "miter"} />{/if}</g>
       {/each}
+      {#if showTemplate}
+        {#each templates as template (template.key)}
+          <g data-paint-template>
+            {#each template.sheets as sheet}
+              <path d={sheet} fill="#f6f1e6" fill-opacity="0.88" stroke="#c9302c" stroke-width="0.35" fill-rule="evenodd" />
+            {/each}
+          </g>
+        {/each}
+      {/if}
     </SvgViewport>
     <div class="axis layer-elevation">{Math.round(displayElevation(layer.elevationM, geometry.units)).toLocaleString()} {elevationUnit(geometry.units)}</div>
+    {#if (geometry.paintRegions ?? []).length}
+      <div class="axis paint-template-toggle">
+        <Switch checked={showTemplate} disabled={!paint.length} onCheckedChange={(checked) => { showTemplate = checked; }} aria-label="Show paint template">{paint.length ? "Paint template" : "No paint template on this layer"}</Switch>
+      </div>
+    {/if}
   </div>
 {/if}

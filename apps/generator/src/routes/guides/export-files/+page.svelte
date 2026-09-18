@@ -11,6 +11,7 @@
     <div><dt>Master SVG / Engraving SVG <span>SVG</span></dt><dd>The single main artwork file on its own: every layered panel on one sheet, or the flat engraving.</dd></div>
     <div><dt>Cut panels <span>ZIP · layered</span></dt><dd>One SVG per fabrication panel with its cut, score and engrave paths, plus README.txt and ATTRIBUTION.txt.</dd></div>
     <div><dt>Engraving panels <span>ZIP · layered</span></dt><dd>The engraving-only companion for each panel, plus README.txt and ATTRIBUTION.txt.</dd></div>
+    <div><dt>Paint templates <span>ZIP · layered</span></dt><dd>With <strong>Water paint templates</strong> on: a paper stencil for each panel that has visible water, plus README.txt and ATTRIBUTION.txt.</dd></div>
     <div><dt>Assembly guide <span>SVG · layered</span></dt><dd>The stacking reference on its own.</dd></div>
     <div><dt>Project settings <span>JSON</span></dt><dd>Your settings, for backup or to continue on another device. Always available, even when artwork export is blocked.</dd></div>
   </dl>
@@ -23,7 +24,9 @@
       <tr><td><code>my-map-master.svg</code></td><td>Every fabrication panel laid out in a grid of up to four columns, 12 mm apart, with shared CUT, SCORE and ENGRAVE groups.</td></tr>
       <tr><td><code>my-map-layer-03.svg</code></td><td>A panel holding one layer, with its cut, score and engrave paths.</td></tr>
       <tr><td><code>my-map-panel-02-layers-02-05.svg</code></td><td>A panel holding more than one layer because of material-saving nests: here, layer 05 is cut from inside layer 02's sheet.</td></tr>
+      <tr><td><code>my-map-layer-03-b2.svg</code></td><td>With a work area set, one panel per tile of a split layer: column B, row 2. A piece that needs its own sheet adds a number, as in <code>-b2-2</code>.</td></tr>
       <tr><td><code>…-engrave.svg</code></td><td>The engraving-only companion of the panel with the same name, in the same position. It has no cut or score paths.</td></tr>
+      <tr><td><code>…-paint-water.svg</code></td><td>A paper stencil registered to the panel with the same name. It is the cut piece at nominal size (cut it with kerf compensation off) with the water that stays visible once the stack is glued cut away, reaching 1.5 mm under the layer above so a slightly misplaced stencil leaves no bare edge. Where water meets the piece edge the stencil stops short of it, so register on the edges and tabs it keeps. Lay it flush to the piece, spray, and remove it before gluing. Only written when <strong>Water paint templates</strong> is on and the panel has visible water.</td></tr>
       <tr><td><code>my-map-assembly-guide.svg</code></td><td>An A4 reference showing the stack outline, layer count, material thickness and elevation range. Stack from layer 01 upward.</td></tr>
       <tr><td><code>README.txt</code></td><td>Layer count, finished stack height, applied vertical exaggeration and horizontal scale, any lake depth fitting, line widths, panel count, colors, kerf and nesting notes.</td></tr>
       <tr><td><code>my-map-project.json</code></td><td>Your settings plus generation details (see below).</td></tr>
@@ -63,6 +66,7 @@
   <h2 id="kerf-panel-size-and-alignment-marks">Kerf, panel size and alignment marks</h2>
   <p>In layered output, <strong>Laser kerf</strong> in Fabrication settings is the full width your beam removes. Outer cuts move outward and holes move inward by half that width, so the finished pieces match the artwork. Each panel's canvas is enlarged by the kerf to make room. Set Laser kerf to 0 if your laser software applies its own compensation.</p>
   <p>When <strong>Assembly guides</strong> is on, each lower layer has an engraved outline of the layer above it, inset by the kerf, labeled with that layer’s number (for example <code>L04</code> on layer 03). They are hidden once the next layer is glued in place.</p>
+  <p>When <strong>Work area width</strong> or <strong>Work area height</strong> splits a layer, each piece also engraves its id, such as <code>L03-B2</code> (layer 03, column B, row 2), in a separate green (<code>#00A651</code>) <code>ASSEMBLY</code> group where the next layer will cover it. Assign that color to Score or turn off <strong>Assembly labels</strong> if you don't want it. Seam edges get the same kerf compensation as every other cut, so pieces butt together at their intended size.</p>
 
   <h2>Project file</h2>
   <p><code>my-map-project.json</code> holds your full settings, so you can import it in the studio to continue. It also records the generation date, elevation range, map bounds, terrain resolution and sources, data versions, warnings, and for layered output each layer's elevation and file, panel and nesting details, and each lake's depth source and applied depth scaling. Imported projects need fresh terrain generation before export.</p>

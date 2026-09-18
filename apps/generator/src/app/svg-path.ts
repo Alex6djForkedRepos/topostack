@@ -11,6 +11,14 @@ export function pointsToPath(points: readonly { x: number; y: number }[]): strin
   return points.map((point, index) => `${index === 0 ? "M" : "L"}${point.x} ${point.y}`).join(" ");
 }
 
+/**
+ * A marker symbol's rings as one even-odd path, so a pin's eye reads as a
+ * hole in its head the way it is engraved, instead of being filled over.
+ */
+export function symbolPath(rings: readonly (readonly { x: number; y: number }[])[]): string {
+  return rings.map((ring) => `${pointsToPath(ring)} Z`).join(" ");
+}
+
 /** Filled pieces retain their interior voids in both SVG previews. */
 export function markingPath(marking: OperationPath): string {
   if (!marking.filled) return pointsToPath(marking.points);

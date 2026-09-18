@@ -13,9 +13,12 @@ export function finalizeStaticHeaders(template, pages, siteEnvironment) {
       .map(script => "'sha256-" + createHash("sha256").update(script).digest("base64") + "'");
     return policyLine.replace(placeholder, [...new Set(hashes)].join(" "));
   };
-  const fallback = pages.get("404.html") ?? pages.get("index.html");
-  if (!fallback) throw new Error("Missing HTML entry page.");
-  let headers = template.replace(policyLine, policy(fallback));
+  // Cloudflare does not detach the fallback CSP from the root response, so `/`
+  // is served both policies and browsers enforce each one. The fallback must
+  // authorize the home page scripts or the landing page never hydrates.
+  const fallback = [pages.get("404.html"), pages.get("index.html")].filter(Boolean);
+  if (!fallback.length) throw new Error("Missing HTML entry page.");
+  let headers = template.replace(policyLine, policy(fallback.join("\n")));
   if (siteEnvironment !== "production") headers = headers.replace("/*\n", "/*\n  X-Robots-Tag: noindex, follow\n");
   for (const [filename, html] of [...pages].sort(([a], [b]) => a.localeCompare(b))) {
     const route = filename === "index.html" ? "/" : `/${filename.replace(/\.html$/, "")}`;

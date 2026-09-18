@@ -1,3 +1,4 @@
+import type { MultiPolygon, Pair, Ring } from "polygon-clipping";
 import type { Point2D, Polygon2D } from "./types.js";
 
 export const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
@@ -21,6 +22,45 @@ export function close(points: Point2D[]): Point2D[] {
   const last = points[points.length - 1];
   if (!first || !last || (first.x === last.x && first.y === last.y)) return points;
   return [...points, first];
+}
+
+export function toRing(points: Point2D[]): Ring {
+  return points.map(({ x, y }) => [x, y] as Pair);
+}
+
+export function toPoint(ringPoint: Pair): Point2D {
+  return { x: ringPoint[0], y: ringPoint[1] };
+}
+
+/**
+ * polygon-clipping output as engine polygons: every ring explicitly closed,
+ * `outer` wound positively, `holes` negatively.
+ *
+ * This is the only place that establishes the `Polygon2D` invariant, so every
+ * caller of a boolean op must come through here. `refine` may reshape a ring
+ * (simplification) or drop it by returning undefined; the default keeps rings
+ * verbatim, which is what a caller dividing already-final geometry wants -
+ * re-simplifying flattens rounded corners, and dropping a ring deletes
+ * material rather than tidying it.
+ */
+export function normalizeMultiPolygon(
+  result: MultiPolygon,
+  refine: (ring: Point2D[], role: "outer" | "hole") => Point2D[] | undefined = (ring) => ring,
+): Polygon2D[] {
+  const polygons: Polygon2D[] = [];
+  for (const polygon of result) {
+    const [outerRing, ...holeRings] = polygon;
+    if (!outerRing) continue;
+    const refinedOuter = refine(close(outerRing.map(toPoint)), "outer");
+    if (!refinedOuter) continue;
+    const outer = signedArea(refinedOuter) < 0 ? [...refinedOuter].reverse() : refinedOuter;
+    const holes = holeRings
+      .map((ring) => refine(close(ring.map(toPoint)), "hole"))
+      .filter((ring): ring is Point2D[] => Boolean(ring))
+      .map((ring) => (signedArea(ring) > 0 ? [...ring].reverse() : ring));
+    polygons.push({ outer, holes });
+  }
+  return polygons;
 }
 
 export function signedArea(points: Point2D[]): number {

@@ -1,7 +1,9 @@
-import { mercatorWorldY } from "./geometry2d.js";
+import polygonClipping, { type Polygon } from "polygon-clipping";
+import { mercatorWorldY, normalizeMultiPolygon } from "./geometry2d.js";
 import type { GeoBounds, MarkerSymbol, Point2D } from "./types.js";
 
-function circle(center: Point2D, radius: number, steps = 24): Point2D[] {
+/** Enough sides that a marker-sized circle reads as round at any preview zoom. */
+function circle(center: Point2D, radius: number, steps = 48): Point2D[] {
   return Array.from({ length: steps + 1 }, (_, index) => {
     const angle = index / steps * Math.PI * 2;
     return { x: center.x + Math.cos(angle) * radius, y: center.y + Math.sin(angle) * radius };
@@ -33,10 +35,13 @@ export function markerSymbolPaths(symbol: MarkerSymbol, center: Point2D, size: n
   if (symbol === "cross") {
     const extent = radius * 0.72;
     const width = size * 0.16;
-    return [
+    // One outline, not two overlapping bars: each bar used to fill and clear
+    // on its own, doubling the fill and the halo where they cross.
+    const bars = [
       thickSegment({ x: center.x - extent, y: center.y - extent }, { x: center.x + extent, y: center.y + extent }, width),
       thickSegment({ x: center.x + extent, y: center.y - extent }, { x: center.x - extent, y: center.y + extent }, width),
-    ];
+    ].map((ring): Polygon => [ring.map(({ x, y }) => [x, y])]);
+    return [normalizeMultiPolygon(polygonClipping.union(bars[0]!, bars[1]!))[0]!.outer];
   }
   if (symbol === "triangle") return [[
     { x: center.x, y: center.y - radius * 0.88 },
@@ -52,22 +57,28 @@ export function markerSymbolPaths(symbol: MarkerSymbol, center: Point2D, size: n
       return { x: center.x + Math.cos(angle) * pointRadius, y: center.y + Math.sin(angle) * pointRadius };
     })];
   }
-  return [
-    [
-      { x: center.x, y: center.y + radius },
-      { x: center.x - radius * 0.38, y: center.y + radius * 0.28 },
-      { x: center.x - radius * 0.66, y: center.y - radius * 0.12 },
-      { x: center.x - radius * 0.58, y: center.y - radius * 0.52 },
-      { x: center.x - radius * 0.3, y: center.y - radius * 0.82 },
-      { x: center.x, y: center.y - radius * 0.92 },
-      { x: center.x + radius * 0.3, y: center.y - radius * 0.82 },
-      { x: center.x + radius * 0.58, y: center.y - radius * 0.52 },
-      { x: center.x + radius * 0.66, y: center.y - radius * 0.12 },
-      { x: center.x + radius * 0.38, y: center.y + radius * 0.28 },
-      { x: center.x, y: center.y + radius },
-    ],
-    circle({ x: center.x, y: center.y - radius * 0.3 }, radius * 0.19, 16),
-  ];
+  return pinPaths(center, radius);
+}
+
+/**
+ * A teardrop: a round head with straight sides tangent to it, meeting in a
+ * point on the anchor. The second ring is the eye, which engraved output cuts
+ * out of the head as a hole.
+ */
+function pinPaths(center: Point2D, radius: number): Point2D[][] {
+  const head = { x: center.x, y: center.y - radius * 0.3 };
+  const headRadius = radius * 0.62;
+  const tip = { x: center.x, y: center.y + radius };
+  // Tangent points sit either side of the head-to-tip axis, which points down (+y).
+  const spread = Math.acos(headRadius / (tip.y - head.y));
+  const start = Math.PI / 2 - spread;
+  const sweep = 2 * Math.PI - 2 * spread;
+  const steps = 40;
+  const outline = Array.from({ length: steps + 1 }, (_, index) => {
+    const angle = start - sweep * index / steps;
+    return { x: head.x + Math.cos(angle) * headRadius, y: head.y + Math.sin(angle) * headRadius };
+  });
+  return [[tip, ...outline, tip], circle(head, radius * 0.24, 32)];
 }
 
 /** Return the longitude equivalent that is closest to the center of an unwrapped map window. */

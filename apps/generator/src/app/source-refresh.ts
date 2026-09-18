@@ -41,9 +41,11 @@ export function markStaleSourceData(source: SourceBundleV1, patch: Partial<Proje
   // Loaded vectors hold only enabled layers, and generation filters by flag, so
   // disabling a layer needs no reload unless a truncated load may now fit more.
   const reloadsLayer = (["showRoads", "showTrails", "showBoundaries"] as const).some((key) => key in patch && (patch[key] === true || source.vectorStatus === "partial"));
-  const changesVectorDetails = reloadsLayer || "showWater" in patch || (patch.showWaterDepth === true && !sourceProject.showWater);
+  // A water paint stencil needs the outlines even with every water drawing off.
+  const enablesPaintWater = "paintTemplates" in patch && sourceRequirements(nextProject).water && !sourceRequirements(sourceProject).water;
+  const changesVectorDetails = reloadsLayer || "showWater" in patch || (patch.showWaterDepth === true && !sourceProject.showWater) || enablesPaintWater;
   if (changesVectorDetails) next = { ...next, vectorStatus: "not-requested" };
-  if (patch.showWaterDepth === true) next = { ...next, lakeDataStatus: "not-requested" };
+  if (patch.showWaterDepth === true || enablesPaintWater) next = { ...next, lakeDataStatus: "not-requested" };
   const enablesDepthByMode = nextProject.outputMode === "stack" && nextProject.showWaterDepth && sourceProject.outputMode !== "stack";
   if (enablesDepthByMode) next = { ...next, ...(!sourceProject.showWater ? { vectorStatus: "not-requested" as const } : {}), lakeDataStatus: "not-requested" };
   return next;
@@ -52,7 +54,7 @@ export function markStaleSourceData(source: SourceBundleV1, patch: Partial<Proje
 export async function refreshRequiredMapData(source: SourceBundleV1, config: ProjectConfigV1, signal: AbortSignal, deps: SourceRefreshDependencies): Promise<SourceBundleV1> {
   if (source.sourceKind !== "real") return source;
   const { loadVectorMarkings, loadLakeAreas, loadSurveyedLakeDepths, applySurveyProvenance, resolveLakeOutlines, assembleWater } = deps;
-  const { lakes: usesWaterDepth, vectors: needsVectors } = sourceRequirements(config);
+  const { lakes: usesWaterDepth, vectors: needsVectors, water: usesWaterAreas } = sourceRequirements(config);
   let next = source;
   let inland = source.inlandWaterAreas ?? [];
   let ocean = (source.waterAreas ?? []).filter((area) => area.kind === "ocean").map((area) => area.polygon);
@@ -84,7 +86,7 @@ export async function refreshRequiredMapData(source: SourceBundleV1, config: Pro
     }
   }
 
-  if ((usesWaterDepth || config.showWater) && source.lakeDataStatus !== "available") {
+  if (usesWaterAreas && source.lakeDataStatus !== "available") {
     try {
       lakes = await loadLakeAreas(source.bounds, config.location.zoom, config, signal);
       next = { ...next, lakeDataStatus: "available", bathymetryStatus: undefined };
@@ -95,7 +97,7 @@ export async function refreshRequiredMapData(source: SourceBundleV1, config: Pro
     }
   }
 
-  if (usesWaterDepth || config.showWater) {
+  if (usesWaterAreas) {
     const resolved = resolveLakeOutlines([], lakes.filter((lake) => lake.outlineSource !== "osm"), inland);
     if (resolved.length !== lakes.length || resolved.some((area) => !lakes.some((lake) => lake.id === area.id))) next = { ...next, bathymetryStatus: undefined };
     if (resolved.length && next.lakeDataStatus !== "available") next = { ...next, lakeDataStatus: "available" };
@@ -131,7 +133,7 @@ export class SourcePreparationCache {
     const patch = projectPatch(sourceProject, previewProject);
     const key = preparationKey(nextProject);
     // Everything besides `key` that shapes the output for a given input object.
-    const inputSignature = JSON.stringify([sourceProject.widthMm, sourceProject.heightMm, sourceProject.showWater, sourceProject.outputMode, ...changedProjectKeys(sourceProject, previewProject).filter((name) => name.startsWith("show")).sort(), patch.showWaterDepth ?? null]);
+    const inputSignature = JSON.stringify([sourceProject.widthMm, sourceProject.heightMm, sourceProject.showWater, sourceProject.outputMode, ...changedProjectKeys(sourceProject, previewProject).filter((name) => name.startsWith("show") || name === "paintTemplates").sort(), patch.showWaterDepth ?? null]);
     const entry = this.entry;
     if (entry && entry.key === key) {
       if (entry.input === active && entry.inputSignature === inputSignature) return entry.output;

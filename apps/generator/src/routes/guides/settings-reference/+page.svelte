@@ -107,9 +107,14 @@
     <thead><tr><th scope="col">Control</th><th scope="col">Range or options</th><th scope="col">Default</th><th scope="col">Notes</th></tr></thead>
     <tbody>
       <tr><td>Material-saving nests</td><td>On, off</td><td>On</td><td><em>Layered</em>. Cuts upper layers from covered parts of lower sheets.</td></tr>
+      <tr><td>Water paint templates</td><td>On, off</td><td>Off</td><td><em>Layered</em>. Adds a paper stencil SVG beside each panel with visible water, cut to the piece outline with windows over the water that stays visible after assembly, so you can spray paint it without colouring the land. Needs water outlines, which are fetched even with Water outlines and Water depth off. See <a href={`${base}/guides/water-paint-templates`}>water paint templates</a>.</td></tr>
       <tr><td>Smooth contours</td><td>On, off</td><td>On</td><td>Rounds sharp corners on contour shapes.</td></tr>
       <tr><td>Glue margin</td><td>2–25 mm</td><td>8 mm</td><td><em>Layered</em>, with nests on. Covered glue area kept around nested pieces.</td></tr>
       <tr><td>Laser kerf</td><td>0–1 mm</td><td>0.15 mm</td><td><em>Layered</em>. Full kerf width; half is applied to each side of a cut.</td></tr>
+      <tr><td>Work area width, Work area height</td><td>0 or 20 mm and up</td><td>0 (off)</td><td><em>Layered</em>. Your laser bed. Layers larger than it are split into tiles that fit; 0 leaves that axis unlimited. See <a href={`${base}/guides/split-large-maps`}>split large maps</a>.</td></tr>
+      <tr><td>Seam offset</td><td>0–50 mm</td><td>10 mm</td><td><em>Layered</em>, when split. How far seams shift between alternating layers, so no seam sits over another.</td></tr>
+      <tr><td>Puzzle seam tabs</td><td>On, off</td><td>On</td><td><em>Layered</em>, when split. Cuts covered seams as interlocking tabs so each piece only fits its neighbour.</td></tr>
+      <tr><td>Assembly labels</td><td>On, off</td><td>On</td><td><em>Layered</em>, when split. Engraves each piece's id, such as <code>L03-B2</code>, where the next layer hides it.</td></tr>
       <tr><td>Minimum feature</td><td>0.2–5 mm</td><td>0.8 mm</td><td>Pieces and holes narrower than this are removed, and contours are simplified at this scale.</td></tr>
     </tbody>
   </table>

@@ -35,6 +35,8 @@ describe("TopoStack Svelte shell", () => {
   // so the first in-test dynamic import cannot race mock registration and pull
   // in the real WebGL component.
   beforeAll(async () => {
+    HTMLDialogElement.prototype.showModal ??= function () { this.open = true; };
+    HTMLDialogElement.prototype.close ??= function () { this.open = false; this.dispatchEvent(new Event("close")); };
     // Match the page's precomputed Worker result. Clone it at each mount so
     // tests remain isolated without recalculating the same preview for every test.
     initialPreview = generateGeometry(DEFAULT_PROJECT, createSamplePreviewSource());
@@ -48,6 +50,63 @@ describe("TopoStack Svelte shell", () => {
     await import("./ThreePreview.svelte");
   });
   afterEach(async () => { if (component) await unmount(component); component = undefined; loadTerrainMock.mockReset(); loadVectorMarkingsMock.mockReset(); loadLakeAreasMock.mockReset(); Object.values(noaaArchive).forEach((mock) => mock.mockReset()); theme.preference = "system"; localStorage.removeItem("topostack-theme"); localStorage.removeItem("topostack-menu-sections-v1"); delete window.atomm; });
+
+  it("resets the entire saved project to Crater Lake defaults and supports Undo", async () => {
+    const { loadProject, saveProject } = await import("../storage");
+    const saved = { ...DEFAULT_PROJECT, name: "My mountain", widthMm: 450, outputMode: "engraving" as const,
+      location: { lat: 46.85, lon: -121.76, label: "Mount Rainier", zoom: 12 }, showWater: false, verticalExaggeration: 5 };
+    vi.mocked(loadProject).mockResolvedValueOnce(saved);
+    vi.mocked(saveProject).mockClear();
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    const reset = () => target.querySelector<HTMLButtonElement>('button[aria-label="Reset project"]')!;
+    await vi.waitFor(() => expect(reset().disabled).toBe(false));
+    reset().click();
+    await tick();
+    const dialog = target.querySelector<HTMLDialogElement>(".reset-dialog")!;
+    expect(dialog.open).toBe(true);
+    expect(target.querySelector<HTMLInputElement>('[aria-label="Project name"]')?.value).toBe(saved.name);
+    dialog.querySelector<HTMLButtonElement>("button")!.click();
+    await tick();
+    expect(target.querySelector(".reset-dialog")).toBeNull();
+    expect(target.querySelector<HTMLInputElement>('[aria-label="Project name"]')?.value).toBe(saved.name);
+    reset().click();
+    await tick();
+    [...target.querySelectorAll<HTMLButtonElement>(".reset-dialog button")].find((button) => button.textContent?.trim() === "Reset project")!.click();
+    await tick();
+    // Flush the pending snapshot: covered preview work can occupy the main
+    // thread longer than waitFor's default timeout before the save timer runs.
+    window.dispatchEvent(new Event("pagehide"));
+    expect(saveProject).toHaveBeenLastCalledWith(DEFAULT_PROJECT);
+    expect(target.querySelector<HTMLInputElement>('[aria-label="Project name"]')?.value).toBe("Crater Lake");
+    expect(target.querySelector('[aria-label="Layered relief"]')?.getAttribute("aria-checked")).toBe("true");
+    await vi.waitFor(() => expect(target.textContent).toContain("Some lake depths are estimated rather than surveyed."));
+    expect(loadTerrainMock).not.toHaveBeenCalled();
+    target.querySelector<HTMLButtonElement>('button[aria-label="Undo"]')!.click();
+    await vi.waitFor(() => expect(saveProject).toHaveBeenLastCalledWith(saved));
+    target.querySelector<HTMLButtonElement>('button[aria-label="Redo"]')!.click();
+    await vi.waitFor(() => expect(saveProject).toHaveBeenLastCalledWith(DEFAULT_PROJECT));
+  });
+
+  it("discards terrain generation that finishes after resetting the project", async () => {
+    const { saveProject } = await import("../storage");
+    let finish: ((value: unknown) => void) | undefined;
+    loadTerrainMock.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    const reset = () => target.querySelector<HTMLButtonElement>('button[aria-label="Reset project"]')!;
+    await vi.waitFor(() => expect(reset().disabled).toBe(false));
+    target.querySelector<HTMLButtonElement>(".generate-button")!.click();
+    await vi.waitFor(() => expect(finish).toBeDefined());
+    reset().click();
+    await tick();
+    [...target.querySelectorAll<HTMLButtonElement>(".reset-dialog button")].find((button) => button.textContent?.trim() === "Reset project")!.click();
+    await tick();
+    finish!({ source: createSyntheticSource(DEFAULT_PROJECT, 32), fallback: true });
+    await vi.waitFor(() => expect(saveProject).toHaveBeenLastCalledWith(DEFAULT_PROJECT));
+    expect(target.querySelector(".status-line")?.textContent).toContain("Project reset to Crater Lake defaults");
+    expect(target.textContent).not.toContain("Sample terrain generated");
+  });
 
   it("deduplicates repeated survey-gap warnings without hiding distinct warnings", async () => {
     const preview = structuredClone(initialPreview);
@@ -182,7 +241,10 @@ describe("TopoStack Svelte shell", () => {
     expect(fitSwitch.getAttribute("aria-checked")).toBe("true");
     fitSwitch.click();
     await vi.waitFor(() => expect(target.querySelector('[aria-label="Fit lake depth to available layers"]')?.getAttribute("aria-checked")).toBe("false"));
-    await vi.waitFor(() => expect(saveProject).toHaveBeenLastCalledWith(expect.objectContaining({ fitLakeDepth: false })));
+    await tick();
+    // Flush the pending snapshot rather than waiting out the debounce under coverage.
+    window.dispatchEvent(new Event("pagehide"));
+    expect(saveProject).toHaveBeenLastCalledWith(expect.objectContaining({ fitLakeDepth: false }));
     expect(manualButton()).toBeUndefined();
     const saved = vi.mocked(saveProject).mock.lastCall![0];
     await unmount(component!);
@@ -495,13 +557,61 @@ describe("TopoStack Svelte shell", () => {
     [...target.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes("Fabrication settings"))!.click();
     await tick();
     const fields = target.querySelector<HTMLElement>(".advanced-fields")!;
-    expect(fields.querySelectorAll('.toggle-stack button[role="switch"]')).toHaveLength(2);
-    expect(fields.querySelectorAll(".field-stack > .field-row")).toHaveLength(3);
+    // Material-saving nests, water paint templates, and smooth contours.
+    expect(fields.querySelectorAll('.toggle-stack button[role="switch"]')).toHaveLength(3);
+    // Glue margin, laser kerf, minimum feature, and the two work-area fields.
+    expect(fields.querySelectorAll(".field-stack > .field-row")).toHaveLength(5);
     // Text engraving and the elevation label position now sit beside what they
     // affect in Map details rather than in the fabrication panel.
     expect(fields.querySelector(".swatch-options")).toBeNull();
     expect(target.querySelectorAll('.swatch-options[aria-label="Engraving font"] button[role="radio"]')).toHaveLength(3);
     expect(target.querySelectorAll('input[aria-label="Label X"]')).toHaveLength(1);
+  });
+
+  it("reports the sheet grid a machine work area implies", async () => {
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await tick();
+    [...target.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes("Fabrication settings"))!.click();
+    await tick();
+    const fields = target.querySelector<HTMLElement>(".advanced-fields")!;
+    // No work area: the model is cut whole and there is nothing to label.
+    expect(fields.querySelector(".seam-summary")?.textContent).toMatch(/one piece/i);
+    expect([...fields.querySelectorAll('button[role="switch"]')].some((button) => button.getAttribute("aria-label") === "Assembly labels")).toBe(false);
+
+    const width = target.querySelector<HTMLInputElement>('input[aria-label="Work area width"]')!;
+    const height = target.querySelector<HTMLInputElement>('input[aria-label="Work area height"]')!;
+    for (const [input, value] of [[width, "160"], [height, "120"]] as const) {
+      input.value = value;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      input.blur();
+      await tick();
+    }
+    await vi.waitFor(() => expect(target.querySelector(".seam-summary")?.textContent).toContain("2 × 2 sheets per layer"));
+    expect([...target.querySelectorAll('button[role="switch"]')].some((button) => button.getAttribute("aria-label") === "Assembly labels")).toBe(true);
+  });
+
+  it("offers water paint templates for a layered model and stores the kind list", async () => {
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await tick();
+    const heading = [...target.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes("Fabrication settings"))!;
+    heading.click();
+    await tick();
+    const paintSwitch = () => target.querySelector<HTMLButtonElement>('button[role="switch"][aria-label="Water paint templates"]');
+    expect(paintSwitch()?.getAttribute("aria-checked")).toBe("false");
+    expect(heading.textContent).not.toContain("Paint templates");
+    paintSwitch()!.click();
+    await vi.waitFor(() => expect(paintSwitch()?.getAttribute("aria-checked")).toBe("true"));
+    // The section summary reads the stored kind list, so it proves the project took ["water"].
+    await vi.waitFor(() => expect(heading.textContent).toContain("Paint templates"));
+    paintSwitch()!.click();
+    await vi.waitFor(() => expect(heading.textContent).not.toContain("Paint templates"));
+
+    // A flat engraving has no layers to stencil.
+    target.querySelector<HTMLButtonElement>('button[role="radio"][aria-label="Flat engraving"]')!.click();
+    await vi.waitFor(() => expect(paintSwitch()).toBeNull());
   });
 
   it("changes engraving font and exact physical text size without refetching terrain", async () => {

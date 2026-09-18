@@ -136,6 +136,16 @@ describe("project import validation", () => {
     expect(parseProject({ ...original, verticalExaggeration: 1.1 }).verticalExaggeration).toBe(1.1);
     expect(() => parseProject({ ...original, verticalExaggeration: 21 })).toThrow(/vertical exaggeration/i);
   });
+  it("opens a project saved before machine work areas existed, cut in one piece", () => {
+    const { workAreaWidthMm: _width, workAreaHeightMm: _height, showAssemblyLabels: _labels, ...legacyProject } = DEFAULT_PROJECT;
+    expect(parseProject(legacyProject)).toMatchObject({ workAreaWidthMm: 0, workAreaHeightMm: 0, showAssemblyLabels: true });
+  });
+  it("restores a machine work area and rejects one too small to use", () => {
+    expect(parseProject({ ...DEFAULT_PROJECT, workAreaWidthMm: 300, workAreaHeightMm: 200 }))
+      .toMatchObject({ workAreaWidthMm: 300, workAreaHeightMm: 200 });
+    expect(() => parseProject({ ...DEFAULT_PROJECT, workAreaWidthMm: 5 })).toThrow(/0 \(unlimited\)/);
+    expect(() => parseProject({ ...DEFAULT_PROJECT, workAreaHeightMm: -1 })).toThrow(/zero or a positive/);
+  });
   it("loads a project saved with an explicit layer count at the derived default", () => {
     // Layer count used to be a stored setting; it is now derived from map
     // scale, so an old save keeps everything else and adopts the default
@@ -153,6 +163,14 @@ describe("project import validation", () => {
     expect(() => parseProject({ ...DEFAULT_PROJECT, showTransportationLabels: "yes" })).toThrow(/showTransportationLabels/i);
     expect(() => parseProject({ ...DEFAULT_PROJECT, showBoundaries: "yes" })).toThrow(/showBoundaries/i);
     expect(() => parseProject({ ...DEFAULT_PROJECT, showCoordinateGrid: "yes" })).toThrow(/showCoordinateGrid/i);
+  });
+  it("restores paint templates, defaulting a saved project without them to none", () => {
+    const { paintTemplates: _paint, ...legacyProject } = DEFAULT_PROJECT;
+    expect(parseProject(legacyProject).paintTemplates).toEqual([]);
+    expect(parseProject({ ...DEFAULT_PROJECT, paintTemplates: ["water"] }).paintTemplates).toEqual(["water"]);
+    expect(() => parseProject({ ...DEFAULT_PROJECT, paintTemplates: ["lava"] })).toThrow(/paint templates/i);
+    expect(() => parseProject({ ...DEFAULT_PROJECT, paintTemplates: ["water", "water"] })).toThrow(/paint templates/i);
+    expect(() => parseProject({ ...DEFAULT_PROJECT, paintTemplates: "water" })).toThrow(/paint templates/i);
   });
   it("validates and restores fabrication typography", () => {
     expect(parseProject({ ...DEFAULT_PROJECT, textStyle: { font: "stencil", sizeMm: 5 } }).textStyle).toEqual({ font: "stencil", sizeMm: 5 });

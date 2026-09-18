@@ -1216,6 +1216,14 @@ body:has(.app-shell) {
   min-width: 0;
 }
 
+/** What the work-area fields resolve to: sheet count and tile size. */
+.seam-summary {
+  margin: -4px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ldt-muted-foreground, #5a6b61);
+}
+
 .terrain-source-summary { grid-column: 1 / -1; margin-bottom: 8px; font-size: 11px; line-height: 1.5; max-height: 180px; overflow: auto; }
 .terrain-source-summary summary { cursor: pointer; }
 .terrain-source-summary p { margin: 5px 0; }
@@ -1505,6 +1513,18 @@ body:has(.app-shell) {
 .layer-elevation {
   left: 18px;
   bottom: 18px;
+}
+
+.paint-template-toggle {
+  right: 18px;
+  bottom: 34px;
+  padding: 4px 9px;
+}
+
+.paint-template-toggle .ldt-switch {
+  font: 9px var(--loidolt-font-utility);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .preview-loading {

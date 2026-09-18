@@ -1,4 +1,4 @@
-import { displayLength, lengthUnit, type GeometryIRV1, type LayerIR, type ProjectConfigV1, type WaterSurfaceIR } from "@topostack/core";
+import { displayLength, lengthUnit, planSeamGrid, type GeometryIRV1, type LayerIR, type ProjectConfigV1, type WaterSurfaceIR } from "@topostack/core";
 import { LINE_PRESETS } from "./options";
 
 /** Pure summaries of a project and its preview geometry, shown in the sidebar and preview. */
@@ -37,12 +37,12 @@ export function layerForEnabledDetail(result: GeometryIRV1, patch: Partial<Proje
 
 export interface DetailCounts {
   road: number; trail: number; transportationLabel: number; water: number; contour: number; alignment: number;
-  elevation: number; north: number; scale: number; marker: number; customLine: number;
+  elevation: number; north: number; scale: number; marker: number; customLine: number; piece: number;
 }
 
 /** Marking counts per detail, exposed on the preview stage for tests and diagnostics. */
 export function countDetailMarkings(layers: readonly LayerIR[], outputMode: ProjectConfigV1["outputMode"]): DetailCounts {
-  const counts: DetailCounts = { road: 0, trail: 0, transportationLabel: 0, water: 0, contour: outputMode === "engraving" ? Math.max(0, layers.length - 1) : 0, alignment: 0, elevation: 0, north: 0, scale: 0, marker: 0, customLine: 0 };
+  const counts: DetailCounts = { road: 0, trail: 0, transportationLabel: 0, water: 0, contour: outputMode === "engraving" ? Math.max(0, layers.length - 1) : 0, alignment: 0, elevation: 0, north: 0, scale: 0, marker: 0, customLine: 0, piece: 0 };
   for (const layer of layers) {
     for (const marking of layer.markings) {
       if (marking.kind === "road") counts.road += 1;
@@ -51,6 +51,7 @@ export function countDetailMarkings(layers: readonly LayerIR[], outputMode: Proj
       else if (marking.kind === "contour") counts.contour += 1;
       if (marking.id.startsWith("custom-data-line-")) counts.customLine += 1;
       else if (marking.id.startsWith("alignment-")) counts.alignment += 1;
+      else if (marking.id.startsWith("piece-")) counts.piece += 1;
       else if (marking.id.startsWith("transport-label-")) counts.transportationLabel += 1;
       else if (marking.id.startsWith("elevation-")) counts.elevation += 1;
       else if (marking.id.startsWith("north-")) counts.north += 1;
@@ -140,6 +141,11 @@ export function sectionSummary(section: ConfigSectionId, project: ProjectConfigV
     case "details": { const count = activeDetailCount(project); return `${count} ${count === 1 ? "detail" : "details"} enabled`; }
     case "customData": return `${project.markers.length} ${project.markers.length === 1 ? "marker" : "markers"} · ${project.customLines.length} ${project.customLines.length === 1 ? "path" : "paths"}`;
     case "linework": { const preset = activeLinePreset(project.lineStyle); return preset ? `${LINE_PRESETS.find((option) => option.value === preset)?.label ?? preset} preset` : "Custom stroke widths"; }
-    case "advanced": return project.smoothing === 1 ? "Smooth contours" : "Standard contours";
+    case "advanced": {
+      const seams = planSeamGrid(project);
+      const contours = project.smoothing === 1 ? "Smooth contours" : "Standard contours";
+      const paint = project.outputMode === "stack" && project.paintTemplates.length ? " · Paint templates" : "";
+      return `${seams ? `${seams.columns} × ${seams.rows} sheets per layer · ${contours}` : contours}${paint}`;
+    }
   }
 }

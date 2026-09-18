@@ -9,6 +9,7 @@ import {
   close,
   distanceToSegment,
   mercatorWorldY,
+  normalizeMultiPolygon,
   pointInPreparedPolygons,
   pointInRing,
   type PreparedPolygons,
@@ -17,6 +18,8 @@ import {
   ringFitsInsidePolygon,
   segmentIntersectionT,
   signedArea,
+  toPoint,
+  toRing,
 } from "./geometry2d.js";
 import { sampleIndexAt, sampleOffset } from "./grid.js";
 import { labelDimensions, labelLineSegments } from "./labels.js";
@@ -26,9 +29,11 @@ import { markerLayerPolygons } from "./marker-placement.js";
 import { offsetClosedRing } from "./offset.js";
 import { northArrowFootprint, northArrowMarkings } from "./north-arrow.js";
 import { sourceRequirements } from "./source-requirements.js";
+import { splitLayersForWorkArea } from "./split.js";
 import { displayElevation, elevationUnit, FEET_PER_METER } from "./units.js";
-import { CUSTOM_LINE_KINDS, MAP_MARKER_CLEARANCE_MM, MAP_MARKER_SIZE_MM, MAP_MARKER_MIN_SIZE_MM, MAP_MARKER_MAX_SIZE_MM, MARKER_SYMBOLS, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_WATER_DEPTH_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, MAX_VERTICAL_EXAGGERATION, MIN_LAYER_COUNT, MIN_VERTICAL_EXAGGERATION, NORTH_ARROW_ANCHORS, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, NORTH_ARROW_STYLES, SEA_LEVEL_M } from "./types.js";
-import { type CarvedWater, carveWaterDepth, clampCarveToLadder, fitLakesToLadder } from "./water.js";
+import { CUSTOM_LINE_KINDS, PAINT_REGION_KINDS, MAP_MARKER_CLEARANCE_MM, MAP_MARKER_SIZE_MM, MAP_MARKER_MIN_SIZE_MM, MAP_MARKER_MAX_SIZE_MM, MARKER_SYMBOLS, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_SEAM_OFFSET_MM, MAX_WATER_DEPTH_EXAGGERATION, MIN_WORK_AREA_MM, MIN_WATER_DEPTH_EXAGGERATION, MAX_VERTICAL_EXAGGERATION, MIN_LAYER_COUNT, MIN_VERTICAL_EXAGGERATION, NORTH_ARROW_ANCHORS, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, NORTH_ARROW_STYLES, SEA_LEVEL_M } from "./types.js";
+import { type CarvedWater, carveWaterDepth, clampCarveToLadder, fitLakesToLadder, waterSurfaceLevelM } from "./water.js";
+import { type FlatWaterArea, paintRegions } from "./paint-regions.js";
 import type {
   ElevationGrid,
   GeoBounds,
@@ -61,14 +66,6 @@ function assertGeographicBounds(bounds: GeoBounds, label: "Project" | "Source"):
   if (bounds.south < -85.0511 || bounds.north > 85.0511) throw new Error(`${label} latitude bounds exceed Web Mercator coverage.`);
 }
 
-
-function toRing(points: Point2D[]): Ring {
-  return points.map(({ x, y }) => [x, y] as Pair);
-}
-
-function toPoint(ringPoint: Pair): Point2D {
-  return { x: ringPoint[0], y: ringPoint[1] };
-}
 
 function containingPolygonIndexes(children: Polygon2D[], containers: Polygon2D[], marginMm: number, allowContainedHoles = false): number[] | undefined {
   const indexes: number[] = [];
@@ -307,7 +304,13 @@ function layerClips(layers: LayerIR[]): LayerClip[] {
   return clips;
 }
 
-function addAlignmentGuides(config: ProjectConfigV1, clips: LayerClip[]): void {
+/**
+ * Engrave where the next layer goes. The outline comes from `outlines`, the
+ * layers as they were before any work-area split: tracing the cut pieces
+ * would also engrave the next layer's seams and key tabs, which sit a seam
+ * offset away from this layer's own and read as stray ghost joints.
+ */
+function addAlignmentGuides(config: ProjectConfigV1, clips: LayerClip[], outlines: Polygon2D[][]): void {
   for (let index = 0; index < clips.length - 1; index += 1) {
     const layer = clips[index]?.layer;
     const material = clips[index]?.material;
@@ -316,7 +319,7 @@ function addAlignmentGuides(config: ProjectConfigV1, clips: LayerClip[]): void {
     const layerNumber = String(layer.index + 1).padStart(2, "0");
     const nextLayerNumber = String(nextLayer.index + 1).padStart(2, "0");
     const labelIndex = indexLabelLayer(layer.polygons, layer.markings);
-    nextLayer.polygons.forEach((polygon, polygonIndex) => {
+    const outline = (polygon: Polygon2D, polygonIndex: number) => {
       const guides: OperationPath[] = [];
       offsetClosedRing(polygon.outer, -config.laserKerfMm, "round").forEach((inset, insetIndex) => {
         clipPolyline(inset, material).forEach((points, clipIndex) => guides.push({
@@ -327,16 +330,117 @@ function addAlignmentGuides(config: ProjectConfigV1, clips: LayerClip[]): void {
         }));
       });
       addLabelObstacles(labelIndex, guides);
-      const label = `L${nextLayerNumber}`;
-      const point = placeLabel(label, config, labelIndex, polygonCenter(polygon, config), [polygon]);
-      if (point) {
-        const guideLabel: OperationPath = { id: `alignment-layer-${layerNumber}-to-${nextLayerNumber}-${polygonIndex}-label`, operation: "engrave", kind: "guide", points: [point], label, textStyle: config.textStyle };
-        guides.push(guideLabel);
-        addLabelObstacles(labelIndex, [guideLabel]);
-      }
       layer.markings.push(...guides);
-    });
+    };
+    const label = (polygon: Polygon2D, polygonIndex: number) => {
+      // After a work-area split the next layer is many pieces, so a repeated
+      // "L03" on one sheet says nothing; name the piece that belongs here.
+      const text = nextLayer.pieces[polygonIndex]?.id ?? `L${nextLayerNumber}`;
+      const point = placeLabel(text, config, labelIndex, polygonCenter(polygon, config), [polygon]);
+      if (!point) return;
+      const guideLabel: OperationPath = { id: `alignment-layer-${layerNumber}-to-${nextLayerNumber}-${polygonIndex}-label`, operation: "engrave", kind: "guide", points: [point], label: text, textStyle: config.textStyle };
+      addLabelObstacles(labelIndex, [guideLabel]);
+      layer.markings.push(guideLabel);
+    };
+    if (!nextLayer.pieces.length) {
+      nextLayer.polygons.forEach((polygon, polygonIndex) => {
+        outline(polygon, polygonIndex);
+        label(polygon, polygonIndex);
+      });
+      continue;
+    }
+    (outlines[index + 1] ?? nextLayer.polygons).forEach(outline);
+    nextLayer.polygons.forEach(label);
   }
+}
+
+function ringArea(points: Point2D[]): number {
+  return Math.abs(signedArea(points));
+}
+
+/** The parts of `polygon` that something stacked above it hides after assembly. */
+function coveredParts(polygon: Polygon2D, covering: PreparedPolygons): Polygon2D[] {
+  if (!covering.polygons.length) return [];
+  const box = ringBounds(polygon.outer);
+  // Layer 0's covering is every layer above it, so filter before clipping.
+  const near = covering.polygons.filter((_, index) => boundsOverlap(box, covering.outerBounds[index]!));
+  if (!near.length) return [];
+  return normalizeMultiPolygon(polygonClipping.intersection(
+    [[toRing(polygon.outer), ...polygon.holes.map(toRing)]] as MultiPolygon,
+    near.map((part) => [toRing(part.outer), ...part.holes.map(toRing)]) as MultiPolygon,
+  ) as MultiPolygon);
+}
+
+/**
+ * Candidate label centres spanning a covered region at label-box spacing. The
+ * global grid is 10% of the model, far coarser than one piece's covered area,
+ * and the alignment guide usually already owns the region's centre.
+ */
+function coveredCandidates(label: string, config: ProjectConfigV1, region: Polygon2D): Point2D[] {
+  const { width, height } = labelDimensions(label, config.textStyle);
+  const bounds = ringBounds(region.outer);
+  const stepX = (width + 1.6) / 2;
+  const stepY = height + 1.6;
+  const candidates: Point2D[] = [];
+  for (let y = bounds.minY + stepY / 2; y <= bounds.maxY - stepY / 2 && candidates.length < 400; y += stepY) {
+    for (let x = bounds.minX + stepX / 2; x <= bounds.maxX - stepX / 2 && candidates.length < 400; x += stepX) {
+      candidates.push({ x: x / (config.widthMm / 2), y: y / (config.heightMm / 2) });
+    }
+  }
+  return candidates;
+}
+
+/**
+ * Engrave each cut piece's assembly id where the stack above hides it.
+ *
+ * A visible id would survive glue-up as a blemish, so a piece with no covered
+ * room keeps none - which is also why the top layer and flat engravings get
+ * none at all, their covering being empty. `placeLabel` already requires the
+ * label box to sit inside both the layer's material and `requiredPolygons`,
+ * so passing the covered sub-region is the whole "prefer covered" filter.
+ */
+function addPieceLabels({ config, flatEngraving, warnings }: GenerationContext, clips: LayerClip[]): void {
+  // A flat artwork has nothing stacked over it - its "layers" are contour
+  // lines on one face - so no id could ever be hidden. Its pieces are named
+  // by panel filename instead.
+  if (!config.showAssemblyLabels || flatEngraving) return;
+  const omitted: string[] = [];
+  for (const { layer, covering } of clips) {
+    if (!layer.pieces.length) continue;
+    const labelIndex = indexLabelLayer(layer.polygons, layer.markings);
+    for (const piece of layer.pieces) {
+      const polygon = layer.polygons[piece.polygonIndex];
+      if (!polygon) continue;
+      const covered = coveredParts(polygon, covering);
+      // Aim at the middle of the largest covered region rather than the middle
+      // of the piece: `placeLabel` tries the preferred point first and then
+      // falls back to a grid spanning the whole model, whose spacing is far
+      // coarser than one cut piece, so a poor first guess loses the label.
+      const largest = covered.reduce<Polygon2D | undefined>((best, part) =>
+        !best || ringArea(part.outer) > ringArea(best.outer) ? part : best, undefined);
+      const point = largest
+        ? placeLabel(piece.id, config, labelIndex, polygonCenter(largest, config), covered, coveredCandidates(piece.id, config, largest))
+        : undefined;
+      if (!point) {
+        omitted.push(piece.id);
+        continue;
+      }
+      const marking: OperationPath = {
+        id: `piece-${piece.id}-label`,
+        operation: "engrave",
+        kind: "guide",
+        points: [point],
+        label: piece.id,
+        textStyle: config.textStyle,
+      };
+      layer.markings.push(marking);
+      addLabelObstacles(labelIndex, [marking]);
+    }
+  }
+  if (omitted.length) warnings.push({
+    code: "LABEL_OMITTED",
+    message: `Assembly ids were omitted from ${omitted.length} piece${omitted.length === 1 ? "" : "s"} (${omitted.slice(0, 4).join(", ")}) because no position stayed hidden under the layer above.`,
+  });
 }
 
 function stableProjectValue(config: ProjectConfigV1): unknown {
@@ -551,21 +655,10 @@ function contourToMm(point: [number, number], grid: ElevationGrid, config: Proje
 
 /** Pass `simplificationTolerance` 0 for rings already simplified, or simplifying again flattens their rounded corners. */
 function clipContours(raw: MultiPolygon, clip: Point2D[], minimumFeatureMm: number, simplificationTolerance = minimumFeatureMm * CONTOUR_SIMPLIFICATION_FACTOR): Polygon2D[] {
-  const result = polygonClipping.intersection(raw, [[toRing(clip)]]) as MultiPolygon;
-  const polygons: Polygon2D[] = [];
-  for (const polygon of result) {
-    const [outerRing, ...holeRings] = polygon;
-    if (!outerRing) continue;
-    let outer = simplify(close(outerRing.map(toPoint)), simplificationTolerance);
-    if (removeTinyRing(outer, minimumFeatureMm)) continue;
-    if (signedArea(outer) < 0) outer = [...outer].reverse();
-    const holes = holeRings
-      .map((ring) => simplify(close(ring.map(toPoint)), simplificationTolerance))
-      .filter((ring) => !removeTinyRing(ring, minimumFeatureMm))
-      .map((ring) => (signedArea(ring) > 0 ? [...ring].reverse() : ring));
-    polygons.push({ outer, holes });
-  }
-  return polygons;
+  return normalizeMultiPolygon(polygonClipping.intersection(raw, [[toRing(clip)]]) as MultiPolygon, (ring) => {
+    const refined = simplify(ring, simplificationTolerance);
+    return removeTinyRing(refined, minimumFeatureMm) ? undefined : refined;
+  });
 }
 
 function sampleElevation(grid: ElevationGrid, point: Point2D, config: ProjectConfigV1): number {
@@ -855,6 +948,7 @@ function contourLayers({ config, flatEngraving, clip, warnings }: GenerationCont
     materialThicknessMm: config.materialThicknessMm,
     polygons: [{ outer: clip, holes: [] }],
     markings: [],
+    pieces: [],
   }];
 
   generated.forEach((contour, generatedIndex) => {
@@ -876,6 +970,7 @@ function contourLayers({ config, flatEngraving, clip, warnings }: GenerationCont
       materialThicknessMm: config.materialThicknessMm,
       polygons,
       markings: [],
+      pieces: [],
     });
   });
 
@@ -899,6 +994,22 @@ function contourLayers({ config, flatEngraving, clip, warnings }: GenerationCont
 
 function clipToCrop(polygon: Polygon2D, clip: Point2D[], minimumFeatureMm: number): Polygon2D[] {
   return clipContours([[toRing(polygon.outer), ...polygon.holes.map(toRing)]] as MultiPolygon, clip, minimumFeatureMm);
+}
+
+/**
+ * Water for paint stencils when nothing carves it. With depth off no surface
+ * is modelled, but a lake still lies flat in the DEM, so its whole face
+ * belongs to the layer holding its level. Empty when carved surfaces already
+ * describe every area.
+ */
+function flatWaterAreas({ config, source, usesWaterDepth, clip }: GenerationContext, grid: ElevationGrid, ladder: ElevationLadder): FlatWaterArea[] {
+  if (usesWaterDepth || !config.paintTemplates.includes("water")) return [];
+  return (source.waterAreas ?? []).flatMap((area) => {
+    const level = Number.isFinite(area.surfaceElevationM) ? area.surfaceElevationM! : waterSurfaceLevelM(area, grid, config);
+    if (!Number.isFinite(level)) return [];
+    const polygons = clipToCrop(area.polygon, clip, config.minimumFeatureMm);
+    return polygons.length ? [{ layerIndex: layerForElevation(level, ladder.thresholds), polygons }] : [];
+  });
 }
 
 function waterOutputs({ config, source, flatEngraving, clip, warnings }: GenerationContext, ladder: ElevationLadder): { waterSurfaces: WaterSurfaceIR[]; waterPatternAreas: Polygon2D[] } {
@@ -1228,10 +1339,12 @@ function placeMarkers({ config, source, flatEngraving }: GenerationContext, clip
     if (!materials.some(material => pointInPreparedPolygons(anchor, material))) return;
     const size = marker.sizeMm ?? MAP_MARKER_SIZE_MM;
     const symbolCenter = markerSymbolCenterForAnchor(marker.symbol, anchor, size);
-    const paths = markerSymbolPaths(marker.symbol, symbolCenter, size)
-      .filter((_, pathIndex) => marker.symbol !== "pin" || pathIndex === 0);
+    const symbolPaths = markerSymbolPaths(marker.symbol, symbolCenter, size);
+    // A pin's second ring is its eye, engraved as a hole in the head.
+    const paths = marker.symbol === "pin" ? symbolPaths.slice(0, 1) : symbolPaths;
+    const holes = marker.symbol === "pin" ? symbolPaths.slice(1) : [];
     const place = (path: Point2D[], id: string, knockout = false) => {
-      markerLayerPolygons(path, materials).forEach(({ layerIndex, polygon }, pieceIndex) => clips[layerIndex]!.layer.markings.push({
+      markerLayerPolygons(path, materials, knockout ? [] : holes).forEach(({ layerIndex, polygon }, pieceIndex) => clips[layerIndex]!.layer.markings.push({
         id: `map-marker-${markerIndex}-${id}-${layerIndex}-${pieceIndex}`,
         operation: "engrave",
         kind: "marker",
@@ -1292,12 +1405,19 @@ export function generateGeometry(config: ProjectConfigV1, source: SourceBundleV1
   const layers = contourLayers(context, ladder);
   const { waterSurfaces, waterPatternAreas } = waterOutputs(context, ladder);
 
+  // Before nesting: cavities record indices into a donor's polygons and holes
+  // that splitting would renumber, and a seam through a cavity would leave an
+  // open arc where a closed hole belongs.
+  const unsplitOutlines = layers.map((layer) => layer.polygons);
+  const splitPlan = splitLayersForWorkArea(config, layers, context.warnings);
   const fabricationNests = flatEngraving ? [] : addMaterialNests(config, layers);
   // Nesting has finished carving cavities, so layer material is final for routing.
   const clips = layerClips(layers);
+  const paintWindows = flatEngraving ? [] : paintRegions(config, clips, { waterSurfaces, flatWater: flatWaterAreas(context, grid, ladder), cellPitchMm: config.widthMm / Math.max(1, grid.width - 1) }, fabricationNests);
   const transportationLabels = routeMarkings(context, clips, ladder);
   placeAnnotations(context, clips);
-  if (!flatEngraving && config.showAlignmentGuides) addAlignmentGuides(config, clips);
+  if (!flatEngraving && config.showAlignmentGuides) addAlignmentGuides(config, clips, unsplitOutlines);
+  addPieceLabels(context, clips);
   const placedTransportationLabels = placeTransportationLabels(config, transportationLabels);
   if (transportationLabels.size && !placedTransportationLabels) context.warnings.push({
     code: "LABEL_OMITTED",
@@ -1336,6 +1456,8 @@ export function generateGeometry(config: ProjectConfigV1, source: SourceBundleV1
     waterSurfaces,
     waterPatternAreas,
     fabricationNests,
+    paintRegions: paintWindows,
+    splitPlan,
     warnings: context.warnings,
     attribution: source.attribution,
     generatedAt: new Date().toISOString(),
@@ -1354,6 +1476,7 @@ export function validateProject(config: ProjectConfigV1): void {
   if (!config.northArrowPlacement || typeof config.northArrowPlacement !== "object" || !config.northArrowPlacement.offset || typeof config.northArrowPlacement.offset !== "object") throw new Error("North arrow placement is required.");
   if (!Array.isArray(config.markers)) throw new Error("Project markers must be a list.");
   if (!Array.isArray(config.customLines)) throw new Error("Custom lines must be a list.");
+  if (!Array.isArray(config.paintTemplates) || config.paintTemplates.some((kind) => !PAINT_REGION_KINDS.includes(kind)) || new Set(config.paintTemplates).size !== config.paintTemplates.length) throw new Error("Paint templates must list each supported region kind at most once.");
   if (typeof config.id !== "string" || !config.id.trim() || config.id.length > MAX_PROJECT_NAME_LENGTH) throw new Error("Project id must contain at most 120 characters.");
   if (typeof config.name !== "string" || !config.name.trim() || config.name.length > MAX_PROJECT_NAME_LENGTH) throw new Error("Project name must contain at most 120 characters.");
   if (!config.location || typeof config.location !== "object" || typeof config.location.label !== "string" || !config.location.label.trim() || config.location.label.length > 240) throw new Error("Project location label must contain at most 240 characters.");
@@ -1411,6 +1534,12 @@ export function validateProject(config: ProjectConfigV1): void {
   if (config.minimumFeatureMm < 0.2 || config.minimumFeatureMm > 5) throw new Error("Minimum feature must be between 0.2 and 5 mm.");
   if (config.glueMarginMm < 2 || config.glueMarginMm > 25) throw new Error("Glue margin must be between 2 and 25 mm.");
   if (config.laserKerfMm < 0 || config.laserKerfMm > 1) throw new Error("Laser kerf must be between 0 and 1 mm.");
+  for (const [label, value] of [["Work area width", config.workAreaWidthMm], ["Work area height", config.workAreaHeightMm]] as const) {
+    if (!Number.isFinite(value) || value < 0) throw new Error(`${label} must be zero or a positive number of millimeters.`);
+    if (value > 0 && (value < MIN_WORK_AREA_MM || value > MAX_PROJECT_DIMENSION_MM)) throw new Error(`${label} must be 0 (unlimited) or between ${MIN_WORK_AREA_MM} and ${MAX_PROJECT_DIMENSION_MM} mm.`);
+    if (value > 0 && value - config.laserKerfMm < MIN_WORK_AREA_MM) throw new Error(`${label} must leave at least ${MIN_WORK_AREA_MM} mm of usable bed after the laser kerf.`);
+  }
+  if (!Number.isFinite(config.seamOffsetMm) || config.seamOffsetMm < 0 || config.seamOffsetMm > MAX_SEAM_OFFSET_MM) throw new Error(`Seam offset must be between 0 and ${MAX_SEAM_OFFSET_MM} mm.`);
   if (config.smoothing !== 0 && config.smoothing !== 1) throw new Error("Contour smoothing must be 0 or 1.");
   if (Math.abs(config.elevationLabelPosition.x) > 0.9 || Math.abs(config.elevationLabelPosition.y) > 0.9) throw new Error("Elevation label position must be between -90% and 90%.");
   if (config.textStyle.font !== "technical" && config.textStyle.font !== "rounded" && config.textStyle.font !== "stencil") throw new Error("Text font must be technical, rounded, or stencil.");

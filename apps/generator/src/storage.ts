@@ -1,5 +1,5 @@
 import { get, set } from "idb-keyval";
-import { DEFAULT_PROJECT, MAP_MARKER_SIZE_MM, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, validateProject, type CustomLineFeatureV1, type CustomLineKind, type MapMarkerV1, type MarkerSymbol, type NorthArrowAnchor, type NorthArrowStyle, type ProjectConfigV1 } from "@topostack/core";
+import { PAINT_REGION_KINDS, DEFAULT_PROJECT, MAP_MARKER_SIZE_MM, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, validateProject, type CustomLineFeatureV1, type CustomLineKind, type MapMarkerV1, type MarkerSymbol, type NorthArrowAnchor, type NorthArrowStyle, type ProjectConfigV1 } from "@topostack/core";
 
 const PROJECT_KEY = "topostack:project:v1";
 /** Where an unreadable saved project is copied before autosave replaces it. */
@@ -36,6 +36,11 @@ function waterFillPatternValue(value: unknown): ProjectConfigV1["waterFillPatter
   if (value === undefined) return DEFAULT_PROJECT.waterFillPattern;
   if (value === "none" || value === "lines" || value === "ripples" || value === "dots") return value;
   throw new Error("Water fill pattern must be none, lines, ripples, or dots.");
+}
+function paintTemplatesValue(value: unknown): ProjectConfigV1["paintTemplates"] {
+  if (value === undefined) return [...DEFAULT_PROJECT.paintTemplates];
+  if (!Array.isArray(value) || value.some((kind) => !PAINT_REGION_KINDS.includes(kind)) || new Set(value).size !== value.length) throw new Error("Paint templates must list each supported region kind at most once.");
+  return value as ProjectConfigV1["paintTemplates"];
 }
 function outputModeValue(value: unknown): ProjectConfigV1["outputMode"] {
   if (value === undefined) return DEFAULT_PROJECT.outputMode;
@@ -225,6 +230,12 @@ export function parseProject(value: unknown): ProjectConfigV1 {
     optimizeMaterialUse: record.optimizeMaterialUse === undefined ? DEFAULT_PROJECT.optimizeMaterialUse : booleanValue(record.optimizeMaterialUse, "optimizeMaterialUse"),
     glueMarginMm: record.glueMarginMm === undefined ? DEFAULT_PROJECT.glueMarginMm : numberValue(record.glueMarginMm),
     laserKerfMm: record.laserKerfMm === undefined ? DEFAULT_PROJECT.laserKerfMm : numberValue(record.laserKerfMm),
+    workAreaWidthMm: record.workAreaWidthMm === undefined ? DEFAULT_PROJECT.workAreaWidthMm : numberValue(record.workAreaWidthMm),
+    workAreaHeightMm: record.workAreaHeightMm === undefined ? DEFAULT_PROJECT.workAreaHeightMm : numberValue(record.workAreaHeightMm),
+    seamOffsetMm: record.seamOffsetMm === undefined ? DEFAULT_PROJECT.seamOffsetMm : numberValue(record.seamOffsetMm),
+    seamTabs: record.seamTabs === undefined ? DEFAULT_PROJECT.seamTabs : booleanValue(record.seamTabs, "seamTabs"),
+    showAssemblyLabels: record.showAssemblyLabels === undefined ? DEFAULT_PROJECT.showAssemblyLabels : booleanValue(record.showAssemblyLabels, "showAssemblyLabels"),
+    paintTemplates: paintTemplatesValue(record.paintTemplates),
     showElevationLabels: booleanValue(record.showElevationLabels, "showElevationLabels"), showNorthArrow: booleanValue(record.showNorthArrow, "showNorthArrow"), showScaleBar: booleanValue(record.showScaleBar, "showScaleBar"),
     elevationLabelPosition: labelPositionRecord ? { x: numberValue(labelPositionRecord.x), y: numberValue(labelPositionRecord.y) } : { ...DEFAULT_PROJECT.elevationLabelPosition },
     textStyle: textStyleRecord ? {

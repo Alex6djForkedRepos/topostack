@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Archive, ArrowUpRight, Download, FileJson, FileType, Heart, Layers3, ListOrdered, PenTool, X } from "@lucide/svelte";
+  import { Archive, ArrowUpRight, Download, FileJson, FileType, Heart, Layers3, ListOrdered, PenTool, SprayCan, X } from "@lucide/svelte";
   import { IconButton } from "@loidolt/theme-svelte";
   import type { ProjectConfigV1 } from "@topostack/core";
   import type { DownloadOption } from "./native-export";
@@ -24,6 +24,7 @@
     ...(project.outputMode === "stack" ? [
       { id: "panels", label: "Cut panels", format: "ZIP", icon: Layers3, description: "Individual fabrication panels with their cut, score, and engrave paths." },
       { id: "engravings", label: "Engraving panels", format: "ZIP", icon: PenTool, description: "Registered engraving-only companions for each fabrication panel." },
+      { id: "paint", label: "Paint templates", format: "ZIP", icon: SprayCan, unavailable: !project.paintTemplates.length, description: project.paintTemplates.length ? "Paper stencils registered to each panel, windowed to the water that stays visible after assembly." : "Turn on Water paint templates in Fabrication settings to add paper stencils for each panel." },
       { id: "assembly", label: "Assembly guide", format: "SVG", icon: ListOrdered, description: "A visual reference for layer order and elevations as you build." },
     ] : []),
     { id: "project", label: "Project settings", format: "JSON", icon: FileJson, description: "Save your settings to import and continue later. Regenerate terrain after importing." },
@@ -50,7 +51,7 @@
     {#if blockedReason}<p id="export-blocked-reason" class="export-blocked" role="status">{blockedReason} You can still save your project settings.</p>{/if}
     <div class="export-cards" aria-busy={preparing}>
       {#each cards as card (card.id)}
-        <button type="button" class="export-card" class:export-card--featured={card.featured} disabled={preparing || (card.id !== "project" && Boolean(blockedReason))} aria-describedby={card.id !== "project" && blockedReason ? "export-blocked-reason" : undefined} onclick={() => onDownload(card.id as DownloadOption)}>
+        <button type="button" class="export-card" class:export-card--featured={card.featured} disabled={preparing || card.unavailable || (card.id !== "project" && Boolean(blockedReason))} aria-describedby={card.id !== "project" && blockedReason ? "export-blocked-reason" : undefined} onclick={() => onDownload(card.id as DownloadOption)}>
           <span class="export-card-top"><span class="export-card-icon"><card.icon size={22} strokeWidth={1.6} /></span><span class="export-card-format">{card.format}</span></span>
           <strong>{card.label}</strong><span class="export-card-description">{card.description}</span>
           <span class="export-card-action"><Download size={14} /> Download {card.format}</span>
