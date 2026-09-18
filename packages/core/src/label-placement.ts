@@ -165,8 +165,8 @@ const CANDIDATE_GRID: Point2D[] = (() => {
   return grid;
 })();
 
-function labelCandidates(preferred: Point2D): Point2D[] {
-  const candidates: Point2D[] = [{ ...preferred }];
+function labelCandidates(preferred: Point2D, local: readonly Point2D[] = []): Point2D[] {
+  const candidates: Point2D[] = [{ ...preferred }, ...local];
   CANDIDATE_GRID.forEach((candidate) => {
     if (Math.abs(candidate.x - preferred.x) > 1e-8 || Math.abs(candidate.y - preferred.y) > 1e-8) candidates.push(candidate);
   });
@@ -191,7 +191,13 @@ export function addLabelObstacles(index: LabelLayerIndex, markings: LayerIR["mar
   index.obstacles.push(...indexMarkings(markings));
 }
 
-export function placeLabel(label: string, config: ProjectConfigV1, { material, obstacles }: LabelLayerIndex, preferred: Point2D, requiredPolygons?: Polygon2D[]): Point2D | undefined {
+/**
+ * `localCandidates` are extra normalized positions tried before the global
+ * grid, whose 10% spacing is coarser than a small target region such as one
+ * cut piece's covered area; all candidates are still ordered by distance from
+ * `preferred`.
+ */
+export function placeLabel(label: string, config: ProjectConfigV1, { material, obstacles }: LabelLayerIndex, preferred: Point2D, requiredPolygons?: Polygon2D[], localCandidates: readonly Point2D[] = []): Point2D | undefined {
   const dimensions = labelDimensions(label, config.textStyle);
   // Every sampled point of the label box must be inside, so the box must sit
   // inside the polygon's box - which no polygon narrower than the label can
@@ -205,7 +211,7 @@ export function placeLabel(label: string, config: ProjectConfigV1, { material, o
   if (required && !required.length) return undefined;
   const inside = (bounds: Bounds2D) => ({ polygon, bounds: box }: { polygon: Polygon2D; bounds: Bounds2D }) =>
     boundsContainBounds(box, bounds) && boundsInsidePolygon(bounds, polygon);
-  for (const candidate of labelCandidates(preferred)) {
+  for (const candidate of labelCandidates(preferred, localCandidates)) {
     const center = { x: candidate.x * config.widthMm / 2, y: candidate.y * config.heightMm / 2 };
     const origin = { x: center.x - dimensions.width / 2, y: center.y - dimensions.height / 2 };
     const bounds = labelBounds(label, origin, config.textStyle, 0.8);

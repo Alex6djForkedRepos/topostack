@@ -73,7 +73,11 @@ describe("TopoStack Svelte shell", () => {
     reset().click();
     await tick();
     [...target.querySelectorAll<HTMLButtonElement>(".reset-dialog button")].find((button) => button.textContent?.trim() === "Reset project")!.click();
-    await vi.waitFor(() => expect(saveProject).toHaveBeenLastCalledWith(DEFAULT_PROJECT));
+    await tick();
+    // Flush the pending snapshot: covered preview work can occupy the main
+    // thread longer than waitFor's default timeout before the save timer runs.
+    window.dispatchEvent(new Event("pagehide"));
+    expect(saveProject).toHaveBeenLastCalledWith(DEFAULT_PROJECT);
     expect(target.querySelector<HTMLInputElement>('[aria-label="Project name"]')?.value).toBe("Crater Lake");
     expect(target.querySelector('[aria-label="Layered relief"]')?.getAttribute("aria-checked")).toBe("true");
     await vi.waitFor(() => expect(target.textContent).toContain("Some lake depths are estimated rather than surveyed."));
@@ -237,7 +241,10 @@ describe("TopoStack Svelte shell", () => {
     expect(fitSwitch.getAttribute("aria-checked")).toBe("true");
     fitSwitch.click();
     await vi.waitFor(() => expect(target.querySelector('[aria-label="Fit lake depth to available layers"]')?.getAttribute("aria-checked")).toBe("false"));
-    await vi.waitFor(() => expect(saveProject).toHaveBeenLastCalledWith(expect.objectContaining({ fitLakeDepth: false })));
+    await tick();
+    // Flush the pending snapshot rather than waiting out the debounce under coverage.
+    window.dispatchEvent(new Event("pagehide"));
+    expect(saveProject).toHaveBeenLastCalledWith(expect.objectContaining({ fitLakeDepth: false }));
     expect(manualButton()).toBeUndefined();
     const saved = vi.mocked(saveProject).mock.lastCall![0];
     await unmount(component!);
@@ -551,12 +558,37 @@ describe("TopoStack Svelte shell", () => {
     await tick();
     const fields = target.querySelector<HTMLElement>(".advanced-fields")!;
     expect(fields.querySelectorAll('.toggle-stack button[role="switch"]')).toHaveLength(2);
-    expect(fields.querySelectorAll(".field-stack > .field-row")).toHaveLength(3);
+    // Glue margin, laser kerf, minimum feature, and the two work-area fields.
+    expect(fields.querySelectorAll(".field-stack > .field-row")).toHaveLength(5);
     // Text engraving and the elevation label position now sit beside what they
     // affect in Map details rather than in the fabrication panel.
     expect(fields.querySelector(".swatch-options")).toBeNull();
     expect(target.querySelectorAll('.swatch-options[aria-label="Engraving font"] button[role="radio"]')).toHaveLength(3);
     expect(target.querySelectorAll('input[aria-label="Label X"]')).toHaveLength(1);
+  });
+
+  it("reports the sheet grid a machine work area implies", async () => {
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await tick();
+    [...target.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes("Fabrication settings"))!.click();
+    await tick();
+    const fields = target.querySelector<HTMLElement>(".advanced-fields")!;
+    // No work area: the model is cut whole and there is nothing to label.
+    expect(fields.querySelector(".seam-summary")?.textContent).toMatch(/one piece/i);
+    expect([...fields.querySelectorAll('button[role="switch"]')].some((button) => button.getAttribute("aria-label") === "Assembly labels")).toBe(false);
+
+    const width = target.querySelector<HTMLInputElement>('input[aria-label="Work area width"]')!;
+    const height = target.querySelector<HTMLInputElement>('input[aria-label="Work area height"]')!;
+    for (const [input, value] of [[width, "160"], [height, "120"]] as const) {
+      input.value = value;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      input.blur();
+      await tick();
+    }
+    await vi.waitFor(() => expect(target.querySelector(".seam-summary")?.textContent).toContain("2 × 2 sheets per layer"));
+    expect([...target.querySelectorAll('button[role="switch"]')].some((button) => button.getAttribute("aria-label") === "Assembly labels")).toBe(true);
   });
 
   it("changes engraving font and exact physical text size without refetching terrain", async () => {
