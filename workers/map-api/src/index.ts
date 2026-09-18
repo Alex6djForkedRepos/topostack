@@ -1,3 +1,4 @@
+import { OUTLINE_INDEX_FILE, OUTLINE_PATH, outlineResponse } from "./routes/lake-outlines";
 import { measureBucket } from "./data-metrics";
 import { clientKey, corsHeaders, isAllowedOrigin, json, rateLimitExceeded, withCors } from "./http";
 import { buildManifest } from "./manifest";
@@ -79,10 +80,17 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
   }
   if (request.method !== "GET" && request.method !== "HEAD") return json({ error: "Method not allowed." }, { status: 405, headers: { allow: "GET,HEAD,OPTIONS" } });
 
+  // Existing browser sessions can still request the former static URLs.
+  const legacyOutline = /^\/data\/lake-outlines\/(index|[a-f0-9]{24})\.json$/.exec(url.pathname);
+  if (legacyOutline) {
+    const file = legacyOutline[1] === "index" ? OUTLINE_INDEX_FILE : `${legacyOutline[1]}.json`;
+    return new Response(null, { status: 307, headers: { location: `/v1/lake-outlines/${file}`, "cache-control": "public, max-age=3600" } });
+  }
   const exact = EXACT_ROUTES.get(url.pathname);
   if (exact) return exact(request, env, ctx, url);
   const archive = ARCHIVE_ROUTES.get(url.pathname);
   if (archive) return archiveResponse(request, env, ctx, archive);
+  if (OUTLINE_PATH.test(url.pathname)) return limited("lake-outlines", outlineResponse)(request, env, ctx, url);
   const terrainMatch = TERRAIN_TILE_PATH.exec(url.pathname);
   if (terrainMatch) {
     const tile = validTile(terrainMatch[1] ?? "", terrainMatch[2] ?? "", terrainMatch[3] ?? "");

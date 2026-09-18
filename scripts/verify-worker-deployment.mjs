@@ -50,7 +50,7 @@ const health = await fetchJson(publicBase, "/health");
 if (health?.service !== "topostack-map-api" || health?.status !== "ok" || health?.environment !== expectedEnvironment) throw new Error(`Unexpected Worker health response: ${JSON.stringify(health)}`);
 
 const readiness = await fetchJson(publicBase, "/ready");
-if (readiness?.service !== "topostack-map-api" || readiness?.status !== "ready" || readiness?.environment !== expectedEnvironment || readiness?.dependencies?.geocoder?.status !== "configured" || readiness?.dependencies?.vectorData?.status !== "available" || readiness?.dependencies?.lakeData?.status !== "available") {
+if (readiness?.service !== "topostack-map-api" || readiness?.status !== "ready" || readiness?.environment !== expectedEnvironment || readiness?.dependencies?.geocoder?.status !== "configured" || readiness?.dependencies?.vectorData?.status !== "available" || readiness?.dependencies?.lakeData?.status !== "available" || readiness?.dependencies?.lakeOutlines?.status !== "available") {
   throw new Error(`Unexpected Worker readiness response: ${JSON.stringify(readiness)}`);
 }
 

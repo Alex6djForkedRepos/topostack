@@ -180,7 +180,7 @@ def build(caches, output, directory):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--cache', type=Path, action='append', required=True)
-    parser.add_argument('--output', type=Path, default=ROOT / 'apps/generator/static/data/lake-outlines')
+    parser.add_argument('--output', type=Path, default=ROOT / '.topostack/lake-outlines')
     args = parser.parse_args()
     directory = json.loads((ROOT / 'apps/generator/static/data/lake-depth-directory.json').read_text())
     build(args.cache, args.output, directory)

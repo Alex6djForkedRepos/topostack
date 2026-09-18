@@ -1,4 +1,3 @@
-import { base } from "$app/paths";
 import { loadProviderOutlines, resolveLakeOutlines } from "./lake-outlines";
 import { mapTiles } from "./tile-requests";
 import { fitCutBounds } from "./selection-bounds";
@@ -299,7 +298,7 @@ export async function loadVectorMarkings(bounds: GeoBounds, requestedZoom: numbe
  */
 export async function loadLakeAreas(bounds: GeoBounds, requestedZoom: number, config: ProjectConfigV1, signal?: AbortSignal): Promise<WaterAreaV1[]> {
   const results = await Promise.allSettled([
-    loadProviderOutlines(base, bounds, config, signal),
+    loadProviderOutlines(apiBase, bounds, config, signal),
     loadHydroLakeAreas(bounds, requestedZoom, config, signal),
   ]);
   signal?.throwIfAborted();

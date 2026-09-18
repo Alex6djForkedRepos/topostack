@@ -1,3 +1,4 @@
+import { OUTLINE_INDEX_KEY, outlineReadiness } from "./lake-outlines";
 import { archiveHead } from "../archive-release";
 import { json } from "../http";
 import { LAKE_ARCHIVE_KEY, VECTOR_ARCHIVE_KEY } from "./archive";
@@ -14,19 +15,21 @@ export function healthResponse(env: Env): Response {
 
 export async function readinessResponse(env: Env): Promise<Response> {
   // Readiness resolves releases directly rather than through the range-read memo.
-  const [vectorCheck, lakeCheck] = await Promise.allSettled([
+  const [vectorCheck, lakeCheck, outlineCheck] = await Promise.allSettled([
     archiveHead(env.VECTOR_DATA, VECTOR_ARCHIVE_KEY),
     archiveHead(env.VECTOR_DATA, LAKE_ARCHIVE_KEY),
+    outlineReadiness(env.VECTOR_DATA),
   ]);
   const vectorArchive = vectorCheck.status === "fulfilled" ? vectorCheck.value.head : null;
   const lakeArchive = lakeCheck.status === "fulfilled" ? lakeCheck.value.head : null;
   const geocoderConfigured = isGeocoderConfigured(env);
-  const ready = Boolean(vectorArchive && lakeArchive && geocoderConfigured);
+  const ready = Boolean(vectorArchive && lakeArchive && outlineCheck.status === "fulfilled" && outlineCheck.value && geocoderConfigured);
   return json({
     service: "topostack-map-api",
     status: ready ? "ready" : "not_ready",
     environment: env.ENVIRONMENT,
     dependencies: {
+      lakeOutlines: { status: outlineCheck.status === "rejected" ? "unavailable" : outlineCheck.value ? "available" : "missing", key: OUTLINE_INDEX_KEY },
       terrain: { status: "configured" },
       geocoder: { status: geocoderConfigured ? "configured" : "unconfigured" },
       vectorData: {
