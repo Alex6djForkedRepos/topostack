@@ -118,8 +118,11 @@ describe("TopoStack geometry", () => {
     const pinAnchor = geoPointToMapPoint(markers[0]!.lat, markers[0]!.lon, realSource(project).bounds, project.widthMm, project.heightMm);
     expect(halos.length).toBeGreaterThanOrEqual(markers.length);
     expect(foregroundPin?.points.some(point => Math.abs(point.x - pinAnchor.x) < 1e-6 && Math.abs(point.y - pinAnchor.y) < 1e-6)).toBe(true);
-    expect(foregroundCross).toHaveLength(2);
-    expect(foregroundCross.every((marking) => marking.points.length === 5)).toBe(true);
+    // The two bars are merged into one 12-sided outline, filled and cleared once.
+    expect(foregroundCross).toHaveLength(1);
+    expect(foregroundCross[0]!.points).toHaveLength(13);
+    // The pin's eye is engraved as a hole in its head.
+    expect(foregroundPin?.holes).toHaveLength(1);
     const svg = engravingToSvg(result, project);
     expect(svg).toMatch(/id="map-marker-[^"]+"[^>]+fill="#2366FF"/);
     expect(svg).not.toContain('fill="#ffffff"');

@@ -51,12 +51,14 @@ describe("markers across exposed layer faces", () => {
     const pieces = geometry.layers.flatMap(layer => layer.markings.filter(mark => mark.kind === "marker" && !mark.knockout).map(mark => ({ layer, polygon: { outer: mark.points, holes: mark.holes ?? [] } })));
     expect(new Set(pieces.map(piece => piece.layer.index)).size).toBeGreaterThan(2);
     const anchor = geoPointToMapPoint(0.05,0.05,bounds,100,100);
-    const paths = markerSymbolPaths(symbol, markerSymbolCenterForAnchor(symbol, anchor, 80), 80).filter((_, index) => symbol !== "pin" || index === 0);
-    // Check each symbol stroke independently: a cross intentionally has two
-    // overlapping filled strokes. Area conservation catches gaps between the
-    // samples without unioning near-coincident floating-point contour edges.
+    const symbolPaths = markerSymbolPaths(symbol, markerSymbolCenterForAnchor(symbol, anchor, 80), 80);
+    // A pin's second ring is its eye, a hole in the head.
+    const paths = symbol === "pin" ? symbolPaths.slice(0, 1) : symbolPaths;
+    const holes = symbol === "pin" ? symbolPaths.slice(1) : [];
+    // Area conservation catches gaps between the samples without unioning
+    // near-coincident floating-point contour edges.
     paths.forEach((outer, pathIndex) => {
-      const expected = polygonClipping.intersection(poly({outer,holes:[]}), poly(box(-50,-50,50,50)));
+      const expected = polygonClipping.intersection(poly({outer,holes}), poly(box(-50,-50,50,50)));
       const expectedArea = expected.reduce((sum, [ring,...holes]) => sum + area({ outer: ring!.map(([x,y])=>({x,y})), holes: holes.map(hole=>hole.map(([x,y])=>({x,y}))) }),0);
       const actualArea = geometry.layers.flatMap(layer => layer.markings).filter(mark => mark.id.startsWith(`map-marker-0-${pathIndex}-`)).reduce((sum, mark) => sum + area({outer:mark.points,holes:mark.holes ?? []}),0);
       expect(actualArea).toBeCloseTo(expectedArea, 6);
@@ -64,7 +66,7 @@ describe("markers across exposed layer faces", () => {
     const topDown = [...geometry.layers].reverse();
     for (let x = -49.73; x < 50; x += 1.13) for (let y = -49.61; y < 50; y += 1.17) {
       const point = {x,y};
-      const expected = paths.filter(outer => pointInPolygon(point, {outer,holes:[]})).length;
+      const expected = paths.filter(outer => pointInPolygon(point, {outer,holes})).length;
       const drawn = pieces.filter(piece => pointInPolygon(point, piece.polygon));
       expect(drawn.length).toBe(expected);
       if (drawn.length) {

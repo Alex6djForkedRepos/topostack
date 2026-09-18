@@ -7,7 +7,7 @@
   import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
   import { MAX_PROJECT_DIMENSION_MM, markerSymbolCenterForAnchor, markerSymbolPaths, unwrapLongitude, type CustomLineFeatureV1, type GeoBounds, type MapMarkerV1, type MarkerSymbol, type ProjectConfigV1 } from "@topostack/core";
   import { boundsForProject } from "../data-provider";
-  import { pointsToPath } from "./svg-path";
+  import { symbolPath } from "./svg-path";
   let { project, aspectLocked = $bindable(false), onLocationChange, onSelectionResize, onUnavailable }: { aspectLocked?: boolean; project: ProjectConfigV1; onSelectionResize: (widthMm: number, heightMm: number, bounds: GeoBounds) => void; onUnavailable?: (reason?: "unsupported" | "load-failed") => void; onLocationChange: (lat: number, lon: number, zoom: number, bounds: GeoBounds) => void } = $props();
   import AtommZoom from "./AtommZoom.svelte";
   const isEmbedded = getContext<() => boolean>("atomm-embedded") ?? (() => false);
@@ -103,11 +103,10 @@
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("viewBox", "-13 -13 26 26");
     svg.setAttribute("aria-hidden", "true");
-    for (const points of markerSymbolPaths(marker.symbol, { x: 0, y: 0 }, MARKER_SYMBOL_SIZE)) {
-      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute("d", pointsToPath(points));
-      svg.append(path);
-    }
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", symbolPath(markerSymbolPaths(marker.symbol, { x: 0, y: 0 }, MARKER_SYMBOL_SIZE)));
+    path.setAttribute("fill-rule", "evenodd");
+    svg.append(path);
     element.append(svg);
     return element;
   }

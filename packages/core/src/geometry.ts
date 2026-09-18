@@ -1322,10 +1322,12 @@ function placeMarkers({ config, source, flatEngraving }: GenerationContext, clip
     if (!materials.some(material => pointInPreparedPolygons(anchor, material))) return;
     const size = marker.sizeMm ?? MAP_MARKER_SIZE_MM;
     const symbolCenter = markerSymbolCenterForAnchor(marker.symbol, anchor, size);
-    const paths = markerSymbolPaths(marker.symbol, symbolCenter, size)
-      .filter((_, pathIndex) => marker.symbol !== "pin" || pathIndex === 0);
+    const symbolPaths = markerSymbolPaths(marker.symbol, symbolCenter, size);
+    // A pin's second ring is its eye, engraved as a hole in the head.
+    const paths = marker.symbol === "pin" ? symbolPaths.slice(0, 1) : symbolPaths;
+    const holes = marker.symbol === "pin" ? symbolPaths.slice(1) : [];
     const place = (path: Point2D[], id: string, knockout = false) => {
-      markerLayerPolygons(path, materials).forEach(({ layerIndex, polygon }, pieceIndex) => clips[layerIndex]!.layer.markings.push({
+      markerLayerPolygons(path, materials, knockout ? [] : holes).forEach(({ layerIndex, polygon }, pieceIndex) => clips[layerIndex]!.layer.markings.push({
         id: `map-marker-${markerIndex}-${id}-${layerIndex}-${pieceIndex}`,
         operation: "engrave",
         kind: "marker",

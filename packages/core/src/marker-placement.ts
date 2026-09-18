@@ -3,10 +3,12 @@ import { boundsOverlap, ringBounds, type PreparedPolygons } from "./geometry2d.j
 import type { Point2D, Polygon2D } from "./types.js";
 
 /** Partition a filled symbol top-down so every point belongs to its exposed sheet. */
-export function markerLayerPolygons(footprint: Point2D[], materials: PreparedPolygons[]): Array<{ layerIndex: number; polygon: Polygon2D }> {
+export function markerLayerPolygons(footprint: Point2D[], materials: PreparedPolygons[], holes: Point2D[][] = []): Array<{ layerIndex: number; polygon: Polygon2D }> {
   const ring = (points: Point2D[]): Pair[] => points.map(({ x, y }) => [x, y]);
   const bounds = ringBounds(footprint);
-  let remaining: MultiPolygon = [[ring(footprint)]];
+  let remaining: MultiPolygon = holes.length
+    ? polygonClipping.difference([[ring(footprint)]], ...holes.map((hole): MultiPolygon => [[ring(hole)]]))
+    : [[ring(footprint)]];
   const pieces: Array<{ layerIndex: number; polygon: Polygon2D }> = [];
   for (let layerIndex = materials.length - 1; layerIndex >= 0 && remaining.length; layerIndex -= 1) {
     const material = materials[layerIndex]!;

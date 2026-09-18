@@ -35,7 +35,7 @@
   import { activeLinePreset as findActiveLinePreset, CONFIG_SECTION_IDS, countDetailMarkings, featuredLayerIndex, layerForEnabledDetail, modeledLakes as findModeledLakes, sectionSummary as summarizeSection, visibleWarnings as summarizeWarnings, type ConfigSectionId } from "./preview-summary";
   import { retryingLoader } from "./lazy-load";
   import { sameMapArea } from "./project-diff";
-  import { pointsToPath } from "./svg-path";
+  import { pointsToPath, symbolPath } from "./svg-path";
   import { changedProjectKeys, projectPatch } from "./project-patch";
   import type { SourcePreparationCache } from "./source-refresh";
   import { generationStatus, generationToast, previewPendingStatus, previewUpdatedStatus, statusLine, type PreviewUpdateKind } from "./status-messages";
@@ -768,7 +768,7 @@
                       <div class="marker-symbol-options" role="radiogroup" aria-label={`Marker ${index + 1} symbol`}>
                         {#each MARKER_OPTIONS as option}
                           <button type="button" role="radio" aria-label={option.label} title={option.label} aria-checked={marker.symbol === option.value} data-state={marker.symbol === option.value ? "on" : "off"} tabindex={marker.symbol === option.value ? 0 : -1} onclick={() => applyCustomDataEdit(edits.updateMarker(project, marker.id, { symbol: option.value }))} onkeydown={navigateChoice}>
-                            <svg viewBox="-11 -11 22 22" aria-hidden="true">{#each option.paths as path}<path d={pointsToPath(path)} />{/each}</svg>
+                            <svg viewBox="-11 -11 22 22" aria-hidden="true"><path d={symbolPath(option.paths)} fill-rule="evenodd" /></svg>
                           </button>
                         {/each}
                       </div>
