@@ -1,4 +1,4 @@
-import release from "../../../scripts/data/lake-outlines-release.json";
+import { index as outlineIndex } from "../../../scripts/data/lake-outlines-release.json";
 import type { GeoBounds, Polygon2D, ProjectConfigV1, WaterAreaV1 } from "@topostack/core";
 import polygonClipping, { type MultiPolygon, type Pair } from "polygon-clipping";
 import { networkSignal } from "./archive";
@@ -27,7 +27,7 @@ export async function loadProviderOutlines(base: string, bounds: GeoBounds, conf
     return response.json();
   };
   signal?.throwIfAborted();
-  const index = await read(release.index.file) as OutlineIndex;
+  const index = await read(outlineIndex.file) as OutlineIndex;
   if (index.schemaVersion !== 1 || !Array.isArray(index.shards)) throw new Error("Unknown lake outline index.");
   const shards = index.shards.filter((shard) => intersects(bounds, shard.bounds));
   if (shards.length > 64) throw new Error("Narrow the map area to load survey outlines.");

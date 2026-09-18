@@ -38,3 +38,22 @@ Nipissing 2020 lidar, 1 m bare-earth DTM, CGVD2013, licensed under the Open
 Government Licence – Canada. `scripts/data/hrdem-sources.json` pins the upstream
 COG identity; `scripts/data/hrdem-builds.json` records the regional snapshot and
 archive hashes. See `docs/hrdem-terrain.md` for reproduction.
+
+## Lake Granby shoreline source-resolution regression
+
+Unmodified Mapzen Terrarium tiles retrieved 2026-09-17:
+
+- `granby-z10.png`: https://s3.amazonaws.com/elevation-tiles-prod/terrarium/10/211/387.png
+- `granby-z15.png`: https://s3.amazonaws.com/elevation-tiles-prod/terrarium/15/6753/12388.png
+
+The coarse tile has an elevation of -218 m at pixel (8, 34) and 3,091 m at
+(11, 35) on Lake Granby's northeastern shore, near the reported Shadow Mountain
+map center (40.1764, -105.8559). Finer source tiles put those locations near
+2,525 m and 2,531 m. The negative-only spike repair cannot fix the entire cluster.
+The loader regression uses the same shoreline crop with camera zooms 10 and 15
+to verify that source resolution comes from the crop and preserves the plausible
+native elevations without relying on spike repair. The regional crop also tests
+the 24-tile request budget and 768-sample output-grid limit.
+
+Source attribution: Mapzen terrain tiles, compiled from open elevation datasets,
+including USGS NED. See the attribution links above.

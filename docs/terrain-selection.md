@@ -20,6 +20,15 @@ DTMs. Native source resolution is distinct from delivered tile spacing and the
 final project grid; current terrain tiles top out at zoom 15 and project grids
 at 768 samples per axis.
 
+Elevation tile zoom is selected from the crop bounds, independently of the
+reference-map zoom: start at zoom 15 and step down until the crop fits the
+24-tile budget. Decode and repair the stitched source raster, then resample it
+to the bounded project grid. This avoids coarse-level source artifacts when
+finer tiles are available, including the Lake Granby shoreline spikes in Mapzen's
+zoom-10 tiles. Large crops can still require coarse tiles; this does not guarantee
+that every upstream anomaly is removed. Vector and lake archive zoom selection
+remains tied to the map zoom and each archive's limits.
+
 ## Coverage and failure behavior
 
 Bounding boxes and zoom limits are candidate filters. Only valid decoded pixels
