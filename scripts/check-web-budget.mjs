@@ -38,7 +38,11 @@ const budgets = {
   // Raised 2026-09-17 for the same two guide routes: 888,934 -> 895,695.
   // Raised again 2026-09-17 for four more guide routes: 895,695 -> 906,116.
   // Raised 2026-09-18 for machine work-area splitting.
-  totalJavaScriptGzip: 922_000,
+  // Raised 2026-09-18 for water paint templates (paint-region clipping in the
+  // geometry worker, the stencil writer, the export card and the cut-layer
+  // overlay): measured with Node 22.22.2 at 919,013 on dev -> 922,607 on the
+  // merged branch, a 3,594 byte delta.
+  totalJavaScriptGzip: 930_000,
   largestJavaScriptGzip: 300_000,
   // Public guides add styles outside the studio. Keep a separate allowance for
   // the Atomm template, which is loaded only inside the platform iframe.
