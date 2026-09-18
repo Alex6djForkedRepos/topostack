@@ -20,7 +20,9 @@ the workflow.
 6. Generate real terrain, inspect the exact flattened preview, and export.
 
 Water depth, layer thickness, vertical exaggeration, assembly guides, material
-nesting, glue margin, and kerf are intentionally stack-only controls.
+nesting, glue margin, kerf, and the machine work area are intentionally
+stack-only controls. A flat engraving is never split into work-area tiles: it
+has nothing to cut and always exports as one SVG.
 
 ## Geometry
 

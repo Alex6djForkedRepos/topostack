@@ -10,12 +10,12 @@ Turn a place you love into something you can make. TopoStack is a browser-based 
 
 | Workflow | Controls | Output |
 | --- | --- | --- |
-| **Layered relief** | Physical size, material thickness, vertical exaggeration, map details, and fabrication settings | Master SVG, cut panels, matching engraving panels, and an assembly guide |
+| **Layered relief** | Physical size, material thickness, vertical exaggeration, map details, and fabrication settings, including an optional machine work area | Master SVG, cut panels (one per work-area tile when split), matching engraving panels, and an assembly guide |
 | **Flat engraving** | Physical size, contour density, index contours, linework, map details, and border | One SVG at physical size, containing engraving paths only |
 
 Both workflows support rectangular and circular crops; roads, trails, transportation labels, water outlines and fill patterns; state/province boundaries; latitude/longitude grids; elevation labels; a compass; and a scale bar. Add custom coordinate-based markers, trails, and boundaries to make a map your own.
 
-Layered projects also support modeled lake depth, alignment guides, and material reuse. Sheet count is calculated from terrain relief, map scale, vertical exaggeration, and material thickness. Preview a project on the map, as 2D cut layers, as an engraving, or as a stacked/exploded 3D model, depending on the output type.
+Layered projects also support surveyed and modeled lake depth, alignment guides, and material reuse. Models larger than your laser bed can be split along a staggered seam grid into pieces that fit it; covered seams are cut as interlocking puzzle tabs, and each piece engraves an assembly id such as `L03-B2` where the next layer hides it. Sheet count is calculated from terrain relief, map scale, vertical exaggeration, and material thickness. Preview a project on the map, as 2D cut layers, as an engraving, or as a stacked/exploded 3D model, depending on the output type.
 
 ### Inside the studio
 
@@ -239,7 +239,7 @@ The homepage, workflow guides, and Crater Lake example are prerendered for searc
 
 ## Data sources and provisioning
 
-- **Elevation:** Mapzen Terrarium tiles, cached in R2 with imagery-source attribution.
+- **Elevation:** Mapzen Terrarium tiles, cached in R2 with imagery-source attribution. Optional higher-resolution regional archives take precedence where registered; the first is an NRCan HRDEM pilot around Ontario lakes, currently active in development only. See [HRDEM terrain](docs/hrdem-terrain.md) and [terrain selection](docs/terrain-selection.md).
 - **Roads, trails, water, and boundaries:** the pinned Protomaps/OpenStreetMap PMTiles archive at `osm/current.pmtiles`.
 - **Lake depth:** Survey grids from NOAA/NCEI, USGS, Minnesota DNR, swisstopo, and the Finnish Environment Institute where available, with HydroLAKES/GLOBathy modeled basins for gaps. The global lake archive is `lakes/current.pmtiles`; survey archives use versioned `bathymetry/<dataset-id>.pmtiles` keys. See [survey coverage, references, and provisioning](docs/lake-bathymetry.md).
 - **Place search:** Geoapify, proxied through the Worker.
@@ -257,9 +257,12 @@ Terrain and map data are decorative source material, not survey, navigation, or 
 
 - [SEO and discoverability operations](docs/seo-operations.md)
 - [Flat engraving workflow and SVG contract](docs/flat-engraving.md)
+- [Data, attribution, and fabrication details](docs/data-and-fabrication.md)
+- [Feedback workflow and triage](docs/feedback.md)
 - [Architecture and geometry conventions](docs/architecture.md)
 - [Map API setup and operations](workers/map-api/README.md)
 - [Release acceptance and rollback](docs/release-acceptance.md)
+- [Terrain expansion plan](docs/terrain-expansion-plan.md)
 - [Roadmap](docs/roadmap.md)
 - [Launch-readiness remediation history](docs/launch-readiness-remediation-2026-09-12.md)
 
