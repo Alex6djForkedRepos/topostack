@@ -111,6 +111,10 @@
       <tr><td>Smooth contours</td><td>On, off</td><td>On</td><td>Rounds sharp corners on contour shapes.</td></tr>
       <tr><td>Glue margin</td><td>2–25 mm</td><td>8 mm</td><td><em>Layered</em>, with nests on. Covered glue area kept around nested pieces.</td></tr>
       <tr><td>Laser kerf</td><td>0–1 mm</td><td>0.15 mm</td><td><em>Layered</em>. Full kerf width; half is applied to each side of a cut.</td></tr>
+      <tr><td>Work area width, Work area height</td><td>0 or 20 mm and up</td><td>0 (off)</td><td><em>Layered</em>. Your laser bed. Layers larger than it are split into tiles that fit; 0 leaves that axis unlimited.</td></tr>
+      <tr><td>Seam offset</td><td>0–50 mm</td><td>10 mm</td><td><em>Layered</em>, when split. How far seams shift between alternating layers, so no seam sits over another.</td></tr>
+      <tr><td>Puzzle seam tabs</td><td>On, off</td><td>On</td><td><em>Layered</em>, when split. Cuts covered seams as interlocking tabs so each piece only fits its neighbour.</td></tr>
+      <tr><td>Assembly labels</td><td>On, off</td><td>On</td><td><em>Layered</em>, when split. Engraves each piece's id, such as <code>L03-B2</code>, where the next layer hides it.</td></tr>
       <tr><td>Minimum feature</td><td>0.2–5 mm</td><td>0.8 mm</td><td>Pieces and holes narrower than this are removed, and contours are simplified at this scale.</td></tr>
     </tbody>
   </table>

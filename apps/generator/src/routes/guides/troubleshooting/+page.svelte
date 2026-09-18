@@ -18,6 +18,7 @@
   <h2>Warnings after generating</h2>
   <p>Warnings appear above the preview. They do not block export, but read them before you cut.</p>
   <dl class="issues">
+    <div><dt>Pieces remain larger than the work area, or the work area was not applied</dt><dd>The model is too large for your work area to split cleanly: either some pieces still overflow the bed, or the split was skipped entirely. Use a larger work area, a smaller model, or thicker material for fewer layers.</dd></div>
     <div><dt>Very little elevation change</dt><dd>Flat areas produce layers that look nearly identical, or sparse contours. Raise the vertical exaggeration or contour density, or include more of the surrounding hills.</dd></div>
     <div><dt>Water is deeper than the sheets below the shoreline can hold</dt><dd>An explicit depth-layer limit can flatten the lake floor. Turn off <strong>Limit depth layers</strong> for automatic coverage, increase the allowance, or select <strong>Fit depth</strong> to compress the lake instead, lower <strong>Depth exaggeration</strong>, or use thinner material. <a href={`${base}/guides/how-lake-depths-work#layers`}>How depth settings affect layers</a>.</dd></div>
     <div><dt>Some lake depths are estimated rather than surveyed</dt><dd>At least one lake is modeled in whole or part. This is expected for most lakes. <a href={`${base}/guides/how-lake-depths-work#confidence`}>How to read the result</a>.</dd></div>
