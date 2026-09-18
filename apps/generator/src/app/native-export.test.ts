@@ -44,6 +44,17 @@ describe("export choices", () => {
     expect(download.fileCount).toBe(4);
   });
 
+  it.each(["panels", "engravings"] as const)("includes every work-area cell sheet in %s", async (option) => {
+    const sheets = ["ridge-layer-01-a1", "ridge-layer-01-b2", "ridge-layer-01-a1-2", "ridge-panel-03-layers-03-04-c1"];
+    const split: FabricationPackageV1 = { schemaVersion: 1, master, files: [master,
+      ...sheets.flatMap((sheet) => [file(`${sheet}.svg`), file(`${sheet}-engrave.svg`)]),
+      file("ridge-assembly-guide.svg"), file("README.txt"), file("ATTRIBUTION.txt"),
+    ] };
+    const files = unzipSync(new Uint8Array(await (await prepareSelectedDownload(split, option)).blob.arrayBuffer()));
+    const suffix = option === "engravings" ? "-engrave.svg" : ".svg";
+    expect(Object.keys(files)).toEqual([...sheets.map((sheet) => `${sheet}${suffix}`), "README.txt", "ATTRIBUTION.txt"]);
+  });
+
   it("downloads individual SVGs without wrapping them in a ZIP", async () => {
     expect(await prepareSelectedDownload(output, "master")).toEqual({ ...master, fileCount: 1 });
     expect((await prepareSelectedDownload(output, "assembly")).filename).toBe("ridge-layer-01-assembly-guide.svg");

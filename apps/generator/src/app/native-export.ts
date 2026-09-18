@@ -67,9 +67,11 @@ export async function prepareSelectedDownload(output: FabricationPackageV1, opti
   const files = output.files.filter((file) => {
     if (option === "assembly") return file.filename.endsWith("-assembly-guide.svg");
     // Match only the generated suffix so project names cannot affect selection.
+    // A work-area split appends the seam cell ("-a1", or "-a1-2" for a piece
+    // shipped on its own sheet).
     return option === "engravings"
-      ? /-(?:layer-\d+|panel-\d+-layers-[\d-]+)-engrave\.svg$/.test(file.filename)
-      : /-(?:layer-\d+|panel-\d+-layers-[\d-]+)\.svg$/.test(file.filename);
+      ? /-(?:layer-\d+|panel-\d+-layers-[\d-]+)(?:-[a-z]\d+(?:-\d+)?)?-engrave\.svg$/.test(file.filename)
+      : /-(?:layer-\d+|panel-\d+-layers-[\d-]+)(?:-[a-z]\d+(?:-\d+)?)?\.svg$/.test(file.filename);
   });
   if (!files.length) throw new Error("This export is not available for the current output type.");
   if (option === "assembly") return { ...files[0], fileCount: 1 };
