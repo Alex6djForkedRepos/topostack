@@ -18,7 +18,9 @@ const budgets = {
   // troubleshooting guides: 55,9xx -> 56,141 with Node 22.14.0.
   // Raised again 2026-09-17 for the studio tour, map details, custom data and
   // settings reference guides: 56,141 -> 56,676 with Node 22.14.0.
-  landingJavaScriptGzip: 57_200,
+  // Raised 2026-09-18 for the split-large-maps and water-paint-templates
+  // guides: measured at 57,252 with Node 22.14.0.
+  landingJavaScriptGzip: 57_800,
   landingHtmlGzip: 10_000,
   initialJavaScriptGzip: 180_000,
   // Includes the editor, default 3D preview, and geometry worker. Lake modeling
