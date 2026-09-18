@@ -557,7 +557,8 @@ describe("TopoStack Svelte shell", () => {
     [...target.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes("Fabrication settings"))!.click();
     await tick();
     const fields = target.querySelector<HTMLElement>(".advanced-fields")!;
-    expect(fields.querySelectorAll('.toggle-stack button[role="switch"]')).toHaveLength(2);
+    // Material-saving nests, water paint templates, and smooth contours.
+    expect(fields.querySelectorAll('.toggle-stack button[role="switch"]')).toHaveLength(3);
     // Glue margin, laser kerf, minimum feature, and the two work-area fields.
     expect(fields.querySelectorAll(".field-stack > .field-row")).toHaveLength(5);
     // Text engraving and the elevation label position now sit beside what they
@@ -589,6 +590,28 @@ describe("TopoStack Svelte shell", () => {
     }
     await vi.waitFor(() => expect(target.querySelector(".seam-summary")?.textContent).toContain("2 × 2 sheets per layer"));
     expect([...target.querySelectorAll('button[role="switch"]')].some((button) => button.getAttribute("aria-label") === "Assembly labels")).toBe(true);
+  });
+
+  it("offers water paint templates for a layered model and stores the kind list", async () => {
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await tick();
+    const heading = [...target.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes("Fabrication settings"))!;
+    heading.click();
+    await tick();
+    const paintSwitch = () => target.querySelector<HTMLButtonElement>('button[role="switch"][aria-label="Water paint templates"]');
+    expect(paintSwitch()?.getAttribute("aria-checked")).toBe("false");
+    expect(heading.textContent).not.toContain("Paint templates");
+    paintSwitch()!.click();
+    await vi.waitFor(() => expect(paintSwitch()?.getAttribute("aria-checked")).toBe("true"));
+    // The section summary reads the stored kind list, so it proves the project took ["water"].
+    await vi.waitFor(() => expect(heading.textContent).toContain("Paint templates"));
+    paintSwitch()!.click();
+    await vi.waitFor(() => expect(heading.textContent).not.toContain("Paint templates"));
+
+    // A flat engraving has no layers to stencil.
+    target.querySelector<HTMLButtonElement>('button[role="radio"][aria-label="Flat engraving"]')!.click();
+    await vi.waitFor(() => expect(paintSwitch()).toBeNull());
   });
 
   it("changes engraving font and exact physical text size without refetching terrain", async () => {

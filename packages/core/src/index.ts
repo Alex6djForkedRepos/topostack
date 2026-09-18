@@ -6,6 +6,8 @@ export * from "./markers.js";
 export * from "./north-arrow.js";
 export * from "./offset.js";
 export * from "./svg.js";
+export { PAINT_BLEED_MM, paintRegions } from "./paint-regions.js";
+export type { FlatWaterArea, PaintLayerClip, PaintRegionSources } from "./paint-regions.js";
 export * from "./units.js";
 // Water carving is a stage of `generateGeometry`, not an entry point: its
 // scratch-buffer helpers and ladder fitting are meaningless without the grid

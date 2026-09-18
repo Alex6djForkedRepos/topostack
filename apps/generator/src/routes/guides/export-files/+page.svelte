@@ -11,6 +11,7 @@
     <div><dt>Master SVG / Engraving SVG <span>SVG</span></dt><dd>The single main artwork file on its own: every layered panel on one sheet, or the flat engraving.</dd></div>
     <div><dt>Cut panels <span>ZIP · layered</span></dt><dd>One SVG per fabrication panel with its cut, score and engrave paths, plus README.txt and ATTRIBUTION.txt.</dd></div>
     <div><dt>Engraving panels <span>ZIP · layered</span></dt><dd>The engraving-only companion for each panel, plus README.txt and ATTRIBUTION.txt.</dd></div>
+    <div><dt>Paint templates <span>ZIP · layered</span></dt><dd>With <strong>Water paint templates</strong> on: a paper stencil for each panel that has visible water, plus README.txt and ATTRIBUTION.txt.</dd></div>
     <div><dt>Assembly guide <span>SVG · layered</span></dt><dd>The stacking reference on its own.</dd></div>
     <div><dt>Project settings <span>JSON</span></dt><dd>Your settings, for backup or to continue on another device. Always available, even when artwork export is blocked.</dd></div>
   </dl>
@@ -25,6 +26,7 @@
       <tr><td><code>my-map-panel-02-layers-02-05.svg</code></td><td>A panel holding more than one layer because of material-saving nests: here, layer 05 is cut from inside layer 02's sheet.</td></tr>
       <tr><td><code>my-map-layer-03-b2.svg</code></td><td>With a work area set, one panel per tile of a split layer: column B, row 2. A piece that needs its own sheet adds a number, as in <code>-b2-2</code>.</td></tr>
       <tr><td><code>…-engrave.svg</code></td><td>The engraving-only companion of the panel with the same name, in the same position. It has no cut or score paths.</td></tr>
+      <tr><td><code>…-paint-water.svg</code></td><td>A paper stencil registered to the panel with the same name. Its outer outline is the cut piece at nominal size (cut it with kerf compensation off) and its windows are the water that stays visible once the stack is glued, reaching 1.5 mm under the layer above so a slightly misplaced stencil leaves no bare edge. Lay it flush to the piece, spray, and remove it before gluing. Only written when <strong>Water paint templates</strong> is on and the panel has visible water.</td></tr>
       <tr><td><code>my-map-assembly-guide.svg</code></td><td>An A4 reference showing the stack outline, layer count, material thickness and elevation range. Stack from layer 01 upward.</td></tr>
       <tr><td><code>README.txt</code></td><td>Layer count, finished stack height, applied vertical exaggeration and horizontal scale, any lake depth fitting, line widths, panel count, colors, kerf and nesting notes.</td></tr>
       <tr><td><code>my-map-project.json</code></td><td>Your settings plus generation details (see below).</td></tr>

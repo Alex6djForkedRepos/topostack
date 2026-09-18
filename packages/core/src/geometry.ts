@@ -31,8 +31,9 @@ import { northArrowFootprint, northArrowMarkings } from "./north-arrow.js";
 import { sourceRequirements } from "./source-requirements.js";
 import { splitLayersForWorkArea } from "./split.js";
 import { displayElevation, elevationUnit, FEET_PER_METER } from "./units.js";
-import { CUSTOM_LINE_KINDS, MAP_MARKER_CLEARANCE_MM, MAP_MARKER_SIZE_MM, MAP_MARKER_MIN_SIZE_MM, MAP_MARKER_MAX_SIZE_MM, MARKER_SYMBOLS, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_SEAM_OFFSET_MM, MAX_WATER_DEPTH_EXAGGERATION, MIN_WORK_AREA_MM, MIN_WATER_DEPTH_EXAGGERATION, MAX_VERTICAL_EXAGGERATION, MIN_LAYER_COUNT, MIN_VERTICAL_EXAGGERATION, NORTH_ARROW_ANCHORS, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, NORTH_ARROW_STYLES, SEA_LEVEL_M } from "./types.js";
-import { type CarvedWater, carveWaterDepth, clampCarveToLadder, fitLakesToLadder } from "./water.js";
+import { CUSTOM_LINE_KINDS, PAINT_REGION_KINDS, MAP_MARKER_CLEARANCE_MM, MAP_MARKER_SIZE_MM, MAP_MARKER_MIN_SIZE_MM, MAP_MARKER_MAX_SIZE_MM, MARKER_SYMBOLS, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_SEAM_OFFSET_MM, MAX_WATER_DEPTH_EXAGGERATION, MIN_WORK_AREA_MM, MIN_WATER_DEPTH_EXAGGERATION, MAX_VERTICAL_EXAGGERATION, MIN_LAYER_COUNT, MIN_VERTICAL_EXAGGERATION, NORTH_ARROW_ANCHORS, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, NORTH_ARROW_STYLES, SEA_LEVEL_M } from "./types.js";
+import { type CarvedWater, carveWaterDepth, clampCarveToLadder, fitLakesToLadder, waterSurfaceLevelM } from "./water.js";
+import { type FlatWaterArea, paintRegions } from "./paint-regions.js";
 import type {
   ElevationGrid,
   GeoBounds,
@@ -995,6 +996,22 @@ function clipToCrop(polygon: Polygon2D, clip: Point2D[], minimumFeatureMm: numbe
   return clipContours([[toRing(polygon.outer), ...polygon.holes.map(toRing)]] as MultiPolygon, clip, minimumFeatureMm);
 }
 
+/**
+ * Water for paint stencils when nothing carves it. With depth off no surface
+ * is modelled, but a lake still lies flat in the DEM, so its whole face
+ * belongs to the layer holding its level. Empty when carved surfaces already
+ * describe every area.
+ */
+function flatWaterAreas({ config, source, usesWaterDepth, clip }: GenerationContext, grid: ElevationGrid, ladder: ElevationLadder): FlatWaterArea[] {
+  if (usesWaterDepth || !config.paintTemplates.includes("water")) return [];
+  return (source.waterAreas ?? []).flatMap((area) => {
+    const level = Number.isFinite(area.surfaceElevationM) ? area.surfaceElevationM! : waterSurfaceLevelM(area, grid, config);
+    if (!Number.isFinite(level)) return [];
+    const polygons = clipToCrop(area.polygon, clip, config.minimumFeatureMm);
+    return polygons.length ? [{ layerIndex: layerForElevation(level, ladder.thresholds), polygons }] : [];
+  });
+}
+
 function waterOutputs({ config, source, flatEngraving, clip, warnings }: GenerationContext, ladder: ElevationLadder): { waterSurfaces: WaterSurfaceIR[]; waterPatternAreas: Polygon2D[] } {
   // Surfaces are virtual - never cut, only drawn - so they are clipped to the
   // crop here and carried on the IR for the previews to float over the basin.
@@ -1396,6 +1413,7 @@ export function generateGeometry(config: ProjectConfigV1, source: SourceBundleV1
   const fabricationNests = flatEngraving ? [] : addMaterialNests(config, layers);
   // Nesting has finished carving cavities, so layer material is final for routing.
   const clips = layerClips(layers);
+  const paintWindows = flatEngraving ? [] : paintRegions(config, clips, { waterSurfaces, flatWater: flatWaterAreas(context, grid, ladder), cellPitchMm: config.widthMm / Math.max(1, grid.width - 1) });
   const transportationLabels = routeMarkings(context, clips, ladder);
   placeAnnotations(context, clips);
   if (!flatEngraving && config.showAlignmentGuides) addAlignmentGuides(config, clips, unsplitOutlines);
@@ -1438,6 +1456,7 @@ export function generateGeometry(config: ProjectConfigV1, source: SourceBundleV1
     waterSurfaces,
     waterPatternAreas,
     fabricationNests,
+    paintRegions: paintWindows,
     splitPlan,
     warnings: context.warnings,
     attribution: source.attribution,
@@ -1457,6 +1476,7 @@ export function validateProject(config: ProjectConfigV1): void {
   if (!config.northArrowPlacement || typeof config.northArrowPlacement !== "object" || !config.northArrowPlacement.offset || typeof config.northArrowPlacement.offset !== "object") throw new Error("North arrow placement is required.");
   if (!Array.isArray(config.markers)) throw new Error("Project markers must be a list.");
   if (!Array.isArray(config.customLines)) throw new Error("Custom lines must be a list.");
+  if (!Array.isArray(config.paintTemplates) || config.paintTemplates.some((kind) => !PAINT_REGION_KINDS.includes(kind)) || new Set(config.paintTemplates).size !== config.paintTemplates.length) throw new Error("Paint templates must list each supported region kind at most once.");
   if (typeof config.id !== "string" || !config.id.trim() || config.id.length > MAX_PROJECT_NAME_LENGTH) throw new Error("Project id must contain at most 120 characters.");
   if (typeof config.name !== "string" || !config.name.trim() || config.name.length > MAX_PROJECT_NAME_LENGTH) throw new Error("Project name must contain at most 120 characters.");
   if (!config.location || typeof config.location !== "object" || typeof config.location.label !== "string" || !config.location.label.trim() || config.location.label.length > 240) throw new Error("Project location label must contain at most 240 characters.");

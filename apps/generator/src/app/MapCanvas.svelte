@@ -297,8 +297,12 @@
 
 <style>
   .crop-guide { box-sizing: border-box; }
-  .selection-tools { position: absolute; top: 12px; left: 12px; right: 12px; z-index: 3; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; padding: 8px 10px; background: var(--loidolt-surface); color: var(--loidolt-text); border-radius: 6px; font-size: 12px; }
+  /* A compact card in the top-right corner, which nothing else uses in map
+     view: warnings stack top-left and outrank it, the map's own controls and
+     attribution sit along the bottom. */
+  .selection-tools { position: absolute; top: 12px; right: 12px; z-index: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; width: max-content; max-width: min(260px, calc(100% - 24px)); padding: 7px 10px; background: color-mix(in srgb, var(--loidolt-surface) 94%, transparent); color: var(--loidolt-text); border: var(--loidolt-border-width) solid var(--loidolt-border); border-radius: 6px; font-size: 12px; box-shadow: var(--loidolt-shadow-popover); }
   .selection-tools label { display: flex; align-items: center; gap: 6px; }
+  .selection-tools span { font-size: 10px; color: var(--loidolt-text-muted); }
   .resize-handle { position: absolute; transform: translate(-50%, -50%); width: 20px; height: 20px; min-width: 0; padding: 0; border: 2px solid var(--loidolt-accent); border-radius: 3px; background: white; pointer-events: auto; touch-action: none; }
   .resize-handle:focus-visible { outline: 3px solid var(--loidolt-accent); outline-offset: 3px; }
   .circle-outline {

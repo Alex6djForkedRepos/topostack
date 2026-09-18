@@ -2,9 +2,9 @@
   import { onMount, untrack, setContext } from "svelte";
   import { base } from "$app/paths";
   import { House } from "@lucide/svelte";
-  import { Box, ChevronDown, Circle, Compass, Download, Grid3X3, Layers3, Map as MapIcon, MapPin, Minus, Mountain, PenTool, Plus, Puzzle, Route, RotateCcw, Search, Sparkles, Square, Trash2, Undo2, Redo2, Upload, Waves, X } from "@lucide/svelte";
+  import { Box, ChevronDown, Circle, Compass, Download, Grid3X3, Layers3, Map as MapIcon, MapPin, Minus, Mountain, PenTool, Plus, Puzzle, Route, RotateCcw, Search, Sparkles, SprayCan, Square, Trash2, Undo2, Redo2, Upload, Waves, X } from "@lucide/svelte";
   import { AppShell, Brand, Button, ContextBar, Field, IconButton, Input, Section, Sidebar, ThemeToggle, Topbar, Workspace } from "@loidolt/theme-svelte";
-  import { sourceRequirements, DEFAULT_PROJECT, planSeamGrid, displayElevation, displayLength, elevationUnit, generateGeometry, labelPathData, lengthUnit, MAP_MARKER_SIZE_MM, MAP_MARKER_MIN_SIZE_MM, MAP_MARKER_MAX_SIZE_MM, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_SEAM_OFFSET_MM, MAX_VERTICAL_EXAGGERATION, MAX_WATER_DEPTH_EXAGGERATION, millimetersFromDisplay, MIN_VERTICAL_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, NORTH_ARROW_MIN_SIZE_MM, planTerrainStack, projectFingerprint, validateProject, type GeoBounds, type GeometryIRV1, type LineStyleV1, type OperationPath, type ProjectConfigV1, type SourceBundleV1 } from "@topostack/core";
+  import { sourceRequirements, DEFAULT_PROJECT, planSeamGrid, displayElevation, displayLength, elevationUnit, generateGeometry, labelDimensions, labelPathData, lengthUnit, MAP_MARKER_SIZE_MM, MAP_MARKER_MIN_SIZE_MM, MAP_MARKER_MAX_SIZE_MM, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_SEAM_OFFSET_MM, MAX_VERTICAL_EXAGGERATION, MAX_WATER_DEPTH_EXAGGERATION, millimetersFromDisplay, MIN_VERTICAL_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, NORTH_ARROW_MIN_SIZE_MM, planTerrainStack, projectFingerprint, validateProject, type GeoBounds, type GeometryIRV1, type LineStyleV1, type OperationPath, type ProjectConfigV1, type SourceBundleV1 } from "@topostack/core";
   import { assembleWater, boundsForProject, loadLakeAreas, loadSurveyedLakeDepths, loadTerrain, loadVectorMarkings, type PlaceResult } from "../data-provider";
   import { applySurveyProvenance } from "../bathymetry";
   import { resolveLakeOutlines } from "../lake-outlines";
@@ -1054,8 +1054,10 @@
             <p class="subgroup-heading">Text engraving</p>
             <div class="swatch-options" role="radiogroup" aria-label="Engraving font">
               {#each FONT_OPTIONS as option}
+                {@const sampleStyle = { font: option.value, sizeMm: 3.1 }}
                 <button type="button" role="radio" aria-checked={project.textStyle.font === option.value} data-state={project.textStyle.font === option.value ? "on" : "off"} tabindex={project.textStyle.font === option.value ? 0 : -1} onclick={() => void updateFabrication({ textStyle: { ...project.textStyle, font: option.value } })} onkeydown={navigateChoice}>
-                  <svg viewBox="0 -0.4 17 4.2" aria-hidden="true"><path stroke-linecap={option.value === "rounded" ? "round" : "butt"} stroke-linejoin={option.value === "rounded" ? "round" : "miter"} d={labelPathData("123m", { x: 0, y: 0 }, 0, 0, 0, { font: option.value, sizeMm: 3.1 })} /></svg>
+                  <!-- Glyphs run right and down from their origin, so start the sample half its size up and left of the box centre. -->
+                  <svg viewBox="-8.5 -2.1 17 4.2" aria-hidden="true"><path stroke-linecap={option.value === "rounded" ? "round" : "butt"} stroke-linejoin={option.value === "rounded" ? "round" : "miter"} d={labelPathData("123m", { x: -labelDimensions("123m", sampleStyle).width / 2, y: -1.4 }, 0, 0, 0, sampleStyle)} /></svg>
                   <span>{option.label}</span>
                 </button>
               {/each}
@@ -1171,6 +1173,7 @@
                 {#if project.outputMode === "stack"}<Switch checked={project.optimizeMaterialUse} onCheckedChange={(optimizeMaterialUse) => void updateFabrication({ optimizeMaterialUse })} aria-label="Material-saving nests"><span class="toggle-label"><Layers3 size={16} />Material-saving nests</span></Switch>{/if}
                 {#if project.outputMode === "stack" && seamGrid}<Switch checked={project.showAssemblyLabels} onCheckedChange={(showAssemblyLabels) => void updateFabrication({ showAssemblyLabels })} aria-label="Assembly labels"><span class="toggle-label"><Grid3X3 size={16} />Assembly labels</span></Switch>{/if}
                 {#if project.outputMode === "stack" && seamGrid}<Switch checked={project.seamTabs} onCheckedChange={(seamTabs) => void updateFabrication({ seamTabs })} aria-label="Puzzle seam tabs"><span class="toggle-label"><Puzzle size={16} />Puzzle seam tabs</span></Switch>{/if}
+                {#if project.outputMode === "stack"}<Switch checked={project.paintTemplates.includes("water")} onCheckedChange={(on) => void updateFabrication({ paintTemplates: on ? ["water"] : [] })} aria-label="Water paint templates"><span class="toggle-label"><SprayCan size={16} />Water paint templates</span></Switch>{/if}
                 <Switch checked={project.smoothing === 1} onCheckedChange={(smooth) => void updateFabrication({ smoothing: smooth ? 1 : 0 })} aria-label="Smooth contours"><span class="toggle-label"><Waves size={16} />Smooth contours</span></Switch>
               </div>
               <div class="field-stack">

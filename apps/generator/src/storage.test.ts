@@ -164,6 +164,14 @@ describe("project import validation", () => {
     expect(() => parseProject({ ...DEFAULT_PROJECT, showBoundaries: "yes" })).toThrow(/showBoundaries/i);
     expect(() => parseProject({ ...DEFAULT_PROJECT, showCoordinateGrid: "yes" })).toThrow(/showCoordinateGrid/i);
   });
+  it("restores paint templates, defaulting a saved project without them to none", () => {
+    const { paintTemplates: _paint, ...legacyProject } = DEFAULT_PROJECT;
+    expect(parseProject(legacyProject).paintTemplates).toEqual([]);
+    expect(parseProject({ ...DEFAULT_PROJECT, paintTemplates: ["water"] }).paintTemplates).toEqual(["water"]);
+    expect(() => parseProject({ ...DEFAULT_PROJECT, paintTemplates: ["lava"] })).toThrow(/paint templates/i);
+    expect(() => parseProject({ ...DEFAULT_PROJECT, paintTemplates: ["water", "water"] })).toThrow(/paint templates/i);
+    expect(() => parseProject({ ...DEFAULT_PROJECT, paintTemplates: "water" })).toThrow(/paint templates/i);
+  });
   it("validates and restores fabrication typography", () => {
     expect(parseProject({ ...DEFAULT_PROJECT, textStyle: { font: "stencil", sizeMm: 5 } }).textStyle).toEqual({ font: "stencil", sizeMm: 5 });
     expect(() => parseProject({ ...DEFAULT_PROJECT, textStyle: { font: "serif", sizeMm: 5 } })).toThrow(/text font/i);

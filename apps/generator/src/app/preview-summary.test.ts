@@ -57,6 +57,8 @@ describe("preview summaries", () => {
     expect(sectionSummary("details", engraving, 0)).toMatch(/^\d+ details? enabled$/);
     expect(sectionSummary("terrain", DEFAULT_PROJECT, 12)).toBe(`12 layers · ${DEFAULT_PROJECT.materialThicknessMm} mm material`);
     expect(sectionSummary("customData", { ...DEFAULT_PROJECT, markers: [], customLines: [] }, 0)).toBe("0 markers · 0 paths");
+    expect(sectionSummary("advanced", { ...DEFAULT_PROJECT, paintTemplates: ["water"] }, 0)).toMatch(/· Paint templates$/);
+    expect(sectionSummary("advanced", { ...DEFAULT_PROJECT, paintTemplates: ["water"], outputMode: "engraving" }, 0)).not.toMatch(/Paint templates/);
     const bold = LINE_PRESETS.find((preset) => preset.value === "bold")!;
     expect(activeLinePreset(bold.style)).toBe("bold");
     expect(sectionSummary("linework", { ...DEFAULT_PROJECT, lineStyle: bold.style }, 0)).toBe("Bold preset");

@@ -26,4 +26,15 @@ describe("stale source data", () => {
   it("still reloads on water changes", () => {
     expect(stale(loaded(), { showWater: false }).vectorStatus).toBe("not-requested");
   });
+
+  it("fetches water outlines when a paint stencil is the first thing to need them", () => {
+    const dry: ProjectConfigV1 = { ...DEFAULT_PROJECT, showWater: false, showWaterDepth: false };
+    const next = markStaleSourceData(loaded(), { paintTemplates: ["water"] }, dry, { ...dry, paintTemplates: ["water"] });
+    expect(next.vectorStatus).toBe("not-requested");
+    expect(next.lakeDataStatus).toBe("not-requested");
+    // Outlines already loaded for drawing serve the stencil as they are.
+    const source = loaded();
+    expect(markStaleSourceData(source, { paintTemplates: ["water"] }, DEFAULT_PROJECT, { ...DEFAULT_PROJECT, paintTemplates: ["water"] })).toBe(source);
+    expect(markStaleSourceData(source, { paintTemplates: [] }, { ...dry, paintTemplates: ["water"] }, dry)).toBe(source);
+  });
 });

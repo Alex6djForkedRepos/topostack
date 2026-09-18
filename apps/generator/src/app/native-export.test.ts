@@ -55,6 +55,23 @@ describe("export choices", () => {
     expect(Object.keys(files)).toEqual([...sheets.map((sheet) => `${sheet}${suffix}`), "README.txt", "ATTRIBUTION.txt"]);
   });
 
+  it("keeps paint templates out of the panel bundles and offers them on their own", async () => {
+    const sheets = ["ridge-layer-01", "ridge-layer-03-a1", "ridge-panel-03-layers-03-04-c1-2"];
+    const painted: FabricationPackageV1 = { schemaVersion: 1, master, files: [master,
+      ...sheets.flatMap((sheet) => [file(`${sheet}.svg`), file(`${sheet}-engrave.svg`), file(`${sheet}-paint-water.svg`)]),
+      file("ridge-assembly-guide.svg"), file("README.txt"), file("ATTRIBUTION.txt"),
+    ] };
+    for (const option of ["panels", "engravings"] as const) {
+      const files = unzipSync(new Uint8Array(await (await prepareSelectedDownload(painted, option)).blob.arrayBuffer()));
+      expect(Object.keys(files).some((name) => name.includes("-paint-"))).toBe(false);
+    }
+    const download = await prepareSelectedDownload(painted, "paint");
+    const files = unzipSync(new Uint8Array(await download.blob.arrayBuffer()));
+    expect(Object.keys(files)).toEqual([...sheets.map((sheet) => `${sheet}-paint-water.svg`), "README.txt", "ATTRIBUTION.txt"]);
+    expect(download.filename).toBe("ridge-layer-01-paint-templates.zip");
+    await expect(prepareSelectedDownload(output, "paint")).rejects.toThrow(/no paint templates/i);
+  });
+
   it("downloads individual SVGs without wrapping them in a ZIP", async () => {
     expect(await prepareSelectedDownload(output, "master")).toEqual({ ...master, fileCount: 1 });
     expect((await prepareSelectedDownload(output, "assembly")).filename).toBe("ridge-layer-01-assembly-guide.svg");

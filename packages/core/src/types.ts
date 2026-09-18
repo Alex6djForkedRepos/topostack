@@ -231,6 +231,12 @@ export interface ProjectConfigV1 {
   seamTabs: boolean;
   /** Engraves a covered piece id on every piece of a split layer. */
   showAssemblyLabels: boolean;
+  /**
+   * Region kinds that get a paper paint stencil per fabrication panel, cut to
+   * the piece outline with windows over the region that stays visible after
+   * assembly. Layered output only; each kind is listed at most once.
+   */
+  paintTemplates: PaintRegionKind[];
   showElevationLabels: boolean;
   elevationLabelPosition: Point2D;
   textStyle: TextStyleV1;
@@ -311,6 +317,22 @@ export interface WaterAreaV1 {
     /** Ground spacing of the sampled survey raster, before alignment to terrain. */
     sampleSpacingM?: number;
   };
+}
+
+/** Region kinds a paint stencil can be windowed to. Extend here and in the paint-regions source registry. */
+export const PAINT_REGION_KINDS = ["water"] as const;
+export type PaintRegionKind = (typeof PAINT_REGION_KINDS)[number];
+
+/**
+ * One piece polygon's paint windows for a region kind: the part of the region
+ * exposed after assembly, extended a small bleed under the layer above. Never
+ * stored empty.
+ */
+export interface PaintRegionIR {
+  kind: PaintRegionKind;
+  layerIndex: number;
+  polygonIndex: number;
+  polygons: Polygon2D[];
 }
 
 export interface WaterSurfaceIR {
@@ -534,6 +556,8 @@ export interface GeometryIRV1 {
   /** Crop-clipped water polygons used by optional flat-engraving fills. */
   waterPatternAreas: Polygon2D[];
   fabricationNests: FabricationNest[];
+  /** Paint stencil windows per piece; optional so IR recorded before it still renders. */
+  paintRegions?: PaintRegionIR[];
   /** Present only when a machine work area split the layers. */
   splitPlan?: SeamPlanV1;
   warnings: GeometryWarning[];
@@ -591,6 +615,7 @@ export const DEFAULT_PROJECT: ProjectConfigV1 = {
   seamOffsetMm: 10,
   seamTabs: true,
   showAssemblyLabels: true,
+  paintTemplates: [],
   showElevationLabels: true,
   elevationLabelPosition: { x: -0.55, y: 0.55 },
   textStyle: { ...DEFAULT_TEXT_STYLE },
