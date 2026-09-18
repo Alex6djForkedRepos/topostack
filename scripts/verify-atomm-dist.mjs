@@ -1,3 +1,4 @@
+import { validateStaticHeaders } from "./lib/static-headers.mjs";
 import { readFile, stat } from "node:fs/promises";
 import { isForbiddenApiHost } from "./lib/api-host.mjs";
 import { filesBelow } from "./lib/files.mjs";
@@ -17,6 +18,7 @@ if (process.argv.includes("--require-sdk-entry")) {
 }
 const studio = await readFile(new URL("../apps/generator/dist/studio.html", import.meta.url), "utf8");
 const headers = await readFile(new URL("../apps/generator/dist/_headers", import.meta.url), "utf8");
+validateStaticHeaders(headers);
 if (headers.includes("__TOPOSTACK_SCRIPT_HASHES__") || /script-src[^;]*unsafe-inline/.test(headers) || !/script-src[^;]*sha256-/.test(headers)) throw new Error("Production security headers do not contain finalized inline-script hashes.");
 if (!studio.includes("https://static-res.makextool.com/scripts/js/generator-sdk/platform-sdk.js")) throw new Error("Atomm SDK is missing from the terrain studio.");
 if (!index.includes("https://static-res.makextool.com/scripts/js/generator-sdk/platform-sdk.js") && !/href=["'][^"']*studio["']/.test(index)) throw new Error("The homepage does not link to the terrain studio.");

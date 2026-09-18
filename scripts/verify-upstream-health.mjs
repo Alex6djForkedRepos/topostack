@@ -1,6 +1,21 @@
-const origin = new URL(process.env.WORKER_URL);
-if (origin.protocol !== "https:" || origin.username || origin.password || origin.pathname !== "/" || origin.search || origin.hash) throw new Error("WORKER_URL must be an HTTPS origin.");
-const response = await fetch(new URL("/v1/upstream-health", origin), { signal: AbortSignal.timeout(15000), cache: "no-store" });
-const result = await response.json();
-if (!response.ok || result.status !== "healthy" || result.fresh !== true || result.ok !== true) throw new Error("Upstream cache-miss probes are unhealthy, missing, or older than two hours.");
-console.log(JSON.stringify(result));
+import { pathToFileURL } from "node:url";
+import { fetchGatewayJson, gatewayOrigin } from "./lib/gateway.mjs";
+
+/**
+ * Hourly monitor for the Worker's cache-miss probes.
+ *
+ * The probe result is only meaningful as JSON; an outage or a WAF block answers
+ * with a Cloudflare HTML page, which `fetchGatewayJson` reports as an HTTP
+ * status instead of letting it surface as a SyntaxError from a JSON parse.
+ */
+export async function verifyUpstreamHealth(origin, request = fetch) {
+  const result = await fetchGatewayJson(origin, "/v1/upstream-health", request);
+  if (result?.status !== "healthy" || result.fresh !== true || result.ok !== true) {
+    throw new Error(`Upstream cache-miss probes are unhealthy, missing, or older than two hours: ${JSON.stringify(result)}`);
+  }
+  return result;
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  console.log(JSON.stringify(await verifyUpstreamHealth(gatewayOrigin(process.env.WORKER_URL))));
+}

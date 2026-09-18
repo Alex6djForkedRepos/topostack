@@ -1,6 +1,7 @@
 import { surveyShoreDepths } from "./survey-shore.js";
 import { vectorShoreDistances } from "./shore-distance.js";
 import { ringBounds } from "./geometry2d.js";
+import { cellsTouchGridEdge, sampleOffset } from "./grid.js";
 import { terrainBasinDistance } from "./terrain-basin.js";
 import { BATHYMETRIC_RELIEF_M } from "./types.js";
 import type { ElevationGrid, GeometryWarning, Point2D, Polygon2D, ProjectConfigV1, WaterAreaV1, WaterSurfaceIR } from "./types.js";
@@ -41,8 +42,8 @@ function cellPoint(column: number, row: number, grid: ElevationGrid, config: Pro
   const insetX = column === 0 ? EDGE_INSET : column === grid.width - 1 ? -EDGE_INSET : 0;
   const insetY = row === 0 ? EDGE_INSET : row === grid.height - 1 ? -EDGE_INSET : 0;
   return {
-    x: (column / (grid.width - 1) - 0.5 + insetX / (grid.width - 1)) * config.widthMm,
-    y: (row / (grid.height - 1) - 0.5 + insetY / (grid.height - 1)) * config.heightMm,
+    x: sampleOffset(column + insetX, grid.width, config.widthMm),
+    y: sampleOffset(row + insetY, grid.height, config.heightMm),
   };
 }
 
@@ -287,6 +288,16 @@ function quantile(sorted: Float64Array, count: number, fraction: number): number
   return sorted[Math.min(count - 1, Math.max(0, Math.round(fraction * (count - 1))))] ?? 0;
 }
 
+/** One lake's distance-to-shore field, with what the basin fit needs to know about how it was measured. */
+interface LakeShore {
+  /** Ground meters from each of the lake's cells to the nearest shore. */
+  distance: Float64Array;
+  /** Distances run to the vector outline between samples, rather than to dry cell centers. */
+  vectorShore: boolean;
+  /** The lake reaches the grid border, so no complete shoreline is in view. */
+  touchesEdge: boolean;
+}
+
 export interface CarvedWater {
   grid: ElevationGrid;
   surfaces: WaterSurfaceIR[];
@@ -344,14 +355,24 @@ export function carveWaterDepth(
   const basinBuffers = { factors: new Float64Array(grid.width * grid.height), result: new Float64Array(grid.width * grid.height) };
   const cells: number[] = [];
   let lakeWindow: CellWindow = { minX: 0, minY: 0, maxX: -1, maxY: -1 };
-  let vectorShore = false;
-  const lakeDistance = (area: WaterAreaV1) => {
-    vectorShore = config.smoothing > 0 && !area.clipped && !cells.some(cell =>
-      cell < grid.width || cell >= grid.width * (grid.height - 1) || cell % grid.width === 0 || cell % grid.width === grid.width - 1);
-    return vectorShore
-      ? vectorShoreDistances(area.polygon, cells, grid.width, grid.height, config.widthMm, config.heightMm, groundWidthM, groundHeightM, shoreDistance)
-      : distanceToShoreM(mask, grid.width, grid.height, spacingXM, spacingYM, lakeWindow, shoreDistance);
+  // Returned rather than stashed in a mutable: the basin fit and the survey-rim
+  // bridge both need to know how these distances were measured, and reading that
+  // back off a variable the measurement had set was only correct by call order.
+  const measureShore = (area: WaterAreaV1): LakeShore => {
+    const touchesEdge = cellsTouchGridEdge(cells, grid.width, grid.height);
+    // The exact outline is only usable for a whole lake: a crop edge must never
+    // be measured as if it were a bank.
+    const vectorShore = config.smoothing > 0 && !area.clipped && !touchesEdge;
+    return {
+      distance: vectorShore
+        ? vectorShoreDistances(area.polygon, cells, grid.width, grid.height, config.widthMm, config.heightMm, groundWidthM, groundHeightM, shoreDistance)
+        : distanceToShoreM(mask, grid.width, grid.height, spacingXM, spacingYM, lakeWindow, shoreDistance),
+      vectorShore,
+      touchesEdge,
+    };
   };
+  // Allocated on first use: most maps have no survey rim to bridge at all.
+  let rimBuffer: Float64Array | undefined;
 
   // Build the complete mask before carving so neighboring lakes never become
   // land samples for the terrain prior, regardless of their processing order.
@@ -360,13 +381,14 @@ export function carveWaterDepth(
   const areaCells = areas.map((area) => polygonCells(area.polygon, grid, config));
   for (const indexes of areaCells) for (const index of indexes) waterMask[index] = 1;
 
-  const normalizeBasin = (area: WaterAreaV1, distance: Float64Array, surfaceM: number): number => {
+  const normalizeBasin = (area: WaterAreaV1, shore: LakeShore, surfaceM: number): number => {
+    const { distance } = shore;
     let visibleRadiusM = 0;
     for (const cell of cells) if (Number.isFinite(distance[cell])) visibleRadiusM = Math.max(visibleRadiusM, distance[cell]!);
     const radiusM = area.lmaxM && area.lmaxM > 0 ? area.lmaxM : visibleRadiusM;
     if (!(radiusM > 0)) return 0;
     const shape = terrainBasinDistance(grid, mask, waterMask, cells, distance, spacingXM, spacingYM,
-      surfaceM, (area.maxDepthM ?? 0) / radiusM, area.clipped ?? false, basinBuffers, vectorShore);
+      surfaceM, (area.maxDepthM ?? 0) / radiusM, area.clipped ?? false, basinBuffers, shore.vectorShore, shore.touchesEdge);
     let shapeRadiusM = 0;
     if (shape !== distance) for (const cell of cells) shapeRadiusM = Math.max(shapeRadiusM, shape[cell]!);
     for (let index = 0; index < cells.length; index += 1) {
@@ -433,15 +455,16 @@ export function carveWaterDepth(
           ? area.surfaceElevationM!
           : surfaceLevelM;
         const missing = surveyedCount < cells.length;
-        const distance = missing ? lakeDistance(area) : undefined;
-        const radiusM = distance && interiorSpreadM <= BATHYMETRIC_RELIEF_M ? normalizeBasin(area, distance, surfaceElevationM) : 0;
-        const exponent = !distance || radiusM <= 0 || area.clipped || !(area.meanDepthM && area.maxDepthM)
+        const shore = missing ? measureShore(area) : undefined;
+        const radiusM = shore && interiorSpreadM <= BATHYMETRIC_RELIEF_M ? normalizeBasin(area, shore, surfaceElevationM) : 0;
+        const exponent = !shore || radiusM <= 0 || area.clipped || !(area.meanDepthM && area.maxDepthM)
           ? 1 : solveShapeExponent(normalized, cells.length, area.meanDepthM / area.maxDepthM);
         // Coarse survey masks leave a ragged uncovered rim after resampling.
         // Where no depth model exists, bridge only that narrow rim to the real
         // shoreline instead of dropping abruptly from survey depth to zero.
-        const rimDepths = distance && vectorShore && !area.maxDepthM && interiorSpreadM <= BATHYMETRIC_RELIEF_M
-          ? surveyShoreDepths(survey.depthsM, mask, cells, distance, grid.width, grid.height, spacingXM, spacingYM, survey.sampleSpacingM)
+        const rimDepths = shore?.vectorShore && !area.maxDepthM && interiorSpreadM <= BATHYMETRIC_RELIEF_M
+          ? surveyShoreDepths(survey.depthsM, mask, cells, shore.distance, grid.width, grid.height, spacingXM, spacingYM, survey.sampleSpacingM,
+            rimBuffer ??= new Float64Array(grid.width * grid.height))
           : undefined;
         let bedElevationM = surfaceElevationM;
         let fallbackCount = 0;
@@ -453,7 +476,7 @@ export function carveWaterDepth(
           if (Number.isNaN(depth)) {
             fallbackCount += 1;
             if (interiorSpreadM > BATHYMETRIC_RELIEF_M) depth = Math.max(0, surfaceElevationM - values[cell]!);
-            else if (distance && radiusM > 0 && Number.isFinite(distance[cell]!) && area.maxDepthM) depth = area.maxDepthM * normalized[index]! ** exponent;
+            else if (shore && radiusM > 0 && Number.isFinite(shore.distance[cell]!) && area.maxDepthM) depth = area.maxDepthM * normalized[index]! ** exponent;
             else depth = rimDepths && Number.isFinite(rimDepths[cell]) ? rimDepths[cell]! : 0;
           }
           const bed = surfaceElevationM - depth * exaggeration;
@@ -518,9 +541,9 @@ export function carveWaterDepth(
     // instead would leave a step at the shoreline wherever the two disagree.
     const surfaceElevationM = surfaceLevelM;
 
-    const distance = lakeDistance(area);
+    const shore = measureShore(area);
     // No shoreline in view means no way to place these cells within the basin.
-    if (cells.some((index) => !Number.isFinite(distance[index]!))) {
+    if (cells.some((index) => !Number.isFinite(shore.distance[index]!))) {
       warnings.push({
         code: "WATER_DEPTH_CLAMPED",
         message: `${area.name ?? "A lake"} extends past the edge of this map, so its depth could not be modeled. Zoom out to include its shoreline.`,
@@ -528,7 +551,7 @@ export function carveWaterDepth(
       continue;
     }
 
-    const lmaxM = normalizeBasin(area, distance, surfaceElevationM);
+    const lmaxM = normalizeBasin(area, shore, surfaceElevationM);
     if (!(lmaxM > 0)) continue;
 
     // A clipped lake's visible cells are not a fair sample of the whole basin,
@@ -609,10 +632,9 @@ export function fitLakesToLadder(carved: CarvedWater, config: ProjectConfigV1, f
 }
 
 /**
- * Raise every cell that the sheet ladder cannot reach. The ladder is bounded by
- * `MAX_DEPTH_LAYER_COUNT`, so a deep lake on a low-relief map would otherwise
- * ask for dozens of sheets; flattening its floor keeps the model fabricable and
- * the warning keeps that honest.
+ * Raise cells below the chosen layer allowance. Automatic depth coverage
+ * normally reaches every visible bed; a user-selected limit can clip it, and
+ * the caller reports that clipping or offers proportional lake-depth fitting.
  */
 export function clampCarveToLadder(grid: ElevationGrid, floorM: number): { grid: ElevationGrid; clamped: boolean } {
   if (!(grid.min < floorM)) return { grid, clamped: false };

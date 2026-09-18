@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { buildEngravingPackage, buildFabricationPackage, carveWaterDepth, coordinateGridInterval, createSyntheticSource, DEFAULT_PROJECT, displayLength, distanceToShoreM, engravingToSvg, generateGeometry, geoPointToMapPoint, labelDimensions, labelLineSegments, layerToSvg, longitudeInBounds, masterToSvg, MAX_DEPTH_LAYER_COUNT, MAX_LAYER_COUNT, millimetersFromDisplay, MIN_LAYER_COUNT, MM_PER_INCH, planTerrainStack, projectFingerprint, solveShapeExponent, validateProject, waterPatternStrokes, type ProjectConfigV1, type SourceBundleV1, type WaterAreaV1 } from "./index.js";
+import { buildEngravingPackage, buildFabricationPackage, coordinateGridInterval, createSyntheticSource, DEFAULT_PROJECT, displayLength, engravingToSvg, generateGeometry, geoPointToMapPoint, labelDimensions, labelLineSegments, layerToSvg, longitudeInBounds, masterToSvg, millimetersFromDisplay, MIN_LAYER_COUNT, MM_PER_INCH, northArrowMarkings, planTerrainStack, projectFingerprint, validateProject, waterPatternStrokes, type ProjectConfigV1, type SourceBundleV1, type WaterAreaV1 } from "./index.js";
+import { pointInPreparedPolygons, preparePolygons } from "./geometry2d.js";
+import { carveWaterDepth, distanceToShoreM, solveShapeExponent } from "./water.js";
 import { placeElevationLabel, placeLinearLabel } from "./label-placement.js";
 
 function realSource(project = DEFAULT_PROJECT) {
@@ -115,13 +117,13 @@ describe("TopoStack geometry", () => {
     const foregroundCross = rendered.filter((marking) => marking.id.startsWith("map-marker-2-") && !marking.knockout);
     const pinAnchor = geoPointToMapPoint(markers[0]!.lat, markers[0]!.lon, realSource(project).bounds, project.widthMm, project.heightMm);
     expect(halos.length).toBeGreaterThanOrEqual(markers.length);
-    expect(foregroundPin?.points[0]?.x).toBeCloseTo(pinAnchor.x);
-    expect(foregroundPin?.points[0]?.y).toBeCloseTo(pinAnchor.y);
+    expect(foregroundPin?.points.some(point => Math.abs(point.x - pinAnchor.x) < 1e-6 && Math.abs(point.y - pinAnchor.y) < 1e-6)).toBe(true);
     expect(foregroundCross).toHaveLength(2);
     expect(foregroundCross.every((marking) => marking.points.length === 5)).toBe(true);
     const svg = engravingToSvg(result, project);
     expect(svg).toMatch(/id="map-marker-[^"]+"[^>]+fill="#2366FF"/);
-    expect(svg).toMatch(/id="map-marker-[^"]+-halo-[^"]+"[^>]+fill="#ffffff"[^>]+data-knockout="true"/);
+    expect(svg).not.toContain('fill="#ffffff"');
+    expect(svg).toMatch(/id="map-marker-[^"]+"[^>]+fill="#2366FF" stroke="none"/);
     expect(() => validateProject({ ...DEFAULT_PROJECT, markers: [{ ...markers[0]!, lat: 90 }] })).toThrow(/marker latitude/i);
     expect(() => validateProject({ ...DEFAULT_PROJECT, markers: [{ ...markers[0]!, symbol: "flag" as never }] })).toThrow(/marker symbol/i);
     expect(() => validateProject({ ...DEFAULT_PROJECT, markers: [markers[0]!, { ...markers[1]!, id: markers[0]!.id }] })).toThrow(/unique/i);
@@ -630,6 +632,47 @@ describe("TopoStack geometry", () => {
     expect(joins.flatMap((marking) => marking.points).every((point) => Math.abs(Math.hypot(point.x, point.y) - 0.6) < 1e-6)).toBe(true);
   });
 
+  it("does not mistake a repeated road vertex for a junction", () => {
+    const project = { ...DEFAULT_PROJECT, lineStyle: { ...DEFAULT_PROJECT.lineStyle, roadStyle: "outlined" as const, majorRoadSpacingMm: 1.2 }, optimizeMaterialUse: false, showElevationLabels: false, showAlignmentGuides: false, showNorthArrow: false, showScaleBar: false };
+    const source = realSource(project);
+    // Vector tiles quantize coordinates, so one road carrying the same point
+    // twice is ordinary input - and not an intersection with anything.
+    source.markings = [
+      { id: "doubled", kind: "road", transportationClass: "major-road", operation: "engrave", points: [{ x: -80, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }, { x: 80, y: 0 }] },
+    ];
+    const joins = generateGeometry(project, source).layers.flatMap((layer) => layer.markings).filter((marking) => marking.id.startsWith("road-junction-"));
+    expect(joins).toEqual([]);
+  });
+
+  it("offsets repeated and closed road vertices without collapsing or notching the outline", () => {
+    const project = { ...DEFAULT_PROJECT, outputMode: "engraving" as const, lineStyle: { ...DEFAULT_PROJECT.lineStyle, roadStyle: "outlined" as const, majorRoadSpacingMm: 1.2 }, showElevationLabels: false, showNorthArrow: false, showScaleBar: false };
+    const source = realSource(project);
+    const loop = Array.from({ length: 33 }, (_, index) => {
+      const angle = (index % 32) / 32 * Math.PI * 2;
+      return { x: Math.cos(angle) * 40, y: -20 + Math.sin(angle) * 40 };
+    });
+    source.markings = [
+      // A repeated vertex has no direction of its own: its {0, 0} normal used to
+      // push one outline point out to the miter cap and drop the next back onto
+      // the centerline.
+      { id: "doubled", kind: "road", transportationClass: "major-road", operation: "engrave", points: [{ x: -80, y: 45 }, { x: 0, y: 45 }, { x: 0, y: 45 }, { x: 0, y: 45 }, { x: 80, y: 45 }] },
+      { id: "ring", kind: "road", transportationClass: "major-road", operation: "engrave", points: loop },
+    ];
+    const markings = generateGeometry(project, source).layers.flatMap((layer) => layer.markings);
+    expect(new Set(markings.filter((marking) => marking.id.startsWith("doubled-")).flatMap((marking) => marking.points.map((point) => point.y.toFixed(3)))))
+      .toEqual(new Set(["44.400", "45.600"]));
+    const outlines = markings.filter((marking) => marking.id.startsWith("ring-"));
+    expect(outlines).toHaveLength(2);
+    for (const outline of outlines) {
+      // The seam is a vertex like any other: an open-path normal there left the
+      // two offset ends a notch apart and off the loop's own radius.
+      expect(Math.hypot(outline.points[0]!.x - outline.points.at(-1)!.x, outline.points[0]!.y - outline.points.at(-1)!.y)).toBeLessThan(1e-6);
+      const radii = outline.points.map((point) => Math.hypot(point.x, point.y + 20));
+      expect(Math.min(...radii)).toBeGreaterThan(40 - 0.65);
+      expect(Math.max(...radii)).toBeLessThan(40 + 0.65);
+    }
+  });
+
   it("supports configurable outlined major roads without affecting local-road centerlines", () => {
     const project = { ...DEFAULT_PROJECT, lineStyle: { ...DEFAULT_PROJECT.lineStyle, roadStyle: "outlined" as const, majorRoadSpacingMm: 1.2 }, optimizeMaterialUse: false, showElevationLabels: false, showAlignmentGuides: false, showNorthArrow: false, showScaleBar: false };
     const source = realSource(project);
@@ -677,6 +720,37 @@ describe("TopoStack geometry", () => {
     const placement = placeLinearLabel("BEND ROAD", { ...DEFAULT_PROJECT, widthMm: 200, heightMm: 200 }, layer, [points]);
     expect(placement).toBeDefined();
     expect(Math.abs(placement!.rotationRad)).toBeLessThan(0.2);
+  });
+
+  it("fits a full road name beside a short segment on a narrow exposed terrace", () => {
+    const points = [{ x: -4, y: -1.5 }, { x: 4, y: -1.5 }];
+    const layer = {
+      id: "terrace", index: 0, elevationM: 0, materialThicknessMm: 3,
+      polygons: [{ outer: [{ x: -50, y: -3.5 }, { x: 50, y: -3.5 }, { x: 50, y: 3.5 }, { x: -50, y: 3.5 }, { x: -50, y: -3.5 }], holes: [] }],
+      markings: [{ id: "road", operation: "engrave" as const, kind: "road" as const, points }],
+    };
+    const placement = placeLinearLabel("BEND ROAD", DEFAULT_PROJECT, layer, [points]);
+    expect(placement).toBeDefined();
+    const strokes = labelLineSegments("BEND ROAD", placement!.point, 0, 0, placement!.rotationRad, DEFAULT_PROJECT.textStyle);
+    for (const point of strokes.flatMap(({ start, end }) => [start, end])) {
+      expect(point.x).toBeGreaterThan(-50 + DEFAULT_PROJECT.lineStyle.annotationMm / 2);
+      expect(point.x).toBeLessThan(50 - DEFAULT_PROJECT.lineStyle.annotationMm / 2);
+      expect(point.y).toBeGreaterThan(-3.5 + DEFAULT_PROJECT.lineStyle.annotationMm / 2);
+      expect(point.y).toBeLessThan(3.5 - DEFAULT_PROJECT.lineStyle.annotationMm / 2);
+    }
+    // A higher sheet covering that space still prevents the label.
+    const covering = [{ outer: [{ x: -50, y: -1 }, { x: 50, y: -1 }, { x: 50, y: 3.5 }, { x: -50, y: 3.5 }, { x: -50, y: -1 }], holes: [] }];
+    expect(placeLinearLabel("BEND ROAD", DEFAULT_PROJECT, layer, [points], covering)).toBeUndefined();
+  });
+
+  it("explains when transportation names cannot fit instead of silently showing no labels", () => {
+    const project = { ...DEFAULT_PROJECT, outputMode: "engraving" as const, widthMm: 20, heightMm: 20, northArrowSizeMm: 12, showTransportationLabels: true };
+    const source = realSource(project);
+    source.markings = [{ id: "long-name", kind: "road", operation: "engrave", label: "A VERY LONG ROAD NAME THAT CANNOT FIT HERE", points: [{ x: -8, y: 0 }, { x: 8, y: 0 }] }];
+    const result = generateGeometry(project, source);
+    expect(result.layers.flatMap(layer => layer.markings).some(mark => mark.id.startsWith("transport-label-"))).toBe(false);
+    expect(result.warnings).toContainEqual(expect.objectContaining({ code: "LABEL_OMITTED", message: expect.stringContaining("Transportation labels do not fit") }));
+    expect(generateGeometry({ ...project, showTransportationLabels: false }, source).warnings.some(warning => warning.message.startsWith("Transportation labels"))).toBe(false);
   });
 
   it("keeps marking ids unique when one feature re-enters an elevation layer", () => {
@@ -939,17 +1013,34 @@ describe("TopoStack geometry", () => {
     expect(wide.layerCount).toBe(10);
   });
 
-  it("refits the exaggeration when the derived layer count hits its limits", () => {
-    const project = { ...DEFAULT_PROJECT, widthMm: 200, materialThicknessMm: 3, verticalExaggeration: 20 };
+  it("honors tall stacks and only refits to whole sheets or the minimum", () => {
+    const project = { ...DEFAULT_PROJECT, widthMm: 400, materialThicknessMm: 3, verticalExaggeration: 10 };
     const steep = planTerrainStack(project, 4_000, groundBounds(project, 20_000));
-    expect(steep.layerCount).toBe(MAX_LAYER_COUNT);
-    // 4000 m over 20 km at 200 mm is 40 mm of true relief; 24 sheets of 3 mm
-    // is 72 mm, so the requested 20x is reported as the 1.8x actually cut.
-    expect(steep.verticalExaggeration).toBeCloseTo(1.8, 6);
+    expect(steep.layerCount).toBe(267);
+    // 4000 m over 20 km at 400 mm is 80 mm of true relief. The requested
+    // 800 mm rounds to 267 sheets of 3 mm, rather than flattening at 24.
+    expect(steep.stackHeightMm).toBe(801);
+    expect(steep.verticalExaggeration).toBeCloseTo(10.0125, 6);
 
     const flat = planTerrainStack({ ...project, verticalExaggeration: 1 }, 5, groundBounds(project, 20_000));
     expect(flat.layerCount).toBe(MIN_LAYER_COUNT);
-    expect(flat.verticalExaggeration).toBeGreaterThan(20);
+    expect(flat.verticalExaggeration).toBeGreaterThan(10);
+  });
+
+  it("generates and exports every sheet in a stack larger than 24 layers", async () => {
+    const base = { ...DEFAULT_PROJECT, showWaterDepth: false, optimizeMaterialUse: false };
+    const [project, data] = scaledForLayers(base, gridSource(base, 32, (x) => 600 + 500 * x), 60);
+    const result = generateGeometry(project, data);
+    expect(result.layers).toHaveLength(60);
+    expect(result.verticalExaggeration).toBeCloseTo(project.verticalExaggeration, 8);
+    expect(result.layers.at(-1)!.polygons.length).toBeGreaterThan(0);
+    const output = buildFabricationPackage(result, project);
+    const manifest = JSON.parse(await output.files.find(file => file.filename.endsWith("-project.json"))!.blob.text());
+    expect(manifest.result.layers).toHaveLength(60);
+    const readme = await output.files.find(file => file.filename === "README.txt")!.blob.text();
+    expect(readme).toContain("60 layers");
+    expect(readme).toContain("180 mm");
+    expect(await output.master.blob.text()).toContain('layer-60');
   });
 
   it("falls back to the minimum stack for degenerate terrain and bounds", () => {
@@ -964,8 +1055,10 @@ describe("TopoStack geometry", () => {
   });
 
   it("rejects out-of-range exaggeration and unknown crop shapes", () => {
+    expect(() => validateProject({ ...DEFAULT_PROJECT, verticalExaggeration: 10 })).not.toThrow();
+    expect(() => validateProject({ ...DEFAULT_PROJECT, verticalExaggeration: 1.1, waterDepthExaggeration: 1.05 })).not.toThrow();
     expect(() => validateProject({ ...DEFAULT_PROJECT, verticalExaggeration: 0.5 })).toThrow(/vertical exaggeration/i);
-    expect(() => validateProject({ ...DEFAULT_PROJECT, verticalExaggeration: 21 })).toThrow(/vertical exaggeration/i);
+    expect(() => validateProject({ ...DEFAULT_PROJECT, verticalExaggeration: 10.01 })).toThrow(/vertical exaggeration/i);
     expect(() => validateProject({ ...DEFAULT_PROJECT, cropShape: "hexagon" as ProjectConfigV1["cropShape"] })).toThrow(/rectangle or circle/i);
     expect(() => validateProject({ ...DEFAULT_PROJECT, textStyle: { font: "serif" as ProjectConfigV1["textStyle"]["font"], sizeMm: 3 } })).toThrow(/text font/i);
     expect(() => validateProject({ ...DEFAULT_PROJECT, textStyle: { font: "technical", sizeMm: 10.1 } })).toThrow(/text size/i);
@@ -1005,7 +1098,7 @@ describe("TopoStack geometry", () => {
       mariner: [],
     } as const;
     const maximumRadius = (sizeMm: number, style: keyof typeof expectedLabels): number => {
-      const project = { ...DEFAULT_PROJECT, northArrowStyle: style, northArrowSizeMm: sizeMm, northArrowPlacement: { anchor: "center" as const, offset: { x: 0, y: 0 } } };
+      const project = { ...DEFAULT_PROJECT, outputMode: "engraving" as const, northArrowStyle: style, northArrowSizeMm: sizeMm, northArrowPlacement: { anchor: "center" as const, offset: { x: 0, y: 0 } } };
       const result = generateGeometry(project, realSource(project));
       const markings = result.layers[0]!.markings.filter((marking) => marking.id.startsWith("north-"));
       expect(new Set(markings.map((marking) => marking.id)).size).toBe(markings.length);
@@ -1031,6 +1124,7 @@ describe("TopoStack geometry", () => {
       const project = {
         ...DEFAULT_PROJECT,
         cropShape,
+        outputMode: "engraving" as const,
         widthMm: 200,
         heightMm: 200,
         northArrowStyle: "mariner" as const,
@@ -1044,6 +1138,48 @@ describe("TopoStack geometry", () => {
     }
   });
 
+  it.each(["minimal", "classic", "mariner"] as const)("carries the %s north arrow and its letters across exposed terrain into SVG exports", (northArrowStyle) => {
+    for (const cropShape of ["rectangle", "circle"] as const) {
+      const base = {
+        ...DEFAULT_PROJECT, widthMm: 200, heightMm: 200, cropShape,
+        northArrowStyle, northArrowSizeMm: 80, optimizeMaterialUse: false,
+        showWaterDepth: false, markers: [],
+        northArrowPlacement: { anchor: "center" as const, offset: { x: 0, y: 0 } },
+      };
+      const [project, source] = scaledForLayers(base, gridSource(base, 64, (nx, ny) => 1000 + nx * 500 + ny * 100), 10);
+      const result = generateGeometry(project, { ...source, markings: [] });
+      const expectedSegments = northArrowMarkings(project).flatMap((marking) => marking.label
+        ? labelLineSegments(marking.label, marking.points[0]!, 0, 0, marking.labelRotationRad, marking.textStyle)
+        : marking.points.slice(1).map((end, index) => ({ start: marking.points[index]!, end })));
+      const expectedLength = expectedSegments.reduce((sum, { start, end }) => sum + Math.hypot(end.x - start.x, end.y - start.y), 0);
+      const master = masterToSvg(result);
+      let actualLength = 0;
+      let markedLayers = 0;
+      for (const layer of result.layers) {
+        const markings = layer.markings.filter((marking) => marking.id.startsWith("north-"));
+        if (markings.length) markedLayers += 1;
+        const material = preparePolygons(layer.polygons);
+        const covering = preparePolygons(result.layers.slice(layer.index + 1).flatMap((upper) => upper.polygons));
+        const svg = layerToSvg(result, layer);
+        for (const marking of markings) {
+          expect(svg).toContain(`id="${marking.id}"`);
+          expect(master.split(`id="${marking.id}"`)).toHaveLength(2);
+          for (let index = 1; index < marking.points.length; index += 1) {
+            const start = marking.points[index - 1]!;
+            const end = marking.points[index]!;
+            actualLength += Math.hypot(end.x - start.x, end.y - start.y);
+            const midpoint = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+            expect(pointInPreparedPolygons(midpoint, material)).toBe(true);
+            expect(pointInPreparedPolygons(midpoint, covering)).toBe(false);
+            expect(expectedSegments.some((segment) => distanceToSegment(midpoint, segment.start, segment.end) < 1e-6)).toBe(true);
+          }
+        }
+      }
+      expect(markedLayers).toBeGreaterThan(1);
+      expect(actualLength).toBeCloseTo(expectedLength, 5);
+    }
+  });
+
   it("reserves base-layer material beneath the north arrow when nesting is enabled", () => {
     const base = {
       ...DEFAULT_PROJECT,
@@ -1054,7 +1190,7 @@ describe("TopoStack geometry", () => {
     };
     const [project, source] = scaledForLayers(base, gridSource(base, 64, (nx, ny) => 1_500 - Math.hypot(nx, ny) * 900), 6);
     const result = generateGeometry(project, source);
-    expect(result.layers[0]!.markings.some((marking) => marking.id.startsWith("north-"))).toBe(true);
+    expect(result.layers.slice(1).some((layer) => layer.markings.some((marking) => marking.id.startsWith("north-")))).toBe(true);
     expect(result.fabricationNests.some((nest) => nest.donorLayerIndex === 0)).toBe(false);
   });
 
@@ -1179,7 +1315,7 @@ describe("TopoStack geometry", () => {
     });
 
     it("steps the lake down through the sheets without punching the base", () => {
-      const base: ProjectConfigV1 = { ...DEFAULT_PROJECT, showWater: false, optimizeMaterialUse: false };
+      const base: ProjectConfigV1 = { ...DEFAULT_PROJECT, waterDepthLayerLimit: 6, showWater: false, optimizeMaterialUse: false };
       const source = flatLake(base);
       const [project, scaled] = scaledForLayers(base, source, 8);
       const withLake: SourceBundleV1 = { ...scaled, waterAreas: [lakeArea({ maxDepthM: 150, meanDepthM: 60 })] };
@@ -1230,15 +1366,16 @@ describe("TopoStack geometry", () => {
       // leaves the land a handful of sheets; planning from land alone is the fix.
       const landSheets = (result: typeof fixed) => result.layers.filter((layer) => layer.elevationM >= 0).length;
       expect(landSheets(squashed)).toBeLessThan(squashed.layers.length / 2);
-      expect(landSheets(fixed)).toBeGreaterThan(landSheets(squashed));
+      expect(landSheets(fixed)).toBeGreaterThanOrEqual(8);
       // The deepest cells sit in the border column, exactly on the crop edge the
       // ocean polygon was clipped to; if those fall out of the mask the land
       // minimum drops back to the sea floor and the fix silently stops working.
       expect(fixed.landReliefM).toBeLessThan(1000);
       expect(fixed.landReliefM).toBeLessThan(squashed.landReliefM);
       expect(fixed.waterDepthBelowLandM).toBeGreaterThan(0);
-      expect(fixed.layers.length).toBeLessThanOrEqual(MAX_LAYER_COUNT);
-      expect(fixed.layers.length - landSheets(fixed)).toBeLessThanOrEqual(MAX_DEPTH_LAYER_COUNT);
+      expect(fixed.verticalExaggeration).toBeCloseTo(planTerrainStack(project, fixed.landReliefM, bounds).verticalExaggeration, 9);
+      expect(fixed.layers[0]!.elevationM).toBeLessThanOrEqual(coastal.elevation.min);
+      expect(fixed.warnings.some(warning => warning.code === "WATER_DEPTH_CLAMPED")).toBe(false);
     });
 
     it("puts sea level exactly on a sheet boundary when there is an ocean", () => {
@@ -1260,18 +1397,55 @@ describe("TopoStack geometry", () => {
       expect(Math.abs(stepsToSeaLevel - Math.round(stepsToSeaLevel))).toBeLessThan(1e-6);
     });
 
+    it("keeps the summit on the stack when the sea-level snap costs a sheet", () => {
+      // Snapping a tall coastal stack to sea level must be allowed to add a
+      // sheet beyond the land/depth plan so the summit is never truncated.
+      const base: ProjectConfigV1 = { ...DEFAULT_PROJECT, showWater: false };
+      const coastal = gridSource(base, 96, (nx) => (nx < 0 ? 200 * nx : 100 + 3000 * nx));
+      const bounds = groundBounds(base, 20000);
+      const source: SourceBundleV1 = {
+        ...coastal,
+        bounds,
+        waterAreas: [{ id: "sea", kind: "ocean", polygon: { outer: [
+          { x: -base.widthMm / 2, y: -base.heightMm / 2 }, { x: 0, y: -base.heightMm / 2 },
+          { x: 0, y: base.heightMm / 2 }, { x: -base.widthMm / 2, y: base.heightMm / 2 },
+          { x: -base.widthMm / 2, y: -base.heightMm / 2 },
+        ], holes: [] } }],
+      };
+      const result = generateGeometry({ ...base, location: { ...base.location, bounds } }, source);
+      const step = result.layers[1]!.elevationM - result.layers[0]!.elevationM;
+      expect(result.layers.length).toBeGreaterThan(24);
+      // Sea level still lands on a step, and no terrain sits a whole sheet above the top one.
+      const stepsToSeaLevel = (0 - result.layers[0]!.elevationM) / step;
+      expect(Math.abs(stepsToSeaLevel - Math.round(stepsToSeaLevel))).toBeLessThan(1e-6);
+      expect(result.maxElevationM - result.layers.at(-1)!.elevationM).toBeLessThan(step * 1.05);
+    });
+
+    it("covers a deep lake beneath flat land without empty upper sheets", () => {
+      const base = { ...DEFAULT_PROJECT, optimizeMaterialUse: false, showWater: false };
+      const data = gridSource(base, 32, () => 180);
+      data.bounds = groundBounds(base, 2000);
+      data.waterAreas = [lakeArea({ maxDepthM: 100, meanDepthM: 40, lmaxM: 500 })];
+      const result = generateGeometry(base, data);
+      expect(result.landReliefM).toBe(0);
+      expect(result.waterDepthBelowLandM).toBeGreaterThan(0);
+      expect(result.layers.length).toBeGreaterThan(2);
+      expect(result.layers.at(-1)!.elevationM).toBeCloseTo(180, 6);
+      expect(result.warnings.some(warning => warning.code === "EMPTY_LAYER" || warning.code === "WATER_DEPTH_CLAMPED")).toBe(false);
+    });
+
     it("flattens water the sheet budget cannot reach and says so", () => {
-      const base: ProjectConfigV1 = { ...DEFAULT_PROJECT, showWater: false, optimizeMaterialUse: false };
+      const base: ProjectConfigV1 = { ...DEFAULT_PROJECT, waterDepthLayerLimit: 6, showWater: false, optimizeMaterialUse: false };
       const source = flatLake(base);
       const [project, scaled] = scaledForLayers(base, source, 4);
-      // Far deeper than MAX_DEPTH_LAYER_COUNT sheets of this stack can hold.
+      // Far deeper than the explicitly chosen six depth sheets can hold.
       const withLake: SourceBundleV1 = { ...scaled, waterAreas: [lakeArea({ maxDepthM: 9000, meanDepthM: 3000 })] };
       const result = generateGeometry(project, withLake);
       expect(result.warnings.some((warning) => warning.code === "WATER_DEPTH_CLAMPED")).toBe(true);
     });
 
     it("fits a deep lake into the same stack, preserves source depth, and exports its applied scale", async () => {
-      const base: ProjectConfigV1 = { ...DEFAULT_PROJECT, showWater: false, optimizeMaterialUse: false };
+      const base: ProjectConfigV1 = { ...DEFAULT_PROJECT, waterDepthLayerLimit: 6, showWater: false, optimizeMaterialUse: false };
       const [project, scaled] = scaledForLayers(base, flatLake(base), 4);
       const withLake: SourceBundleV1 = { ...scaled, sourceKind: "real", vectorStatus: "available", lakeDataStatus: "available", waterAreas: [lakeArea({ maxDepthM: 9000, meanDepthM: 3000 })] };
       const clipped = generateGeometry(project, withLake);
@@ -1293,6 +1467,11 @@ describe("TopoStack geometry", () => {
       const restored = generateGeometry({ ...fitting, fitLakeDepth: false }, withLake);
       expect(restored.layers).toEqual(clipped.layers);
       expect(generateGeometry({ ...fitting, showWaterDepth: false }, withLake).waterSurfaces).toEqual([]);
+      const automatic = generateGeometry({ ...project, waterDepthLayerLimit: undefined }, withLake);
+      expect(automatic.layers.length).toBeGreaterThan(clipped.layers.length);
+      expect(automatic.warnings.some(warning => warning.code === "WATER_DEPTH_CLAMPED")).toBe(false);
+      expect(automatic.waterSurfaces[0]?.depthFitScale).toBeUndefined();
+      expect(automatic.verticalExaggeration).toBe(clipped.verticalExaggeration);
     });
 
     it("scales modeled and surveyed water alike, and 1x changes nothing", () => {
@@ -1325,7 +1504,7 @@ describe("TopoStack geometry", () => {
     });
 
     it("spends more sheets below the waterline as depth exaggeration rises", () => {
-      const base: ProjectConfigV1 = { ...DEFAULT_PROJECT, showWater: false, optimizeMaterialUse: false };
+      const base: ProjectConfigV1 = { ...DEFAULT_PROJECT, waterDepthLayerLimit: 6, showWater: false, optimizeMaterialUse: false };
       const source = flatLake(base);
       const [project, scaled] = scaledForLayers(base, source, 6);
       const withLake: SourceBundleV1 = { ...scaled, waterAreas: [lakeArea({ maxDepthM: 150, meanDepthM: 60 })] };

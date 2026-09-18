@@ -1,7 +1,6 @@
-import { buildProjectPackage, type GeometryIRV1, type ProjectConfigV1 } from "@topostack/core";
+import { exportBlockReason, type GeometryIRV1, type ProjectConfigV1 } from "@topostack/core";
 import { createSubscriber } from "svelte/reactivity";
 import type { ExportUpdate } from "./atomm-bridge";
-import { exportBlockReason } from "../export-policy";
 import { prepareProjectSettings, prepareSelectedDownload, startBrowserDownload, type DownloadOption } from "./native-export";
 
 export type ExportPhase = "idle" | "preparing" | "ready" | "error";
@@ -18,8 +17,8 @@ export function describeExport(update: ExportUpdate): { title: string; detail: s
   if (update.phase === "ready") {
     const files = `${update.fileCount} ${update.fileCount === 1 ? "file" : "files"}`;
     return update.intent === "openInStudio"
-      ? { title: "Artwork ready", detail: "The master SVG was handed to Atomm for Studio.", status: "Master SVG prepared for Studio" }
-      : { title: "Download ready", detail: `${files} prepared. Your browser should save them as one download.`, status: `Download started · ${files}` };
+      ? { title: "Artwork ready", detail: "The master SVG is prepared for Atomm to open in Studio.", status: "Master SVG prepared for Studio" }
+      : { title: "Download ready", detail: `${files} prepared. Your browser should save them as one download.`, status: `Download prepared · ${files}` };
   }
   return { title: "Export failed", detail: update.message, status: update.message };
 }
@@ -91,7 +90,7 @@ export async function downloadProject({ option, geometry, project, notice, track
   try {
     const download = option === "project"
       ? prepareProjectSettings(project)
-      : await prepareSelectedDownload(buildProjectPackage(geometry, project), option);
+      : await prepareSelectedDownload((await import("../export-policy")).buildProjectPackage(geometry, project), option);
     startBrowserDownload(download);
     if (tracked) track("export_prepared");
     notice.apply({ phase: "ready", intent: "download", fileCount: download.fileCount });

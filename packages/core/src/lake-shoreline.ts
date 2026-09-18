@@ -2,13 +2,18 @@ import polygonClipping, { type Pair } from "polygon-clipping";
 import { close, distanceToSegment, signedArea } from "./geometry2d.js";
 import type { Point2D, Polygon2D, ProjectConfigV1, SourceBundleV1 } from "./types.js";
 
+/** Drop points that coincide with their predecessor around a closed ring. */
+function withoutRepeats(ring: Point2D[]): Point2D[] {
+  return ring.filter((p, i, all) => {
+    const previous = all[(i + all.length - 1) % all.length]!;
+    return Math.hypot(p.x - previous.x, p.y - previous.y) > 1e-7;
+  });
+}
+
 /** Round sparse shore samples without extrapolating beyond their local edges. */
 export function smoothLakePolygon(polygon: Polygon2D, minimumFeatureMm: number): Polygon2D {
   const smooth = (ring: Point2D[]): Point2D[] => {
-    const points = close(ring).slice(0, -1).filter((p, i, all) => {
-      const previous = all[(i + all.length - 1) % all.length]!;
-      return Math.hypot(p.x - previous.x, p.y - previous.y) > 1e-7;
-    });
+    let points = withoutRepeats(close(ring).slice(0, -1));
     if (points.length < 3) return ring;
     // Remove sub-feature slivers: a near reversal can be long enough to survive
     // ordinary simplification while its width is too small to fabricate.
@@ -20,6 +25,11 @@ export function smoothLakePolygon(polygon: Polygon2D, minimumFeatureMm: number):
       if (ax * bx + ay * by < -0.8 * la * lb && width < minimumFeatureMm * 0.18 &&
         distanceToSegment(p, a, b) <= Math.min(2, minimumFeatureMm * 2)) points.splice(i, 1);
     }
+    // A removed spike can leave its two neighbours coincident: without a second
+    // dedupe, a zero-length leg divides the trim by 0 and NaN vertices reach the
+    // union below, which throws on a degenerate segment.
+    points = withoutRepeats(points);
+    if (points.length < 3) return ring;
     const result: Point2D[] = [];
     points.forEach((p, i) => {
       const a = points[(i + points.length - 1) % points.length]!;
@@ -41,6 +51,9 @@ export function smoothLakePolygon(polygon: Polygon2D, minimumFeatureMm: number):
   };
   const candidate = { outer: smooth(polygon.outer), holes: polygon.holes.map(smooth) };
   const rings = [candidate.outer, ...candidate.holes];
+  // Degenerate input must fall back to the original outline rather than reach
+  // polygon-clipping, which throws rather than returning an empty result.
+  if (rings.some(ring => ring.some(p => !Number.isFinite(p.x) || !Number.isFinite(p.y)))) return polygon;
   // Reject changes that collapse/split a lake or merge an island into its bank.
   // Comparing signed ring area with the normalized union also catches crossings.
   const normalized = polygonClipping.union([rings.map(r => r.map(p => [p.x, p.y] as Pair))]);
@@ -59,24 +72,42 @@ export function smoothLakePolygon(polygon: Polygon2D, minimumFeatureMm: number):
 /** Work on a copy at generation time so repeated previews never accumulate smoothing. */
 export function smoothLakeShorelines(source: SourceBundleV1, config: ProjectConfigV1): SourceBundleV1 {
   if (!config.smoothing) return source;
-  const polygons = new Map<string, Polygon2D>();
-  const rings = new Map<string, Point2D[]>();
-  const key = (value: unknown) => JSON.stringify(value);
+  const polygons = new Map<Polygon2D, Polygon2D>();
+  const rings = new Map<Point2D[], Point2D[]>();
   const register = (polygon: Polygon2D) => {
-    const id = key(polygon);
-    if (polygons.has(id)) return;
+    if (polygons.has(polygon)) return;
     const smoothed = smoothLakePolygon(polygon, config.minimumFeatureMm);
-    polygons.set(id, smoothed);
-    [polygon.outer, ...polygon.holes].forEach((ring, i) => rings.set(key(ring), [smoothed.outer, ...smoothed.holes][i]!));
+    const smoothedRings = [smoothed.outer, ...smoothed.holes];
+    polygons.set(polygon, smoothed);
+    [polygon.outer, ...polygon.holes].forEach((ring, i) => rings.set(ring, smoothedRings[i]!));
   };
   source.waterAreas?.filter(area => area.kind === "lake").forEach(area => register(area.polygon));
   source.inlandWaterAreas?.forEach(register);
   if (!polygons.size) return source;
+  // Identity answers every lookup a real source needs: shoreline markings and
+  // water-pattern areas are built from the very ring arrays the water areas
+  // carry. A caller that hands us value-equal copies instead still matches, but
+  // only then is anything stringified - keying every ring by JSON up front
+  // hashed each lake's whole outline twice per generation.
+  let polygonsByValue: Map<string, Polygon2D> | undefined;
+  let ringsByValue: Map<string, Point2D[]> | undefined;
+  const smoothedPolygon = (polygon: Polygon2D): Polygon2D | undefined => {
+    if (polygons.has(polygon)) return polygons.get(polygon);
+    polygonsByValue ??= new Map([...polygons].map(([original, smoothed]) => [JSON.stringify(original), smoothed]));
+    return polygonsByValue.get(JSON.stringify(polygon));
+  };
+  const smoothedRing = (ring: Point2D[]): Point2D[] | undefined => {
+    if (rings.has(ring)) return rings.get(ring);
+    ringsByValue ??= new Map([...rings].map(([original, smoothed]) => [JSON.stringify(original), smoothed]));
+    return ringsByValue.get(JSON.stringify(ring));
+  };
   return {
     ...source,
-    waterAreas: source.waterAreas?.map(area => area.kind === "lake" ? { ...area, polygon: polygons.get(key(area.polygon))! } : area),
-    waterPatternAreas: source.waterPatternAreas?.map(polygon => polygons.get(key(polygon)) ?? polygon),
-    markings: source.markings.map(marking => marking.kind === "water" && rings.has(key(marking.points))
-      ? { ...marking, points: rings.get(key(marking.points))! } : marking),
+    waterAreas: source.waterAreas?.map(area => area.kind === "lake" ? { ...area, polygon: smoothedPolygon(area.polygon)! } : area),
+    waterPatternAreas: source.waterPatternAreas?.map(polygon => smoothedPolygon(polygon) ?? polygon),
+    markings: source.markings.map(marking => {
+      const smoothed = marking.kind === "water" ? smoothedRing(marking.points) : undefined;
+      return smoothed ? { ...marking, points: smoothed } : marking;
+    }),
   };
 }

@@ -1,3 +1,4 @@
+import { sampleOffset } from "./grid.js";
 import type { Point2D, Polygon2D } from "./types.js";
 
 type Segment = { a: Point2D; b: Point2D };
@@ -37,8 +38,8 @@ export function vectorShoreDistances(
   };
   const root = build(segments);
   for (const cell of cells) {
-    const x = ((cell % width) / (width - 1) - 0.5) * groundWidthM;
-    const y = (Math.floor(cell / width) / (height - 1) - 0.5) * groundHeightM;
+    const x = sampleOffset(cell % width, width, groundWidthM);
+    const y = sampleOffset(Math.floor(cell / width), height, groundHeightM);
     let nearest = Infinity;
     const bound = (node: Node) => Math.max(0, node.minX - x, x - node.maxX) ** 2 + Math.max(0, node.minY - y, y - node.maxY) ** 2;
     const visit = (node: Node): void => {

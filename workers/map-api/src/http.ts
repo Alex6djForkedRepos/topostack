@@ -49,14 +49,18 @@ export function isAllowedOrigin(origin: string | null, env: OriginPolicyEnv): bo
 
 export function corsHeaders(request: Request, env: Env): Headers {
   const origin = request.headers.get("origin");
+  const isEvent = new URL(request.url).pathname === "/v1/events";
   const headers = new Headers({
-    "access-control-allow-methods": new URL(request.url).pathname === "/v1/events" ? "POST,OPTIONS" : "GET,HEAD,OPTIONS",
+    "access-control-allow-methods": isEvent ? "POST,OPTIONS" : "GET,HEAD,OPTIONS",
     "access-control-allow-headers": "range,content-type,if-none-match",
     "access-control-expose-headers": "content-length,content-range,etag,x-topostack-dataset,x-topostack-cache,x-topostack-imagery-sources,x-topostack-r2-reads",
     "access-control-max-age": "86400",
     "vary": "Origin",
   });
-  if (origin && isAllowedOrigin(origin, env)) headers.set("access-control-allow-origin", origin);
+  // Read-only data is public and carries no browser credentials. Keep event
+  // collection on its existing allowlist and same-origin POST validation.
+  if (!isEvent) headers.set("access-control-allow-origin", "*");
+  else if (origin && isAllowedOrigin(origin, env)) headers.set("access-control-allow-origin", origin);
   return headers;
 }
 

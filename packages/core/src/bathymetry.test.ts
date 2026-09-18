@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { carveWaterDepth, DEFAULT_PROJECT, generateGeometry, createSyntheticSource, type WaterAreaV1 } from "./index.js";
+import { DEFAULT_PROJECT, generateGeometry, createSyntheticSource, type WaterAreaV1 } from "./index.js";
+import { carveWaterDepth } from "./water.js";
 
 const config = { ...DEFAULT_PROJECT, widthMm: 100, heightMm: 100, waterDepthExaggeration: 1 };
 const grid = { width: 5, height: 5, values: new Float32Array(25).fill(180), min: 180, max: 180 };

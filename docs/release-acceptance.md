@@ -2,6 +2,23 @@
 
 Use one candidate commit and retain its CI run, Atomm ZIP, checksum, `topostack-atomm.release.json`, and both archive provisioning receipts. A receipt with `workingTreeDirty: true` is local diagnostic evidence; build the published release from a clean commit. Record the intended Worker version ID and deployed frontend revision with the release.
 
+## Development validation before a production PR
+
+Development is the first deployment gate. A production CORS failure or an unpublished Atomm runtime is checked after the relevant rollout; it does not require publishing to production before testing development.
+
+1. Integrate the current remote `dev`, commit the candidate, and run the local CI checks on that revision. Keep review logs, screenshots and temporary packages outside the checkout. Do not include parallel worktrees in the commit.
+2. Push the reviewed candidate to `dev` when authorized. The `CI and Worker Deploy` workflow deploys the development frontend and API only after its required job dependencies pass. A successful build alone is not a successful deployment.
+3. Verify the deployed commit at `/version.json`, then run the serving-path and browser checks against development:
+
+   ```sh
+   WORKER_URL=https://dev-topostack.echofoxtrot.works PUBLIC_APP_URL=https://dev-topostack.echofoxtrot.works EXPECTED_WORKER_ENVIRONMENT=development node scripts/verify-worker-deployment.mjs
+   node scripts/verify-seo-http.mjs https://dev-topostack.echofoxtrot.works development
+   PUBLIC_APP_URL=https://dev-topostack.echofoxtrot.works npm run test:e2e:live
+   ```
+
+4. Check the Atomm iframe origin and an unrelated origin for credential-free public reads, archive ranges and preflights. The deployment smoke includes the actual Atomm origin. Verify restricted writes remain denied, and exercise the representative terrain/lake projects below on the dev site.
+5. Record the deployed Worker/frontend identity and test results before opening the production PR. Production deployment, Atomm publication, Studio import and physical fabrication remain separate acceptance steps.
+
 ## Automated acceptance
 
 1. Run the Node 22 CI jobs, including the full dependency audit, lint, type checks, coverage, production build, generated Worker types, size budgets, and Chromium/Firefox/WebKit tests.
@@ -13,7 +30,7 @@ Use one candidate commit and retain its CI run, Atomm ZIP, checksum, `topostack-
 
 Load the candidate ZIP inside the real Atomm host. Exercise download and Open in Studio, including delayed SDK loading, both output modes, and cross-origin archive requests. Mocked SDK tests do not prove the host's interpretation of exported files.
 
-Import representative files in the intended xTool Studio version. Verify dimensions and units, cut/score/engrave operations, white marker knockout interpretation, shared nested cuts, material connectivity, kerf, and assembly order. Fabricate and measure a small representative test piece before approving larger work.
+Import representative files in the intended xTool Studio version. Verify dimensions and units, cut/score/engrave operations, marker clearance gaps and filled symbols, shared nested cuts, material connectivity, kerf, and assembly order. Fabricate and measure a small representative test piece before approving larger work.
 
 ## Operational acceptance
 

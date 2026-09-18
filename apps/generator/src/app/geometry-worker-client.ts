@@ -89,8 +89,6 @@ export class GeometryWorkerClient {
     this.unavailable = !factory;
   }
 
-  get busy(): boolean { return this.pending !== undefined; }
-
   run(config: ProjectConfigV1, source: SourceBundleV1): Promise<GeometryIRV1> {
     this.cancel(new DOMException("Preview superseded", "AbortError"));
     const worker = this.unavailable ? undefined : this.ensureWorker();

@@ -1,3 +1,4 @@
+import { PROTOMAPS_BASEMAP_VERSION, PROTOMAPS_SNAPSHOT } from "./dataset";
 import type { SurveySource, TerrainSource } from "../../../packages/core/src/source-catalog";
 
 interface ManifestSource {
@@ -46,7 +47,7 @@ export function buildManifest(datasetVersion: string, terrainSources: ReadonlyAr
       ...terrainSources.map(({ source, path }) => terrainEntry(source, path)),
       ...bathymetrySources.map(({ source, path }) => bathymetryEntry(source, path)),
       { name: "GLOBathy", url: "https://doi.org/10.1038/s41597-022-01132-9", attribution: "CC0 1.0 — Khazaei et al. (2022)" },
-      { name: "Protomaps Basemap 20260905", url: "https://build.protomaps.com/20260905.pmtiles", version: "4.15.2", license: "ODbL Produced Work" },
+      { name: `Protomaps Basemap ${PROTOMAPS_SNAPSHOT}`, url: `https://build.protomaps.com/${PROTOMAPS_SNAPSHOT}.pmtiles`, version: PROTOMAPS_BASEMAP_VERSION, license: "ODbL Produced Work" },
       { name: "OpenStreetMap contributors", url: "https://www.openstreetmap.org/copyright", license: "ODbL" },
     ] satisfies ManifestSource[],
   };

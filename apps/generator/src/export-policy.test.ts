@@ -11,6 +11,12 @@ describe("Atomm export policy", () => {
     expect(exportBlockReason(geometry("synthetic"), DEFAULT_PROJECT)).toMatch(/real terrain/i);
     expect(exportBlockReason(geometry("preview"), DEFAULT_PROJECT)).toMatch(/real terrain/i);
     expect(exportBlockReason(geometry(), { ...DEFAULT_PROJECT, verticalExaggeration: 9 })).toMatch(/settings changed/i);
+    // Older terrain, compass and single-layer marker geometry need regeneration.
+    for (const version of ["v6", "v7", "v8"]) {
+      const stale = geometry();
+      stale.configFingerprint = stale.configFingerprint!.replace(/^v\d+-/, `${version}-`);
+      expect(exportBlockReason(stale, DEFAULT_PROJECT)).toMatch(/settings changed/i);
+    }
   });
 
   it("blocks incomplete requested vector data", () => {
@@ -61,6 +67,15 @@ describe("Atomm export policy", () => {
       expect(svg).toContain('stroke="#2366FF"');
       expect(svg.includes('stroke="#FE0002"')).toBe(outputMode === "stack");
       expect(svg).not.toMatch(/<use\b|#ff0035|#111827|#2563eb/);
+      const shapes = svg.match(/<(?:path|rect|circle)\b[^>]*>/g) ?? [];
+      expect(shapes.length).toBeGreaterThan(0);
+      // Default artwork is all linework, even when a guide/contour is closed.
+      // Its no-fill and processing color must survive removal of parent styles.
+      for (const shape of shapes) {
+        expect(shape).toContain('fill="none"');
+        expect(shape).toMatch(/stroke="#(?:2366FF|FE0002)"/);
+      }
+      expect(shapes.some(shape => /alignment-|contour-/.test(shape))).toBe(true);
       const files = createAtommExport(result, project, "download");
       if (!Array.isArray(files)) throw new Error("Download must receive the project files");
       for (const file of files) {

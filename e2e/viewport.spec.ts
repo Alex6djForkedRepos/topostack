@@ -217,9 +217,9 @@ for (const [widthMm, heightMm] of [[100, 200], [400, 100]] as const) {
       const rect = await guide.boundingBox();
       return rect ? rect.width / rect.height : 0;
     }).toBeCloseTo(widthMm * 2 / heightMm, 2);
-    await expect(page.locator(".status-line")).toContainText("Map area changed");
+    await expect(page.locator(".status-line")).toContainText(outputMode === "stack" ? "Fabrication geometry updated" : "Engraving artwork updated", { timeout: 30_000 });
     await page.getByRole("button", { name: "Export", exact: true }).click();
-    await expect(page.getByRole("button", { name: /Complete project/ })).toBeDisabled();
+    await expect(page.getByRole("button", { name: /Complete project/ })).toBeEnabled();
   });
 }
 }

@@ -23,6 +23,7 @@
     {#snippet brand()}<Brand name="TopoStack" meta="Studio" href={`${base}/`} />{/snippet}
     {#snippet actions()}
       <a class="header-guide" href="#how-it-works">How it works</a>
+      <a class="header-guide" href={`${base}/guides`}>Guides</a>
       <a class="primary-link header-cta" href={studioUrl}>Start creating <ArrowRight size={16} aria-hidden="true" /></a>
       <ThemeToggle {theme} />
     {/snippet}
@@ -82,7 +83,7 @@
 
     <section class="section" aria-labelledby="example-title">
       <div class="section-heading"><p class="eyebrow">Inside the studio</p><h2 id="example-title">Explore the Crater Lake terrain preview</h2><p>See how real elevation becomes a stack of contours. Follow the example, then generate fresh terrain to create your own fabrication files.</p></div>
-      <figure class="studio-example"><img src={`${base}/images/studio-crater-lake.png`} width="1280" height="900" loading="lazy" decoding="async" alt="TopoStack studio with the Crater Lake terrain preview, layer controls and an exploded 3D stack." /><figcaption>Bundled terrain preview. Generate fresh data before exporting.</figcaption></figure>
+      <figure class="studio-example"><img src={`${base}/images/studio-crater-lake.png`} width="1280" height="900" loading="lazy" decoding="async" alt="TopoStack studio with freshly generated Crater Lake terrain and USGS surveyed lake-floor relief." /><figcaption>Crater Lake with USGS surveyed bathymetry where available. Gaps use existing terrain or modeled depths; depth is exaggerated.</figcaption></figure>
       <a class="secondary-link" href={`${base}/examples/crater-lake`}>Follow the Crater Lake project <ArrowRight size={16} aria-hidden="true" /></a>
     </section>
 
@@ -141,7 +142,7 @@
     </section>
   </main>
 
-  <footer><span>TopoStack <span class="footer-note">/ Terrain studio</span></span><a href={`${base}/guides/lake-depth-data`}>Lake depth directory</a><a href={`${base}/attribution`}>Sources and attribution</a><a href={`${base}/privacy`}>Privacy</a><FeedbackButton /><a href={studioUrl}>Open terrain studio <ArrowUpRight size={14} aria-hidden="true" /></a></footer>
+  <footer><span>TopoStack <span class="footer-note">/ Terrain studio</span></span><a href={`${base}/guides`}>Guides</a><a href={`${base}/guides/lake-depth-data`}>Lake depth directory</a><a href={`${base}/attribution`}>Sources and attribution</a><a href={`${base}/privacy`}>Privacy</a><FeedbackButton /><a href={studioUrl}>Open terrain studio <ArrowUpRight size={14} aria-hidden="true" /></a></footer>
 </div>
 
 {/if}

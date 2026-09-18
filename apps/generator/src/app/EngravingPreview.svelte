@@ -2,21 +2,36 @@
   import SvgViewport from "./SvgViewport.svelte";
   import { cropRadiusMm, labelPathData, waterPatternStrokes, type GeometryIRV1, type Point2D, type ProjectConfigV1 } from "@topostack/core";
   import { markingDash, markingWidth } from "./marking-style";
+  import { markingPath, pointsToPath as linePath } from "./svg-path";
 
-  let { geometry, project }: { geometry: GeometryIRV1; project: ProjectConfigV1 } = $props();
-  const contourLayers = $derived(geometry.layers.slice(1));
-  const waterPattern = $derived(waterPatternStrokes(project.waterFillPattern, geometry.waterPatternAreas, geometry.widthMm, geometry.heightMm, geometry.lineStyle.waterMm));
-  const markings = $derived(geometry.layers.flatMap((layer) => layer.markings)
+  // `cropShape` comes from the project the geometry was built for: a width,
+  // height or shape edit leaves the map area stale, so drawing the surface and
+  // border from the live project would frame old contours at the new size and
+  // stop `onBoundary` recognizing the crop edges it clipped them to.
+  let { geometry, project, cropShape }: { geometry: GeometryIRV1; project: ProjectConfigV1; cropShape: ProjectConfigV1["cropShape"] } = $props();
+  // A rename or slider tick replaces `project` and `geometry` without changing
+  // any of these, so reading them through narrow derivations keeps polygon
+  // clipping and path building out of every keystroke.
+  const widthMm = $derived(geometry.widthMm);
+  const heightMm = $derived(geometry.heightMm);
+  const crop = $derived({ widthMm, heightMm, cropShape });
+  const layers = $derived(geometry.layers);
+  const waterFillPattern = $derived(project.waterFillPattern);
+  const waterPatternAreas = $derived(geometry.waterPatternAreas);
+  const lineStyle = $derived(geometry.lineStyle);
+  const contourLayers = $derived(layers.slice(1));
+  const waterPattern = $derived(waterPatternStrokes(waterFillPattern, waterPatternAreas, crop.widthMm, crop.heightMm, lineStyle.waterMm));
+  const markings = $derived(layers.flatMap((layer) => layer.markings)
     .filter((marking) => !marking.id.startsWith("alignment-")));
   function onBoundary(start: Point2D, end: Point2D): boolean {
     const epsilon = 0.02;
-    if (project.cropShape === "circle") {
-      const radius = cropRadiusMm(project);
+    if (crop.cropShape === "circle") {
+      const radius = cropRadiusMm(crop);
       return Math.abs(Math.hypot(start.x, start.y) - radius) <= epsilon &&
         Math.abs(Math.hypot(end.x, end.y) - radius) <= epsilon;
     }
-    const halfWidth = project.widthMm / 2;
-    const halfHeight = project.heightMm / 2;
+    const halfWidth = crop.widthMm / 2;
+    const halfHeight = crop.heightMm / 2;
     return (Math.abs(start.x - halfWidth) <= epsilon && Math.abs(end.x - halfWidth) <= epsilon) ||
       (Math.abs(start.x + halfWidth) <= epsilon && Math.abs(end.x + halfWidth) <= epsilon) ||
       (Math.abs(start.y - halfHeight) <= epsilon && Math.abs(end.y - halfHeight) <= epsilon) ||
@@ -37,18 +52,15 @@
     return result;
   }
 
-  function linePath(points: Point2D[]): string {
-    return points.map((point, index) => `${index === 0 ? "M" : "L"}${point.x} ${point.y}`).join(" ");
-  }
 </script>
 
 <div class="engraving-stage">
   <SvgViewport widthMm={geometry.widthMm} heightMm={geometry.heightMm} label="engraving" svgLabel="Flat engraving preview" controlsLabel="Engraving zoom controls" resetLabel="Reset engraving view">
     <defs><filter id="engraving-shadow"><feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.2" /></filter></defs>
-    {#if project.cropShape === "circle"}
-      <circle cx="0" cy="0" r={cropRadiusMm(project)} class="engraving-surface" data-preview-shadow filter="url(#engraving-shadow)" />
+    {#if crop.cropShape === "circle"}
+      <circle cx="0" cy="0" r={cropRadiusMm(crop)} class="engraving-surface" data-preview-shadow filter="url(#engraving-shadow)" />
     {:else}
-      <rect x={-project.widthMm / 2} y={-project.heightMm / 2} width={project.widthMm} height={project.heightMm} class="engraving-surface" data-preview-shadow filter="url(#engraving-shadow)" />
+      <rect x={-crop.widthMm / 2} y={-crop.heightMm / 2} width={crop.widthMm} height={crop.heightMm} class="engraving-surface" data-preview-shadow filter="url(#engraving-shadow)" />
     {/if}
     {#if waterPattern.length}
       <g class="engraving-water-pattern" data-water-pattern={project.waterFillPattern} stroke-width={geometry.lineStyle.waterMm}>
@@ -67,13 +79,13 @@
     <g class="engraving-details">
       {#each markings as marking (marking.id)}
         <g data-marking-id={marking.id} data-marking-kind={marking.kind} data-transportation-class={marking.transportationClass}>
-          {#if marking.points.length > 1}<path d={linePath(marking.points)} fill={marking.knockout ? "#e8cfaa" : marking.filled ? "#2b2119" : "none"} stroke={marking.knockout ? "#e8cfaa" : undefined} stroke-width={markingWidth(marking, geometry.lineStyle)} stroke-dasharray={markingDash(marking, geometry.lineStyle)} stroke-linecap={marking.kind === "road" ? geometry.lineStyle.roadCap : undefined} stroke-linejoin={marking.kind === "road" ? "round" : undefined} />{/if}
+          {#if marking.points.length > 1}<path d={markingPath(marking)} fill-rule="evenodd" fill={marking.knockout ? "#e8cfaa" : marking.filled ? "#2b2119" : "none"} stroke={marking.filled ? "none" : undefined} stroke-width={markingWidth(marking, geometry.lineStyle)} stroke-dasharray={markingDash(marking, geometry.lineStyle)} stroke-linecap={marking.kind === "road" ? geometry.lineStyle.roadCap : undefined} stroke-linejoin={marking.kind === "road" ? "round" : undefined} />{/if}
           {#if marking.label && marking.points[0]}<path d={labelPathData(marking.label, marking.points[0], 0, 0, marking.labelRotationRad, marking.textStyle)} stroke-width={geometry.lineStyle.annotationMm} stroke-linecap={marking.textStyle?.font === "rounded" ? "round" : "butt"} stroke-linejoin={marking.textStyle?.font === "rounded" ? "round" : "miter"} />{/if}
         </g>
       {/each}
     </g>
     {#if project.showEngravingBorder}
-      {#if project.cropShape === "circle"}<circle cx="0" cy="0" r={cropRadiusMm(project)} class="engraving-border" stroke-width={geometry.lineStyle.borderMm} />{:else}<rect x={-project.widthMm / 2} y={-project.heightMm / 2} width={project.widthMm} height={project.heightMm} class="engraving-border" stroke-width={geometry.lineStyle.borderMm} />{/if}
+      {#if crop.cropShape === "circle"}<circle cx="0" cy="0" r={cropRadiusMm(crop)} class="engraving-border" stroke-width={geometry.lineStyle.borderMm} />{:else}<rect x={-crop.widthMm / 2} y={-crop.heightMm / 2} width={crop.widthMm} height={crop.heightMm} class="engraving-border" stroke-width={geometry.lineStyle.borderMm} />{/if}
     {/if}
   </SvgViewport>
   <div class="engraving-legend"><span><i style:--sample-width={`${Math.max(1, geometry.lineStyle.contourMm * 5)}px`}></i> Minor contour</span><span><i class="index" style:--sample-width={`${Math.max(1, geometry.lineStyle.indexContourMm * 5)}px`}></i> Index every {project.engravingIndexInterval}</span><span>{project.engravingContourCount} contours</span>{#if project.showWater && project.waterFillPattern !== "none"}<span>{project.waterFillPattern} water</span>{/if}</div>

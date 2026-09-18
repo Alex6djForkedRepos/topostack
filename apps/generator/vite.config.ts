@@ -21,11 +21,19 @@ export default defineConfig({
     chunkSizeWarningLimit: 1100,
     rollupOptions: {
       output: {
-        manualChunks(id) {
-          if (id.includes("node_modules/three")) return "three";
-          if (id.includes("node_modules/maplibre-gl")) return "maplibre";
-          if (id.includes("node_modules/@lucide/svelte") || id.includes("node_modules/svelte") || id.includes("node_modules/bits-ui")) return "ui";
-          return undefined;
+        codeSplitting: {
+          groups: [
+            // Emit the global theme once, even when shared JS differs by route.
+            { name: "theme-styles", test: /node_modules\/@loidolt\/.*\.css(?:\?|$)/, priority: 50 },
+            { name: "three", test: /node_modules\/three/, priority: 40 },
+            { name: "maplibre", test: /node_modules\/maplibre-gl/, priority: 40 },
+            { name: "ui", test: /node_modules\/(?:@lucide\/svelte|svelte|bits-ui)/, priority: 30 },
+            // Capture shared site dependencies before guides so the homepage
+            // never needs the guide content chunk. Split shared JS by actual
+            // consumers to avoid loading guide-only navigation on the homepage.
+            { name: "site", test: /node_modules\/(?:@loidolt\/|@sveltejs\/kit\/)|\/src\/lib\/(?:FeedbackButton\.svelte|theme\.ts|seo\.ts|support\.ts)$/, priority: 20, entriesAware: true },
+            { name: "guides", test: /\/src\/routes\/(?:guides(?:\/.*)?|examples\/[^/]+|privacy)\/\+page\.svelte$/, priority: 10 },
+          ],
         },
       },
     },

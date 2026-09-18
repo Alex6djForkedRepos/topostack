@@ -1,9 +1,9 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { DEVELOPMENT_BUCKET, PRODUCTION_BUCKET, writeJsonAtomic } from "./lib/archive-provisioning.mjs";
+import { DEVELOPMENT_BUCKET, PRODUCTION_BUCKET } from "./lib/archive-provisioning.mjs";
 import { DEFAULT_GRACE_DAYS, planArchivePrune, pointersUnchanged, readReleasePointers } from "./lib/archive-pruning.mjs";
 import { cloudflareClient } from "./lib/cloudflare-client.mjs";
+import { receiptDirectory, writeJsonAtomic } from "./lib/files.mjs";
 import { temporaryR2Client, verifyParentToken } from "./lib/r2-s3.mjs";
 
 const USAGE = "Usage: node --env-file=.env scripts/prune-archives.mjs [--apply] [--prod] [--grace-days=N] [--include-legacy]";
@@ -16,7 +16,7 @@ const buckets = flags.includes("--prod") ? [DEVELOPMENT_BUCKET, PRODUCTION_BUCKE
 const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
 const api = cloudflareClient(accountId);
 const parentAccessKeyId = await verifyParentToken(api);
-const receiptDirectory = process.env.LIFECYCLE_RECEIPT_DIR ?? fileURLToPath(new URL("../.topostack/receipts/", import.meta.url));
+const receipts = receiptDirectory();
 const gib = (bytes) => `${(bytes / 1024 ** 3).toFixed(2)} GiB`;
 
 async function readState({ list, request }) {
@@ -42,8 +42,8 @@ for (const bucket of buckets) {
   for (const entry of plan.remove) console.log(`  remove ${entry.reason.padEnd(19)} ${entry.key} (${gib(entry.size)}, uploaded ${entry.uploaded})`);
   if (!apply || plan.remove.length === 0) continue;
 
-  await mkdir(receiptDirectory, { recursive: true, mode: 0o700 });
-  const receiptPath = join(receiptDirectory, `${bucket}-archive-prune-${Date.now()}.json`);
+  await mkdir(receipts, { recursive: true, mode: 0o700 });
+  const receiptPath = join(receipts, `${bucket}-archive-prune-${Date.now()}.json`);
   const receipt = { bucket, graceDays, includeLegacy, pointers: state.pointers, plan, deleted: [] };
   await writeJsonAtomic(receiptPath, receipt);
   // A promotion or rollback since planning could change what is referenced.

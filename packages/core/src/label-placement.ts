@@ -117,10 +117,6 @@ function labelFootprint(label: string, origin: Point2D, rotationRad: number, sty
   ].map((point) => rotatedPoint(point, origin, rotationRad)));
 }
 
-function footprintBounds(footprint: Point2D[]): Bounds2D {
-  return ringBounds(footprint);
-}
-
 function pathsIntersect(left: Point2D[], right: Point2D[]): boolean {
   for (let leftIndex = 0; leftIndex < left.length - 1; leftIndex += 1) {
     for (let rightIndex = 0; rightIndex < right.length - 1; rightIndex += 1) {
@@ -150,7 +146,7 @@ function markingIntersectsFootprint(marking: LayerIR["markings"][number], footpr
 }
 
 function markingIntersectsBounds(marking: LayerIR["markings"][number], bounds: Bounds2D): boolean {
-  if (marking.label && marking.points[0] && boundsOverlap(footprintBounds(labelFootprint(marking.label, marking.points[0], marking.labelRotationRad ?? 0, marking.textStyle ?? DEFAULT_TEXT_STYLE)), bounds)) return true;
+  if (marking.label && marking.points[0] && boundsOverlap(ringBounds(labelFootprint(marking.label, marking.points[0], marking.labelRotationRad ?? 0, marking.textStyle ?? DEFAULT_TEXT_STYLE)), bounds)) return true;
   for (let index = 0; index < marking.points.length - 1; index += 1) {
     const start = marking.points[index];
     const end = marking.points[index + 1];
@@ -197,17 +193,28 @@ export function addLabelObstacles(index: LabelLayerIndex, markings: LayerIR["mar
 
 export function placeLabel(label: string, config: ProjectConfigV1, { material, obstacles }: LabelLayerIndex, preferred: Point2D, requiredPolygons?: Polygon2D[]): Point2D | undefined {
   const dimensions = labelDimensions(label, config.textStyle);
-  const required = requiredPolygons && indexPolygons(requiredPolygons);
-  // Every sampled point of the label box must be inside, so the box must sit inside the polygon's box.
+  // Every sampled point of the label box must be inside, so the box must sit
+  // inside the polygon's box - which no polygon narrower than the label can
+  // manage at any candidate position. Ruling those out once, rather than 361
+  // times, matters because a layer can hold hundreds of small polygons.
+  const holdsLabel = ({ bounds }: { bounds: Bounds2D }) =>
+    bounds.maxX - bounds.minX >= dimensions.width + 1.6 && bounds.maxY - bounds.minY >= dimensions.height + 1.6;
+  const candidateMaterial = material.filter(holdsLabel);
+  if (!candidateMaterial.length) return undefined;
+  const required = requiredPolygons && indexPolygons(requiredPolygons).filter(holdsLabel);
+  if (required && !required.length) return undefined;
   const inside = (bounds: Bounds2D) => ({ polygon, bounds: box }: { polygon: Polygon2D; bounds: Bounds2D }) =>
     boundsContainBounds(box, bounds) && boundsInsidePolygon(bounds, polygon);
   for (const candidate of labelCandidates(preferred)) {
     const center = { x: candidate.x * config.widthMm / 2, y: candidate.y * config.heightMm / 2 };
     const origin = { x: center.x - dimensions.width / 2, y: center.y - dimensions.height / 2 };
     const bounds = labelBounds(label, origin, config.textStyle, 0.8);
-    const fitsMaterial = material.some(inside(bounds));
-    const fitsRequirement = !required || required.some(inside(bounds));
-    if (fitsMaterial && fitsRequirement && !obstacles.some((obstacle) => boundsOverlap(obstacle.bounds, bounds) && markingIntersectsBounds(obstacle.marking, bounds))) return origin;
+    // Cheapest test first: the requirement is usually one polygon, while the
+    // material is the whole layer below, and each edge-scans what it tests.
+    if (required && !required.some(inside(bounds))) continue;
+    if (!candidateMaterial.some(inside(bounds))) continue;
+    if (obstacles.some((obstacle) => boundsOverlap(obstacle.bounds, bounds) && markingIntersectsBounds(obstacle.marking, bounds))) continue;
+    return origin;
   }
   return undefined;
 }
@@ -247,16 +254,19 @@ export function placeLinearLabel(label: string, config: ProjectConfigV1, layer: 
       cumulative.push(cumulative.at(-1)! + Math.hypot(end.x - start.x, end.y - start.y));
     }
     const total = cumulative.at(-1)!;
-    if (total < requiredSpan) return [];
+    if (total < 1) return [];
+    // A contour may leave only a short piece of road on this sheet. Its
+    // tangent can still anchor a longer label if the whole text fits nearby.
+    const span = Math.min(requiredSpan, total);
     return [0.5, 0.35, 0.65, 0.2, 0.8].flatMap((fraction) => {
       const centerDistance = total * fraction;
-      if (centerDistance < requiredSpan / 2 || total - centerDistance < requiredSpan / 2) return [];
-      const start = pointAlongPolyline(points, cumulative, centerDistance - requiredSpan / 2);
-      const end = pointAlongPolyline(points, cumulative, centerDistance + requiredSpan / 2);
+      if (centerDistance < span / 2 || total - centerDistance < span / 2) return [];
+      const start = pointAlongPolyline(points, cumulative, centerDistance - span / 2);
+      const end = pointAlongPolyline(points, cumulative, centerDistance + span / 2);
       const length = Math.hypot(end.x - start.x, end.y - start.y);
       // A very curved span would make a straight engraved label misleading and
       // may cross back over the road. Gentle multi-segment bends are allowed.
-      if (length < dimensions.width + 1) return [];
+      if (length < Math.min(dimensions.width + 1, span * 0.9)) return [];
       return [{ start, end, length, routeLength: total }];
     });
   }).sort((left, right) => right.routeLength - left.routeLength || right.length - left.length || left.start.y - right.start.y || left.start.x - right.start.x);
@@ -269,11 +279,13 @@ export function placeLinearLabel(label: string, config: ProjectConfigV1, layer: 
     if (rotationRad > Math.PI / 2 || rotationRad < -Math.PI / 2) rotationRad += rotationRad > 0 ? -Math.PI : Math.PI;
     const center = pointAt(start, end, 0.5);
     const normal = { x: -(end.y - start.y) / length, y: (end.x - start.x) / length };
-    const offset = dimensions.height + 2;
-    for (const side of [1, -1]) {
+    // Try close to the road first; a full text-height offset skips narrow
+    // terraces even when they have enough exposed material for the label.
+    const offsets = [dimensions.height / 2 + 1, dimensions.height + 2];
+    for (const offset of offsets) for (const side of [1, -1]) {
       const labelCenter = { x: center.x + normal.x * offset * side, y: center.y + normal.y * offset * side };
       const point = labelOriginAtCenter(label, labelCenter, rotationRad, config.textStyle);
-      const footprint = labelFootprint(label, point, rotationRad, config.textStyle);
+      const footprint = labelFootprint(label, point, rotationRad, config.textStyle, Math.max(config.lineStyle.annotationMm / 2, 0.2));
       const bounds = ringBounds(footprint);
       if (!material.some(({ polygon, bounds: box }) => boundsContainBounds(box, bounds) && ringFitsInsidePolygon(footprint, polygon, 0))) continue;
       if (footprintIntersectsPolygons(footprint, excluded)) continue;
@@ -313,21 +325,43 @@ function labelOriginAtCenter(label: string, center: Point2D, rotationRad: number
   };
 }
 
-function elevationLabelCandidates(label: string, config: ProjectConfigV1, layer: LayerIR, coveringLayer?: LayerIR, sharedObstacles?: IndexedMarking[]): ElevationLabelCandidate[] {
-  // The label describes this layer's elevation, so it belongs beside this
-  // layer's own contour. Using the covering layer's contour makes the label
-  // appear to annotate the next elevation line instead.
-  const contourPolygons = layer.polygons;
-  const coveredPolygons = indexPolygons(coveringLayer?.polygons ?? []);
+/** A place along a contour a label can be centered on, independent of the text put there. */
+interface ContourLabelSlot {
+  center: Point2D;
+  rotationRad: number;
+  preferenceScore: number;
+  /** Length of the contour edge this came from. */
+  edgeLengthMm: number;
+  /** The edge's midpoint, which every label may use; the quarter samples need an edge longer than the label. */
+  midpoint: boolean;
+}
+
+/** Distance from the contour to the label's center. Text height is a property of the style, not of the text. */
+function labelNormalOffsetMm(config: ProjectConfigV1): number {
+  return labelDimensions("0", config.textStyle).height / 2 + 1.6;
+}
+
+/**
+ * Every centerable position along this layer's own contour, nearest the
+ * preferred position first.
+ *
+ * A layer is offered its elevation in three spellings, and they differ only in
+ * width: the normal offset comes from the text height, which is the style's.
+ * So the geometry and its ordering are built once per layer here and each
+ * spelling only re-derives its own origin and footprint - rebuilding and
+ * re-sorting one candidate per contour edge per spelling was three times the
+ * work for the same positions.
+ */
+function contourLabelSlots(config: ProjectConfigV1, layer: LayerIR, normalOffsetMm: number): ContourLabelSlot[] {
   const preferred = {
     x: config.elevationLabelPosition.x * config.widthMm / 2,
     y: config.elevationLabelPosition.y * config.heightMm / 2,
   };
-  const dimensions = labelDimensions(label, config.textStyle);
-  const normalOffset = dimensions.height / 2 + 1.6;
-  const candidates: ElevationLabelCandidate[] = [];
-
-  contourPolygons.forEach((polygon) => [polygon.outer, ...polygon.holes].forEach((ring) => {
+  const slots: ContourLabelSlot[] = [];
+  // The label describes this layer's elevation, so it belongs beside this
+  // layer's own contour. Using the covering layer's contour makes the label
+  // appear to annotate the next elevation line instead.
+  layer.polygons.forEach((polygon) => [polygon.outer, ...polygon.holes].forEach((ring) => {
     for (let index = 0; index < ring.length - 1; index += 1) {
       const start = ring[index];
       const end = ring[index + 1];
@@ -335,53 +369,61 @@ function elevationLabelCandidates(label: string, config: ProjectConfigV1, layer:
       const length = Math.hypot(end.x - start.x, end.y - start.y);
       if (length < 1e-6) continue;
       const normal = { x: -(end.y - start.y) / length, y: (end.x - start.x) / length };
-      const samples = length > dimensions.width * 1.4 ? [0.25, 0.5, 0.75] : [0.5];
-      samples.forEach((sample) => [-1, 1].forEach((side) => {
+      [0.25, 0.5, 0.75].forEach((sample) => [-1, 1].forEach((side) => {
         const contourPoint = pointAt(start, end, sample);
         // Valid candidates lie just inside this layer's material; downslope is
         // therefore back across its boundary, opposite the center offset.
         const downslope = { x: -normal.x * side, y: -normal.y * side };
         const rotationRad = contourAngleWithBottomDownslope(start, end, downslope);
         const center = {
-          x: contourPoint.x + normal.x * normalOffset * side,
-          y: contourPoint.y + normal.y * normalOffset * side,
+          x: contourPoint.x + normal.x * normalOffsetMm * side,
+          y: contourPoint.y + normal.y * normalOffsetMm * side,
         };
-        const point = labelOriginAtCenter(label, center, rotationRad, config.textStyle);
         const preferenceScore = ((center.x - preferred.x) / config.widthMm) ** 2 + ((center.y - preferred.y) / config.heightMm) ** 2;
-        candidates.push({ point, center, rotationRad, preferenceScore });
+        slots.push({ center, rotationRad, preferenceScore, edgeLengthMm: length, midpoint: sample === 0.5 });
       }));
     }
   }));
-
-  // Candidate generation above is cheap; the fit checks are not. Keep a
+  // Slot generation above is cheap; the fit checks are not. Keep a
   // deterministic shortlist near the preferred point for stack optimization.
-  candidates.sort((left, right) => left.preferenceScore - right.preferenceScore || left.point.y - right.point.y || left.point.x - right.point.x);
+  slots.sort((left, right) => left.preferenceScore - right.preferenceScore || left.center.y - right.center.y || left.center.x - right.center.x);
+  return slots;
+}
+
+function elevationLabelCandidates(label: string, config: ProjectConfigV1, layer: LayerIR, slots: ContourLabelSlot[], coveringLayer?: LayerIR, sharedObstacles?: IndexedMarking[]): ElevationLabelCandidate[] {
+  const coveredPolygons = indexPolygons(coveringLayer?.polygons ?? []);
+  const dimensions = labelDimensions(label, config.textStyle);
   const materialBounds = layer.polygons.map((polygon) => ringBounds(polygon.outer));
   // Most candidates fail the material test, so index obstacles only once one passes.
   let obstacles: IndexedMarking[] | undefined;
   const valid: ElevationLabelCandidate[] = [];
   let fitChecks = 0;
-  for (const candidate of candidates) {
-    const footprint = labelFootprint(label, candidate.point, candidate.rotationRad, config.textStyle);
-    const bounds = footprintBounds(footprint);
+  for (const slot of slots) {
+    // A short edge offers its midpoint only: a label centered on a quarter of
+    // it would hang off the end of the contour it is annotating.
+    if (!slot.midpoint && !(slot.edgeLengthMm > dimensions.width * 1.4)) continue;
+    const point = labelOriginAtCenter(label, slot.center, slot.rotationRad, config.textStyle);
+    const footprint = labelFootprint(label, point, slot.rotationRad, config.textStyle);
+    const bounds = ringBounds(footprint);
     const containers = layer.polygons.filter((_, polygonIndex) => boundsContainBounds(materialBounds[polygonIndex]!, bounds));
     if (!containers.length) continue;
-    // A fit check scans polygon edges and there is a candidate per edge, so cap
-    // the checks on intricate layers; candidates are already preference-ordered.
+    // A fit check scans polygon edges and there is a slot per edge, so cap the
+    // checks on intricate layers; slots are already preference-ordered.
     if (++fitChecks > MAX_ELEVATION_FIT_CHECKS) break;
     const fitsMaterial = containers.some((polygon) => ringFitsInsidePolygon(footprint, polygon, 0));
     if (!fitsMaterial || footprintIntersectsPolygons(footprint, coveredPolygons)) continue;
     obstacles ??= indexMarkings(layer.markings);
     const collides = (obstacle: IndexedMarking) => boundsOverlap(obstacle.bounds, bounds) && markingIntersectsBounds(obstacle.marking, bounds);
     if (obstacles.some(collides) || sharedObstacles?.some(collides)) continue;
-    valid.push(candidate);
+    valid.push({ point, center: slot.center, rotationRad: slot.rotationRad, preferenceScore: slot.preferenceScore });
     if (valid.length >= 48) break;
   }
   return valid;
 }
 
 export function placeElevationLabel(label: string, config: ProjectConfigV1, layer: LayerIR, coveringLayer?: LayerIR): ElevationLabelPlacement | undefined {
-  const candidate = elevationLabelCandidates(label, config, layer, coveringLayer)[0];
+  const slots = contourLabelSlots(config, layer, labelNormalOffsetMm(config));
+  const candidate = elevationLabelCandidates(label, config, layer, slots, coveringLayer)[0];
   return candidate && { point: candidate.point, rotationRad: candidate.rotationRad };
 }
 
@@ -421,9 +463,11 @@ export function placeElevationLabelStack(labelsByLayer: string[][], config: Proj
   const options = layers.map((layer, layerIndex) => {
     // Unlabeled layers on a shared face never receive a label, so skip their search.
     if (sharedFace && !sharedFace.labeled(layer)) return [];
+    // One slot list serves every spelling of this layer's elevation.
+    const slots = contourLabelSlots(config, layer, labelNormalOffsetMm(config));
     for (const label of labelsByLayer[layerIndex] ?? []) {
       // The shared face's own layer already checks those markings itself.
-      const candidates = elevationLabelCandidates(label, config, layer, layers[layerIndex + 1], layer.markings === sharedFace?.markings ? undefined : sharedObstacles);
+      const candidates = elevationLabelCandidates(label, config, layer, slots, layers[layerIndex + 1], layer.markings === sharedFace?.markings ? undefined : sharedObstacles);
       if (candidates.length) return candidates.map((candidate) => ({ label, candidate }));
     }
     return [];

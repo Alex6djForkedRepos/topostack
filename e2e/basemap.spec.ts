@@ -1,16 +1,17 @@
+import { pageSecurityPolicy } from "../scripts/lib/static-headers.mjs";
 import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 
 for (const output of ["Layered relief", "Flat engraving"]) {
-  test(`renders basemap data in ${output} under the production security policy`, async ({ page }) => {
+  test(`renders basemap data in ${output} under the production security policy`, async ({ page, baseURL }) => {
     // Vite preview does not serve the deployment's _headers file. Apply its
     // finalized CSP so the real bundled map worker runs under production rules.
     const headers = await readFile("apps/generator/dist/_headers", "utf8");
     // The local preview uses HTTP; WebKit otherwise upgrades loopback assets
     // to HTTPS. Keep all script, worker, and connection restrictions intact.
-    const policy = headers.match(/Content-Security-Policy: (.+)/)?.[1]?.replace(/; upgrade-insecure-requests/, "");
+    const policy = pageSecurityPolicy(headers, "/studio")?.replace(/; upgrade-insecure-requests/, "");
     expect(policy).toBeTruthy();
-    await page.route("http://127.0.0.1:4173/studio", async (route) => {
+    await page.route(`${baseURL}/studio`, async (route) => {
       const response = await route.fetch();
       await route.fulfill({ response, headers: { ...response.headers(), "content-security-policy": policy! } });
     });

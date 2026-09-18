@@ -1,5 +1,5 @@
 import { get, set } from "idb-keyval";
-import { DEFAULT_PROJECT, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_NAME_LENGTH, validateProject, type CustomLineFeatureV1, type CustomLineKind, type MapMarkerV1, type MarkerSymbol, type NorthArrowAnchor, type NorthArrowStyle, type ProjectConfigV1 } from "@topostack/core";
+import { DEFAULT_PROJECT, MAP_MARKER_SIZE_MM, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, validateProject, type CustomLineFeatureV1, type CustomLineKind, type MapMarkerV1, type MarkerSymbol, type NorthArrowAnchor, type NorthArrowStyle, type ProjectConfigV1 } from "@topostack/core";
 
 const PROJECT_KEY = "topostack:project:v1";
 /** Where an unreadable saved project is copied before autosave replaces it. */
@@ -17,6 +17,12 @@ export class UnreadableSavedProjectError extends Error {
 }
 
 function numberValue(value: unknown): number { return typeof value === "number" ? value : Number.NaN; }
+/** Keep projects from the former 1–20× range loadable under the new 10× maximum. */
+function savedVerticalExaggeration(value: unknown): number {
+  const parsed = value === undefined ? DEFAULT_PROJECT.verticalExaggeration : numberValue(value);
+  return parsed > MAX_VERTICAL_EXAGGERATION && parsed <= 20 ? MAX_VERTICAL_EXAGGERATION : parsed;
+}
+
 function booleanValue(value: unknown, label: string): boolean {
   if (typeof value !== "boolean") throw new Error(`${label} must be true or false.`);
   return value;
@@ -76,7 +82,7 @@ function markersValue(value: unknown): MapMarkerV1[] {
     if (!item || typeof item !== "object") throw new Error("Each marker must be an object.");
     const marker = item as Record<string, unknown>;
     if (typeof marker.id !== "string") throw new Error("Each marker must have an id.");
-    return { id: marker.id, lat: numberValue(marker.lat), lon: numberValue(marker.lon), symbol: markerSymbolValue(marker.symbol) };
+    return { id: marker.id, lat: numberValue(marker.lat), lon: numberValue(marker.lon), symbol: markerSymbolValue(marker.symbol), sizeMm: marker.sizeMm === undefined ? MAP_MARKER_SIZE_MM : numberValue(marker.sizeMm) };
   });
 }
 
@@ -200,7 +206,7 @@ export function parseProject(value: unknown): ProjectConfigV1 {
       majorRoadSpacingMm: lineStyleRecord.majorRoadSpacingMm === undefined ? DEFAULT_PROJECT.lineStyle.majorRoadSpacingMm : numberValue(lineStyleRecord.majorRoadSpacingMm),
       roadCap: roadCapValue(lineStyleRecord.roadCap),
     } : { ...DEFAULT_PROJECT.lineStyle },
-    verticalExaggeration: record.verticalExaggeration === undefined ? DEFAULT_PROJECT.verticalExaggeration : numberValue(record.verticalExaggeration),
+    verticalExaggeration: savedVerticalExaggeration(record.verticalExaggeration),
     minimumFeatureMm: record.minimumFeatureMm === undefined ? DEFAULT_PROJECT.minimumFeatureMm : numberValue(record.minimumFeatureMm),
     smoothing: record.smoothing === undefined ? DEFAULT_PROJECT.smoothing : numberValue(record.smoothing),
     showRoads: booleanValue(record.showRoads, "showRoads"),
@@ -213,6 +219,7 @@ export function parseProject(value: unknown): ProjectConfigV1 {
     showWaterDepth: record.showWaterDepth === undefined ? DEFAULT_PROJECT.showWaterDepth : booleanValue(record.showWaterDepth, "showWaterDepth"),
     waterDepthExaggeration: record.waterDepthExaggeration === undefined ? DEFAULT_PROJECT.waterDepthExaggeration : numberValue(record.waterDepthExaggeration),
     fitLakeDepth: record.fitLakeDepth === undefined ? false : booleanValue(record.fitLakeDepth, "fitLakeDepth"),
+    waterDepthLayerLimit: record.waterDepthLayerLimit === undefined ? undefined : numberValue(record.waterDepthLayerLimit),
     waterDepthOverrides: waterDepthOverridesValue(record.waterDepthOverrides),
     showAlignmentGuides: record.showAlignmentGuides === undefined ? DEFAULT_PROJECT.showAlignmentGuides : booleanValue(record.showAlignmentGuides, "showAlignmentGuides"),
     optimizeMaterialUse: record.optimizeMaterialUse === undefined ? DEFAULT_PROJECT.optimizeMaterialUse : booleanValue(record.optimizeMaterialUse, "optimizeMaterialUse"),

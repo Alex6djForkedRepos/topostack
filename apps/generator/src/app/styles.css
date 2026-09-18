@@ -1573,33 +1573,16 @@ body:has(.app-shell) {
   overflow-wrap: anywhere;
 }
 
-.warning-action {
-  display: block;
-  min-height: 36px;
-  margin-top: 8px;
-  padding: 8px 16px;
-  border: 1px solid var(--loidolt-accent);
-  background: var(--loidolt-accent);
-  color: var(--loidolt-on-accent);
-  font: 600 11px/1.2 var(--loidolt-font-utility);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  cursor: pointer;
+.preview-warning .warning-action {
+  margin-inline-start: 8px;
+  border: 1px solid var(--loidolt-border);
+  background: var(--loidolt-surface);
+  letter-spacing: normal;
+  text-transform: none;
 }
 
-.warning-action:hover:not(:disabled) {
-  background: var(--loidolt-accent-hover);
-  border-color: var(--loidolt-accent-hover);
-}
-
-.warning-action:focus-visible {
-  outline: 2px solid var(--loidolt-accent);
-  outline-offset: 3px;
-}
-
-.warning-action:disabled {
-  opacity: 0.55;
-  cursor: wait;
+.preview-warning .warning-action:hover:not(:disabled) {
+  background: var(--loidolt-surface-alt);
 }
 
 .warning-dismiss {
@@ -1710,6 +1693,8 @@ body:has(.app-shell) {
   font: 9px var(--loidolt-font-utility);
 }
 
+.generation-step { margin-top: 8px; font-size: 12px; }
+
 .contour-loader {
   width: 60px;
   height: 42px;
@@ -1718,7 +1703,7 @@ body:has(.app-shell) {
 
 .contour-loader span {
   position: absolute;
-  border: 2px solid var(--loidolt-warning);
+  border: 2px solid currentColor;
   border-radius: 50%;
   animation: contour 1.8s ease-in-out infinite;
 }
@@ -2392,6 +2377,7 @@ body:has(.app-shell) {
 .export-donate:active { box-shadow: none; }
 @media (prefers-reduced-motion: reduce) {
   .export-donate { transition: none; }
+  .contour-loader span { animation: none; }
 }
 @media (max-width: 650px) {
   .export-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }

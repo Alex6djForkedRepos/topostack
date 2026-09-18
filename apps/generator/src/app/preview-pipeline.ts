@@ -14,6 +14,9 @@ export interface PreviewUpdate {
   onSettled: (current: boolean) => void;
 }
 
+/** A pending trailing debounce; `settle(true)` ends it as superseded. */
+interface DebouncedWake { timer: ReturnType<typeof setTimeout>; settle: (superseded: boolean) => void }
+
 /**
  * Revision-guarded preview refreshes. Every edit bumps the revision through
  * `invalidate`; a refresh commits only if nothing superseded it while it
@@ -22,7 +25,7 @@ export interface PreviewUpdate {
 export class PreviewPipeline {
   revision = 0;
   private detailAbort: AbortController | undefined;
-  private wake: { timer: ReturnType<typeof setTimeout>; resolve: () => void } | undefined;
+  private wake: DebouncedWake | undefined;
   private client: GeometryWorkerClient | undefined;
   private clientLoad: Promise<GeometryWorkerClient> | undefined;
   private disposed = false;
@@ -37,7 +40,7 @@ export class PreviewPipeline {
     this.revision += 1;
     this.detailAbort?.abort();
     this.detailAbort = undefined;
-    if (this.wake) { clearTimeout(this.wake.timer); this.wake.resolve(); this.wake = undefined; }
+    this.wake?.settle(true);
     this.client?.cancel(reason);
   }
 
@@ -76,8 +79,19 @@ export class PreviewPipeline {
   async runPreviewUpdate(update: PreviewUpdate, delayMs = 0): Promise<void> {
     const revision = this.revision;
     if (delayMs > 0) {
-      await new Promise<void>((resolve) => { this.wake = { timer: setTimeout(() => { this.wake = undefined; resolve(); }, delayMs), resolve }; });
-      if (revision !== this.revision) return;
+      const superseded = await new Promise<boolean>((resolve) => {
+        // Settle the debounce this update replaces instead of dropping its
+        // resolver: two updates at the same revision (an edit that keeps
+        // pending work running) left the first promise pending forever, and
+        // with it whatever its caller awaited.
+        this.wake?.settle(true);
+        const wake: DebouncedWake = {
+          timer: setTimeout(() => wake.settle(false), delayMs),
+          settle: (replaced) => { clearTimeout(wake.timer); if (this.wake === wake) this.wake = undefined; resolve(replaced); },
+        };
+        this.wake = wake;
+      });
+      if (superseded || revision !== this.revision) return;
     }
     const controller = new AbortController();
     this.detailAbort = controller;

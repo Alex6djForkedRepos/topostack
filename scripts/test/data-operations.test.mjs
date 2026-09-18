@@ -1,11 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { stageArchive, verifyPromotionGateway } from "../lib/archive-provisioning.mjs";
+import { stageArchive } from "../lib/archive-provisioning.mjs";
 import { GEOCODE_EXPIRY_RULE, reconcileCacheLifecycle, hasGeocodeExpiry, lifecycleSatisfies, retiredTerrainRule, terrainVersionsFromPrefixes } from "../lib/cache-lifecycle.mjs";
 import { DAY_MS, planArchivePrune, pointersUnchanged, readReleasePointers } from "../lib/archive-pruning.mjs";
 import { parseListObjectsXml, listObjects } from "../lib/r2-s3.mjs";
-import { liveDatasetVersion, stripJsonc } from "../lib/r2-buckets.mjs";
+import { liveDatasetVersion, verifyPromotionGateway } from "../lib/gateway.mjs";
+import { stripJsonc } from "../lib/r2-buckets.mjs";
 
 const bytes = new Uint8Array(127).fill(3);
 const digest = createHash("sha256").update(bytes).digest("hex");
@@ -84,6 +85,18 @@ test("a managed rule for a version that became current again is removed", () => 
   assert.deepEqual(next.rules, [GEOCODE_EXPIRY_RULE]);
   assert.ok(!lifecycleSatisfies(stale, next));
 });
+test("verification notices unrelated rules the replace dropped", () => {
+  const multipart = { id: "abort-incomplete-uploads", enabled: true, conditions: {}, abortMultipartUploadsTransition: { condition: { type: "Age", maxAge: 604800 } } };
+  const proposed = reconcileCacheLifecycle({ rules: [multipart] }, { retiredTerrainVersions: [retiredVersion], protectedTerrainVersions: [current] });
+  assert.ok(lifecycleSatisfies(proposed, proposed));
+  // The PUT replaces the whole rule set; a silently dropped or renamed
+  // unrelated rule must not read as "applied and verified".
+  assert.ok(!lifecycleSatisfies({ rules: proposed.rules.filter((rule) => rule.id !== multipart.id) }, proposed));
+  assert.ok(!lifecycleSatisfies({ rules: proposed.rules.map((rule) => rule.id === multipart.id ? { ...rule, id: "renamed" } : rule) }, proposed));
+  // Fields the API adds or reorders on the managed rules are still tolerated.
+  assert.ok(lifecycleSatisfies({ rules: [...proposed.rules].reverse().map((rule) => ({ ...rule, echoed: true })) }, proposed));
+});
+
 test("managed terrain rules that were edited by hand fail closed", () => {
   const tampered = { ...retiredTerrainRule(retiredVersion), conditions: { prefix: "terrain/" } };
   assert.throws(() => reconcileCacheLifecycle({ rules: [tampered] }, { protectedTerrainVersions: [current] }), /Review managed terrain rule/);

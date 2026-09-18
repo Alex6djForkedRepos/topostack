@@ -14,23 +14,40 @@ const dist = new URL("../apps/generator/dist/", import.meta.url);
 // variation; compare a fresh build before accepting future budget increases.
 const budgets = {
   // Shared UI and search metadata are included in the homepage's preload graph.
-  landingJavaScriptGzip: 56_000,
+  // Raised 2026-09-17 when the shared page registry gained the export-files and
+  // troubleshooting guides: 55,9xx -> 56,141 with Node 22.14.0.
+  // Raised again 2026-09-17 for the studio tour, map details, custom data and
+  // settings reference guides: 56,141 -> 56,676 with Node 22.14.0.
+  landingJavaScriptGzip: 57_200,
   landingHtmlGzip: 10_000,
   initialJavaScriptGzip: 180_000,
   // Includes the editor, default 3D preview, and geometry worker. Lake modeling
   // runs in the main-thread fallback as well as the worker, so both are counted.
-  startupJavaScriptGzip: 444_000,
+  // Raised 2026-09-17 for the guides hub route and docs navigation layout
+  // (every route entry counts here): 441,994 -> 444,688 with Node 22.14.0.
+  // Raised again 2026-09-17 for the export-files and troubleshooting guide
+  // routes: 446,818 -> 453,585 with Node 22.14.0.
+  // Raised again 2026-09-17 for four more guide routes: 453,585 -> 464,010.
+  startupJavaScriptGzip: 466_000,
   // All routes, lazy-loaded tools, and workers, including the interactive lake
   // guide and MapLibre's worker. The fetched lake catalog is budgeted below.
-  totalJavaScriptGzip: 892_000,
+  // Raised 2026-09-17 for the same two guide routes: 888,934 -> 895,695.
+  // Raised again 2026-09-17 for four more guide routes: 895,695 -> 906,116.
+  totalJavaScriptGzip: 908_000,
   largestJavaScriptGzip: 300_000,
   // Public guides add styles outside the studio. Keep a separate allowance for
   // the Atomm template, which is loaded only inside the platform iframe.
   // Raised 2026-09-17 for the feedback tab/dialog and studio retry states:
   // measured with Node 22.22.2 at 34,290 standalone and 43,738 total.
-  standaloneCssGzip: 35_000,
+  // Raised again 2026-09-17 for the guides sidebar, table of contents and hub:
+  // measured with Node 22.14.0 at 35,197 standalone and 44,645 total.
+  // Raised again 2026-09-17 for the export-files and troubleshooting guides:
+  // 35,389 -> 35,965 standalone and 44,837 -> 45,413 total with Node 22.14.0.
+  // Raised again 2026-09-17 for guide tables: 35,965 -> 36,583 standalone and
+  // 45,413 -> 46,031 total with Node 22.14.0.
+  standaloneCssGzip: 37_000,
   atommCssGzip: 10_000,
-  totalCssGzip: 44_600,
+  totalCssGzip: 46_500,
   // 7,775 records across 11 sources (~306 kB); fetched only when browsing/searching.
   lakeDirectoryGzip: 320_000,
   studioHtmlBytes: 10_000,

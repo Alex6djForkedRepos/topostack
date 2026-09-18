@@ -1,3 +1,4 @@
+import { cellsTouchGridEdge } from "./grid.js";
 import type { ElevationGrid } from "./types.js";
 
 const NEIGHBORS = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]] as const;
@@ -31,11 +32,13 @@ export function terrainBasinDistance(
   buffers?: { factors: Float64Array; result: Float64Array },
   /** Distances reach the vector shore between samples, rather than dry cell centers. */
   vectorShore = false,
+  /** The caller's own edge scan, which the shore measurement already needed. */
+  touchesGridEdge?: boolean,
 ): Float64Array {
   const { width, height, values } = grid;
   // A partial shoreline cannot constrain the whole basin. Never normalize a
   // terrain prediction against just the portion visible in the crop.
-  if (clipped || cells.some((i) => i < width || i >= width * (height - 1) || i % width === 0 || i % width === width - 1)) return distance;
+  if (clipped || (touchesGridEdge ?? cellsTouchGridEdge(cells, width, height))) return distance;
 
   // Factors are only ever read at lake cells: every neighbour lookup checks the mask first.
   const factors = buffers?.factors ?? new Float64Array(values.length);

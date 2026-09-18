@@ -50,3 +50,24 @@ test("a late location response cannot replace manually entered coordinates", asy
   await expect(page.getByRole("dialog", { name: "Choose anywhere" })).toBeVisible();
   await expect(page.getByRole("spinbutton", { name: "Latitude", exact: true })).toHaveValue("40");
 });
+
+
+test("lake-directory completion does not move location actions during a click", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  let resume!: () => void;
+  const gate = new Promise<void>(resolve => { resume = resolve; });
+  await page.route("**/data/lake-depth-directory.json", async route => { await gate; await route.continue(); });
+  await openLocation(page);
+  const dialog = page.getByRole("dialog", { name: "Choose anywhere" });
+  const close = dialog.getByRole("button", { name: "Close dialog", exact: true });
+  const before = (await close.boundingBox())!;
+  await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2);
+  await page.mouse.down();
+  resume();
+  await expect(dialog.locator(".lake-search-summary")).toContainText("lakes and basins available");
+  const after = (await close.boundingBox())!;
+  expect(after.x).toBeCloseTo(before.x, 1);
+  expect(after.y).toBeCloseTo(before.y, 1);
+  await page.mouse.up();
+  await expect(dialog).not.toBeVisible();
+});

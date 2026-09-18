@@ -2,7 +2,7 @@ import { CIRCLE_CROP_SEGMENTS, cropRadiusMm } from "./crop.js";
 import { exportBlockReason } from "./export-policy.js";
 import { formatNumber as format } from "./format.js";
 import { CONTOUR_SIMPLIFICATION_FACTOR, horizontalScaleFor } from "./geometry.js";
-import { pointAt } from "./geometry2d.js";
+import { clipPolyline, preparePolygons, type PreparedPolygons, pointAt } from "./geometry2d.js";
 import { labelPathData } from "./labels.js";
 import { offsetClosedRing } from "./offset.js";
 import { displayElevation, displayLength, elevationUnit, lengthUnit } from "./units.js";
@@ -12,6 +12,9 @@ import type { ExportFile, FabricationNest, FabricationPackageV1, GeometryIRV1, L
 const CUT = "#FE0002";
 const SCORE = "#2366FF";
 const ENGRAVE = "#2366FF";
+// Keep processing intent on each leaf shape: importers may flatten SVG groups.
+const CUT_LINE = `fill="none" stroke="${CUT}"`;
+const ENGRAVE_LINE = `fill="none" stroke="${ENGRAVE}"`;
 const MAX_EXPORT_PACKAGE_BYTES = 100_000_000;
 /** Engraving groups in output order; `engravingCategory` maps each marking to one. */
 const ENGRAVING_CATEGORIES = ["major-roads", "local-roads", "trails", "transport-labels", "water", "boundaries", "coordinate-grid", "annotations", "general"] as const;
@@ -28,18 +31,14 @@ function pathData(points: Point2D[], offsetX = 0, offsetY = 0, closePath = false
   return commands.join(" ");
 }
 
-function compensatedCutPaths(points: Point2D[], distanceMm: number): Point2D[][] {
-  return offsetClosedRing(points, distanceMm, "miter");
-}
-
 function layerCutPaths(layer: LayerIR, laserKerfMm: number, omittedHoles = new Map<number, Set<number>>()): string {
   const compensationMm = laserKerfMm / 2;
   return layer.polygons.flatMap((polygon, polygonIndex) => {
     const omittedHoleIndexes = omittedHoles.get(polygonIndex) ?? new Set<number>();
     return [
-      ...compensatedCutPaths(polygon.outer, compensationMm).map((ring, offsetIndex) => `<path id="${layer.id}-cut-${polygonIndex + 1}-offset-${offsetIndex + 1}" d="${pathData(ring, 0, 0, true)}"/>`),
+      ...offsetClosedRing(polygon.outer, compensationMm, "miter").map((ring, offsetIndex) => `<path id="${layer.id}-cut-${polygonIndex + 1}-offset-${offsetIndex + 1}" d="${pathData(ring, 0, 0, true)}" ${CUT_LINE}/>`),
       ...polygon.holes.flatMap((hole, holeIndex) => omittedHoleIndexes.has(holeIndex) ? [] : [
-        ...compensatedCutPaths(hole, -compensationMm).map((ring, offsetIndex) => `<path id="${layer.id}-cut-${polygonIndex + 1}-hole-${holeIndex + 1}-offset-${offsetIndex + 1}" d="${pathData(ring, 0, 0, true)}"/>`),
+        ...offsetClosedRing(hole, -compensationMm, "miter").map((ring, offsetIndex) => `<path id="${layer.id}-cut-${polygonIndex + 1}-hole-${holeIndex + 1}-offset-${offsetIndex + 1}" d="${pathData(ring, 0, 0, true)}" ${CUT_LINE}/>`),
       ]),
     ];
   }).join("");
@@ -74,18 +73,41 @@ function categoryStrokeAttributes(category: EngravingCategory, style: LineStyleV
   return ` stroke-width="${format(width)}" stroke-dasharray="${dash}" stroke-linecap="round"`;
 }
 
-function markingPath(mark: LayerIR["markings"][number]): string {
-  if (mark.label && mark.points[0]) return `<path id="${escapeXml(mark.id)}" d="${labelPathData(mark.label, mark.points[0], 0, 0, mark.labelRotationRad, mark.textStyle)}"${mark.textStyle?.font === "rounded" ? ' stroke-linecap="round" stroke-linejoin="round"' : ""}/>`;
-  const color = mark.knockout ? "#ffffff" : mark.operation === "score" ? SCORE : ENGRAVE;
-  const fill = mark.filled ? ` fill="${color}"` : "";
-  const knockout = mark.knockout ? ` stroke="#ffffff" data-knockout="true"` : "";
-  return mark.points.length > 1 ? `<path id="${escapeXml(mark.id)}" d="${pathData(mark.points)}"${fill}${knockout}/>` : "";
+/** White preview halos are empty material, never a laser operation. Resolve
+ * them into gaps in the actual line geometry before serialization. */
+interface MarkerClearance { material: PreparedPolygons; excluded: PreparedPolygons }
+function markerClearance(layers: LayerIR[]): MarkerClearance | undefined {
+  const halos = layers.flatMap(layer => layer.markings.filter(mark => mark.knockout));
+  if (!halos.length) return undefined;
+  return {
+    material: preparePolygons(layers.flatMap(layer => layer.polygons)),
+    excluded: preparePolygons(halos.map(mark => ({ outer: mark.points, holes: mark.holes ?? [] }))),
+  };
+}
+
+/** All internal line serializers emit absolute M/L coordinates (no curves). */
+function clearLineData(data: string, clearance?: MarkerClearance): string {
+  if (!clearance) return data;
+  return data.split("M").filter(Boolean).flatMap(subpath => {
+    const points = [...subpath.matchAll(/(-?[\d.]+) (-?[\d.]+)/g)].map(match => ({ x: Number(match[1]), y: Number(match[2]) }));
+    return clipPolyline(points, clearance.material, clearance.excluded).map(points => pathData(points));
+  }).join(" ");
+}
+
+function markingPath(mark: LayerIR["markings"][number], clearance?: MarkerClearance): string {
+  if (mark.knockout) return "";
+  if (mark.label && mark.points[0]) return `<path id="${escapeXml(mark.id)}" d="${clearLineData(labelPathData(mark.label, mark.points[0], 0, 0, mark.labelRotationRad, mark.textStyle), clearance)}" ${ENGRAVE_LINE}${mark.textStyle?.font === "rounded" ? ' stroke-linecap="round" stroke-linejoin="round"' : ""}/>`;
+  const color = mark.operation === "score" ? SCORE : ENGRAVE;
+  const paint = mark.filled ? `fill="${color}" stroke="none"` : `fill="none" stroke="${color}"`;
+  const data = [pathData(mark.points, 0, 0, mark.filled), ...(mark.holes ?? []).map(hole => pathData(hole, 0, 0, true))].join(" ");
+  return mark.points.length > 1 ? `<path id="${escapeXml(mark.id)}" d="${mark.filled ? data : clearLineData(data, clearance)}" ${paint}${mark.holes?.length ? ' fill-rule="evenodd"' : ""}/>` : "";
 }
 
 function layerMarkingPaths(layer: LayerIR, operation: "score" | "engrave", style: LineStyleV1): string {
   const markings = layer.markings.filter((mark) => mark.operation === operation);
+  const clearance = markerClearance([layer]);
   return ENGRAVING_CATEGORIES.map((category) => {
-    const paths = markings.filter((mark) => engravingCategory(mark) === category).map((mark) => markingPath(mark)).join("");
+    const paths = markings.filter((mark) => engravingCategory(mark) === category).map((mark) => markingPath(mark, clearance)).join("");
     return paths ? `<g id="${layer.id}-${operation.toUpperCase()}-${category}"${categoryStrokeAttributes(category, style)}>${paths}</g>` : "";
   }).join("");
 }
@@ -206,46 +228,47 @@ function openContourPath(points: Point2D[], config: ProjectConfigV1): string {
   return result;
 }
 
-function flatContourPaths(ir: GeometryIRV1, config: ProjectConfigV1, indexContour: boolean): string {
+function flatContourPaths(ir: GeometryIRV1, config: ProjectConfigV1, indexContour: boolean, clearance?: MarkerClearance): string {
   return ir.layers.slice(1)
     .filter((layer) => (layer.index % config.engravingIndexInterval === 0) === indexContour)
     .flatMap((layer) => layer.polygons.flatMap((polygon, polygonIndex) => [polygon.outer, ...polygon.holes].map((ring, ringIndex) => {
-      const data = openContourPath(ring, config);
-      return data ? `<path id="contour-${layer.index}-${polygonIndex}-${ringIndex}" data-elevation-m="${format(layer.elevationM)}" d="${data}"/>` : "";
+      const data = clearLineData(openContourPath(ring, config), clearance);
+      return data ? `<path id="contour-${layer.index}-${polygonIndex}-${ringIndex}" data-elevation-m="${format(layer.elevationM)}" d="${data}" ${ENGRAVE_LINE}/>` : "";
     })))
     .join("");
 }
 
-function flatMarkingPaths(ir: GeometryIRV1): string {
+function flatMarkingPaths(ir: GeometryIRV1, clearance?: MarkerClearance): string {
   // Score paths in layered projects (notably water) become ordinary engraved
   // lines in a flat project; the output deliberately has one operation only.
   const markings = ir.layers.flatMap((layer) => layer.markings)
     .filter((mark) => !mark.id.startsWith("alignment-"));
   return ENGRAVING_CATEGORIES.map((category) => {
-    const paths = markings.filter((mark) => engravingCategory(mark) === category).map((mark) => markingPath(mark)).join("");
+    const paths = markings.filter((mark) => engravingCategory(mark) === category).map((mark) => markingPath(mark, clearance)).join("");
     return paths ? `<g id="ENGRAVE-${category}"${categoryStrokeAttributes(category, ir.lineStyle)}>${paths}</g>` : "";
   }).join("");
 }
 
-function engravingWaterPatternPaths(ir: GeometryIRV1, config: ProjectConfigV1): string {
+function engravingWaterPatternPaths(ir: GeometryIRV1, config: ProjectConfigV1, clearance?: MarkerClearance): string {
   const strokes = waterPatternStrokes(config.waterFillPattern, ir.waterPatternAreas, config.widthMm, config.heightMm, ir.lineStyle.waterMm);
   if (!strokes.length) return "";
-  const paths = strokes.map((points, index) => `<path id="water-fill-${config.waterFillPattern}-${index + 1}" d="${pathData(points)}"/>`).join("");
+  const paths = strokes.map((points, index) => `<path id="water-fill-${config.waterFillPattern}-${index + 1}" d="${clearLineData(pathData(points), clearance)}" ${ENGRAVE_LINE}/>`).join("");
   return `<g id="ENGRAVE-water-fill" data-water-pattern="${config.waterFillPattern}" stroke-width="${format(ir.lineStyle.waterMm)}">${paths}</g>`;
 }
 
 function engravingBorder(config: ProjectConfigV1): string {
   if (!config.showEngravingBorder) return "";
-  if (config.cropShape === "circle") return `<circle id="engraving-border" cx="0" cy="0" r="${format(cropRadiusMm(config))}"/>`;
-  return `<rect id="engraving-border" x="${format(-config.widthMm / 2)}" y="${format(-config.heightMm / 2)}" width="${format(config.widthMm)}" height="${format(config.heightMm)}"/>`;
+  if (config.cropShape === "circle") return `<circle id="engraving-border" cx="0" cy="0" r="${format(cropRadiusMm(config))}" ${ENGRAVE_LINE}/>`;
+  return `<rect id="engraving-border" x="${format(-config.widthMm / 2)}" y="${format(-config.heightMm / 2)}" width="${format(config.widthMm)}" height="${format(config.heightMm)}" ${ENGRAVE_LINE}/>`;
 }
 
 /** One physical-size, engrave-only artwork with no cut or score operations. */
 export function engravingToSvg(ir: GeometryIRV1, config: ProjectConfigV1): string {
-  const minor = flatContourPaths(ir, config, false);
-  const index = flatContourPaths(ir, config, true);
+  const clearance = markerClearance(ir.layers);
+  const minor = flatContourPaths(ir, config, false, clearance);
+  const index = flatContourPaths(ir, config, true, clearance);
   const style = ir.lineStyle;
-  const body = `<g id="ENGRAVE" data-operation="ENGRAVE" fill="none" stroke="${ENGRAVE}" stroke-linecap="round" stroke-linejoin="round">${engravingWaterPatternPaths(ir, config)}<g id="ENGRAVE-contours-minor" stroke-width="${format(style.contourMm)}">${minor}</g><g id="ENGRAVE-contours-index" stroke-width="${format(style.indexContourMm)}">${index}</g><g id="ENGRAVE-map-details" stroke-width="${format(style.annotationMm)}">${flatMarkingPaths(ir)}</g><g id="ENGRAVE-border" stroke-width="${format(style.borderMm)}">${engravingBorder(config)}</g></g>`;
+  const body = `<g id="ENGRAVE" data-operation="ENGRAVE" fill="none" stroke="${ENGRAVE}" stroke-linecap="round" stroke-linejoin="round">${engravingWaterPatternPaths(ir, config, clearance)}<g id="ENGRAVE-contours-minor" stroke-width="${format(style.contourMm)}">${minor}</g><g id="ENGRAVE-contours-index" stroke-width="${format(style.indexContourMm)}">${index}</g><g id="ENGRAVE-map-details" stroke-width="${format(style.annotationMm)}">${flatMarkingPaths(ir, clearance)}</g><g id="ENGRAVE-border" stroke-width="${format(style.borderMm)}">${engravingBorder(config)}</g></g>`;
   return svgDocument(config.widthMm, config.heightMm, body, `${ir.projectName} — flat topographic engraving`);
 }
 
@@ -370,7 +393,7 @@ export function buildFabricationPackage(generated: GeometryIRV1, config: Project
   const vertical = `Vertical exaggeration: ${ir.verticalExaggeration.toFixed(1)}x${scale}\n`;
   const linework = lineworkSummary(config.lineStyle, "Engraved line widths", [], [`labels and guides ${format(config.lineStyle.annotationMm)} mm`]);
   const nesting = ir.fabricationNests.length ? `Material nesting reduced ${ir.layers.length} layer panels to ${panels.length} fabrication panels. Smaller layers share cut lines inside lower layers while preserving at least ${shownLength(config.glueMarginMm)} of covered glue land. Keep every loose cutout: nested pieces belong to the layer IDs listed in each panel filename and SVG data-layers attribute.\n\n` : config.optimizeMaterialUse ? `No safe material nests fit the requested ${shownLength(config.glueMarginMm)} glue margin, so every layer remains on its own panel.\n\n` : "Material-saving nesting is disabled.\n\n";
-  const readme = `${ir.projectName}\n\n${ir.layers.length} layers at ${shownLength(config.materialThicknessMm)} each\nFinished stack height: ${shownLength(ir.layers.length * config.materialThicknessMm)}\n${vertical}${fittedDepths}${linework}Fabrication panels: ${panels.length}\n\nCUT ${CUT}\nSCORE ${SCORE}\nENGRAVE ${ENGRAVE}\n\nEvery complete panel and the master SVG place engraved and scored paths in named ENGRAVE and SCORE groups, both using Atomm blue for line engraving, separate from red CUT paths. Each panel also has a registered -engrave.svg companion containing the same ENGRAVE paths only. Use either the complete panel SVG, or pair its engraving-only companion with a cut workflow; do not process both engraving copies in the same job.\n\n${alignment}${kerf}${nesting}Import the master SVG into xTool Studio, or use the fabrication-panel SVGs. Assign and verify each color layer's processing type, dimensions, and material settings before fabrication. Terrain data is decorative and is not survey or engineering data.\n`;
+  const readme = `${ir.projectName}\n\n${ir.layers.length} layers at ${shownLength(config.materialThicknessMm)} each\nFinished stack height: ${shownLength(ir.layers.length * config.materialThicknessMm)}\n${vertical}${fittedDepths}${linework}Fabrication panels: ${panels.length}\n\nCUT ${CUT}\nSCORE ${SCORE}\nENGRAVE ${ENGRAVE}\n\nEvery complete panel and the master SVG place engraved and scored paths in named ENGRAVE and SCORE groups, both using Atomm blue for line engraving, separate from red CUT paths. Each panel also has a registered -engrave.svg companion containing the same ENGRAVE paths only. Use either the complete panel SVG, or pair its engraving-only companion with a cut workflow; do not process both engraving copies in the same job.\n\n${alignment}${kerf}${nesting}Import the master SVG into xTool Studio, or use the fabrication-panel SVGs. In xTool Studio, choose Score for blue linework and Cut for red outlines. Engrave fills closed shapes; use it only for intentionally filled markers, not alignment outlines, contours, or line labels. Marker clearances are gaps in the line geometry; there is no white engraving operation. Verify each color layer's processing type, dimensions, and material settings before fabrication. Terrain data is decorative and is not survey or engineering data.\n`;
   const files: ExportFile[] = [
     ...panelFiles.flatMap(({ file, engravingFile }) => [file, engravingFile]),
     master,
@@ -429,7 +452,7 @@ export function buildEngravingPackage(generated: GeometryIRV1, config: ProjectCo
   const linework = lineworkSummary(config.lineStyle, "Line widths",
     [`minor contours ${format(config.lineStyle.contourMm)} mm`, `index contours ${format(config.lineStyle.indexContourMm)} mm`],
     [`annotations ${format(config.lineStyle.annotationMm)} mm`, `border ${format(config.lineStyle.borderMm)} mm`]);
-  const readme = `${ir.projectName}\n\nFlat topographic engraving\nArtwork size: ${size}\nContour lines: ${config.engravingContourCount}\nIndex contour: every ${config.engravingIndexInterval} lines\nWater fill: ${config.showWater ? config.waterFillPattern : "none"}\n${linework}Map details: ${details.length ? details.join(", ") : "none"}\nBorder: ${config.showEngravingBorder ? "engraved" : "none"}\n\nThe SVG contains one blue ENGRAVE operation group and no CUT or SCORE paths. Minor and index contours are separated into named subgroups so their line weights can be assigned independently. Verify physical dimensions, focus, power, speed, and material settings with a small test engraving before processing the final item. Terrain data is decorative and is not survey, navigation, or engineering data.\n`;
+  const readme = `${ir.projectName}\n\nFlat topographic engraving\nArtwork size: ${size}\nContour lines: ${config.engravingContourCount}\nIndex contour: every ${config.engravingIndexInterval} lines\nWater fill: ${config.showWater ? config.waterFillPattern : "none"}\n${linework}Map details: ${details.length ? details.join(", ") : "none"}\nBorder: ${config.showEngravingBorder ? "engraved" : "none"}\n\nThe SVG contains one blue ENGRAVE operation group and no CUT or SCORE paths. In xTool Studio, choose Score for blue linework. Engrave fills closed shapes; reserve it for intentionally filled markers. Marker clearances are gaps in the line geometry; there is no white engraving operation. Minor and index contours are separated into named subgroups so their line weights can be assigned independently. Verify physical dimensions, focus, power, speed, and material settings with a small test engraving before processing the final item. Terrain data is decorative and is not survey, navigation, or engineering data.\n`;
   const files: ExportFile[] = [
     master,
     { filename: `${base}-project.json`, blob: new Blob([JSON.stringify(manifest, null, 2)], { type: "application/json" }) },

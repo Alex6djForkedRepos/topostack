@@ -47,7 +47,7 @@ npm run typecheck
 npm run build
 ```
 
-`npm run dev` serves the Worker on port 8787; set `VITE_MAP_API_PORT` to use a different one. The root `npm run dev` additionally skips to the next free port when 8787 is taken. In the development environment the Worker allows any loopback origin, so a relocated generator dev server still passes CORS; deployed environments match `ALLOWED_ORIGINS` exactly.
+`npm run dev` serves the Worker on port 8787; set `VITE_MAP_API_PORT` to use a different one. The root `npm run dev` additionally skips to the next free port when 8787 is taken. Read-only API routes allow every browser origin, including relocated local dev servers.
 
 Before deployment, `/ready` intentionally returns `503` unless both vector and lake archives and the geocoder secret are available. `/health` only reports that the Worker itself is running.
 
@@ -60,7 +60,7 @@ npx wrangler deploy --env production
 
 The top-level (no `--env`) configuration binds the `-development` buckets so a bare `wrangler deploy` can never write into production storage; those development buckets must exist (see the provisioning commands above). Deployments should always pass an explicit `--env`. The `--env=""` dry-run used by `npm run build` continues to work against the top-level configuration.
 
-Review and replace the example production origin allowlist before deployment. Cross-origin access is controlled by two vars: `ALLOWED_ORIGINS` (exact-match list) and `ALLOWED_ORIGIN_SUFFIXES` (comma-separated HTTPS host suffixes, default `.atomm.com`). Set `ALLOWED_ORIGIN_SUFFIXES` to an empty string to revoke suffix-based origins without a code change. Place search uses Geoapify through the Worker so the browser never receives the provider key:
+Read-only API routes (`GET`, `HEAD`, and their `OPTIONS` preflights) are public and return `Access-Control-Allow-Origin: *` without credential support. This includes terrain, archive ranges, the manifest, and place search. Existing request limits, upstream budgets, bounded archive ranges, and caching remain in force; CORS is not an authentication or spending control. The `/v1/events` write endpoint retains same-origin validation and its origin allowlist, controlled by two vars: `ALLOWED_ORIGINS` (exact-match list) and `ALLOWED_ORIGIN_SUFFIXES` (comma-separated HTTPS host suffixes, default `.atomm.com`). Set `ALLOWED_ORIGIN_SUFFIXES` to an empty string to revoke suffix-based origins without a code change. Place search uses Geoapify through the Worker so the browser never receives the provider key:
 
 ```bash
 npx wrangler secret put GEOCODER_API_KEY --env development
@@ -76,7 +76,7 @@ CI normally synchronizes this secret from the matching GitHub environment during
 | `dev` | `development` | `development` | `topostack-dev` | `https://dev-topostack.echofoxtrot.works` | `topostack-map-cache-development` | `topostack-vector-data-development` |
 | `main` | `production` | `production` | `topostack` | `https://topostack.echofoxtrot.works` | `topostack-map-cache` | `topostack-vector-data` |
 
-The development frontend and API are deployed at `https://dev-topostack.echofoxtrot.works`; production remains at `https://topostack.echofoxtrot.works`. Wrangler uploads `apps/generator/dist` as static assets, while `/health` and `/v1/*` run the API Worker. Atomm is allowed to call the production API cross-origin; local Vite origins are additionally allowed in development.
+The development frontend and API are deployed at `https://dev-topostack.echofoxtrot.works`; production remains at `https://topostack.echofoxtrot.works`. Wrangler uploads `apps/generator/dist` as static assets, while `/health` and `/v1/*` run the API Worker. Atomm and third-party browser clients can call the read-only API cross-origin.
 
 Configure `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and `GEOCODER_API_KEY` as secrets in both GitHub environments. The Cloudflare token needs Workers Scripts edit and R2 edit at the account level plus Workers Routes edit for the `echofoxtrot.works` zone so both environments can manage their Custom Domains. Restrict the development environment to `dev` and production to `main`; production should also use required reviewers. Pull requests run validation without environment access or Cloudflare credentials.
 

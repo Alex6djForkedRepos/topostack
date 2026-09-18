@@ -44,12 +44,12 @@ test("generates deterministic real terrain and downloads the complete fabricatio
     await expect.poll(async () => Number(await preview.getAttribute(attribute)), { timeout: 15_000 }).toBeGreaterThan(0);
   }
   await page.getByRole("spinbutton", { name: "Width", exact: true }).fill("1200");
-  await expect(page.locator(".status-line")).toContainText("Map area changed", { timeout: 30_000 });
+  await expect(page.locator(".status-line")).toContainText("Fabrication geometry updated", { timeout: 30_000 });
   await expect(page.locator(".preview-readout")).toContainText("1200 × 200 mm");
   await expect(page.getByRole("button", { name: /Fabrication settings/ })).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByRole("switch", { name: "Material-saving nests" })).toBeChecked();
   await expect(page.getByRole("spinbutton", { name: "Glue margin", exact: true })).toHaveValue("8");
-  await page.getByRole("button", { name: /Generate terrain/ }).click();
+  await page.getByRole("button", { name: /Regenerate terrain/ }).click();
 
   await expect(page.locator(".status-line")).toContainText("Real terrain ready", { timeout: 30_000 });
   await expect(page.getByText("Ready to export")).toBeVisible();

@@ -9,7 +9,7 @@ import {
   close,
   distanceToSegment,
   mercatorWorldY,
-  pointInPolygon,
+  pointInPreparedPolygons,
   pointInRing,
   type PreparedPolygons,
   preparePolygons,
@@ -18,14 +18,16 @@ import {
   segmentIntersectionT,
   signedArea,
 } from "./geometry2d.js";
-import { labelDimensions } from "./labels.js";
+import { sampleIndexAt, sampleOffset } from "./grid.js";
+import { labelDimensions, labelLineSegments } from "./labels.js";
 import { addLabelObstacles, indexLabelLayer, placeElevationLabelStack, placeLabel, placeLinearLabel } from "./label-placement.js";
 import { geoPointToMapPoint, longitudeInBounds, markerSymbolCenterForAnchor, markerSymbolPaths } from "./markers.js";
+import { markerLayerPolygons } from "./marker-placement.js";
 import { offsetClosedRing } from "./offset.js";
 import { northArrowFootprint, northArrowMarkings } from "./north-arrow.js";
 import { sourceRequirements } from "./source-requirements.js";
 import { displayElevation, elevationUnit, FEET_PER_METER } from "./units.js";
-import { CUSTOM_LINE_KINDS, MAP_MARKER_CLEARANCE_MM, MAP_MARKER_SIZE_MM, MARKER_SYMBOLS, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_DEPTH_LAYER_COUNT, MAX_LAYER_COUNT, MAX_MAP_MARKERS, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_WATER_DEPTH_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, MAX_VERTICAL_EXAGGERATION, MIN_LAYER_COUNT, MIN_VERTICAL_EXAGGERATION, NORTH_ARROW_ANCHORS, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, NORTH_ARROW_STYLES, SEA_LEVEL_M } from "./types.js";
+import { CUSTOM_LINE_KINDS, MAP_MARKER_CLEARANCE_MM, MAP_MARKER_SIZE_MM, MAP_MARKER_MIN_SIZE_MM, MAP_MARKER_MAX_SIZE_MM, MARKER_SYMBOLS, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_WATER_DEPTH_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, MAX_VERTICAL_EXAGGERATION, MIN_LAYER_COUNT, MIN_VERTICAL_EXAGGERATION, NORTH_ARROW_ANCHORS, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, NORTH_ARROW_STYLES, SEA_LEVEL_M } from "./types.js";
 import { type CarvedWater, carveWaterDepth, clampCarveToLadder, fitLakesToLadder } from "./water.js";
 import type {
   ElevationGrid,
@@ -173,15 +175,31 @@ function polygonCenter(polygon: Polygon2D, config: ProjectConfigV1): Point2D {
 }
 
 function offsetPolyline(points: Point2D[], distanceMm: number): Point2D[] {
-  if (points.length < 2) return [];
-  const segmentNormals = points.slice(0, -1).map((point, index) => {
-    const next = points[index + 1]!;
-    const length = Math.hypot(next.x - point.x, next.y - point.y);
-    return length > 1e-9 ? { x: -(next.y - point.y) / length, y: (next.x - point.x) / length } : { x: 0, y: 0 };
+  // A zero-length leg has no direction, and a {0, 0} normal averaged in cancels
+  // a real neighbour out: three identical consecutive points used to collapse
+  // the offset back onto the centerline. Drop them before taking normals.
+  const path = points.filter((point, index) => index === 0 ||
+    Math.hypot(point.x - points[index - 1]!.x, point.y - points[index - 1]!.y) > 1e-9);
+  if (path.length < 2) return [];
+  // A road drawn as a closed loop has to join at its seam. Treated as open, the
+  // shared endpoint takes a single segment's normal instead of the average of
+  // the two meeting there, which notches the outline where the ends meet.
+  const closed = path.length > 3 && Math.hypot(path.at(-1)!.x - path[0]!.x, path.at(-1)!.y - path[0]!.y) <= 1e-9;
+  // The closing copy is the first point again, so the loop's own vertices are
+  // the path without it, and its last segment wraps around to index 0.
+  const vertices = closed ? path.slice(0, -1) : path;
+  const segmentCount = closed ? vertices.length : vertices.length - 1;
+  const segmentNormals = Array.from({ length: segmentCount }, (_, index) => {
+    const start = vertices[index]!;
+    const end = vertices[(index + 1) % vertices.length]!;
+    const length = Math.hypot(end.x - start.x, end.y - start.y);
+    return { x: -(end.y - start.y) / length, y: (end.x - start.x) / length };
   });
-  return points.map((point, index) => {
-    const previous = segmentNormals[Math.max(0, index - 1)] ?? { x: 0, y: 0 };
-    const next = segmentNormals[Math.min(segmentNormals.length - 1, index)] ?? previous;
+  const offset = vertices.map((point, index) => {
+    // An open path's endpoints keep their one segment's normal; a loop's seam
+    // averages the segments on either side of it like any other vertex.
+    const previous = segmentNormals[closed ? (index + segmentCount - 1) % segmentCount : Math.max(0, index - 1)]!;
+    const next = segmentNormals[closed ? index : Math.min(segmentCount - 1, index)]!;
     const sum = { x: previous.x + next.x, y: previous.y + next.y };
     const length = Math.hypot(sum.x, sum.y);
     const normal = length > 1e-6 ? { x: sum.x / length, y: sum.y / length } : next;
@@ -189,6 +207,7 @@ function offsetPolyline(points: Point2D[], distanceMm: number): Point2D[] {
     const miter = Math.min(Math.abs(distanceMm) / dot, Math.abs(distanceMm) * 2) * Math.sign(distanceMm || 1);
     return { x: point.x + normal.x * miter, y: point.y + normal.y * miter };
   });
+  return closed ? [...offset, { ...offset[0]! }] : offset;
 }
 
 /** Unclipped outline paths for a feature drawn as an outlined major road; undefined when it is drawn as its centerline. */
@@ -229,8 +248,15 @@ function transportationJunctions(features: MarkingFeature[]): TransportationJunc
   for (const feature of features) {
     const transportationClass = feature.transportationClass ?? (feature.kind === "road" ? "local-road" : undefined);
     if (!transportationClass || transportationClass === "trail" || feature.points.length < 2) continue;
+    // One road contributes at most one arm per place. Vector tiles quantize
+    // coordinates, so a doubled vertex - or a loop returning to its own seam -
+    // would otherwise reach three arms by itself and engrave a junction ring
+    // where no roads cross.
+    const counted = new Set<string>();
     feature.points.forEach((point, index) => {
       const key = `${Math.round(point.x * 10)},${Math.round(point.y * 10)}`;
+      if (counted.has(key)) return;
+      counted.add(key);
       const current = junctions.get(key) ?? { point, arms: 0, hasMajorRoad: false };
       current.arms += index === 0 || index === feature.points.length - 1 ? 1 : 2;
       current.hasMajorRoad ||= transportationClass === "major-road";
@@ -342,7 +368,7 @@ export function projectFingerprint(config: ProjectConfigV1): string {
     hash ^= input.charCodeAt(index);
     hash = Math.imul(hash, 16777619);
   }
-  return `v5-${(hash >>> 0).toString(16).padStart(8, "0")}`;
+  return `v9-${(hash >>> 0).toString(16).padStart(8, "0")}`;
 }
 
 /** East-west ground distance across the bounds, measured along their middle latitude. */
@@ -359,8 +385,8 @@ function groundWidthMFor(bounds: GeoBounds): number {
  * a preference. Exaggeration multiplies that height, and the material thickness
  * divides it into sheets. Layer count is therefore always the last term.
  *
- * When the sheet count lands outside the fabricable range the count is clamped
- * and the exaggeration is refitted to whatever that clamp implies, so the
+ * The sheet count is rounded to whole sheets, with a two-sheet minimum and no
+ * upper cap. The exaggeration is refitted to that whole-sheet count, so the
  * reported figure always describes the model that will actually be cut. The
  * refitted value can fall below `MIN_VERTICAL_EXAGGERATION` or rise above
  * `MAX_VERTICAL_EXAGGERATION`; those bounds constrain the request, not the fit.
@@ -382,26 +408,30 @@ export function planTerrainStack(config: ProjectConfigV1, reliefM: number, bound
     metersPerLayer: Math.max(0, reliefM) / MIN_LAYER_COUNT,
     horizontalScale: 0,
   };
-  if (!Number.isFinite(groundWidthM) || groundWidthM <= 0 || !Number.isFinite(reliefM) || reliefM <= 0) return flat;
+  if (!Number.isFinite(groundWidthM) || groundWidthM <= 0 || !Number.isFinite(reliefM) || reliefM < 0) return flat;
 
   const horizontalScale = config.widthMm / (groundWidthM * 1000);
+  const hasDepth = Number.isFinite(depthBelowLandM) && depthBelowLandM > 0;
+  if (reliefM === 0) {
+    if (!hasDepth) return flat;
+    // A flat shoreline still has a physical depth scale. Include a top sheet
+    // at the waterline as well as the layers covering the bed below it.
+    const metersPerLayer = config.materialThicknessMm / (horizontalScale * 1000 * requested);
+    const depthLayerCount = Math.min(config.waterDepthLayerLimit ?? Infinity, Math.ceil(depthBelowLandM / metersPerLayer));
+    const layerCount = Math.max(MIN_LAYER_COUNT, depthLayerCount + 1);
+    return { layerCount, depthLayerCount, metersPerLayer, horizontalScale, verticalExaggeration: requested, stackHeightMm: layerCount * config.materialThicknessMm };
+  }
   const trueReliefMm = reliefM * (config.widthMm / groundWidthM);
   if (!(trueReliefMm > 0)) return { ...flat, horizontalScale };
 
-  let landLayerCount = clamp(Math.round((trueReliefMm * requested) / config.materialThicknessMm), MIN_LAYER_COUNT, MAX_LAYER_COUNT);
-  const depthLimit = Math.max(MAX_DEPTH_LAYER_COUNT, Math.ceil(MAX_DEPTH_LAYER_COUNT * Math.max(1, config.waterDepthExaggeration)));
-  const hasDepth = Number.isFinite(depthBelowLandM) && depthBelowLandM > 0;
+  const landLayerCount = Math.max(MIN_LAYER_COUNT, Math.round((trueReliefMm * requested) / config.materialThicknessMm));
+  const depthLimit = config.waterDepthLayerLimit ?? Infinity;
   const requiredDepthLayers = (landLayers: number): number => hasDepth
     ? Math.min(depthLimit, Math.ceil(depthBelowLandM / (reliefM / landLayers)))
     : 0;
-  // Reserve room for water before the land consumes all 24 sheets. Refit both
-  // to the same vertical interval: otherwise a mountain lake can be carved
-  // correctly and then flattened away by a zero-sheet depth budget.
-  while (landLayerCount > MIN_LAYER_COUNT && landLayerCount + requiredDepthLayers(landLayerCount) > MAX_LAYER_COUNT) {
-    landLayerCount -= 1;
-  }
+  // Water adds sheets at the same interval without compressing the land.
   const metersPerLayer = reliefM / landLayerCount;
-  const depthLayerCount = Math.min(requiredDepthLayers(landLayerCount), MAX_LAYER_COUNT - landLayerCount);
+  const depthLayerCount = requiredDepthLayers(landLayerCount);
   const layerCount = landLayerCount + depthLayerCount;
   return {
     layerCount,
@@ -514,8 +544,8 @@ function roundContourRing(ring: Pair[], maximumTrimMm: number): Pair[] {
 // forward mapping stays the exact inverse of sampleElevation.
 function contourToMm(point: [number, number], grid: ElevationGrid, config: ProjectConfigV1): Point2D {
   return {
-    x: ((point[0] - 0.5) / (grid.width - 1) - 0.5) * config.widthMm,
-    y: ((point[1] - 0.5) / (grid.height - 1) - 0.5) * config.heightMm,
+    x: sampleOffset(point[0] - 0.5, grid.width, config.widthMm),
+    y: sampleOffset(point[1] - 0.5, grid.height, config.heightMm),
   };
 }
 
@@ -539,8 +569,8 @@ function clipContours(raw: MultiPolygon, clip: Point2D[], minimumFeatureMm: numb
 }
 
 function sampleElevation(grid: ElevationGrid, point: Point2D, config: ProjectConfigV1): number {
-  const gridX = clamp(Math.round((point.x / config.widthMm + 0.5) * (grid.width - 1)), 0, grid.width - 1);
-  const gridY = clamp(Math.round((point.y / config.heightMm + 0.5) * (grid.height - 1)), 0, grid.height - 1);
+  const gridX = clamp(Math.round(sampleIndexAt(point.x, grid.width, config.widthMm)), 0, grid.width - 1);
+  const gridY = clamp(Math.round(sampleIndexAt(point.y, grid.height, config.heightMm)), 0, grid.height - 1);
   return grid.values[gridY * grid.width + gridX] ?? grid.min;
 }
 
@@ -754,7 +784,9 @@ function carveWater(context: GenerationContext, grid: ElevationGrid): { waterAre
     : [];
   const groundWidthM = groundWidthMFor(source.bounds);
   const radians = Math.PI / 180;
-  const mercatorHeight = Math.asinh(Math.tan(source.bounds.north * radians)) - Math.asinh(Math.tan(source.bounds.south * radians));
+  // Mercator world Y runs north-to-south over [0, 1] of a 2*pi world, so the
+  // bounds' projected height is that span read back off the shared projection.
+  const mercatorHeight = 2 * Math.PI * (mercatorWorldY(source.bounds.south) - mercatorWorldY(source.bounds.north));
   const groundHeightM = groundWidthM * mercatorHeight / ((source.bounds.east - source.bounds.west) * radians);
   const carved = carveWaterDepth(grid, config, waterAreas, groundWidthM, groundHeightM);
   context.warnings.push(...carved.warnings);
@@ -771,8 +803,8 @@ function buildLadder(context: GenerationContext, carved: CarvedWater, waterAreas
   const depthBelowLandM = Math.max(0, landMin - (Number.isFinite(visibleMin) ? visibleMin : carved.grid.min));
   if (landRelief < 20) warnings.push({ code: "LOW_RELIEF", message: flatEngraving ? "This area has very little elevation change; contour lines may be sparse." : "This area has very little elevation change; the layers may look nearly identical." });
 
-  const stack = planTerrainStack(config, landRelief, source.bounds, depthBelowLandM);
   const hasOcean = !flatEngraving && waterAreas.some((area) => area.kind === "ocean");
+  const stack = planTerrainStack(config, landRelief, source.bounds, depthBelowLandM);
 
   // The ladder runs at one uniform step, extended below the land minimum by the
   // depth sheets the budget allowed. When there is an ocean it is shifted so sea
@@ -791,7 +823,7 @@ function buildLadder(context: GenerationContext, carved: CarvedWater, waterAreas
   const ladderLayerCount = flatEngraving
     ? landRelief > 0 ? config.engravingContourCount + 1 : 1
     : stack.metersPerLayer > 0
-      ? clamp(Math.round((landMax - ladderBase) / stack.metersPerLayer), MIN_LAYER_COUNT, MAX_LAYER_COUNT)
+      ? Math.max(MIN_LAYER_COUNT, Math.ceil((landMax - ladderBase) / stack.metersPerLayer - 1e-9) + (landRelief === 0 ? 1 : 0))
       : stack.layerCount;
   const contourStepM = flatEngraving ? landRelief / (config.engravingContourCount + 1) : stack.metersPerLayer;
   const thresholds = Array.from({ length: ladderLayerCount }, (_, index) => ladderBase + contourStepM * index);
@@ -803,7 +835,7 @@ function buildLadder(context: GenerationContext, carved: CarvedWater, waterAreas
   if (clamped && !flatEngraving) warnings.push({
     code: "WATER_DEPTH_CLAMPED",
     ...(!config.fitLakeDepth && carved.surfaces.some((surface) => surface.kind === "lake" && surface.bedElevationM < ladderBase && surface.surfaceElevationM > ladderBase) ? { action: "fit-lake-depth" as const } : {}),
-    message: `Water here is deeper than the ${stack.depthLayerCount} sheet${stack.depthLayerCount === 1 ? "" : "s"} below the shoreline can hold, so its floor is flattened. Lower the water depth exaggeration, or use thinner material to buy more sheets.`,
+    message: `Water here is deeper than the ${stack.depthLayerCount} sheet${stack.depthLayerCount === 1 ? "" : "s"} below the shoreline can hold, so its floor is flattened. Increase the depth-layer limit or turn it off for automatic coverage. Fit depth compresses lakes to the chosen allowance.`,
   });
   return { landMin, landMax, visibleMin, visibleMax, depthBelowLandM, stack, ladderBase, thresholds, water, modelGrid };
 }
@@ -954,7 +986,7 @@ function routeFlatMarking(config: ProjectConfigV1, feature: MarkingFeature, feat
     if (label && clipped.length) addTransportationLabelCandidate(labels, label, { layer: baseLayer, paths: clipped, transportationClass, excludedPolygons: [] });
     return;
   }
-  if (feature.label && feature.points[0] && baseLayer.polygons.some((polygon) => pointInPolygon(feature.points[0]!, polygon))) {
+  if (feature.label && feature.points[0] && pointInPreparedPolygons(feature.points[0], baseMaterial)) {
     baseLayer.markings.push({ id: `${featureId}-flat-label`, operation: feature.operation, kind: feature.kind, points: [feature.points[0]], label: feature.label, textStyle: config.textStyle });
   }
   clipPolyline(feature.points, baseMaterial)
@@ -1002,7 +1034,7 @@ function routeStackMarking(config: ProjectConfigV1, feature: MarkingFeature, fea
     if (feature.label) {
       for (const [segmentIndex, segment] of splitMarking(feature, ladder.thresholds, ladder.modelGrid, config).entries()) {
         const layer = layers[segment.layer];
-        if (layer && segment.points[0] && layer.polygons.some((polygon) => pointInPolygon(segment.points[0]!, polygon))) {
+        if (layer && segment.points[0] && pointInPreparedPolygons(segment.points[0], clips[segment.layer]!.material)) {
           layer.markings.push({ id: `${featureId}-${layer.index}-${segmentIndex}-label`, operation: feature.operation, kind: feature.kind, points: [segment.points[0]], label: feature.label, textStyle: config.textStyle });
         }
       }
@@ -1012,8 +1044,9 @@ function routeStackMarking(config: ProjectConfigV1, feature: MarkingFeature, fea
   for (const [segmentIndex, segment] of splitMarking(feature, ladder.thresholds, ladder.modelGrid, config).entries()) {
     const layer = layers[segment.layer];
     if (!layer) continue;
-    const clipped = clipPolyline(segment.points, clips[segment.layer]!.material);
-    if (feature.label && segment.points[0] && layer.polygons.some((polygon) => pointInPolygon(segment.points[0]!, polygon))) {
+    const material = clips[segment.layer]!.material;
+    const clipped = clipPolyline(segment.points, material);
+    if (feature.label && segment.points[0] && pointInPreparedPolygons(segment.points[0], material)) {
       layer.markings.push({ id: `${featureId}-${layer.index}-${segmentIndex}-label`, operation: feature.operation, kind: feature.kind, points: [segment.points[0]], label: feature.label, textStyle: config.textStyle });
     }
     clipped.filter((points) => feature.kind !== "water" || polylineLength(points) >= config.minimumFeatureMm).forEach((points, clipIndex) => layer.markings.push({
@@ -1054,10 +1087,11 @@ function routeMarkings(context: GenerationContext, clips: LayerClip[], ladder: E
   return labels;
 }
 
-/** North arrow and scale bar. Each must fit whole; clipped scales and compasses mislead the fabricator. */
-function placeAnnotations({ config, source, clip, warnings }: GenerationContext, baseLayer: LayerIR): void {
+/** Annotations must fit the crop whole; the compass follows the exposed stack surface. */
+function placeAnnotations({ config, source, clip, warnings, flatEngraving }: GenerationContext, clips: LayerClip[]): void {
+  const baseLayer = clips[0]!.layer;
   // All crop boundaries are convex, so endpoint/label-box checks suffice.
-  const addAnnotation = (markings: OperationPath[], name: string): void => {
+  const addAnnotation = (markings: OperationPath[], name: string, followSurface = false): void => {
     const fits = markings.every((marking) => {
       const points = [...marking.points];
       if (marking.label && marking.points[0]) {
@@ -1068,12 +1102,36 @@ function placeAnnotations({ config, source, clip, warnings }: GenerationContext,
       const inset = config.lineStyle.annotationMm / 2;
       return points.every(({ x, y }) => [[-inset, -inset], [inset, -inset], [inset, inset], [-inset, inset]].every(([dx, dy]) => pointInRing({ x: x + dx!, y: y + dy! }, clip)));
     });
-    if (fits) baseLayer.markings.push(...markings);
-    else warnings.push({ code: "LABEL_OMITTED", message: `${name} was omitted because it does not fit the material. Increase the output size or reduce the annotation size.` });
+    if (!fits) {
+      warnings.push({ code: "LABEL_OMITTED", message: `${name} was omitted because it does not fit the material. Increase the output size or reduce the annotation size.` });
+      return;
+    }
+    if (!followSurface || flatEngraving) {
+      baseLayer.markings.push(...markings);
+      return;
+    }
+    // Route the complete design onto final material, excluding every sheet above.
+    // Letters use the same strokes as preview/SVG text so they remain complete
+    // even when a contour passes through a glyph.
+    for (const marking of markings) {
+      const paths = marking.label && marking.points[0]
+        ? labelLineSegments(marking.label, marking.points[0], 0, 0, marking.labelRotationRad, marking.textStyle).map(({ start, end }) => [start, end])
+        : [marking.points];
+      for (const { layer, material, covering } of clips) {
+        paths.forEach((path, pathIndex) => {
+          clipPolyline(path, material, covering).forEach((points, clipIndex) => layer.markings.push({
+            id: `${marking.id}-${layer.index}-${pathIndex}-${clipIndex}`,
+            operation: marking.operation,
+            kind: marking.kind,
+            points,
+          }));
+        });
+      }
+    }
   };
 
   if (config.showNorthArrow) {
-    addAnnotation(northArrowMarkings(config), "North arrow");
+    addAnnotation(northArrowMarkings(config), "North arrow", true);
   }
   if (config.showScaleBar) {
     const radius = cropRadiusMm(config);
@@ -1095,7 +1153,7 @@ function placeAnnotations({ config, source, clip, warnings }: GenerationContext,
   }
 }
 
-function placeTransportationLabels(config: ProjectConfigV1, labels: TransportationLabelCandidates): void {
+function placeTransportationLabels(config: ProjectConfigV1, labels: TransportationLabelCandidates): number {
   let transportationLabelIndex = 0;
   const labelEntries = [...labels].map(([label, candidates]) => {
     const lengths = candidates.map((candidate) => ({ candidate, length: longestPath(candidate.paths) }));
@@ -1119,6 +1177,7 @@ function placeTransportationLabels(config: ProjectConfigV1, labels: Transportati
       break;
     }
   }
+  return transportationLabelIndex;
 }
 
 function placeElevationLabels({ config, flatEngraving, warnings }: GenerationContext, layers: LayerIR[]): void {
@@ -1162,40 +1221,30 @@ function placeElevationLabels({ config, flatEngraving, warnings }: GenerationCon
  * details before the solid symbol is drawn on top.
  */
 function placeMarkers({ config, source, flatEngraving }: GenerationContext, clips: LayerClip[]): void {
+  const materials = (flatEngraving ? clips.slice(0, 1) : clips).map(clip => clip.material);
   config.markers.forEach((marker, markerIndex) => {
     if (!longitudeInBounds(marker.lon, source.bounds) || marker.lat < source.bounds.south || marker.lat > source.bounds.north) return;
     const anchor = geoPointToMapPoint(marker.lat, marker.lon, source.bounds, config.widthMm, config.heightMm);
-    // Contour smoothing and minimum-feature filtering can move the cut edge
-    // away from the sampled elevation, especially on a modeled lake floor.
-    // Place the marker on the highest sheet that actually retains its anchor.
-    const retainsAnchor = (candidate: LayerClip) => candidate.layer.polygons.some((polygon) => pointInPolygon(anchor, polygon));
-    const target = flatEngraving ? clips[0] : [...clips].reverse().find(retainsAnchor);
-    if (!target || (flatEngraving && !retainsAnchor(target))) return;
-    const { layer, material } = target;
-    const symbolCenter = markerSymbolCenterForAnchor(marker.symbol, anchor, MAP_MARKER_SIZE_MM);
-    const paths = markerSymbolPaths(marker.symbol, symbolCenter, MAP_MARKER_SIZE_MM)
+    if (!materials.some(material => pointInPreparedPolygons(anchor, material))) return;
+    const size = marker.sizeMm ?? MAP_MARKER_SIZE_MM;
+    const symbolCenter = markerSymbolCenterForAnchor(marker.symbol, anchor, size);
+    const paths = markerSymbolPaths(marker.symbol, symbolCenter, size)
       .filter((_, pathIndex) => marker.symbol !== "pin" || pathIndex === 0);
-    paths.forEach((path, pathIndex) => {
-      offsetClosedRing(path, MAP_MARKER_CLEARANCE_MM, "round").forEach((halo, haloIndex) => {
-        clipPolyline(halo, material).forEach((points, clipIndex) => layer.markings.push({
-          id: `map-marker-${markerIndex}-halo-${pathIndex}-${haloIndex}-${clipIndex}`,
-          operation: "engrave",
-          kind: "marker",
-          points,
-          filled: true,
-          knockout: true,
-        }));
-      });
-    });
-    paths.forEach((path, pathIndex) => {
-      clipPolyline(path, material).forEach((points, clipIndex) => layer.markings.push({
-        id: `map-marker-${markerIndex}-${pathIndex}-${clipIndex}`,
+    const place = (path: Point2D[], id: string, knockout = false) => {
+      markerLayerPolygons(path, materials).forEach(({ layerIndex, polygon }, pieceIndex) => clips[layerIndex]!.layer.markings.push({
+        id: `map-marker-${markerIndex}-${id}-${layerIndex}-${pieceIndex}`,
         operation: "engrave",
         kind: "marker",
-        points,
+        points: polygon.outer,
+        ...(polygon.holes.length ? { holes: polygon.holes } : {}),
         filled: true,
+        ...(knockout ? { knockout: true } : {}),
       }));
+    };
+    paths.forEach((path, pathIndex) => {
+      offsetClosedRing(path, MAP_MARKER_CLEARANCE_MM, "round").forEach((halo, haloIndex) => place(halo, `halo-${pathIndex}-${haloIndex}`, true));
     });
+    paths.forEach((path, pathIndex) => place(path, String(pathIndex)));
   });
 }
 
@@ -1246,12 +1295,14 @@ export function generateGeometry(config: ProjectConfigV1, source: SourceBundleV1
   const fabricationNests = flatEngraving ? [] : addMaterialNests(config, layers);
   // Nesting has finished carving cavities, so layer material is final for routing.
   const clips = layerClips(layers);
-  const baseLayer = layers[0]!;
-
   const transportationLabels = routeMarkings(context, clips, ladder);
-  placeAnnotations(context, baseLayer);
+  placeAnnotations(context, clips);
   if (!flatEngraving && config.showAlignmentGuides) addAlignmentGuides(config, clips);
-  placeTransportationLabels(config, transportationLabels);
+  const placedTransportationLabels = placeTransportationLabels(config, transportationLabels);
+  if (transportationLabels.size && !placedTransportationLabels) context.warnings.push({
+    code: "LABEL_OMITTED",
+    message: "Transportation labels do not fit the exposed material. Reduce Text size or Vertical exaggeration, or increase the artwork size.",
+  });
   if (config.showElevationLabels) placeElevationLabels(context, layers);
   placeMarkers(context, clips);
   dedupeMarkingIds(layers);
@@ -1314,6 +1365,7 @@ export function validateProject(config: ProjectConfigV1): void {
   if (config.widthMm > MAX_PROJECT_DIMENSION_MM || config.heightMm > MAX_PROJECT_DIMENSION_MM) throw new Error("Project dimensions must not exceed 10000 mm.");
   if (config.verticalExaggeration < MIN_VERTICAL_EXAGGERATION || config.verticalExaggeration > MAX_VERTICAL_EXAGGERATION) throw new Error(`Vertical exaggeration must be between ${MIN_VERTICAL_EXAGGERATION} and ${MAX_VERTICAL_EXAGGERATION}.`);
   if (typeof config.fitLakeDepth !== "boolean") throw new Error("Fit lake depth must be a boolean.");
+  if (config.waterDepthLayerLimit !== undefined && (!Number.isSafeInteger(config.waterDepthLayerLimit) || config.waterDepthLayerLimit < 1)) throw new Error("Maximum depth layers must be a positive whole number.");
   if (!Number.isFinite(config.waterDepthExaggeration) || config.waterDepthExaggeration < MIN_WATER_DEPTH_EXAGGERATION || config.waterDepthExaggeration > MAX_WATER_DEPTH_EXAGGERATION) throw new Error(`Water depth exaggeration must be between ${MIN_WATER_DEPTH_EXAGGERATION} and ${MAX_WATER_DEPTH_EXAGGERATION}.`);
   if (config.materialThicknessMm < 0.5 || config.materialThicknessMm > 25) throw new Error("Material thickness must be between 0.5 and 25 mm.");
   if (config.location.lat < -85.0511 || config.location.lat > 85.0511) throw new Error("This version supports Web Mercator latitudes only.");
@@ -1326,6 +1378,8 @@ export function validateProject(config: ProjectConfigV1): void {
     markerIds.add(marker.id);
     if (!Number.isFinite(marker.lat) || marker.lat < -85.0511 || marker.lat > 85.0511) throw new Error("Marker latitude must be within Web Mercator limits.");
     if (!Number.isFinite(marker.lon) || marker.lon < -180 || marker.lon > 180) throw new Error("Marker longitude must be between -180 and 180 degrees.");
+    const size = marker.sizeMm === undefined ? MAP_MARKER_SIZE_MM : marker.sizeMm;
+    if (!Number.isFinite(size) || size < MAP_MARKER_MIN_SIZE_MM || size > MAP_MARKER_MAX_SIZE_MM) throw new Error(`Marker size must be between ${MAP_MARKER_MIN_SIZE_MM} and ${MAP_MARKER_MAX_SIZE_MM} mm.`);
     if (!MARKER_SYMBOLS.includes(marker.symbol)) throw new Error("Marker symbol is invalid.");
   }
   const customLineIds = new Set<string>();

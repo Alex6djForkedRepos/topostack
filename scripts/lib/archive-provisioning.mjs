@@ -1,8 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { access, open, rename, rm, stat } from "node:fs/promises";
+import { access, stat } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 import { parseArchiveRelease } from "../../packages/core/src/archive-release.ts";
+import { writeJsonAtomic } from "./files.mjs";
+import { verifyPromotionGateway } from "./gateway.mjs";
 import { bucketDeployment } from "./r2-buckets.mjs";
 import { temporaryR2Client, verifyParentToken } from "./r2-s3.mjs";
 
@@ -68,11 +70,6 @@ export async function stageArchive({ logicalKey, dataset, bytes, sha256, upload,
     await checkpoint(receipt);
   }
   return receipt;
-}
-
-export async function verifyPromotionGateway(origin, request = fetch) {
-  const response = await request(new URL("/v1/manifest", origin), { signal: AbortSignal.timeout(15_000), cache: "no-store" });
-  if (!response.ok || (await response.json()).capabilities?.archiveReleases !== 1) throw new Error(`Deploy the release-aware gateway at ${origin} before promoting archives.`);
 }
 
 export async function provisionVerifiedArchives({ accountId, cloudflare, buckets, logicalKey, dataset, archivePath, sha256, bytes, pmtilesBin, run, promote, checkpoint }) {
@@ -156,28 +153,6 @@ export async function verifyArchiveDigest(archivePath, { expectedDigest, skipDig
 export async function verifyPmtilesHeader({ run, capture, pmtilesBin, archivePath }) {
   await run(pmtilesBin, ["verify", archivePath]);
   return JSON.parse(await capture(pmtilesBin, ["show", archivePath, "--header-json"]));
-}
-
-/**
- * Replaces `target` only with a completely written, fsynced file. The temporary
- * name is unique so concurrent writers never share or clobber a partial file.
- */
-export async function writeJsonAtomic(target, value) {
-  const contents = JSON.stringify(value, null, 2) + "\n";
-  const part = `${target}.${process.pid}.${randomUUID()}.part`;
-  try {
-    const handle = await open(part, "wx");
-    try {
-      await handle.writeFile(contents, "utf8");
-      await handle.sync();
-    } finally {
-      await handle.close();
-    }
-    await rename(part, target);
-  } catch (error) {
-    await rm(part, { force: true });
-    throw error;
-  }
 }
 
 /**

@@ -56,5 +56,9 @@ export async function verifyHttpSeo(origin, environment, { propagationTimeoutMs 
   console.log("Verified " + environment + " SEO response semantics at " + origin);
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  await verifyHttpSeo(process.argv[2], process.argv[3]);
+  // A fresh deployment's assets can lag the Worker, so the deploy job passes a
+  // propagation window; monitors leave it unset and fail immediately.
+  const propagation = Number(process.env.SEO_PROPAGATION_TIMEOUT_MS ?? 0);
+  assert.ok(Number.isFinite(propagation) && propagation >= 0, "SEO_PROPAGATION_TIMEOUT_MS must be a non-negative number of milliseconds");
+  await verifyHttpSeo(process.argv[2], process.argv[3], { propagationTimeoutMs: propagation });
 }

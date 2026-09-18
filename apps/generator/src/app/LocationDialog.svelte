@@ -195,6 +195,8 @@
 </dialog>
 
 <style>
+  /* Directory/search results must not move controls underneath a pointer. */
+  .search-modal { height: min(720px, calc(100dvh - 32px)); }
   .search-modal :global(.search-results) { max-height: none; overflow: visible; padding-block: 0; }
   .preset-locations summary { cursor: pointer; font-size: 0.8125rem; }
   .preset-locations[open] summary { margin-bottom: 0.5rem; }

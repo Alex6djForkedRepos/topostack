@@ -2,12 +2,15 @@ import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { WaterAreaV1 } from "@topostack/core";
 import fixture from "./fixtures/noaa-erie-z11.json";
-import { hasNoaaCoverage, loadNoaaBathymetry, sampleDepth } from "./bathymetry";
+import surveyCatalog from "../../../scripts/data/lake-bathymetry.json";
+import { buildPixelMask, hasNoaaCoverage, loadLakeBathymetry, MASK_YIELD_CELLS, sampleDepth } from "./bathymetry";
 
 const mocks = vi.hoisted(() => ({ createArchive: vi.fn(), getHeader: vi.fn(), getMetadata: vi.fn(), getZxy: vi.fn() }));
 vi.mock("./archive", () => ({ createArchive: mocks.createArchive }));
 const lake: WaterAreaV1 = { id: "erie", name: "Lake Erie", kind: "lake", polygon: { outer: [], holes: [] }, maxDepthM: 64 };
-const load = (signal?: AbortSignal) => loadNoaaBathymetry("https://example.test", fixture.bounds, 3, 3, 15, [lake], signal);
+const smallGrid = { width: 3, height: 3, values: new Float32Array(9), min: 0, max: 0 };
+const load = (signal?: AbortSignal) => loadLakeBathymetry("https://example.test", fixture.bounds, smallGrid, 15, [lake], signal);
+const requestedNoaa = () => mocks.createArchive.mock.calls.some((call) => String(call[0]).includes("noaa-great-lakes-v1"));
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -18,31 +21,61 @@ beforeEach(() => {
   mocks.getZxy.mockResolvedValue({ data: Uint8Array.from(bytes).buffer });
 });
 
+/** Tile requests per dataset id, so each provider's window can be checked alone. */
+const tileRequests = new Map<string, number>();
+/**
+ * Lake Erie's bbox also intersects the Ontario provider, so a real load asks
+ * every overlapping archive. Answer each with the header and metadata its own
+ * catalog entry declares, serving the same fixture tile: depths then come from
+ * the first provider in registry order (NOAA), exactly as in production.
+ */
+function serveEveryArchive(): void {
+  tileRequests.clear();
+  mocks.createArchive.mockImplementation((url: string) => {
+    const source = surveyCatalog.sources.find((item) => url.includes(item.id));
+    return {
+      getHeader: () => Promise.resolve({ tileType: 2, minZoom: 0, maxZoom: source?.maxZoom }),
+      getMetadata: () => Promise.resolve({ topostack_dataset: source?.id, topostack_encoding: source?.encoding }),
+      getZxy: (...args: unknown[]) => {
+        tileRequests.set(source?.id ?? url, (tileRequests.get(source?.id ?? url) ?? 0) + 1);
+        return mocks.getZxy(...args);
+      },
+    };
+  });
+}
+
 describe("NOAA bathymetry loading", () => {
+  beforeEach(serveEveryArchive);
+
   it("decodes a real NOAA tile and aligns pixel centers to the terrain grid", async () => {
     const result = await load();
     expect(result.status).toBe("available");
+    expect(result.datasetVersions[0]).toBe("noaa-great-lakes-v1");
     expect(mocks.createArchive).toHaveBeenCalledWith("https://example.test/v1/bathymetry/noaa-great-lakes-v1.pmtiles", undefined);
-    expect(mocks.getZxy).toHaveBeenCalledExactlyOnceWith(fixture.tile.z, fixture.tile.x, fixture.tile.y, expect.any(AbortSignal));
+    expect(mocks.getZxy).toHaveBeenCalledWith(fixture.tile.z, fixture.tile.x, fixture.tile.y, expect.any(AbortSignal));
     const bathymetry = result.areas[0]!.bathymetry!;
     expect(bathymetry).toMatchObject({ width: 3, height: 3 });
     bathymetry.depthsM.forEach((value, index) => expect(value).toBeCloseTo(fixture.expectedDepthsM[index]!, 4));
     expect(lake.bathymetry).toBeUndefined();
   });
 
-  it("keeps other lakes and oceans on their existing sources without fetching NOAA", async () => {
-    const areas = [{ ...lake, name: "Crater Lake" }, { ...lake, kind: "ocean" as const }];
-    expect(await loadNoaaBathymetry("", fixture.bounds, 3, 3, 11, areas)).toEqual({ areas, status: "not-covered" });
-    expect(mocks.createArchive).not.toHaveBeenCalled();
+  it("keeps other lakes and oceans off the NOAA archive", async () => {
+    const areas = [{ ...lake, name: "Crater Lake" }, { ...lake, id: "sea", kind: "ocean" as const }];
+    const result = await loadLakeBathymetry("", fixture.bounds, smallGrid, 11, areas);
+    expect(requestedNoaa()).toBe(false);
+    expect(result.datasetVersions).not.toContain("noaa-great-lakes-v1");
+    expect(result.areas.find((area) => area.kind === "ocean")?.bathymetry).toBeUndefined();
     expect(hasNoaaCoverage({ ...lake, name: " Lake St. Clair " })).toBe(true);
     expect(hasNoaaCoverage({ ...lake, name: undefined, hylakId: 9 })).toBe(true);
     expect(hasNoaaCoverage({ ...lake, hylakId: 9999 })).toBe(false);
   });
 
-  it("keeps a bounded number of requests for wide selections", async () => {
+  it("keeps a bounded number of requests per provider for wide selections", async () => {
     mocks.getZxy.mockResolvedValue(undefined);
-    const result = await loadNoaaBathymetry("", { west: -93, east: -75, south: 40, north: 50 }, 3, 3, 15, [lake]);
-    expect(mocks.getZxy.mock.calls.length).toBeLessThanOrEqual(24);
+    const result = await loadLakeBathymetry("", { west: -93, east: -75, south: 40, north: 50 }, smallGrid, 15, [lake]);
+    // Every overlapping provider caps its own tile window independently.
+    expect(tileRequests.size).toBeGreaterThan(0);
+    for (const count of tileRequests.values()) expect(count).toBeLessThanOrEqual(24);
     expect(result.status).toBe("not-covered");
   });
 
@@ -51,14 +84,16 @@ describe("NOAA bathymetry loading", () => {
     expect((await load()).status).toBe("not-covered");
     mocks.getZxy.mockRejectedValue(new Error("offline"));
     const result = await load();
-    expect(result).toEqual({ areas: [lake], status: "unavailable" });
+    expect(result).toMatchObject({ status: "unavailable", datasetVersions: [], attribution: [] });
+    expect(result.areas[0]!.bathymetry).toBeUndefined();
   });
 
   it("rejects a different archive encoding and malformed tiles", async () => {
+    mocks.createArchive.mockReturnValue(mocks);
     mocks.getMetadata.mockResolvedValue({ topostack_encoding: "elevation" });
     expect((await load()).status).toBe("unavailable");
     expect(mocks.getZxy).not.toHaveBeenCalled();
-    mocks.getMetadata.mockResolvedValue({ topostack_dataset: "noaa-great-lakes-v1", topostack_encoding: "depth-terrarium-v1" });
+    serveEveryArchive();
     mocks.getZxy.mockResolvedValue({ data: new Uint8Array([1, 2, 3]).buffer });
     expect((await load()).status).toBe("unavailable");
   });
@@ -80,7 +115,7 @@ describe("NOAA bathymetry loading", () => {
 // These PNGs come from the independently built, checksum-pinned survey archives.
 import craterFixture from "./fixtures/usgs-crater-z14.json";
 import swissFixture from "./fixtures/swiss-zug-z14.json";
-import { applySurveyProvenance, loadLakeBathymetry, pixelBox } from "./bathymetry";
+import { applySurveyProvenance, pixelBox } from "./bathymetry";
 import { createSyntheticSource, DEFAULT_PROJECT } from "@topostack/core";
 
 const dimensions = { widthMm: 2, heightMm: 2 };
@@ -202,5 +237,59 @@ describe("survey lake pixel bounds", () => {
     expect(edge.colStart).toBeLessThanOrEqual(48);
     expect(edge.rowStart).toBeLessThanOrEqual(30);
     expect(pixelBox([], grid, dimensions).rowEnd).toBe(-1);
+  });
+
+  it("marks exactly the pixels the per-pixel point-in-polygon test marked", async () => {
+    let seed = 31;
+    const random = () => { seed = (seed * 1_103_515_245 + 12_345) % 2 ** 31; return seed / 2 ** 31; };
+    const grid = { width: 71, height: 53 };
+    const dimensions = { widthMm: 180, heightMm: 120 };
+    const ringAt = (cx: number, cy: number, radius: number, vertices: number) => Array.from({ length: vertices }, (_, index) => {
+      const angle = index / vertices * Math.PI * 2;
+      const r = radius * (0.3 + random());
+      return { x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r };
+    });
+    for (let trial = 0; trial < 30; trial += 1) {
+      const cx = (random() - 0.5) * 200, cy = (random() - 0.5) * 140;
+      const outer = ringAt(cx, cy, 8 + random() * 60, 3 + Math.floor(random() * 12));
+      // Half the trials carry an island, so hole clearing is compared too.
+      const holes = trial % 2 === 0 ? [ringAt(cx, cy, 2 + random() * 12, 3 + Math.floor(random() * 6))] : [];
+      const mask = await buildPixelMask({ outer, holes }, grid, dimensions);
+      const width = mask.colEnd - mask.colStart + 1;
+      for (let row = 0; row < grid.height; row += 1) {
+        for (let col = 0; col < grid.width; col += 1) {
+          const x = (col / (grid.width - 1) - 0.5) * dimensions.widthMm;
+          const y = (row / (grid.height - 1) - 0.5) * dimensions.heightMm;
+          const expected = inside(x, y, outer) && !holes.some((hole) => inside(x, y, hole));
+          const withinBox = row >= mask.rowStart && row <= mask.rowEnd && col >= mask.colStart && col <= mask.colEnd;
+          const marked = withinBox && mask.inside[(row - mask.rowStart) * width + col - mask.colStart] === 1;
+          expect(marked).toBe(expected);
+        }
+      }
+    }
+  });
+
+  it("stops a long scanline pass when the load is cancelled", async () => {
+    // Large enough to spend its yield budget, so the pass is parked on a
+    // macrotask when the abort arrives — the old per-pixel loop never returned
+    // to the event loop, so a Cancel could not be dispatched at all.
+    const size = Math.ceil(Math.sqrt(MASK_YIELD_CELLS)) + 2;
+    const controller = new AbortController();
+    const outer = [{ x: -100, y: -100 }, { x: 100, y: -100 }, { x: 100, y: 100 }, { x: -100, y: 100 }];
+    const pending = buildPixelMask({ outer, holes: [] }, { width: size, height: size }, { widthMm: 100, heightMm: 100 }, controller.signal);
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  it("abandons a survey load cancelled after its tiles arrived", async () => {
+    surveyArchive(craterFixture.dataset, "usgs-crater-z14");
+    const controller = new AbortController();
+    const tile = { data: Uint8Array.from(readFileSync(new URL("./fixtures/usgs-crater-z14.png", import.meta.url))).buffer };
+    // Cancel once the archive has answered, while the per-lake pixel pass is
+    // the only work left: the load must abandon it instead of publishing depths.
+    mocks.getZxy.mockImplementation(() => { queueMicrotask(() => controller.abort()); return Promise.resolve(tile); });
+    const wide = { width: 64, height: 64, values: new Float32Array(64 * 64), min: 0, max: 0 };
+    const pending = loadLakeBathymetry("", craterFixture.bounds, wide, 14, [surveyLake], controller.signal, dimensions);
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
   });
 });

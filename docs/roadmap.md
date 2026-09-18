@@ -5,7 +5,7 @@
 - First-class flat topographic engravings with independent contour density, heavier index contours, exact single-surface preview, optional engraved border, and an engrave-only 1:1 SVG package.
 - Atomm-first static generator and export lifecycle.
 - Global land-elevation tile flow with offline deterministic fallback.
-- Rectangular and circular crops, 2–24 layers, configurable dimensions and material thickness.
+- Rectangular and circular crops, automatic layer counts without a fixed upper limit, configurable dimensions and material thickness.
 - Contour polygon generation, feature filtering, cut/score/engrave IR, per-layer and master SVGs.
 - Map, 2D, and stacked/exploded 3D previews.
 - OSM PMTiles adapter for classified roads, trails, transportation labels, water, and state/province boundaries; generated latitude/longitude graticules; local IndexedDB projects; undo/redo; and project JSON import/export.

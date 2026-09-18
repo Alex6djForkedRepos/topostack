@@ -53,7 +53,7 @@
 <Article title="Lakes with surveyed depth data" intro="Find lake-floor data included in TopoStack. Search by lake name, region, survey ID or data source, then open a location in the studio.">
   <div class="coverage-note">
     <strong>Real surveys, with different levels of detail.</strong>
-    <p>Surveyed grids describe the lake floor from published bathymetric data. Survey contours use measured depth lines with the spaces between them interpolated. A listing may cover only part of a lake; gaps use existing terrain or modeled depths. Check the source notes after generating.</p>
+    <p>Surveyed grids describe the lake floor from published bathymetric data. Survey contours use measured depth lines with the spaces between them interpolated. A listing may cover only part of a lake; gaps use existing terrain or modeled depths where possible and otherwise stay at the waterline. Check the studio’s warnings after generating.</p>
   </div>
   <p>Wondering how the lake floor is made? <a href={`${base}/guides/how-lake-depths-work`}>Learn how surveys, predictions, and depth settings work</a>.</p>
   <section class="directory" aria-label="Search surveyed lakes" aria-busy={loading}>
@@ -92,17 +92,17 @@
           <button type="button" disabled={currentPage === pageCount} onclick={() => changePage(currentPage + 1)}>Next</button>
         </nav>
       {:else}
-        <div class="empty-results"><h2>No matching lakes</h2><p>Try another spelling, a nearby region, or the survey ID. Names with or without accents work.</p><button class="directory-button" type="button" onclick={resetSearch}>Clear search and filters</button></div>
+        <div class="empty-results"><h2>No matching lakes</h2><p>Try another spelling, a nearby region, or the survey ID. Accented letters such as é match their plain form; letters such as ø and æ must be typed as written.</p><button class="directory-button" type="button" onclick={resetSearch}>Clear search and filters</button></div>
       {/if}
       <p class="catalog-date">Catalog updated {directory.updated}. Regional datasets can list separate basins of the same lake. <a href={`${base}/data/lake-depth-directory.json`} download>Download the complete list</a>.</p>
     {/if}
   </section>
   <p><a href={`${base}/attribution#surveys`}>View survey credits and how each source is used</a>.</p>
   <h2>Using a lake’s depth data</h2>
-  <p>Select <strong>Open in studio</strong> to frame the survey area, then generate terrain with <strong>Water depth</strong> enabled. Some small lakes may lack a matching lake outline. The studio’s source notes identify available survey data and any modeled gaps.</p>
-  <p>If a deep lake exceeds the available layers, choose <strong>Fit depth</strong> to compress its depths while keeping the shoreline fixed. <strong>Use manual depth</strong> restores your requested scale. See the <a href={`${base}/guides/laser-cut-topographic-map`}>layered map guide</a> for fabrication steps.</p>
+  <p>Select <strong>Open in studio</strong> to frame the survey area, then generate terrain with <strong>Water depth</strong> enabled. Some small lakes may lack a matching lake outline. The studio warns when a lake has incomplete survey coverage or estimated depths, and the exported <strong>ATTRIBUTION.txt</strong> credits the surveys used.</p>
+  <p>If a deep lake exceeds the available layers, choose <strong>Fit depth</strong> in the warning, or turn on <strong>Fit lake depth to available layers</strong>, to compress its depths while keeping the shoreline fixed. <strong>Use manual depth</strong> restores your requested scale. See the <a href={`${base}/guides/laser-cut-topographic-map`}>layered map guide</a> for fabrication steps.</p>
   <details class="source-notes"><summary>Sources and coverage notes</summary>
-    <p>These are the survey datasets integrated into TopoStack. Survey dates, resolutions and water-level references vary. NOAA’s Lake Superior grid is a draft; Swiss lake-floor elevations use an approximate alignment to the lake surface. Source credits and applied depth scaling are included in exports.</p>
+    <p>These are the survey datasets integrated into TopoStack. Survey dates, resolutions and water-level references vary; <a href={`${base}/guides/how-lake-depths-work#surveys`}>how surveys become a lake floor</a> explains the caveats. Source credits and applied depth scaling are included in exports.</p>
     {#if directory}<ul>{#each directory.sources as source}<li><a href={source.url}>{source.name}</a> — {depthKindLabel(source.kind)}. {source.license}</li>{/each}</ul>{/if}
   </details>
   <p>For British Columbia, the <a href="https://open.canada.ca/data/en/dataset/1427d389-cd21-4fe2-8ed9-282d9bdcb7e2">open bathymetric map collection</a> provides PDF depth maps for reference. These maps are not yet available as lake-floor geometry in the studio.</p>

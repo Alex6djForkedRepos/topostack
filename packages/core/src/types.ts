@@ -16,10 +16,14 @@ export type NorthArrowAnchor = "top-left" | "top" | "top-right" | "left" | "cent
 export interface MapMarkerV1 extends GeoPoint {
   id: string;
   symbol: MarkerSymbol;
+  /** Nominal symbol size in millimeters; omitted legacy values use 8 mm. */
+  sizeMm?: number;
 }
 
 export const MARKER_SYMBOLS: readonly MarkerSymbol[] = ["pin", "circle", "triangle", "star", "cross"];
 export const MAP_MARKER_SIZE_MM = 8;
+export const MAP_MARKER_MIN_SIZE_MM = 1;
+export const MAP_MARKER_MAX_SIZE_MM = 200;
 export const MAP_MARKER_CLEARANCE_MM = 1.2;
 export const CUSTOM_LINE_KINDS: readonly CustomLineKind[] = ["trail", "boundary"];
 export const MAX_PROJECT_NAME_LENGTH = 120;
@@ -93,20 +97,8 @@ export const DEFAULT_LINE_STYLE: LineStyleV1 = {
 export const DEFAULT_TEXT_STYLE: TextStyleV1 = { font: "technical", sizeMm: 3.1 };
 
 export const MIN_LAYER_COUNT = 2;
-export const MAX_LAYER_COUNT = 24;
 export const MIN_VERTICAL_EXAGGERATION = 1;
-export const MAX_VERTICAL_EXAGGERATION = 20;
-
-/**
- * Sheets the stack may spend below the water datum at 1x depth. Ocean bathymetry
- * runs to thousands of meters, so without a cap a single coastal map would spend
- * its whole sheet budget on abyssal plain and leave the land two layers thick.
- *
- * Raising `waterDepthExaggeration` raises this in step: the cap protects a
- * reader who never touched the control, but it must not silently ignore one who
- * did. The stack's own 24-sheet limit is the real ceiling.
- */
-export const MAX_DEPTH_LAYER_COUNT = 6;
+export const MAX_VERTICAL_EXAGGERATION = 10;
 
 /**
  * Water depth is exaggerated relative to the terrain, not independently of it.
@@ -140,12 +132,12 @@ export type DepthSource = "surveyed" | "mixed" | "modeled" | "user";
  * sheets that takes.
  */
 export interface TerrainStackPlan {
-  /** Layers the relief resolves to at this scale and thickness, clamped to 2-24. */
+  /** Layers the relief resolves to at this scale and thickness, with a two-sheet minimum. */
   layerCount: number;
-  /** Exaggeration actually applied; differs from the requested value when the clamp bites. */
+  /** Exaggeration actually applied after rounding to whole sheets and enforcing the minimum. */
   verticalExaggeration: number;
   stackHeightMm: number;
-  /** Sheets of the total spent below the water datum, capped at MAX_DEPTH_LAYER_COUNT. */
+  /** Sheets below the land minimum, optionally limited by waterDepthLayerLimit. */
   depthLayerCount: number;
   /** Elevation covered by one sheet of material. */
   metersPerLayer: number;
@@ -198,6 +190,8 @@ export interface ProjectConfigV1 {
   showWaterDepth: boolean;
   /** Depth multiplier relative to the terrain's vertical scale; 1 matches it. */
   waterDepthExaggeration: number;
+  /** Maximum additional sheets below the lowest land; undefined uses all required depth sheets. */
+  waterDepthLayerLimit?: number;
   /** Compress each lake around its waterline only when the stack cannot hold its requested depth. */
   fitLakeDepth: boolean;
   /** Per-lake maximum-depth overrides in meters, keyed by HydroLAKES id. */
@@ -374,6 +368,8 @@ export interface OperationPath {
   transportationClass?: TransportationClass;
   /** Closed engraving paths that should render as solid marker artwork. */
   filled?: boolean;
+  /** Interior voids in a filled marking, including areas covered by upper sheets. */
+  holes?: Point2D[][];
   /** Paper/material-colored geometry that protects a marker from underlying engravings. */
   knockout?: boolean;
 }

@@ -1,4 +1,5 @@
 import { clamp, pointAt } from "./geometry2d.js";
+import { sampleIndexAt, sampleOffset } from "./grid.js";
 import type { ElevationGrid, Point2D, ProjectConfigV1 } from "./types.js";
 
 /** Vertices approximating a circular crop; see `cropBoundary`. */
@@ -41,8 +42,8 @@ export function cropElevationRange(config: ProjectConfigV1, grid: ElevationGrid,
   let visibleMax = Number.NEGATIVE_INFINITY;
   const radius = cropRadiusMm(config);
   for (let index = 0; index < grid.values.length; index += 1) {
-    const x = ((index % grid.width) / (grid.width - 1) - 0.5) * config.widthMm;
-    const y = (Math.floor(index / grid.width) / (grid.height - 1) - 0.5) * config.heightMm;
+    const x = sampleOffset(index % grid.width, grid.width, config.widthMm);
+    const y = sampleOffset(Math.floor(index / grid.width), grid.height, config.heightMm);
     if (config.cropShape === "circle" && x * x + y * y > radius * radius) continue;
     const value = grid.values[index]!;
     visibleMin = Math.min(visibleMin, value);
@@ -62,8 +63,8 @@ export function cropElevationRange(config: ProjectConfigV1, grid: ElevationGrid,
       const steps = Math.max(2, Math.ceil(Math.hypot(end.x - start.x, end.y - start.y) / spacing * 2));
       for (let step = 0; step <= steps; step += 1) {
         const point = pointAt(start, end, step / steps);
-        const x = clamp((point.x / config.widthMm + 0.5) * (grid.width - 1), 0, grid.width - 1);
-        const y = clamp((point.y / config.heightMm + 0.5) * (grid.height - 1), 0, grid.height - 1);
+        const x = clamp(sampleIndexAt(point.x, grid.width, config.widthMm), 0, grid.width - 1);
+        const y = clamp(sampleIndexAt(point.y, grid.height, config.heightMm), 0, grid.height - 1);
         const left = Math.floor(x); const top = Math.floor(y);
         const right = Math.min(left + 1, grid.width - 1); const bottom = Math.min(top + 1, grid.height - 1);
         const values = grid.values;

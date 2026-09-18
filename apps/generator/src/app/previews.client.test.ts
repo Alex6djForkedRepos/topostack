@@ -1,6 +1,6 @@
 import { flushSync, mount, unmount } from "svelte";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { DEFAULT_PROJECT, generateGeometry } from "@topostack/core";
+import { DEFAULT_PROJECT, generateGeometry, type GeometryIRV1 } from "@topostack/core";
 import { createSamplePreviewSource } from "../sample-preview";
 
 const three = vi.hoisted(() => ({ renderers: [] as Array<{ dispose: ReturnType<typeof vi.fn>; forceContextLoss: ReturnType<typeof vi.fn>; render: ReturnType<typeof vi.fn> }> }));
@@ -45,7 +45,10 @@ vi.mock("maplibre-gl", () => {
 });
 
 import MapCanvas from "./MapCanvas.svelte";
+import TwoDPreview from "./TwoDPreview.svelte";
+import EngravingPreview from "./EngravingPreview.svelte";
 import ThreePreview from "./ThreePreview.svelte";
+import ThreePreviewHost from "./ThreePreviewHost.svelte";
 import * as THREE from "three";
 
 describe("preview resource cleanup", () => {
@@ -94,6 +97,128 @@ describe("preview resource cleanup", () => {
     expect(shadowDispose).toHaveBeenCalled();
     expect(materialDispose).toHaveBeenCalled();
     shadowDispose.mockRestore(); materialDispose.mockRestore();
+    target.remove();
+  });
+
+  it.each(["cut", "flat"])("preserves filled marker holes in the %s preview", mode => {
+    const geometry = generateGeometry(DEFAULT_PROJECT, createSamplePreviewSource());
+    const square = (r: number) => [{x:-r,y:-r},{x:r,y:-r},{x:r,y:r},{x:-r,y:r},{x:-r,y:-r}];
+    geometry.layers = [{ ...geometry.layers[0]!, markings: [{ id:"marker-hole",kind:"marker",operation:"engrave",filled:true,points:square(10),holes:[square(2)] }] }];
+    const target = document.createElement("div");
+    component = mode === "cut" ? mount(TwoDPreview, { target, props: { geometry, selectedLayer:0 } }) : mount(EngravingPreview, { target, props: { geometry, project:DEFAULT_PROJECT,cropShape:"rectangle" } });
+    flushSync();
+    const path = target.querySelector('[data-marking-id="marker-hole"] path')!;
+    expect(path.getAttribute("d")?.match(/M/g)).toHaveLength(2);
+    expect(path.getAttribute("fill-rule")).toBe("evenodd");
+    expect(path.getAttribute("stroke")).toBe("none");
+  });
+
+  it("keeps covered marker areas empty in the 3D mesh", async () => {
+    const geometry = generateGeometry(DEFAULT_PROJECT, createSamplePreviewSource());
+    const square = (r: number) => [{x:-r,y:-r},{x:r,y:-r},{x:r,y:r},{x:-r,y:r},{x:-r,y:-r}];
+    geometry.layers = [{ ...geometry.layers[0]!, polygons: [{outer:square(20),holes:[]}], markings: [{ id:"marker-hole",kind:"marker",operation:"engrave",filled:true,points:square(10),holes:[square(2)] }] }];
+    geometry.waterSurfaces = [];
+    const target = document.createElement("div");
+    component = mount(ThreePreview, { target, props: { geometry, exploded: 0 } });
+    flushSync();
+    const meshes = () => {
+      const scene = three.renderers[0]?.render.mock.lastCall?.[0] as THREE.Scene | undefined;
+      const result: THREE.Mesh[] = [];
+      scene?.traverse(object => { if (object instanceof THREE.Mesh && object.renderOrder === 3) result.push(object); });
+      return result;
+    };
+    await vi.waitFor(() => expect(meshes()).toHaveLength(1));
+    const mesh = meshes()[0]!;
+    const positions = mesh.geometry.getAttribute("position");
+    const indices = mesh.geometry.index!;
+    let area = 0;
+    for (let i=0;i<indices.count;i+=3) {
+      const a=indices.getX(i), b=indices.getX(i+1), c=indices.getX(i+2);
+      area += Math.abs((positions.getX(b)-positions.getX(a))*(positions.getY(c)-positions.getY(a))-(positions.getY(b)-positions.getY(a))*(positions.getX(c)-positions.getX(a)))/2;
+    }
+    expect(area).toBeCloseTo(384);
+  });
+
+  it("renders transportation glyphs and visible grid dashes in the 3D stack", async () => {
+    const geometry = generateGeometry({ ...DEFAULT_PROJECT, verticalExaggeration: 4, showTransportationLabels: true, showCoordinateGrid: true, showElevationLabels: false, showNorthArrow: false, showScaleBar: false }, createSamplePreviewSource());
+    const labels = geometry.layers.flatMap(layer => layer.markings.filter(mark => mark.id.startsWith("transport-label-")));
+    expect(labels.length).toBeGreaterThan(0);
+    const target = document.createElement("div");
+    component = mount(ThreePreview, { target, props: { geometry, exploded: 0 } });
+    flushSync();
+    const renderer = three.renderers[0]!;
+    const labelLines: THREE.Line[] = [];
+    const gridLines: THREE.Line[] = [];
+    await vi.waitFor(() => {
+      labelLines.length = 0; gridLines.length = 0;
+      expect(renderer.render).toHaveBeenCalled();
+      (renderer.render.mock.lastCall![0] as THREE.Scene).traverse(object => {
+        if (!(object instanceof THREE.Line)) return;
+        const material = object.material as THREE.LineBasicMaterial;
+        if (material.color.getHex() === 0x21170f) labelLines.push(object);
+        if (material.color.getHex() === 0x34404b) gridLines.push(object);
+      });
+      expect(labelLines.length).toBeGreaterThan(0);
+      expect(gridLines.length).toBeGreaterThan(0);
+    });
+    expect(labelLines.every(line => line.geometry.getAttribute("position").count > 2)).toBe(true);
+    for (const line of gridLines) {
+      const material = line.material as THREE.LineDashedMaterial;
+      // At fitted zoom, marks need a useful duty cycle rather than tiny
+      // capless segments that disappear between screen pixels.
+      expect(material.dashSize / (material.dashSize + material.gapSize)).toBeGreaterThanOrEqual(0.4);
+      expect(material.toneMapped).toBe(false);
+    }
+  });
+
+  it("re-extrudes only the layers whose cut polygons changed, and still frees them", async () => {
+    const geometry = generateGeometry(DEFAULT_PROJECT, createSamplePreviewSource());
+    const target = document.createElement("div");
+    document.body.append(target);
+    component = mount(ThreePreviewHost, { target, props: { initial: geometry } });
+    const host = component as unknown as { setGeometry: (next: GeometryIRV1) => void };
+    flushSync();
+    const renderer = three.renderers[0]!;
+    // Layer bodies are the only meshes with a [face, side] material pair.
+    const bodies = () => {
+      const scene = renderer.render.mock.lastCall![0] as THREE.Scene;
+      const meshes: THREE.Mesh[] = [];
+      scene.traverse((object) => { if (object instanceof THREE.Mesh && Array.isArray(object.material)) meshes.push(object); });
+      return meshes;
+    };
+    await vi.waitFor(() => { expect(renderer.render).toHaveBeenCalled(); expect(bodies().length).toBeGreaterThan(1); });
+    const extrusions = bodies().map((mesh) => mesh.geometry);
+    const rebuilt = async (next: GeometryIRV1) => {
+      const before = renderer.render.mock.calls.length;
+      host.setGeometry(next);
+      flushSync();
+      await vi.waitFor(() => expect(renderer.render.mock.calls.length).toBeGreaterThan(before));
+    };
+
+    // A line-width edit arrives as a fresh worker result: identical cut
+    // polygons in brand-new objects, so nothing may be re-triangulated.
+    const restyled = structuredClone(geometry);
+    restyled.lineStyle = { ...restyled.lineStyle, annotationMm: geometry.lineStyle.annotationMm + 0.1 };
+    await rebuilt(restyled);
+    expect(bodies().map((mesh) => mesh.geometry)).toHaveLength(extrusions.length);
+    expect(bodies().every((mesh, index) => mesh.geometry === extrusions[index])).toBe(true);
+
+    // Moving one vertex rebuilds that layer alone.
+    const moved = structuredClone(geometry);
+    const changed = moved.layers.findIndex((layer, index) => index > 0 && layer.polygons[0]?.outer.length);
+    expect(changed).toBeGreaterThan(0);
+    moved.layers[changed]!.polygons[0]!.outer[0]!.x += 1.5;
+    await rebuilt(moved);
+    const after = bodies();
+    expect(after[0]!.geometry).toBe(extrusions[0]);
+    expect(after.some((mesh, index) => mesh.geometry !== extrusions[index])).toBe(true);
+
+    // Cached bodies are owned by the preview, not by the rebuild that made
+    // them, so unmount has to free them as well.
+    const disposals = [vi.spyOn(extrusions[0]!, "dispose"), ...(after[0]!.material as THREE.Material[]).map((material) => vi.spyOn(material, "dispose"))];
+    await unmount(component);
+    component = undefined;
+    for (const dispose of disposals) expect(dispose).toHaveBeenCalled();
     target.remove();
   });
 

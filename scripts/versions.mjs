@@ -65,7 +65,13 @@ export async function bumpVersion(target, bump, base = root) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const [target, bump, ...extra] = process.argv.slice(2);
   assert.equal(extra.length, 0, "Too many arguments");
-  if (target === "check" && !bump) console.log(await readVersions());
+  if (target === "check" && !bump) {
+    console.log(await readVersions());
+    // Release consistency includes the dataset snapshot: wrangler.jsonc cannot
+    // import the worker constant, so the two are compared here.
+    const { assertDatasetVersionsAgree } = await import("./lib/dataset-version.mjs");
+    console.log({ datasetVersion: await assertDatasetVersionsAgree() });
+  }
   else {
     assert.ok(bump, "Usage: versions.mjs check | <main|atomm> <major|minor|patch|version>");
     console.log(`${target}: ${await bumpVersion(target, bump)}`);

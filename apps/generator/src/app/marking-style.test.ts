@@ -10,7 +10,7 @@ describe("marking style", () => {
     expect(markingStyleKey({ operation: "engrave", kind: "road", transportationClass: "local-road" })).toBe("local-road");
     expect(markingStyleKey({ operation: "engrave", kind: "boundary" })).toBe("boundary");
     expect(markingStyleKey({ operation: "engrave", kind: "label" as never })).toBe("engrave");
-    expect(markingColor({ operation: "engrave", kind: "grid" })).toBe("#59636e");
+    expect(markingColor({ operation: "engrave", kind: "grid" })).toBe("#34404b");
   });
 
   it("uses the line style for widths and dashes", () => {

@@ -41,6 +41,45 @@
     keyLight: THREE.DirectionalLight; detachContextHandlers: () => void; requestRender: () => void;
     /** Materials and textures created by the last rebuild, including ones no object ended up using. */
     sceneResources: Array<{ dispose: () => void }>;
+    /** Extruded layer bodies surviving across rebuilds, by layer id. */
+    layerMeshes: Map<string, CachedLayer>;
+  }
+
+  interface CachedLayer {
+    /** Signature of everything the extrusion depends on; a mismatch rebuilds it. */
+    key: string;
+    meshes: THREE.Mesh[];
+    /** The top-face material, which knockout markings also draw with. */
+    face: THREE.MeshStandardMaterial;
+    /** Materials and textures only this layer's meshes reference. */
+    resources: Array<{ dispose: () => void }>;
+  }
+
+  /**
+   * Signature of a layer's extruded body. The worker answers with a structured
+   * clone, so every result is a fresh object graph and reference identity can
+   * never match: a text-size, line-width or kerf edit re-triangulated all 24
+   * layers although their cut polygons had not moved. Hashing coordinates is
+   * linear and far cheaper than `ExtrudeGeometry`, so the body is rebuilt only
+   * when its shape, thickness or stack position actually changed.
+   */
+  function layerKey(layer: GeometryIRV1["layers"][number]): string {
+    let hash = 0x811c9dc5;
+    let vertices = 0;
+    const mix = (value: number) => { hash = Math.imul(hash ^ (value | 0), 0x01000193) >>> 0; };
+    const mixRing = (ring: Point2D[]) => {
+      mix(ring.length);
+      vertices += ring.length;
+      // 8192 units per mm: finer than any edit a preview can show, and integer
+      // mixing avoids a float-to-string per coordinate.
+      for (const point of ring) { mix(Math.round(point.x * 8192)); mix(Math.round(point.y * 8192)); }
+    };
+    for (const polygon of layer.polygons) {
+      mix(polygon.holes.length);
+      mixRing(polygon.outer);
+      for (const hole of polygon.holes) mixRing(hole);
+    }
+    return `${layer.index}:${layer.materialThicknessMm}:${layer.polygons.length}:${vertices}:${hash}`;
   }
 
   interface StackedObject { layerIndex: number; baseZ: number }
@@ -60,12 +99,6 @@
     return shape;
   }
 
-  function shapeFromRing(points: Point2D[]): THREE.Shape {
-    const shape = new THREE.Shape();
-    points.forEach((point, index) => index === 0 ? shape.moveTo(point.x, point.y) : shape.lineTo(point.x, point.y));
-    return shape;
-  }
-
   function makeWoodTexture(): THREE.CanvasTexture {
     const canvas = document.createElement("canvas"); canvas.width = 256; canvas.height = 256;
     const context = canvas.getContext("2d")!;
@@ -78,11 +111,31 @@
     const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texture.repeat.set(1 / 45, 1 / 45); return texture;
   }
 
-  function disposeContent(content: THREE.Group, resources: Array<{ dispose: () => void }>): void {
-    for (const child of [...content.children]) { child.traverse((object) => { if (object instanceof THREE.Mesh || object instanceof THREE.Line) { object.geometry.dispose(); const materials = Array.isArray(object.material) ? object.material : [object.material]; materials.forEach((material) => { if (material instanceof THREE.MeshStandardMaterial) { material.map?.dispose(); material.bumpMap?.dispose(); } material.dispose(); }); } }); content.remove(child); }
-    // Shared materials that no object used (no trails, markers, or water in
-    // this geometry) never reach the traversal above. Disposing twice is a no-op.
+  /**
+   * Empty `content` and free what this rebuild owned. Objects in `kept` are
+   * only detached: they are cached layer bodies the next scene reuses, and
+   * their materials live in the cache entry rather than in `resources`.
+   */
+  function disposeContent(content: THREE.Group, resources: Array<{ dispose: () => void }>, kept?: ReadonlySet<THREE.Object3D>): void {
+    for (const child of [...content.children]) {
+      content.remove(child);
+      if (kept?.has(child)) continue;
+      child.traverse((object) => { if (object instanceof THREE.Mesh || object instanceof THREE.Line) object.geometry.dispose(); });
+    }
+    // Every material and texture a rebuild creates is registered here — including
+    // ones no object ended up using (no trails, markers, or water in this
+    // geometry) — so the traversal above only has to free geometries.
     for (const resource of resources.splice(0)) resource.dispose();
+  }
+
+  /** Free every cached layer body, or only the ones this rebuild did not reuse. */
+  function disposeLayerCache(cache: Map<string, CachedLayer>, reused?: ReadonlySet<string>): void {
+    for (const [id, cached] of cache) {
+      if (reused?.has(id)) continue;
+      // The meshes themselves were geometry-disposed with the rest of `content`.
+      for (const resource of cached.resources) resource.dispose();
+      cache.delete(id);
+    }
   }
 
   interface LineBatch { positions: number[]; distances?: number[] }
@@ -200,13 +253,13 @@
       controls.removeEventListener("change", requestRender);
       controls.removeEventListener("change", updateZoom);
     };
-    runtime = { renderer, camera, controls, rig, content, resizeObserver, frame: 0, environmentTarget, texture, keyLight, detachContextHandlers, requestRender, sceneResources: [], fitSignature: savedCamera?.fitSignature };
+    runtime = { renderer, camera, controls, rig, content, resizeObserver, frame: 0, environmentTarget, texture, keyLight, detachContextHandlers, requestRender, sceneResources: [], layerMeshes: new Map(), fitSignature: savedCamera?.fitSignature };
     requestRender();
     return () => {
       if (!runtime) return;
       const { position } = runtime.camera; const { target } = runtime.controls;
       savedCamera = { position: [position.x, position.y, position.z], target: [target.x, target.y, target.z], fitSignature: runtime.fitSignature, fitDistance, fitTarget: [fitTarget.x, fitTarget.y, fitTarget.z] };
-      cancelAnimationFrame(runtime.frame); runtime.detachContextHandlers(); runtime.resizeObserver.disconnect(); disposeContent(runtime.content, runtime.sceneResources); runtime.texture.dispose(); runtime.environmentTarget.dispose(); scene.environment = null; runtime.keyLight.shadow.dispose(); runtime.controls.dispose(); runtime.renderer.dispose();
+      cancelAnimationFrame(runtime.frame); runtime.detachContextHandlers(); runtime.resizeObserver.disconnect(); disposeContent(runtime.content, runtime.sceneResources); disposeLayerCache(runtime.layerMeshes); runtime.texture.dispose(); runtime.environmentTarget.dispose(); scene.environment = null; runtime.keyLight.shadow.dispose(); runtime.controls.dispose(); runtime.renderer.dispose();
       // Browsers cap live WebGL contexts; release this one now instead of at GC.
       runtime.renderer.forceContextLoss(); runtime.renderer.domElement.remove(); runtime = undefined;
     };
@@ -223,8 +276,15 @@
     const activeGeometry = { layers, waterSurfaces, lineStyle, widthMm, heightMm };
     const timeout = window.setTimeout(() => {
       if (!runtime) return;
-      disposeContent(runtime.content, runtime.sceneResources);
-      const side = new THREE.MeshStandardMaterial({ color: 0x8b6039, roughness: 0.82, metalness: 0, ...SURFACE_DEPTH_BIAS });
+      // Decide what survives before tearing the scene down: a style edit leaves
+      // every cut polygon alone, so its bodies are detached and re-added rather
+      // than re-extruded.
+      const keys = new Map(activeGeometry.layers.map((layer) => [layer.id, layerKey(layer)] as const));
+      const reused = new Set([...runtime.layerMeshes].filter(([id, cached]) => cached.key === keys.get(id)).map(([id]) => id));
+      const kept = new Set<THREE.Object3D>();
+      for (const id of reused) for (const mesh of runtime.layerMeshes.get(id)!.meshes) kept.add(mesh);
+      disposeContent(runtime.content, runtime.sceneResources, kept);
+      disposeLayerCache(runtime.layerMeshes, reused);
       const style = activeGeometry.lineStyle;
       // The 3D engraving ink is a lighter brown than the flat previews' so it reads on lit wood.
       const engraveMaterial = new THREE.LineBasicMaterial({ color: 0x39291d, linewidth: style.annotationMm });
@@ -240,12 +300,14 @@
           });
       const scoreMaterial = new THREE.LineBasicMaterial({ color: MARKING_COLORS.score, linewidth: style.waterMm });
       const boundaryMaterial = new THREE.LineDashedMaterial({ color: MARKING_COLORS.boundary, linewidth: style.boundaryMm, dashSize: Math.max(style.boundaryMm * 8, 1.6), gapSize: Math.max(style.boundaryMm * 5, 1) });
-      const coordinateGridMaterial = new THREE.LineDashedMaterial({ color: MARKING_COLORS.grid, linewidth: style.coordinateGridMm, dashSize: 0.05, gapSize: Math.max(style.coordinateGridMm * 5, 0.9) });
+      // WebGL line dashes have no round caps: SVG-style near-zero dots
+      // disappear at fitted zoom. Give the preview marks visible length.
+      const coordinateGridMaterial = new THREE.LineDashedMaterial({ color: MARKING_COLORS.grid, toneMapped: false, linewidth: style.coordinateGridMm, dashSize: Math.max(style.coordinateGridMm * 2, 0.5), gapSize: Math.max(style.coordinateGridMm * 4, 0.7) });
       const lineMaterials: Record<MarkingStyleKey, THREE.LineBasicMaterial | THREE.LineDashedMaterial> = {
         score: scoreMaterial, "major-road": majorRoadMaterial, "local-road": localRoadMaterial, trail: trailMaterial,
         boundary: boundaryMaterial, grid: coordinateGridMaterial, engrave: engraveMaterial,
       };
-      const labelMaterial = new THREE.LineBasicMaterial({ color: 0x21170f, linewidth: style.annotationMm });
+      const labelMaterial = new THREE.LineBasicMaterial({ color: 0x21170f, toneMapped: false, linewidth: style.annotationMm });
       const markerFillMaterial = new THREE.MeshBasicMaterial({ color: 0x2b2119, side: THREE.DoubleSide });
       // Water reads as a pane resting over the basin rather than as another
       // sheet of stock, so it is transmissive and never casts a shadow into the
@@ -256,25 +318,34 @@
         color: 0x14536e, transparent: true, opacity: 0.52, roughness: 0.28, metalness: 0,
         side: THREE.DoubleSide, depthWrite: false,
       });
-      runtime.sceneResources.push(side, engraveMaterial, majorRoadMaterial, localRoadMaterial, trailMaterial, scoreMaterial, boundaryMaterial, coordinateGridMaterial, labelMaterial, markerFillMaterial, waterMaterial);
+      runtime.sceneResources.push(engraveMaterial, majorRoadMaterial, localRoadMaterial, trailMaterial, scoreMaterial, boundaryMaterial, coordinateGridMaterial, labelMaterial, markerFillMaterial, waterMaterial);
       activeGeometry.layers.forEach((layer) => {
         const baseZ = layer.index * layer.materialThicknessMm;
-        const grain = layerGrainTexture(runtime!.texture, layer.index);
-        const face = new THREE.MeshStandardMaterial({ color: 0xe2bd88, map: grain, bumpMap: grain, bumpScale: 0.22, roughness: 0.7, metalness: 0.02, ...SURFACE_DEPTH_BIAS });
-        runtime!.sceneResources.push(grain, face);
+        let cached = runtime!.layerMeshes.get(layer.id);
+        if (!cached) {
+          const grain = layerGrainTexture(runtime!.texture, layer.index);
+          const face = new THREE.MeshStandardMaterial({ color: 0xe2bd88, map: grain, bumpMap: grain, bumpScale: 0.22, roughness: 0.7, metalness: 0.02, ...SURFACE_DEPTH_BIAS });
+          // The cut-edge material is per layer, not shared, so a cached layer
+          // owns every material its meshes reference and a rebuild that frees
+          // the scene's shared materials can never leave one dangling.
+          const side = new THREE.MeshStandardMaterial({ color: 0x8b6039, roughness: 0.82, metalness: 0, ...SURFACE_DEPTH_BIAS });
+          const meshes = layer.polygons.map((polygon) => {
+            const mesh = new THREE.Mesh(new THREE.ExtrudeGeometry(shapeFromPolygon(polygon), { depth: layer.materialThicknessMm, bevelEnabled: false, curveSegments: 8 }), [face, side]);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            return mesh;
+          });
+          cached = { key: keys.get(layer.id)!, meshes, face, resources: [grain, face, side] };
+          runtime!.layerMeshes.set(layer.id, cached);
+        }
+        const { face } = cached;
         // Every line on a layer that shares a material becomes one draw call.
         const lineBatches = new Map<THREE.LineBasicMaterial | THREE.LineDashedMaterial, LineBatch>();
         const labelBatch: LineBatch = { positions: [] };
-        layer.polygons.forEach((polygon) => {
-          const extrusion = new THREE.ExtrudeGeometry(shapeFromPolygon(polygon), { depth: layer.materialThicknessMm, bevelEnabled: false, curveSegments: 8 });
-          const mesh = new THREE.Mesh(extrusion, [face, side]);
-          mesh.castShadow = true;
-          mesh.receiveShadow = true;
-          addStacked(runtime!.content, mesh, layer.index, baseZ);
-        });
+        for (const mesh of cached.meshes) addStacked(runtime!.content, mesh, layer.index, baseZ);
         layer.markings.forEach((marking) => {
           if (marking.filled && marking.points.length > 2) {
-            const marker = new THREE.Mesh(new THREE.ShapeGeometry(shapeFromRing(marking.points)), marking.knockout ? face : markerFillMaterial);
+            const marker = new THREE.Mesh(new THREE.ShapeGeometry(shapeFromPolygon({ outer: marking.points, holes: marking.holes ?? [] })), marking.knockout ? face : markerFillMaterial);
             marker.renderOrder = marking.knockout ? 2 : 3;
             const lift = markingLift(layer.materialThicknessMm) * (marking.knockout ? 1 : 1.25);
             addStacked(runtime!.content, marker, layer.index, baseZ + layer.materialThicknessMm + lift);
