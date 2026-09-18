@@ -1,5 +1,10 @@
 import { expect, test } from "@playwright/test";
 
+// Startup prepares sample geometry before mounting the embedded workbench.
+// Deep stacks also take longer than a normal DOM assertion on CI workers.
+const STARTUP_TIMEOUT_MS = 15_000;
+const PREVIEW_TIMEOUT_MS = 30_000;
+
 test("Atomm uses the platform export hook and template layout across desktop, RTL, and narrow frames", async ({ page }) => {
   test.setTimeout(120_000);
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -18,7 +23,7 @@ test("Atomm uses the platform export hook and template layout across desktop, RT
   await page.route("**/atomm-test", route => route.fulfill({ contentType: "text/html", body: '<html><body style="margin:0"><iframe title="Atomm generator" src="/studio" style="width:100%;height:100vh;border:0;display:block"></iframe></body></html>' }));
   await page.goto("/atomm-test");
   const studio = page.frameLocator("iframe");
-  await expect(studio.locator(".atomm-workbench")).toBeVisible();
+  await expect(studio.locator(".atomm-workbench")).toBeVisible({ timeout: STARTUP_TIMEOUT_MS });
   await expect(studio.locator(".app-header")).toHaveCount(0);
   await expect(studio.locator(".feedback-trigger, .feedback-dialog")).toHaveCount(0);
   await expect(studio.locator('a[href*="/guides/how-lake-depths-work"]')).toHaveCount(0);
@@ -60,7 +65,7 @@ test("Atomm uses the platform export hook and template layout across desktop, RT
   await studio.getByRole("button", { name: "Terrain layers", exact: true }).click();
   await studio.getByRole("spinbutton", { name: "Vertical exaggeration", exact: true }).fill("8");
   await expect.poll(async () => Number(await studio.getByRole("slider", { name: "Selected layer", exact: true }).getAttribute("max"))).toBeGreaterThan(23);
-  await expect(studio.locator(".preview-stage")).toHaveAttribute("aria-busy", "false");
+  await expect(studio.locator(".preview-stage")).toHaveAttribute("aria-busy", "false", { timeout: PREVIEW_TIMEOUT_MS });
   const tall = await invoke("openInStudio");
   expect(tall.error).toBe("");
   expect(tall.files[0]!.text).not.toBe(master.files[0]!.text);
@@ -69,13 +74,13 @@ test("Atomm uses the platform export hook and template layout across desktop, RT
   await expect(studio.locator("#section-terrain .relief-summary strong")).toContainText(`${layerCount} layers`);
   const previousLayers = await studio.locator(".layer-heading").textContent();
   await studio.getByRole("spinbutton", { name: "Vertical exaggeration", exact: true }).fill("1");
-  await expect(studio.locator(".preview-stage")).toHaveAttribute("aria-busy", "false");
+  await expect(studio.locator(".preview-stage")).toHaveAttribute("aria-busy", "false", { timeout: PREVIEW_TIMEOUT_MS });
   await expect(studio.locator(".layer-heading")).not.toHaveText(previousLayers!);
   const exaggerated = await invoke("openInStudio");
   expect(exaggerated.error).toBe("");
   expect(exaggerated.files[0]!.text).not.toBe(master.files[0]!.text);
   await width.fill("450");
-  await expect(studio.locator(".preview-stage")).toHaveAttribute("aria-busy", "false");
+  await expect(studio.locator(".preview-stage")).toHaveAttribute("aria-busy", "false", { timeout: PREVIEW_TIMEOUT_MS });
   const resized = await invoke("openInStudio");
   expect(resized.error).toBe("");
   expect(resized.files[0]!.text).not.toBe(exaggerated.files[0]!.text);
@@ -114,7 +119,7 @@ test("Atomm uses the platform export hook and template layout across desktop, RT
   expect(all.files.length).toBeGreaterThan(4);
   expect(all.files.every(file => !/[\\/]/.test(file.filename))).toBe(true);
   await studio.getByRole("radio", { name: "Flat engraving" }).click();
-  await expect(studio.locator(".preview-stage")).toHaveAttribute("aria-busy", "false");
+  await expect(studio.locator(".preview-stage")).toHaveAttribute("aria-busy", "false", { timeout: PREVIEW_TIMEOUT_MS });
   const flat = await invoke("openInStudio");
   expect(flat.error).toBe("");
   expect(flat.files[0]!.filename).toMatch(/-engraving\.svg$/);
@@ -147,13 +152,13 @@ test("Atomm SDK failure explains recovery and reconnects after reload", async ({
   await page.route("**/atomm-recovery", route => route.fulfill({ contentType: "text/html", body: '<iframe title="Generator" src="/studio" style="width:100%;height:800px"></iframe>' }));
   await page.goto("/atomm-recovery");
   const studio = page.frameLocator("iframe");
-  await expect(studio.getByText("Connecting to Atomm…", { exact: true })).toBeVisible();
+  await expect(studio.getByText("Connecting to Atomm…", { exact: true })).toBeVisible({ timeout: STARTUP_TIMEOUT_MS });
   const retry = studio.getByRole("button", { name: "Reload connection" });
   await expect(retry).toBeVisible({ timeout: 15_000 });
   await expect(studio.getByText("Atomm has not connected.", { exact: false })).toBeVisible();
   offline = false;
   await retry.click();
-  await expect(studio.locator(".atomm-workbench")).toBeVisible();
+  await expect(studio.locator(".atomm-workbench")).toBeVisible({ timeout: STARTUP_TIMEOUT_MS });
   await expect(retry).toHaveCount(0);
   await expect(studio.getByText("Connecting to Atomm…", { exact: true })).toHaveCount(0);
 });
@@ -297,6 +302,7 @@ test("Atomm linework and location search stay readable under light and dark them
   await page.route("**/atomm-contrast", route => route.fulfill({ contentType: "text/html", body: '<html><body style="margin:0"><iframe title="Generator" src="/studio" style="width:100%;height:100vh;border:0;display:block"></iframe></body></html>' }));
   await page.goto("/atomm-contrast");
   const studio = page.frameLocator("iframe");
+  await expect(studio.locator(".atomm-workbench")).toBeVisible({ timeout: STARTUP_TIMEOUT_MS });
   const chooseLocation = studio.locator(".location-card");
   await expect(chooseLocation.locator("strong")).toHaveText("Choose location");
   await expect(chooseLocation.locator("small")).not.toBeEmpty();
@@ -375,7 +381,7 @@ test("Atomm depth allowance is explicit and fitting actions use readable theme b
   await page.route("**/atomm-test", route => route.fulfill({ contentType: "text/html", body: '<iframe title="Atomm generator" src="/studio" style="position:fixed;inset:0;width:100%;height:100%;border:0"></iframe>' }));
   await page.goto("/atomm-test");
   const studio = page.frameLocator("iframe");
-  await expect(studio.locator(".atomm-workbench")).toBeVisible();
+  await expect(studio.locator(".atomm-workbench")).toBeVisible({ timeout: STARTUP_TIMEOUT_MS });
   await studio.getByRole("button", { name: "Terrain layers", exact: true }).click();
   const terrainSlider = studio.getByRole("slider", { name: "Vertical exaggeration slider", exact: true });
   await expect(terrainSlider).toHaveAttribute("max", "10");
@@ -396,14 +402,14 @@ test("Atomm depth allowance is explicit and fitting actions use readable theme b
   await expect(limit).not.toBeChecked();
   await expect(studio.getByRole("spinbutton", { name: "Maximum depth layers", exact: true })).toHaveCount(0);
   await studio.getByRole("spinbutton", { name: "Water depth exaggeration", exact: true }).fill("4");
-  await expect(studio.locator(".preview-stage")).toHaveAttribute("aria-busy", "false");
+  await expect(studio.locator(".preview-stage")).toHaveAttribute("aria-busy", "false", { timeout: PREVIEW_TIMEOUT_MS });
   const automaticCount = Number(await studio.getByRole("slider", { name: "Selected layer", exact: true }).getAttribute("max")) + 1;
   await limit.check();
   const depthLayers = studio.getByRole("spinbutton", { name: "Maximum depth layers", exact: true });
   await depthLayers.fill("1");
   const fit = studio.getByRole("button", { name: "Fit depth", exact: true });
+  await expect(studio.locator(".preview-stage")).toHaveAttribute("aria-busy", "false", { timeout: PREVIEW_TIMEOUT_MS });
   await expect(fit).toBeVisible();
-  await expect(studio.locator(".preview-stage")).toHaveAttribute("aria-busy", "false");
   expect(Number(await studio.getByRole("slider", { name: "Selected layer", exact: true }).getAttribute("max")) + 1).toBeLessThan(automaticCount);
   for (const theme of ["light", "dark"]) {
     await studio.locator("html").evaluate((el, value) => el.setAttribute("data-theme", value), theme);
@@ -415,11 +421,12 @@ test("Atomm depth allowance is explicit and fitting actions use readable theme b
       });
       expect(appearance).toMatchObject({ radius: "6px", transform: "none", border: "1px", height: 32, color: "rgb(23, 23, 25)" });
       await action.click();
-      await expect(studio.locator(".preview-stage")).toHaveAttribute("aria-busy", "false");
+      await expect(studio.locator(".preview-stage")).toHaveAttribute("aria-busy", "false", { timeout: PREVIEW_TIMEOUT_MS });
     }
   }
   await expect(studio.getByRole("checkbox", { name: "Fit lake depth to available layers", exact: true })).not.toBeChecked();
   await limit.uncheck();
+  await expect(studio.locator(".preview-stage")).toHaveAttribute("aria-busy", "false", { timeout: PREVIEW_TIMEOUT_MS });
   await expect(fit).toHaveCount(0);
   await expect(depthLayers).toHaveCount(0);
   await expect.poll(async () => Number(await studio.getByRole("slider", { name: "Selected layer", exact: true }).getAttribute("max")) + 1).toBe(automaticCount);
@@ -437,7 +444,7 @@ for (const embedded of [true, false]) {
     try {
       await page.goto(embedded ? "/atomm-test" : "/studio");
       const studio = embedded ? page.frameLocator("iframe") : page;
-      if (embedded) await expect(studio.locator(".atomm-workbench")).toBeVisible();
+      if (embedded) await expect(studio.locator(".atomm-workbench")).toBeVisible({ timeout: STARTUP_TIMEOUT_MS });
       await expect(studio.getByRole("button", { name: "Generate terrain", exact: true })).toBeVisible();
       await page.route("**/geometry.worker-*.js", async route => { await workerGate; await route.continue(); });
       await studio.getByRole("button", { name: "Generate terrain", exact: true }).click();
@@ -456,7 +463,7 @@ for (const embedded of [true, false]) {
       await expect(overlay).toContainText("Step 3 of 3");
       releaseWorker();
       await expect(overlay).toBeHidden({ timeout: 30_000 });
-      await expect(studio.locator(".preview-stage")).toHaveAttribute("aria-busy", "false");
+      await expect(studio.locator(".preview-stage")).toHaveAttribute("aria-busy", "false", { timeout: PREVIEW_TIMEOUT_MS });
       await expect(studio.locator(".status-line")).toContainText("Real terrain ready");
     } finally { releaseWorker(); }
   });
