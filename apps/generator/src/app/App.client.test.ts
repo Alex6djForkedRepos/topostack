@@ -35,6 +35,8 @@ describe("TopoStack Svelte shell", () => {
   // so the first in-test dynamic import cannot race mock registration and pull
   // in the real WebGL component.
   beforeAll(async () => {
+    HTMLDialogElement.prototype.showModal ??= function () { this.open = true; };
+    HTMLDialogElement.prototype.close ??= function () { this.open = false; this.dispatchEvent(new Event("close")); };
     // Match the page's precomputed Worker result. Clone it at each mount so
     // tests remain isolated without recalculating the same preview for every test.
     initialPreview = generateGeometry(DEFAULT_PROJECT, createSamplePreviewSource());
@@ -48,6 +50,59 @@ describe("TopoStack Svelte shell", () => {
     await import("./ThreePreview.svelte");
   });
   afterEach(async () => { if (component) await unmount(component); component = undefined; loadTerrainMock.mockReset(); loadVectorMarkingsMock.mockReset(); loadLakeAreasMock.mockReset(); Object.values(noaaArchive).forEach((mock) => mock.mockReset()); theme.preference = "system"; localStorage.removeItem("topostack-theme"); localStorage.removeItem("topostack-menu-sections-v1"); delete window.atomm; });
+
+  it("resets the entire saved project to Crater Lake defaults and supports Undo", async () => {
+    const { loadProject, saveProject } = await import("../storage");
+    const saved = { ...DEFAULT_PROJECT, name: "My mountain", widthMm: 450, outputMode: "engraving" as const,
+      location: { lat: 46.85, lon: -121.76, label: "Mount Rainier", zoom: 12 }, showWater: false, verticalExaggeration: 5 };
+    vi.mocked(loadProject).mockResolvedValueOnce(saved);
+    vi.mocked(saveProject).mockClear();
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    const reset = () => target.querySelector<HTMLButtonElement>('button[aria-label="Reset project"]')!;
+    await vi.waitFor(() => expect(reset().disabled).toBe(false));
+    reset().click();
+    await tick();
+    const dialog = target.querySelector<HTMLDialogElement>(".reset-dialog")!;
+    expect(dialog.open).toBe(true);
+    expect(target.querySelector<HTMLInputElement>('[aria-label="Project name"]')?.value).toBe(saved.name);
+    dialog.querySelector<HTMLButtonElement>("button")!.click();
+    await tick();
+    expect(target.querySelector(".reset-dialog")).toBeNull();
+    expect(target.querySelector<HTMLInputElement>('[aria-label="Project name"]')?.value).toBe(saved.name);
+    reset().click();
+    await tick();
+    [...target.querySelectorAll<HTMLButtonElement>(".reset-dialog button")].find((button) => button.textContent?.trim() === "Reset project")!.click();
+    await vi.waitFor(() => expect(saveProject).toHaveBeenLastCalledWith(DEFAULT_PROJECT));
+    expect(target.querySelector<HTMLInputElement>('[aria-label="Project name"]')?.value).toBe("Crater Lake");
+    expect(target.querySelector('[aria-label="Layered relief"]')?.getAttribute("aria-checked")).toBe("true");
+    await vi.waitFor(() => expect(target.textContent).toContain("Some lake depths are estimated rather than surveyed."));
+    expect(loadTerrainMock).not.toHaveBeenCalled();
+    target.querySelector<HTMLButtonElement>('button[aria-label="Undo"]')!.click();
+    await vi.waitFor(() => expect(saveProject).toHaveBeenLastCalledWith(saved));
+    target.querySelector<HTMLButtonElement>('button[aria-label="Redo"]')!.click();
+    await vi.waitFor(() => expect(saveProject).toHaveBeenLastCalledWith(DEFAULT_PROJECT));
+  });
+
+  it("discards terrain generation that finishes after resetting the project", async () => {
+    const { saveProject } = await import("../storage");
+    let finish: ((value: unknown) => void) | undefined;
+    loadTerrainMock.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    const reset = () => target.querySelector<HTMLButtonElement>('button[aria-label="Reset project"]')!;
+    await vi.waitFor(() => expect(reset().disabled).toBe(false));
+    target.querySelector<HTMLButtonElement>(".generate-button")!.click();
+    await vi.waitFor(() => expect(finish).toBeDefined());
+    reset().click();
+    await tick();
+    [...target.querySelectorAll<HTMLButtonElement>(".reset-dialog button")].find((button) => button.textContent?.trim() === "Reset project")!.click();
+    await tick();
+    finish!({ source: createSyntheticSource(DEFAULT_PROJECT, 32), fallback: true });
+    await vi.waitFor(() => expect(saveProject).toHaveBeenLastCalledWith(DEFAULT_PROJECT));
+    expect(target.querySelector(".status-line")?.textContent).toContain("Project reset to Crater Lake defaults");
+    expect(target.textContent).not.toContain("Sample terrain generated");
+  });
 
   it("deduplicates repeated survey-gap warnings without hiding distinct warnings", async () => {
     const preview = structuredClone(initialPreview);

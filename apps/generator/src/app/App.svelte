@@ -2,9 +2,9 @@
   import { onMount, untrack, setContext } from "svelte";
   import { base } from "$app/paths";
   import { House } from "@lucide/svelte";
-  import { Box, ChevronDown, Circle, Compass, Download, Grid3X3, Layers3, Map as MapIcon, MapPin, Minus, Mountain, PenTool, Plus, Route, Search, Sparkles, Square, Trash2, Undo2, Redo2, Upload, Waves, X } from "@lucide/svelte";
+  import { Box, ChevronDown, Circle, Compass, Download, Grid3X3, Layers3, Map as MapIcon, MapPin, Minus, Mountain, PenTool, Plus, Route, RotateCcw, Search, Sparkles, Square, Trash2, Undo2, Redo2, Upload, Waves, X } from "@lucide/svelte";
   import { AppShell, Brand, Button, ContextBar, Field, IconButton, Input, Section, Sidebar, ThemeToggle, Topbar, Workspace } from "@loidolt/theme-svelte";
-  import { sourceRequirements, createSyntheticSource, DEFAULT_PROJECT, displayElevation, displayLength, elevationUnit, generateGeometry, labelPathData, lengthUnit, MAP_MARKER_SIZE_MM, MAP_MARKER_MIN_SIZE_MM, MAP_MARKER_MAX_SIZE_MM, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, MAX_WATER_DEPTH_EXAGGERATION, millimetersFromDisplay, MIN_VERTICAL_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, NORTH_ARROW_MIN_SIZE_MM, planTerrainStack, projectFingerprint, validateProject, type GeoBounds, type GeometryIRV1, type LineStyleV1, type OperationPath, type ProjectConfigV1, type SourceBundleV1 } from "@topostack/core";
+  import { sourceRequirements, DEFAULT_PROJECT, displayElevation, displayLength, elevationUnit, generateGeometry, labelPathData, lengthUnit, MAP_MARKER_SIZE_MM, MAP_MARKER_MIN_SIZE_MM, MAP_MARKER_MAX_SIZE_MM, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, MAX_WATER_DEPTH_EXAGGERATION, millimetersFromDisplay, MIN_VERTICAL_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, NORTH_ARROW_MIN_SIZE_MM, planTerrainStack, projectFingerprint, validateProject, type GeoBounds, type GeometryIRV1, type LineStyleV1, type OperationPath, type ProjectConfigV1, type SourceBundleV1 } from "@topostack/core";
   import { assembleWater, boundsForProject, loadLakeAreas, loadSurveyedLakeDepths, loadTerrain, loadVectorMarkings, type PlaceResult } from "../data-provider";
   import { applySurveyProvenance } from "../bathymetry";
   import { resolveLakeOutlines } from "../lake-outlines";
@@ -20,6 +20,7 @@
   import FeedbackButton from "../lib/FeedbackButton.svelte";
   import { studioFeedbackContext } from "../lib/feedback";
   import ExportDialog from "./ExportDialog.svelte";
+  import ResetProjectDialog from "./ResetProjectDialog.svelte";
   import { readAtommLocale } from "./atomm-locale";
   import NumberField from "./StudioNumberField.svelte";
   import LengthField from "./StudioLengthField.svelte";
@@ -29,6 +30,7 @@
   import { MAX_LATITUDE, MAX_LONGITUDE } from "../coordinates";
   import { isAbortError, PreviewPipeline } from "./preview-pipeline";
   import { LazyComponent } from "./lazy-component";
+  import { createProjectPreviewSource } from "./project-preview";
   import { restoreStartupProject } from "./startup-restore";
   import { activeLinePreset as findActiveLinePreset, CONFIG_SECTION_IDS, countDetailMarkings, featuredLayerIndex, layerForEnabledDetail, modeledLakes as findModeledLakes, sectionSummary as summarizeSection, visibleWarnings as summarizeWarnings, type ConfigSectionId } from "./preview-summary";
   import { retryingLoader } from "./lazy-load";
@@ -98,6 +100,7 @@
   let embeddedInPlatform = $state(false);
   setContext("atomm-embedded", () => embeddedInPlatform);
   let exportOpen = $state(false);
+  let resetOpen = $state(false);
   const exportNotice = new ExportNotice((message) => { status = message; });
   const exportPhase = $derived(exportNotice.phase);
   const exportTitle = $derived(exportNotice.title);
@@ -319,12 +322,12 @@
         // the default project; it must neither overwrite nor be undone into it.
         invalidatePendingPreview();
         projectHistory.reset();
-        replaceSourceProject(saved, createSyntheticSource(saved));
+        replaceSourceProject(saved, createProjectPreviewSource(saved));
       },
       openLinkedLake: (next, previous) => {
         invalidatePendingPreview();
         projectHistory.push(previous);
-        replaceSourceProject(next, createSyntheticSource(next));
+        replaceSourceProject(next, createProjectPreviewSource(next));
       },
       setStatus: (message) => { status = message; },
     }).then(({ autosave }) => {
@@ -478,6 +481,19 @@
     const kind: PreviewUpdateKind = sourceChanged.some((key) => key.startsWith("show")) ? "details" : sourceChanged.every((key) => key === "markers" || key === "customLines") ? "customData" : "fabrication";
     void refreshPreview(kind, 0);
   }
+  function resetProject(): void {
+    invalidatePendingPreview();
+    projectHistory.push(project);
+    dismissedWarnings = [];
+    explodedDrag = undefined;
+    mapAspectLocked = false;
+    previewNotice = "";
+    mode = threeUnavailable ? "2d" : "3d";
+    replaceSourceProject(structuredClone(DEFAULT_PROJECT), createSamplePreviewSource());
+    generationState = "ready";
+    status = "Project reset to Crater Lake defaults · Undo restores your previous settings";
+  }
+
   function undo(): void { const previous = projectHistory.undo(project); if (previous) restoreProject(previous, "Undo"); }
   function redo(): void { const next = projectHistory.redo(project); if (next) restoreProject(next, "Redo"); }
 
@@ -625,7 +641,7 @@
     // A rejected file leaves a running Generate alone: report it on the status line only.
     const reportImportError = (message: string) => { status = message; if (generationState !== "loading") generationState = "error"; };
     if (file.size > MAX_PROJECT_FILE_BYTES) { reportImportError("Project file must be 2 MB or smaller."); if (importInput) importInput.value = ""; return; }
-    try { const parsed: unknown = JSON.parse(await file.text()); const candidate = parsed && typeof parsed === "object" && "project" in parsed ? (parsed as { project: unknown }).project : parsed; const imported = parseProject(candidate); const source = createSyntheticSource(imported); invalidatePendingPreview(); projectHistory.push(project); dismissedWarnings = []; replaceSourceProject(imported, source); generationState = "ready"; status = "Project imported · generate to refresh its terrain"; }
+    try { const parsed: unknown = JSON.parse(await file.text()); const candidate = parsed && typeof parsed === "object" && "project" in parsed ? (parsed as { project: unknown }).project : parsed; const imported = parseProject(candidate); const source = createProjectPreviewSource(imported); invalidatePendingPreview(); projectHistory.push(project); dismissedWarnings = []; replaceSourceProject(imported, source); generationState = "ready"; status = "Project imported · generate to refresh its terrain"; }
     catch (error) { reportImportError(error instanceof Error ? error.message : "Could not import this project."); }
     finally { if (importInput) importInput.value = ""; }
   }
@@ -640,6 +656,7 @@
           <div class="history-actions">
             <IconButton label="Undo" onclick={undo} disabled={!historyAvailability.canUndo}><Undo2 size={17} /></IconButton>
             <IconButton label="Redo" onclick={redo} disabled={!historyAvailability.canRedo}><Redo2 size={17} /></IconButton>
+            <IconButton label="Reset project" aria-haspopup="dialog" onclick={(event: MouseEvent) => { if (event.currentTarget instanceof HTMLElement) event.currentTarget.focus(); resetOpen = true; }} disabled={!booted}><RotateCcw size={17} /></IconButton>
             <IconButton label="Import project JSON" onclick={() => importInput.click()}><Upload size={17} /></IconButton>
             <input bind:this={importInput} class="ldt-visually-hidden" type="file" accept="application/json,.json" onchange={(event) => void importProject(event.currentTarget.files?.[0])} />
           </div>
@@ -1287,3 +1304,5 @@
 
 {/if}
 
+
+{#if resetOpen}<ResetProjectDialog onConfirm={() => { resetOpen = false; resetProject(); }} onClose={() => resetOpen = false} />{/if}
