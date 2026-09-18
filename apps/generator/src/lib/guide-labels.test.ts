@@ -19,7 +19,7 @@ const decode = (text: string): string => text.replaceAll("&amp;", "&").replace(/
  * exact so a short label such as "Water" cannot hide inside unrelated code.
  */
 function studioStrings(): Set<string> {
-  const files = ["app/App.svelte", "app/ExportDialog.svelte", "app/LocationDialog.svelte", "app/MapCanvas.svelte", "app/options.ts", "lib/FeedbackButton.svelte"];
+  const files = ["app/App.svelte", "app/ExportDialog.svelte", "app/LocationDialog.svelte", "app/MapCanvas.svelte", "app/TwoDPreview.svelte", "app/options.ts", "lib/FeedbackButton.svelte"];
   const strings = new Set<string>();
   for (const file of files) {
     const source = readFileSync(join(src, file), "utf8");
@@ -47,7 +47,7 @@ const NOT_STUDIO_LABELS = new Set([
   "If a lake looks flat:", "Surveyed:", "Modeled or user-adjusted:", "Mixed:",
   "“Some lake depths are estimated rather than surveyed”", "Real surveys, with different levels of detail.",
   "Prepare the published data.", "Fill between measured contours.", "Match your map.", "Keep track of gaps.",
-  "Open in studio",
+  "Open in studio", "Turn off kerf compensation",
 ]);
 
 function boldText(page: string): string[] {

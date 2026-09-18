@@ -332,7 +332,13 @@ export interface PaintRegionIR {
   kind: PaintRegionKind;
   layerIndex: number;
   polygonIndex: number;
+  /** The windows: region exposed after assembly plus the bleed under the layer above. */
   polygons: Polygon2D[];
+  /**
+   * The stencil as cut: the piece less its windows, thin paper bridges opened
+   * up. Absent from IR recorded before stencils were merged into one outline.
+   */
+  paper?: Polygon2D[];
 }
 
 export interface WaterSurfaceIR {

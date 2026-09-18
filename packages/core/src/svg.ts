@@ -8,8 +8,8 @@ import { labelLineSegments, labelPathData } from "./labels.js";
 import { offsetClosedRing } from "./offset.js";
 import { displayElevation, displayLength, elevationUnit, lengthUnit } from "./units.js";
 import { waterPatternStrokes } from "./water-pattern.js";
-import { PAINT_BLEED_MM } from "./paint-regions.js";
-import type { ExportFile, FabricationNest, FabricationPackageV1, FabricationPanelV1, GeometryIRV1, LayerIR, LineStyleV1, PaintRegionKind, Point2D, ProjectConfigV1 } from "./types.js";
+import { omittedNestHoles, PAINT_BLEED_MM, paintStencil } from "./paint-regions.js";
+import type { ExportFile, FabricationPackageV1, FabricationPanelV1, GeometryIRV1, LayerIR, LineStyleV1, PaintRegionKind, Point2D, ProjectConfigV1 } from "./types.js";
 
 const CUT = "#FE0002";
 const SCORE = "#2366FF";
@@ -303,14 +303,6 @@ function fabricationPanels(ir: GeometryIRV1): FabricationPanel[] {
   });
 }
 
-function omittedNestHoles(nests: FabricationNest[], layerIndex: number): Map<number, Set<number>> {
-  const result = new Map<number, Set<number>>();
-  nests.filter((nest) => nest.donorLayerIndex === layerIndex).forEach((nest) => nest.cavities.forEach((cavity) => {
-    result.set(cavity.donorPolygonIndex, new Set([...(result.get(cavity.donorPolygonIndex) ?? []), cavity.donorHoleIndex]));
-  }));
-  return result;
-}
-
 type Operation = "cut" | "score" | "engrave" | "assembly";
 const OPERATIONS: readonly Operation[] = ["engrave", "assembly", "score", "cut"];
 const ENGRAVE_ONLY: readonly Operation[] = ["engrave", "assembly"];
@@ -418,28 +410,33 @@ function panelToSvg(ir: GeometryIRV1, panel: FabricationPanel, bodies: PanelBodi
 }
 
 /**
- * A paper stencil registered to one fabrication panel: the same canvas, each
- * included piece's outline at nominal size (paper takes no kerf), and the
- * piece's paint windows for `kind`. Undefined when no piece on the panel has
- * a window, so a dry sheet gets no empty template.
+ * A paper stencil registered to one fabrication panel: the same canvas, and
+ * for each included piece the stencil as it is cut - the piece at nominal
+ * size (paper takes no kerf) less its paint windows for `kind`, as one
+ * outline. A window on the piece edge reshapes the edge rather than doubling
+ * the cut there. Undefined when no piece on the panel keeps any paper: a dry
+ * sheet, or one whose pieces are painted edge to edge, gets no template.
  */
-function paintTemplateSvg(ir: GeometryIRV1, panel: FabricationPanel, kind: PaintRegionKind): string | undefined {
+function paintTemplateSvg(ir: GeometryIRV1, config: ProjectConfigV1, panel: FabricationPanel, kind: PaintRegionKind): string | undefined {
   const regions = (ir.paintRegions ?? []).filter((region) => region.kind === kind && panel.layerIndexes.includes(region.layerIndex)
     && (!panel.included || panel.included.get(region.layerIndex)?.has(region.polygonIndex)));
-  if (!regions.length) return undefined;
+  const stencils = regions.flatMap(({ layerIndex, polygonIndex, polygons, paper }) => {
+    const layer = ir.layers[layerIndex];
+    const polygon = layer?.polygons[polygonIndex];
+    if (!layer || !polygon) return [];
+    const omittedHoles = omittedNestHoles(ir.fabricationNests, layerIndex).get(polygonIndex) ?? new Set<number>();
+    // IR from before stencils were merged carries windows only: cut the paper here.
+    const sheets = paper ?? paintStencil({ outer: polygon.outer, holes: polygon.holes.filter((_, holeIndex) => !omittedHoles.has(holeIndex)) }, polygons, config.minimumFeatureMm);
+    return sheets.length ? [{ layer, polygonIndex, sheets }] : [];
+  });
+  if (!stencils.length) return undefined;
   const groups = panel.layerIndexes.flatMap((layerIndex) => {
     const layer = ir.layers[layerIndex];
-    const layerRegions = regions.filter((region) => region.layerIndex === layerIndex);
-    if (!layer || !layerRegions.length) return [];
-    const omitted = omittedNestHoles(ir.fabricationNests, layerIndex);
-    const paths = layerRegions.map(({ polygonIndex, polygons }) => {
-      const polygon = layer.polygons[polygonIndex];
-      if (!polygon) return "";
-      const omittedHoles = omitted.get(polygonIndex) ?? new Set<number>();
-      const outline = [polygon.outer, ...polygon.holes.filter((_, holeIndex) => !omittedHoles.has(holeIndex))].map((ring) => pathData(ring, 0, 0, true)).join(" ");
+    const layerStencils = stencils.filter((stencil) => stencil.layer.index === layerIndex);
+    if (!layer || !layerStencils.length) return [];
+    const paths = layerStencils.map(({ polygonIndex, sheets }) => {
       const piece = layer.pieces[polygonIndex]?.id ?? layer.id;
-      const windows = polygons.map((window, windowIndex) => `<path id="${layer.id}-paint-${kind}-${polygonIndex + 1}-window-${windowIndex + 1}" data-role="window" data-kind="${kind}" d="${[window.outer, ...window.holes].map((ring) => pathData(ring, 0, 0, true)).join(" ")}" ${CUT_LINE}/>`).join("");
-      return `<path id="${layer.id}-paint-${kind}-${polygonIndex + 1}-outline" data-role="outline" data-piece="${escapeXml(piece)}" d="${outline}" ${CUT_LINE}/>${windows}`;
+      return sheets.map((sheet, sheetIndex) => `<path id="${layer.id}-paint-${kind}-${polygonIndex + 1}${sheets.length > 1 ? `-${sheetIndex + 1}` : ""}" data-role="stencil" data-kind="${kind}" data-piece="${escapeXml(piece)}" d="${[sheet.outer, ...sheet.holes].map((ring) => pathData(ring, 0, 0, true)).join(" ")}" ${CUT_LINE}/>`).join("");
     }).join("");
     return [`<g id="${layer.id}-PAINT-${kind.toUpperCase()}" data-layers="${layer.id}">${paths}</g>`];
   }).join("");
@@ -608,7 +605,7 @@ export function buildFabricationPackage(generated: GeometryIRV1, config: Project
     const filename = panel.layerIndexes.length === 1 ? `${base}-${ir.layers[panel.rootLayerIndex]?.id}${cell}.svg` : `${base}-panel-${String(index + 1).padStart(2, "0")}-layers-${layers}${cell}.svg`;
     const engravingFilename = filename.replace(/\.svg$/, "-engrave.svg");
     const paintFiles: ExportFile[] = config.paintTemplates.flatMap((kind) => {
-      const svg = paintTemplateSvg(ir, panel, kind);
+      const svg = paintTemplateSvg(ir, config, panel, kind);
       return svg ? [{ filename: filename.replace(/\.svg$/, `-paint-${kind}.svg`), blob: new Blob([svg], { type: "image/svg+xml" }) }] : [];
     });
     return {
@@ -712,7 +709,7 @@ export function buildFabricationPackage(generated: GeometryIRV1, config: Project
   })() : "";
   const paintCount = panelFiles.reduce((total, { paintFiles }) => total + paintFiles.length, 0);
   const paint = config.paintTemplates.length ? (paintCount
-    ? `Paint templates: ${paintCount} panel${paintCount === 1 ? " has" : "s have"} a registered -paint-<kind>.svg companion (${config.paintTemplates.join(", ")}). Cut each one from paper or stencil film with kerf compensation turned off: its outer outline is the piece at nominal size, and the windows inside it are the ${config.paintTemplates.join("/")} that stays visible after assembly, extended ${shownLength(PAINT_BLEED_MM)} under the layer above so a slightly misplaced stencil leaves no bare edge at the foot of the step. Lay the stencil flush to the cut piece's edge, spray, and remove it before gluing; the bleed lands on covered glue land, so wipe or lightly sand a thick paint film there. Every template path is a red CUT path; a panel with no visible ${config.paintTemplates.join("/")} has no template.\n\n`
+    ? `Paint templates: ${paintCount} panel${paintCount === 1 ? " has" : "s have"} a registered -paint-<kind>.svg companion (${config.paintTemplates.join(", ")}). Cut each one from paper or stencil film with kerf compensation turned off: each path is the piece at nominal size with the ${config.paintTemplates.join("/")} that stays visible after assembly cut away, extended ${shownLength(PAINT_BLEED_MM)} under the layer above so a slightly misplaced stencil leaves no bare edge at the foot of the step. Where the ${config.paintTemplates.join("/")} reaches the piece edge the stencil simply stops short of that edge, so register it on the edges and key tabs it keeps. Lay the stencil flush to the cut piece, spray, and remove it before gluing; the bleed lands on covered glue land, so wipe or lightly sand a thick paint film there. Every template path is a red CUT path. A panel with no visible ${config.paintTemplates.join("/")} has no template, and a piece painted edge to edge needs none, so it leaves no paper on the template.\n\n`
     : `Paint templates are enabled, but no panel has visible ${config.paintTemplates.join("/")}, so none were written.\n\n`) : "";
   const nesting = ir.fabricationNests.length ? `Material nesting reduced ${ir.layers.length} layer panels to ${panels.length} fabrication panels. Smaller layers share cut lines inside lower layers while preserving at least ${shownLength(config.glueMarginMm)} of covered glue land. Keep every loose cutout: nested pieces belong to the layer IDs listed in each panel filename and SVG data-layers attribute.\n\n` : config.optimizeMaterialUse ? (ir.splitPlan
     ? `No safe material nests fit the requested ${shownLength(config.glueMarginMm)} glue margin. A nested piece has to sit wholly inside one donor piece, and a work-area seam usually cuts through that room, so splitting a model normally costs its nesting.\n\n`

@@ -6,7 +6,7 @@ export * from "./markers.js";
 export * from "./north-arrow.js";
 export * from "./offset.js";
 export * from "./svg.js";
-export { PAINT_BLEED_MM, paintRegions } from "./paint-regions.js";
+export { PAINT_BLEED_MM, PAINT_LOOSE_SHEET_MIN_MM, PAINT_PAPER_MIN_MM, paintRegions, paintStencil } from "./paint-regions.js";
 export type { FlatWaterArea, PaintLayerClip, PaintRegionSources } from "./paint-regions.js";
 export * from "./units.js";
 // Water carving is a stage of `generateGeometry`, not an entry point: its

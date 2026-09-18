@@ -22,6 +22,16 @@ export const PUBLIC_PAGES: Record<string, { title: string; description: string; 
     description: "Create a flat contour map for laser engraving. Set contour density, add roads and water, and export a single SVG at your chosen physical size.",
     label: "Engraving guide",
   },
+  "/guides/split-large-maps": {
+    title: "Split a Large Laser-Cut Map to Fit Your Bed | TopoStack",
+    description: "Build a layered topographic map bigger than your laser. Split each layer into bed-sized pieces with staggered seams, puzzle tabs and assembly ids.",
+    label: "Split large maps",
+  },
+  "/guides/water-paint-templates": {
+    title: "Paint Lakes with Laser-Cut Stencils | TopoStack",
+    description: "Cut a paper stencil for each layer of a topographic map and spray paint only the water that stays visible after the stack is glued.",
+    label: "Water paint templates",
+  },
   "/guides/lake-depth-data": {
     title: "Search Lakes with Surveyed Depth Data | TopoStack",
     description: "Search TopoStack's lake-depth catalog by name, region or source. Find surveyed grids and depth contours, then open a lake in the studio.",
