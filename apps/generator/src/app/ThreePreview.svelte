@@ -16,6 +16,7 @@
   let { geometry, exploded, onUnavailable }: { geometry: GeometryIRV1; exploded: number; onUnavailable?: () => void } = $props();
   import AtommZoom from "./AtommZoom.svelte";
   import { MARKING_COLORS, markingStyleKey, type MarkingStyleKey } from "./marking-style";
+  import { sharedPieceEdges } from "./seam-lines";
   const isEmbedded = getContext<() => boolean>("atomm-embedded") ?? (() => false);
   let zoom = $state(1);
   let fitDistance = 320;
@@ -49,6 +50,8 @@
     /** Signature of everything the extrusion depends on; a mismatch rebuilds it. */
     key: string;
     meshes: THREE.Mesh[];
+    /** Cut lines between the pieces of a split layer, as segment pairs. */
+    seams: number[];
     /** The top-face material, which knockout markings also draw with. */
     face: THREE.MeshStandardMaterial;
     /** Materials and textures only this layer's meshes reference. */
@@ -308,6 +311,7 @@
         boundary: boundaryMaterial, grid: coordinateGridMaterial, engrave: engraveMaterial,
       };
       const labelMaterial = new THREE.LineBasicMaterial({ color: 0x21170f, toneMapped: false, linewidth: style.annotationMm });
+      const seamMaterial = new THREE.LineBasicMaterial({ color: 0x1a120b, toneMapped: false });
       const markerFillMaterial = new THREE.MeshBasicMaterial({ color: 0x2b2119, side: THREE.DoubleSide });
       // Water reads as a pane resting over the basin rather than as another
       // sheet of stock, so it is transmissive and never casts a shadow into the
@@ -318,7 +322,7 @@
         color: 0x14536e, transparent: true, opacity: 0.52, roughness: 0.28, metalness: 0,
         side: THREE.DoubleSide, depthWrite: false,
       });
-      runtime.sceneResources.push(engraveMaterial, majorRoadMaterial, localRoadMaterial, trailMaterial, scoreMaterial, boundaryMaterial, coordinateGridMaterial, labelMaterial, markerFillMaterial, waterMaterial);
+      runtime.sceneResources.push(engraveMaterial, majorRoadMaterial, localRoadMaterial, trailMaterial, scoreMaterial, boundaryMaterial, coordinateGridMaterial, labelMaterial, seamMaterial, markerFillMaterial, waterMaterial);
       activeGeometry.layers.forEach((layer) => {
         const baseZ = layer.index * layer.materialThicknessMm;
         let cached = runtime!.layerMeshes.get(layer.id);
@@ -335,7 +339,11 @@
             mesh.receiveShadow = true;
             return mesh;
           });
-          cached = { key: keys.get(layer.id)!, meshes, face, resources: [grain, face, side] };
+          // Every seam between pieces is drawn, tabs and straight runs alike:
+          // butted bodies alone showed a curved joint's side walls but hid
+          // straight ones, so some joints read as stray outlines.
+          const seams = layer.pieces.length ? sharedPieceEdges(layer.polygons).flatMap(([start, end]) => [start.x, start.y, 0, end.x, end.y, 0]) : [];
+          cached = { key: keys.get(layer.id)!, meshes, seams, face, resources: [grain, face, side] };
           runtime!.layerMeshes.set(layer.id, cached);
         }
         const { face } = cached;
@@ -357,6 +365,7 @@
           }
           if (marking.label && marking.points[0]) appendLabel(labelBatch, marking.label, marking.points[0], marking.labelRotationRad, marking.textStyle);
         });
+        if (cached.seams.length) lineBatches.set(seamMaterial, { positions: [...cached.seams] });
         for (const [material, batch] of lineBatches) {
           if (batch.positions.length) addStacked(runtime!.content, batchSegments(batch, material), layer.index, baseZ + layer.materialThicknessMm + markingLift(layer.materialThicknessMm));
         }

@@ -303,7 +303,13 @@ function layerClips(layers: LayerIR[]): LayerClip[] {
   return clips;
 }
 
-function addAlignmentGuides(config: ProjectConfigV1, clips: LayerClip[]): void {
+/**
+ * Engrave where the next layer goes. The outline comes from `outlines`, the
+ * layers as they were before any work-area split: tracing the cut pieces
+ * would also engrave the next layer's seams and key tabs, which sit a seam
+ * offset away from this layer's own and read as stray ghost joints.
+ */
+function addAlignmentGuides(config: ProjectConfigV1, clips: LayerClip[], outlines: Polygon2D[][]): void {
   for (let index = 0; index < clips.length - 1; index += 1) {
     const layer = clips[index]?.layer;
     const material = clips[index]?.material;
@@ -312,7 +318,7 @@ function addAlignmentGuides(config: ProjectConfigV1, clips: LayerClip[]): void {
     const layerNumber = String(layer.index + 1).padStart(2, "0");
     const nextLayerNumber = String(nextLayer.index + 1).padStart(2, "0");
     const labelIndex = indexLabelLayer(layer.polygons, layer.markings);
-    nextLayer.polygons.forEach((polygon, polygonIndex) => {
+    const outline = (polygon: Polygon2D, polygonIndex: number) => {
       const guides: OperationPath[] = [];
       offsetClosedRing(polygon.outer, -config.laserKerfMm, "round").forEach((inset, insetIndex) => {
         clipPolyline(inset, material).forEach((points, clipIndex) => guides.push({
@@ -323,17 +329,27 @@ function addAlignmentGuides(config: ProjectConfigV1, clips: LayerClip[]): void {
         }));
       });
       addLabelObstacles(labelIndex, guides);
+      layer.markings.push(...guides);
+    };
+    const label = (polygon: Polygon2D, polygonIndex: number) => {
       // After a work-area split the next layer is many pieces, so a repeated
       // "L03" on one sheet says nothing; name the piece that belongs here.
-      const label = nextLayer.pieces[polygonIndex]?.id ?? `L${nextLayerNumber}`;
-      const point = placeLabel(label, config, labelIndex, polygonCenter(polygon, config), [polygon]);
-      if (point) {
-        const guideLabel: OperationPath = { id: `alignment-layer-${layerNumber}-to-${nextLayerNumber}-${polygonIndex}-label`, operation: "engrave", kind: "guide", points: [point], label, textStyle: config.textStyle };
-        guides.push(guideLabel);
-        addLabelObstacles(labelIndex, [guideLabel]);
-      }
-      layer.markings.push(...guides);
-    });
+      const text = nextLayer.pieces[polygonIndex]?.id ?? `L${nextLayerNumber}`;
+      const point = placeLabel(text, config, labelIndex, polygonCenter(polygon, config), [polygon]);
+      if (!point) return;
+      const guideLabel: OperationPath = { id: `alignment-layer-${layerNumber}-to-${nextLayerNumber}-${polygonIndex}-label`, operation: "engrave", kind: "guide", points: [point], label: text, textStyle: config.textStyle };
+      addLabelObstacles(labelIndex, [guideLabel]);
+      layer.markings.push(guideLabel);
+    };
+    if (!nextLayer.pieces.length) {
+      nextLayer.polygons.forEach((polygon, polygonIndex) => {
+        outline(polygon, polygonIndex);
+        label(polygon, polygonIndex);
+      });
+      continue;
+    }
+    (outlines[index + 1] ?? nextLayer.polygons).forEach(outline);
+    nextLayer.polygons.forEach(label);
   }
 }
 
@@ -1373,13 +1389,14 @@ export function generateGeometry(config: ProjectConfigV1, source: SourceBundleV1
   // Before nesting: cavities record indices into a donor's polygons and holes
   // that splitting would renumber, and a seam through a cavity would leave an
   // open arc where a closed hole belongs.
+  const unsplitOutlines = layers.map((layer) => layer.polygons);
   const splitPlan = splitLayersForWorkArea(config, layers, context.warnings);
   const fabricationNests = flatEngraving ? [] : addMaterialNests(config, layers);
   // Nesting has finished carving cavities, so layer material is final for routing.
   const clips = layerClips(layers);
   const transportationLabels = routeMarkings(context, clips, ladder);
   placeAnnotations(context, clips);
-  if (!flatEngraving && config.showAlignmentGuides) addAlignmentGuides(config, clips);
+  if (!flatEngraving && config.showAlignmentGuides) addAlignmentGuides(config, clips, unsplitOutlines);
   addPieceLabels(context, clips);
   const placedTransportationLabels = placeTransportationLabels(config, transportationLabels);
   if (transportationLabels.size && !placedTransportationLabels) context.warnings.push({

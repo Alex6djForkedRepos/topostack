@@ -233,6 +233,109 @@ describe("machine work-area splitting", () => {
     expect(cellEdges(300, 3, -5).slice(1, -1)).toEqual([-55, 45]);
   });
 
+  it("keys covered seams with interlocking tabs that stay inside the bed", () => {
+    const [config, source] = conicalProject({ workAreaWidthMm: 160, workAreaHeightMm: 120 });
+    const straight = generateGeometry({ ...config, seamTabs: false }, source);
+    const keyed = generateGeometry(config, source);
+    const grid = planSeamGrid(config)!;
+    const covering = straight.layers[1]!.polygons;
+    const seams = seamsX(config, 0);
+
+    // Layer 0 sits under layer 1's disc, which the x seam crosses: some piece
+    // reaches past the seam line, and every such point is hidden by layer 1.
+    const reaching = keyed.layers[0]!.polygons.flatMap((polygon, index) => {
+      const piece = keyed.layers[0]!.pieces.find((entry) => entry.polygonIndex === index)!;
+      return polygon.outer.filter((point) => seams.some((seam) => piece.column === 0 ? point.x > seam + 0.6 : point.x < seam - 0.6));
+    });
+    expect(reaching.length).toBeGreaterThan(0);
+    for (const point of reaching) expect(covering.some((polygon) => pointInPolygon(point, polygon))).toBe(true);
+    // Small keys: nothing reaches more than 5 mm across the seam.
+    for (const point of reaching) expect(Math.min(...seams.map((seam) => Math.abs(point.x - seam)))).toBeLessThanOrEqual(5 + 1e-6);
+
+    for (const layer of keyed.layers) {
+      for (const piece of layer.pieces) {
+        expect(piece.widthMm).toBeLessThanOrEqual(grid.usableWidthMm + 1e-6);
+        expect(piece.heightMm).toBeLessThanOrEqual(grid.usableHeightMm + 1e-6);
+      }
+    }
+    // Same pieces, same material: a tab moves area between neighbours only.
+    expect(keyed.layers.map((layer) => layer.pieces.length)).toEqual(straight.layers.map((layer) => layer.pieces.length));
+    expect(materialArea(keyed)).toBeCloseTo(materialArea(straight), 4);
+    expect(keyed.warnings.some((warning) => warning.code === "WORK_AREA_OVERSIZE")).toBe(false);
+  });
+
+  it("shrinks a tab to fit a narrow covered band", () => {
+    const [config] = conicalProject({ workAreaWidthMm: 160, workAreaHeightMm: 120 });
+    const seam = seamsX(config, 0)[0]!;
+    // Layer 1 is an 11.2 mm strip over layer 0's x seam: too narrow for a
+    // 5 mm tab and its clearance on both sides, wide enough for a 4 mm one.
+    const layers = [bareLayer(0, [rectPolygon(-150, -100, 150, 100)]), bareLayer(1, [rectPolygon(seam - 5.6, 20, seam + 5.6, 90)])];
+    splitLayersForWorkArea(config, layers, []);
+    const reach = Math.max(...layers[0]!.pieces.filter((piece) => piece.column === 0)
+      .flatMap((piece) => layers[0]!.polygons[piece.polygonIndex]!.outer.map((point) => point.x - seam)));
+    expect(reach).toBeCloseTo(4, 6);
+  });
+
+  it("guides the next layer by its outline, not its seams and tabs", () => {
+    const [config, source] = conicalProject({ workAreaWidthMm: 160, workAreaHeightMm: 120, showAlignmentGuides: true });
+    const ir = generateGeometry(config, source);
+    const nextSeam = seamsX(config, 1)[0]!;
+    const outline = ir.layers[0]!.markings.filter((mark) => mark.id.startsWith("alignment-layer-01-to-02-") && mark.id.includes("-inset-"));
+    expect(outline.length).toBeGreaterThan(0);
+    // Layer 2's x seam crosses its disc; before, its cut line (and tabs) were
+    // traced onto layer 1 as a line down the middle.
+    const inner = outline.flatMap((mark) => mark.points).filter((point) => Math.abs(point.y) < 40);
+    expect(inner.some((point) => Math.abs(point.x - nextSeam) < 6)).toBe(false);
+  });
+
+  it("points every layer's tabs the same way", () => {
+    const [config, source] = conicalProject({ workAreaWidthMm: 160, workAreaHeightMm: 120 });
+    const ir = generateGeometry(config, source);
+    let keyed = 0;
+    for (const layer of ir.layers) {
+      const [seam] = seamsX(config, layer.index);
+      layer.polygons.forEach((polygon, index) => {
+        // Only the left-hand cell ever reaches across the x seam.
+        const piece = layer.pieces.find((entry) => entry.polygonIndex === index)!;
+        // An island kept whole straddles the seam without being cut by it.
+        if (piece.exempt) return;
+        const across = polygon.outer.some((point) => piece.column === 0 ? point.x > seam! + 0.6 : point.x < seam! - 0.6);
+        if (piece.column === 0 && across) keyed += 1;
+        if (piece.column === 1) expect(across).toBe(false);
+      });
+    }
+    // Both layers 1 and 2 cover a seam; the narrow cell swaps between them.
+    expect(keyed).toBeGreaterThanOrEqual(2);
+  });
+
+  it("leaves seams that nothing covers straight", () => {
+    const [config, source] = conicalProject({ workAreaWidthMm: 160, workAreaHeightMm: 120 });
+    const straight = generateGeometry({ ...config, seamTabs: false }, source);
+    const keyed = generateGeometry(config, source);
+    const top = keyed.layers.length - 1;
+    expect(keyed.layers[top]!.polygons).toEqual(straight.layers[top]!.polygons);
+  });
+
+  it("keeps every interior point in exactly one piece with tabs cut", () => {
+    const [config, source] = conicalProject({ workAreaWidthMm: 160, workAreaHeightMm: 120 });
+    const layer = generateGeometry(config, source).layers[0]!;
+    // Sample densely around the x seam, where tabs and sockets interlock.
+    for (let x = -18; x <= 8; x += 0.7) {
+      for (let y = -90; y <= 90; y += 0.9) {
+        expect(layer.polygons.filter((polygon) => pointInPolygon({ x, y }, polygon)).length).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+
+  it("skips tabs where the bed has no room for a sound neck", () => {
+    const [config, source] = conicalProject({ seamOffsetMm: 0 });
+    // Two 150 mm tiles on a bed that fits exactly 150 mm leave no slack at all.
+    const tight = { ...config, workAreaWidthMm: 150 + config.laserKerfMm, workAreaHeightMm: 0 };
+    const keyed = generateGeometry(tight, source);
+    const straight = generateGeometry({ ...tight, seamTabs: false }, source);
+    expect(keyed.layers.map((layer) => layer.polygons)).toEqual(straight.layers.map((layer) => layer.polygons));
+  });
+
   it("rejects a seam offset outside the supported range", () => {
     expect(() => validateProject({ ...DEFAULT_PROJECT, seamOffsetMm: -1 })).toThrow(/Seam offset/);
     expect(() => validateProject({ ...DEFAULT_PROJECT, seamOffsetMm: 51 })).toThrow(/Seam offset/);
@@ -592,6 +695,7 @@ describe("split fabrication package", () => {
     const readme = await pkg.files.find((file) => file.filename === "README.txt")!.blob.text();
     expect(readme).toMatch(/Seams shift 10 mm on alternating layers/);
     expect(readme).toMatch(/assembly id/i);
+    expect(readme).toMatch(/interlocking jigsaw tabs/);
   });
 
   it("tiles every panel into the master without overlap", () => {

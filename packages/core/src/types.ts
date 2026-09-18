@@ -224,6 +224,11 @@ export interface ProjectConfigV1 {
    * the model barely overflows the bed.
    */
   seamOffsetMm: number;
+  /**
+   * Cuts interlocking jigsaw tabs into split seams wherever the next layer
+   * hides them, so each piece only fits its true neighbour and self-aligns.
+   */
+  seamTabs: boolean;
   /** Engraves a covered piece id on every piece of a split layer. */
   showAssemblyLabels: boolean;
   showElevationLabels: boolean;
@@ -584,6 +589,7 @@ export const DEFAULT_PROJECT: ProjectConfigV1 = {
   workAreaWidthMm: 0,
   workAreaHeightMm: 0,
   seamOffsetMm: 10,
+  seamTabs: true,
   showAssemblyLabels: true,
   showElevationLabels: true,
   elevationLabelPosition: { x: -0.55, y: 0.55 },

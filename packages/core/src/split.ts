@@ -90,6 +90,130 @@ export function cellEdges(spanMm: number, count: number, shiftMm: number): numbe
   return edges;
 }
 
+/**
+ * How far a key tab reaches across its seam. Tabs only register and lock
+ * pieces - glue carries the load - so they stay small: a 5 mm tab has a
+ * 2.25 mm neck and a 3.75 mm head.
+ */
+const TAB_DEPTH_MM = 5;
+/**
+ * Tabs shrink toward this when the bed or the covered band is short of room;
+ * below it the 1.8 mm neck is too frail to cut, so the seam stays straight.
+ */
+const MIN_TAB_DEPTH_MM = 4;
+/** Each shrink step while searching for a tab that fits. */
+const TAB_DEPTH_STEP_MM = 0.5;
+/** Solid, covered material kept around every tab and socket. */
+const TAB_CLEARANCE_MM = 1.5;
+/** A covered stretch of seam at least this long carries two tabs. */
+const TWO_TAB_STRETCH_MM = 90;
+const TAB_HEAD_SEGMENTS = 24;
+/** Neck width and head radius as fractions of tab depth: the head is 1.67x the neck, so it locks. */
+const TAB_NECK_RATIO = 0.45;
+const TAB_HEAD_RATIO = 0.375;
+
+/** A straight seam in one layer: `u` runs across it, `v` along it. */
+interface SeamAxis {
+  /** Maps seam-local (u, v) back to model (x, y). */
+  point: (u: number, v: number) => [number, number];
+}
+
+const VERTICAL_SEAM: SeamAxis = { point: (u, v) => [u, v] };
+const HORIZONTAL_SEAM: SeamAxis = { point: (u, v) => [v, u] };
+
+/** Ring orientation for polygon-clipping does not matter; it normalizes. */
+function seamRect(axis: SeamAxis, u0: number, v0: number, u1: number, v1: number): Polygon {
+  const ring = [axis.point(u0, v0), axis.point(u1, v0), axis.point(u1, v1), axis.point(u0, v1), axis.point(u0, v0)];
+  return [ring];
+}
+
+/**
+ * A jigsaw knob rooted on the seam at `u = seam`, centred at `v = centre`,
+ * reaching `depth` toward `direction`. The head is wider than the neck, so
+ * the two pieces lock in the plane as well as registering along the seam.
+ * The neck starts half a millimeter behind the seam so the owner's union
+ * never has to resolve a shared edge.
+ */
+function seamTab(axis: SeamAxis, seam: number, centre: number, direction: 1 | -1, depth: number): Polygon {
+  const neck = depth * TAB_NECK_RATIO;
+  const radius = depth * TAB_HEAD_RATIO;
+  const headU = seam + direction * (depth - radius);
+  const head = Array.from({ length: TAB_HEAD_SEGMENTS + 1 }, (_, index) => {
+    const angle = (index % TAB_HEAD_SEGMENTS) / TAB_HEAD_SEGMENTS * Math.PI * 2;
+    return axis.point(headU + Math.cos(angle) * radius, centre + Math.sin(angle) * radius);
+  });
+  const neckRect = seamRect(axis, seam - direction * 0.5, centre - neck / 2, headU, centre + neck / 2);
+  return (polygonClipping.union(neckRect, [head]) as MultiPolygon)[0]!;
+}
+
+/**
+ * Which neighbour owns each seam's tabs, and how deep they may reach. Tabs
+ * point toward +x / +y whenever the lower cell has bed left for at least a
+ * minimum tab, so every layer's keys face the same way; seam offsets swap
+ * which cell is the narrow one on alternating layers, and letting the widest
+ * slack win flipped the tabs layer to layer into mirror images that stacked
+ * over each other. Only when the lower cell is out of room does the tab come
+ * from the other side. The depth shrinks to fit, and a seam without room for
+ * a sound neck on either side stays straight.
+ */
+function tabOwnership(edges: number[], spanMm: number, usableMm: number, nominalDepth: number, minimumDepth: number): Array<{ direction: 1 | -1; depth: number }> {
+  const half = spanMm / 2;
+  const widths = edges.slice(0, -1).map((edge, index) => Math.min(half, edges[index + 1]!) - Math.max(-half, edge));
+  const growth = widths.map(() => 0);
+  const seams: Array<{ direction: 1 | -1; depth: number }> = [];
+  for (let seam = 1; seam < widths.length; seam += 1) {
+    const slackBefore = usableMm - widths[seam - 1]! - growth[seam - 1]!;
+    const slackAfter = usableMm - widths[seam]! - growth[seam]!;
+    const ownerIndex = slackBefore - 1e-6 >= minimumDepth || slackBefore >= slackAfter ? seam - 1 : seam;
+    const depth = Math.min(nominalDepth, (ownerIndex === seam - 1 ? slackBefore : slackAfter) - 1e-6);
+    if (depth < minimumDepth) {
+      seams.push({ direction: 1, depth: 0 });
+      continue;
+    }
+    growth[ownerIndex] = growth[ownerIndex]! + depth;
+    seams.push({ direction: ownerIndex === seam - 1 ? 1 : -1, depth });
+  }
+  return seams;
+}
+
+/**
+ * Tab centres along one stretch of seam: every place where a band reaching
+ * a full tab depth plus clearance to both sides lies entirely in `solid`
+ * (the layer's own material under the next layer's). Any point of the band
+ * missing from `solid` rules out its whole `v` span - a connected polygon's
+ * projection is an interval, and the band spans the full `u` range - so the
+ * free stretches are just the gaps between those spans.
+ */
+function tabCentres(axis: SeamAxis, seam: number, low: number, high: number, depth: number, solid: MultiPolygon): number[] {
+  const margin = depth * TAB_HEAD_RATIO + TAB_CLEARANCE_MM;
+  if (high - low < 2 * margin) return [];
+  const reach = depth + TAB_CLEARANCE_MM;
+  let missing: MultiPolygon;
+  try {
+    missing = polygonClipping.difference(seamRect(axis, seam - reach, low, seam + reach, high), solid) as MultiPolygon;
+  } catch {
+    return [];
+  }
+  const blocked = missing.map((polygon) => {
+    const values = polygon[0]!.map((pair) => (axis === VERTICAL_SEAM ? pair[1] : pair[0]));
+    return [Math.min(...values), Math.max(...values)] as const;
+  }).sort((left, right) => left[0] - right[0]);
+  const centres: number[] = [];
+  let start = low;
+  for (const [from, to] of [...blocked, [high, high] as const]) {
+    const first = start + margin;
+    const last = from - margin;
+    if (last >= first) {
+      const stretch = from - start;
+      const twoFit = last - first >= 2 * margin;
+      if (stretch >= TWO_TAB_STRETCH_MM && twoFit) centres.push(first + (last - first) / 4, last - (last - first) / 4);
+      else centres.push((first + last) / 2);
+    }
+    start = Math.max(start, to);
+  }
+  return centres;
+}
+
 function cellIndexAt(edges: number[], value: number): number {
   for (let index = 0; index < edges.length - 1; index += 1) {
     if (value < edges[index + 1]!) return index;
@@ -210,7 +334,69 @@ function toLayerPieces(layerIndex: number, pieces: CellPiece[]): LayerPieceV1[] 
   });
 }
 
-function splitLayer(config: ProjectConfigV1, layer: LayerIR, grid: SeamPlanV1): CellPiece[] {
+/**
+ * Each cell's cutting region: its rectangle, plus the tabs it owns, less the
+ * tabs its neighbours push into it. Owner and receiver use the very same tab
+ * polygon, so the regions still partition the plane exactly.
+ */
+function cellRegions(
+  config: ProjectConfigV1,
+  grid: SeamPlanV1,
+  xEdges: number[],
+  yEdges: number[],
+  solid: MultiPolygon | undefined,
+): Map<string, { adds: Polygon[]; subtracts: Polygon[] }> {
+  const regions = new Map<string, { adds: Polygon[]; subtracts: Polygon[] }>();
+  if (!solid?.length) return regions;
+  const region = (column: number, row: number) => {
+    const key = `${column},${row}`;
+    if (!regions.has(key)) regions.set(key, { adds: [], subtracts: [] });
+    return regions.get(key)!;
+  };
+  // The neck is the narrowest part a tab has, so it sets the floor.
+  const nominal = Math.max(TAB_DEPTH_MM, config.minimumFeatureMm / TAB_NECK_RATIO);
+  const minimum = Math.max(MIN_TAB_DEPTH_MM, config.minimumFeatureMm / TAB_NECK_RATIO);
+  // Stay clear of the crossing seams, whose own tabs reach this far into the cell.
+  const crossingClearance = nominal + TAB_CLEARANCE_MM;
+  const halfWidth = config.widthMm / 2;
+  const halfHeight = config.heightMm / 2;
+
+  const place = (axis: SeamAxis, edges: number[], crossEdges: number[], usable: number, span: number, crossHalf: number) => {
+    const owners = tabOwnership(edges, span, usable, nominal, minimum);
+    owners.forEach(({ direction, depth }, seamIndex) => {
+      if (!depth) return;
+      const seam = edges[seamIndex + 1]!;
+      for (let cross = 0; cross < crossEdges.length - 1; cross += 1) {
+        const low = Math.max(-crossHalf, crossEdges[cross]!) + (cross > 0 ? crossingClearance : 0);
+        const high = Math.min(crossHalf, crossEdges[cross + 1]!) - (cross < crossEdges.length - 2 ? crossingClearance : 0);
+        // The bed allows `depth`; a narrow covered band may only take less.
+        let fitted = depth;
+        let centres = tabCentres(axis, seam, low, high, fitted, solid);
+        while (!centres.length && fitted - TAB_DEPTH_STEP_MM >= minimum - 1e-9) {
+          fitted -= TAB_DEPTH_STEP_MM;
+          centres = tabCentres(axis, seam, low, high, fitted, solid);
+        }
+        for (const centre of centres) {
+          const tab = seamTab(axis, seam, centre, direction, fitted);
+          const owner = direction === 1 ? seamIndex : seamIndex + 1;
+          const receiver = direction === 1 ? seamIndex + 1 : seamIndex;
+          if (axis === VERTICAL_SEAM) {
+            region(owner, cross).adds.push(tab);
+            region(receiver, cross).subtracts.push(tab);
+          } else {
+            region(cross, owner).adds.push(tab);
+            region(cross, receiver).subtracts.push(tab);
+          }
+        }
+      }
+    });
+  };
+  place(VERTICAL_SEAM, xEdges, yEdges, grid.usableWidthMm, config.widthMm, halfHeight);
+  place(HORIZONTAL_SEAM, yEdges, xEdges, grid.usableHeightMm, config.heightMm, halfWidth);
+  return regions;
+}
+
+function splitLayer(config: ProjectConfigV1, layer: LayerIR, grid: SeamPlanV1, covering: Polygon2D[]): CellPiece[] {
   const xEdges = cellEdges(config.widthMm, grid.columns, seamShift(layer.index, grid.seamOffsetXMm));
   const yEdges = cellEdges(config.heightMm, grid.rows, seamShift(layer.index, grid.seamOffsetYMm));
 
@@ -229,11 +415,26 @@ function splitLayer(config: ProjectConfigV1, layer: LayerIR, grid: SeamPlanV1): 
   const splittableBounds = unionBounds(splittable.map(polygonBounds));
   if (splittableBounds) {
     const splittableRings = splittable.map(polygonRings) as MultiPolygon;
+    // Tabs only go where the next layer hides them. An island kept whole is
+    // never crossed by a seam, so only splittable material can carry one.
+    let solid: MultiPolygon | undefined;
+    if (config.seamTabs && covering.length) {
+      try {
+        solid = polygonClipping.intersection(splittableRings, covering.map(polygonRings) as MultiPolygon) as MultiPolygon;
+      } catch {
+        solid = undefined;
+      }
+    }
+    const regions = cellRegions(config, grid, xEdges, yEdges, solid);
     for (let row = 0; row < yEdges.length - 1; row += 1) {
       for (let column = 0; column < xEdges.length - 1; column += 1) {
         const rect = closedRect(xEdges[column]!, yEdges[row]!, xEdges[column + 1]!, yEdges[row + 1]!);
         if (!boundsOverlap(ringBounds(rect), splittableBounds)) continue;
-        const parts = normalizeMultiPolygon(polygonClipping.intersection(splittableRings, [toRing(rect)]) as MultiPolygon);
+        const keyed = regions.get(`${column},${row}`);
+        let cell: MultiPolygon = [[toRing(rect)]];
+        if (keyed?.adds.length) cell = polygonClipping.union(cell, ...keyed.adds.map((tab) => [tab] as MultiPolygon)) as MultiPolygon;
+        if (keyed?.subtracts.length) cell = polygonClipping.difference(cell, ...keyed.subtracts.map((tab) => [tab] as MultiPolygon)) as MultiPolygon;
+        const parts = normalizeMultiPolygon(polygonClipping.intersection(splittableRings, cell) as MultiPolygon);
         for (const polygon of parts) pieces.push({ polygon, bounds: polygonBounds(polygon), column, row, exempt: false });
       }
     }
@@ -278,8 +479,11 @@ export function splitLayersForWorkArea(config: ProjectConfigV1, layers: LayerIR[
 
   let slivers = 0;
   const oversize: string[] = [];
-  for (const layer of layers) {
-    const merged = mergeSlivers(splitLayer(config, layer, grid), config.minimumFeatureMm, grid);
+  // Covering is read before any layer is cut; splitting keeps each layer's
+  // union, but not its polygon list.
+  const coverings = layers.map((layer) => layers.find((other) => other.index === layer.index + 1)?.polygons ?? []);
+  for (const [layerPosition, layer] of layers.entries()) {
+    const merged = mergeSlivers(splitLayer(config, layer, grid, coverings[layerPosition]!), config.minimumFeatureMm, grid);
     slivers += merged.slivers;
     const ordered = merged.pieces.sort((left, right) =>
       left.row - right.row || left.column - right.column || left.bounds.minY - right.bounds.minY || left.bounds.minX - right.bounds.minX);
