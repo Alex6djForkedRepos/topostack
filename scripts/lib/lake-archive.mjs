@@ -42,11 +42,11 @@ export async function writeTilesetArchive({ outputPath, args = [], command = "ti
   writer.on("error", (error) => { fail(error); ended.abort(); });
   writer.stdin.on("error", fail);
   writer.once("close", () => ended.abort());
-  const closed = new Promise((resolve, reject) => {
-    writer.once("error", reject);
+  // `error` records the failure above; even a failed spawn still emits `close`.
+  // Keep this promise pending until the child and its stdio have finished.
+  const closed = new Promise((resolve) => {
     writer.once("close", (code, signal) => resolve({ code, signal }));
   });
-  closed.catch(() => {});
   try {
     const result = await emit(async (feature) => {
       if (failure) throw failure;
@@ -66,6 +66,10 @@ export async function writeTilesetArchive({ outputPath, args = [], command = "ti
   } catch (error) {
     writer.stdin.destroy();
     writer.kill();
+    // Sending a signal does not wait for exit. The writer can still create or
+    // update its output until it closes, so deleting earlier can leave a part
+    // file behind after this function has already rejected.
+    await closed;
     await rm(partPath, { force: true });
     throw failure ?? error;
   }
