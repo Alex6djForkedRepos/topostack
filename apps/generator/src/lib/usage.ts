@@ -12,7 +12,7 @@ interface Session {
 
 function enabled(): boolean {
   return import.meta.env.VITE_SITE_ENV === "production" && typeof window !== "undefined"
-    && (location.hostname === "topostack.echofoxtrot.works" || (import.meta.env.MODE === "e2e" && import.meta.env.VITE_E2E === "1"))
+    && (location.hostname === "topostack.app" || (import.meta.env.MODE === "e2e" && import.meta.env.VITE_E2E === "1"))
     && navigator.doNotTrack !== "1" && !(navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl;
 }
 function acquisition(): UsageEvent["source"] {

@@ -11,9 +11,9 @@ Development is the first deployment gate. A production CORS failure or an unpubl
 3. Verify the deployed commit at `/version.json`, then run the serving-path and browser checks against development:
 
    ```sh
-   WORKER_URL=https://dev-topostack.echofoxtrot.works PUBLIC_APP_URL=https://dev-topostack.echofoxtrot.works EXPECTED_WORKER_ENVIRONMENT=development node scripts/verify-worker-deployment.mjs
-   node scripts/verify-seo-http.mjs https://dev-topostack.echofoxtrot.works development
-   PUBLIC_APP_URL=https://dev-topostack.echofoxtrot.works npm run test:e2e:live
+   WORKER_URL=https://dev.topostack.app PUBLIC_APP_URL=https://dev.topostack.app EXPECTED_WORKER_ENVIRONMENT=development node scripts/verify-worker-deployment.mjs
+   node scripts/verify-seo-http.mjs https://dev.topostack.app development
+   PUBLIC_APP_URL=https://dev.topostack.app npm run test:e2e:live
    ```
 
 4. Check the Atomm iframe origin and an unrelated origin for credential-free public reads, archive ranges and preflights. The deployment smoke includes the actual Atomm origin. Verify restricted writes remain denied, and exercise the representative terrain/lake projects below on the dev site.

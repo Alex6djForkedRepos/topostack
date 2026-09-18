@@ -282,7 +282,7 @@ archives, not unimported surveys or reference-only PDF maps.
 
 `lake-directory.test.ts` checks searchability for every catalog record. Run
 `node scripts/verify-lake-search.mjs` against the local preview at port 5298, or set
-`LAKE_SEARCH_TEST_URL=https://dev-topostack.echofoxtrot.works` to verify development.
+`LAKE_SEARCH_TEST_URL=https://dev.topostack.app` to verify development.
 The browser check covers all source groups, pagination, independent provider
 failures, retries, mobile layout, framed selection, and saved project state.
 

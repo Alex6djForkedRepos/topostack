@@ -13,8 +13,8 @@ permissions:
 env:
   NODE_VERSION: "22.22.2"
   PYTHON_VERSION: "3.13"
-  DEVELOPMENT_URL: https://dev-topostack.echofoxtrot.works
-  PRODUCTION_URL: https://topostack.echofoxtrot.works
+  DEVELOPMENT_URL: https://dev.topostack.app
+  PRODUCTION_URL: https://topostack.app
 
 jobs:
   # Lint/typecheck and tests run in parallel; deploy-worker needs both.

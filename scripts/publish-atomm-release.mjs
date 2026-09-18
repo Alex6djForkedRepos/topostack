@@ -25,7 +25,7 @@ export function validatePackage(receipt, archive, checksum, commit, tag) {
   assert.equal(receipt.schemaVersion, 1);
   assert.equal(receipt.commit, commit, "Package must match the tested commit");
   assert.equal(receipt.workingTreeDirty, false, "Package must come from a clean checkout");
-  assert.equal(receipt.apiOrigin, "https://topostack.echofoxtrot.works", "Package must use the production API");
+  assert.equal(receipt.apiOrigin, "https://topostack.app", "Package must use the production API");
   const files = atommReleaseFiles(receipt.atommVersion);
   assert.equal(receipt.archive, files.archive);
   assert.equal(receipt.bytes, archive.length, "Archive size does not match its receipt");

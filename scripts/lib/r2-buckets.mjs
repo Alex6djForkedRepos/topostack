@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 
-export const DEVELOPMENT_ORIGIN = "https://dev-topostack.echofoxtrot.works";
-export const PRODUCTION_ORIGIN = "https://topostack.echofoxtrot.works";
+export const DEVELOPMENT_ORIGIN = "https://dev.topostack.app";
+export const PRODUCTION_ORIGIN = "https://topostack.app";
 
 /** Every managed bucket, the wrangler environment that binds it, and that deployment's public gateway. */
 export const BUCKET_DEPLOYMENTS = Object.freeze({

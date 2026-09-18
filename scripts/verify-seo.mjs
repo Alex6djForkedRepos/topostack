@@ -5,7 +5,7 @@ import { JSDOM } from "jsdom";
 const environment = process.argv[process.argv.indexOf("--environment") + 1];
 assert.ok(["production", "development", "atomm"].includes(environment), "Pass --environment production, development, or atomm");
 const production = environment === "production";
-const origin = "https://topostack.echofoxtrot.works";
+const origin = "https://topostack.app";
 const dist = new URL("../apps/generator/dist/", import.meta.url);
 const builtPaths = await readdir(dist, { recursive: true });
 const files = builtPaths.filter((path) => path.endsWith(".html"));

@@ -2,7 +2,7 @@
 
 Turn a place you love into something you can make. TopoStack is a browser-based terrain studio for creating layered, laser-cut reliefs and flat topographic engravings from real elevation and map data.
 
-[Visit the website](https://topostack.echofoxtrot.works) · [Open the studio](https://topostack.echofoxtrot.works/studio) · [Report a bug or share an idea](https://github.com/Echo-Foxtrot-Works/topostack/issues)
+[Visit the website](https://topostack.app) · [Open the studio](https://topostack.app/studio) · [Report a bug or share an idea](https://github.com/Echo-Foxtrot-Works/topostack/issues)
 
 ![Two TopoStack workflows: stacked contour sheets for layered relief, and contour lines on one surface for flat engraving](docs/images/workflows.svg)
 
@@ -27,7 +27,7 @@ Crater Lake with USGS surveyed lake-floor data where available; existing terrain
 
 ### Get started
 
-1. Open the [studio](https://topostack.echofoxtrot.works/studio) and explore the bundled Crater Lake preview.
+1. Open the [studio](https://topostack.app/studio) and explore the bundled Crater Lake preview.
 2. Choose a place, frame the map area, and select **Layered** or **Flat** output.
 3. Set the physical dimensions and details, then **Generate terrain** and inspect the result.
 4. Open **Export** to download the complete project, individual artwork, or project settings.
@@ -168,7 +168,7 @@ creates a fresh browser profile for each launch.
 The browser suite builds its own deterministic test version and covers Chromium, Firefox, and WebKit. CI runs each browser on a separate runner, with one test worker per runner. Each runner installs only its selected browser; all three must pass the aggregate `Browser E2E` check before deployment. Failed runs retain browser-specific diagnostics for seven days. Dependency installation skips the implicit npm audit because CI audits explicitly: the deployment gate fails on high-severity production advisories, and a separate non-blocking job reports the full audit. `npm run test:coverage` runs the unit/component/Worker suites with the thresholds used in CI. Run the live browser canary against a deployed environment with:
 
 ```sh
-PUBLIC_APP_URL=https://dev-topostack.echofoxtrot.works npm run test:e2e:live
+PUBLIC_APP_URL=https://dev.topostack.app npm run test:e2e:live
 ```
 
 If local lint reports files under `.wrangler/tmp`, exclude those generated files with `npx eslint . --max-warnings=0 --ignore-pattern '**/.wrangler/**'`. CI uses a clean checkout.
@@ -198,8 +198,8 @@ Use `v<main-version>` for main-codebase release tags (for example `v0.1.0`) and 
 
 | Branch | GitHub environment | Worker | Website |
 | --- | --- | --- | --- |
-| `dev` | `development` | `topostack-dev` | [Development](https://dev-topostack.echofoxtrot.works) |
-| `main` | `production` | `topostack` | [Production](https://topostack.echofoxtrot.works) |
+| `dev` | `development` | `topostack-dev` | [Development](https://dev.topostack.app) |
+| `main` | `production` | `topostack` | [Production](https://topostack.app) |
 
 Each Worker serves the static frontend and `/v1/*` API, with `/health` for liveness and `/ready` for data/geocoder readiness. Configure these secrets separately in **both** GitHub environments:
 
@@ -224,7 +224,7 @@ In Atomm, the embedded studio uses the platform’s generate-and-tune layout and
 Build a release against the deployed production API:
 
 ```sh
-VITE_MAP_API_URL=https://topostack.echofoxtrot.works npm run release:atomm
+VITE_MAP_API_URL=https://topostack.app npm run release:atomm
 ```
 
 The packaging command selects `VITE_SITE_ENV=atomm`, so the ZIP opens the studio directly at its root. This produces `apps/generator/topostack-atomm-v<atommVersion>.zip`, its `.zip.sha256` checksum, and `topostack-atomm-v<atommVersion>.release.json` with both release versions, the source revision, API origin, dataset/archive identities, and dirty-tree flag. Packaging requires a real HTTPS API origin and rejects local, placeholder, and `*.workers.dev` URLs. Use `npm run package:atomm` with the same API variable for the ZIP and validation without the checksum/receipt step.
