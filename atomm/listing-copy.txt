@@ -9,7 +9,7 @@ Turn a place you love into something you can make. TopoStack transforms real ele
 
 Choose a location, frame your map, and set its physical size. Create a layered relief with adjustable material thickness and vertical exaggeration, or a flat engraving with customizable contour lines. Use a circular or rectangular crop, then add roads, trails, water details, labels, a compass, a scale bar, or your own markers and paths.
 
-Include lake-floor relief using surveyed bathymetry where available, with depth exaggeration and layer-fitting controls.
+Include lake-floor relief using surveyed bathymetry where available. Automatic depth coverage adds the required layers without compressing land relief; optional depth limits and fitting give you control over the stack.
 
 Explore your design in 2D and preview layered projects as a stacked or exploded 3D model. Inspect individual layers before exporting.
 
@@ -17,7 +17,7 @@ When you are ready, use Export to download the files or open the master SVG in x
 
 Make a keepsake of a favorite hike, a mountain you climbed, a memorable lake, or the place you call home.
 
-Generate fresh terrain before exporting, then review the artwork, material, and machine settings before fabrication. The opening design is a bundled preview. The gallery shows a freshly generated Crater Lake project, including USGS surveyed bathymetry in the layered views. The cover and motion preview show the app’s actual Crater Lake geometry.
+Generate fresh terrain before exporting, then review the artwork, material, and machine settings before fabrication. The opening design is a bundled preview. The gallery and new videos show fresh Crater Lake, Mount Rainier and Point Reyes projects from released v0.1.1, including a real SVG import into xTool Studio. Lake-floor relief uses survey data where available, with terrain or modeled depths filling gaps. All images are software previews; physical-build photos are not included.
 
 
 Craft
