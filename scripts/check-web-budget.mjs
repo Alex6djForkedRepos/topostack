@@ -34,7 +34,11 @@ const budgets = {
   // per-cell panel writer are part of generateGeometry, which the studio route
   // imports directly for its first preview. Measured with Node 22.22.2 at
   // 463,134 startup and 914,639 total on the rebased branch.
-  startupJavaScriptGzip: 474_000,
+  // Raised 2026-09-18 for merged paint stencils: the Clipper boolean and set
+  // offset behind paintStencil ship in generateGeometry, and the cut-layer
+  // overlay imports it for legacy IR. CI measured 474,123 with Node 22.22.2,
+  // 123 bytes over the old line.
+  startupJavaScriptGzip: 480_000,
   // All routes, lazy-loaded tools, and workers, including the interactive lake
   // guide and MapLibre's worker. The fetched lake catalog is budgeted below.
   // Raised 2026-09-17 for the same two guide routes: 888,934 -> 895,695.
