@@ -11,6 +11,8 @@ test("many prerendered pages stay under deployment limits with page-specific has
  assert.ok(output.split("\n").every(line => line.length <= 2000));
  assert.ok(pageSecurityPolicy(output, "/").includes(hash("home()")));
  assert.ok(!pageSecurityPolicy(output, "/").includes(hash("studio()")));
+ // Cloudflare serves `/` with the fallback policy as well, so it must allow the home page.
+ assert.ok(pageSecurityPolicy(output, "/*").includes(hash("home()")));
  for (const path of ["/studio", "/studio.html"]) {
   assert.ok(pageSecurityPolicy(output, path).includes(hash("studio()")));
   assert.match(output, new RegExp(`${path.replaceAll('.', '\\.')}\\n  ! Content-Security-Policy\\n[^\\n]+\\n  X-Robots-Tag: noindex, follow`));
