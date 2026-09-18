@@ -1,11 +1,11 @@
-// Deliberately imports nothing outside node: builtins. The hourly production
-// monitor runs this file straight from a checkout, so it must not need an
+// No external dependencies: the hourly production monitor runs this file
+// straight from a checkout, so it must not need an
 // `npm ci`; the jsdom-based SEO checks run separately (scripts/verify-seo-http.mjs).
+import { fetchWithRetry as fetchDeploymentResponse } from "./lib/deployment-fetch.mjs";
+
 const deploymentTarget = process.env.WORKER_URL;
 const publicAppUrl = process.env.PUBLIC_APP_URL ?? deploymentTarget;
 const expectedEnvironment = process.env.EXPECTED_WORKER_ENVIRONMENT;
-const retryDelayMs = 3_000;
-const verificationTimeoutMs = 180_000;
 
 if (!deploymentTarget) throw new Error("WORKER_URL was not returned by the deployment action.");
 if (!publicAppUrl) throw new Error("PUBLIC_APP_URL was not configured and no deployment URL is available.");
@@ -18,35 +18,9 @@ const deploymentBase = new URL(customDomain ? `https://${customDomain}` : deploy
 const publicBase = new URL(publicAppUrl);
 if ([deploymentBase, publicBase].some((url) => url.protocol !== "https:" || url.username || url.password || (url.pathname !== "/" && url.pathname !== "") || url.search || url.hash)) throw new Error("Deployment and public app URLs must be HTTPS origins without credentials, paths, queries, or fragments.");
 
-async function fetchWithRetry(base, path, init) {
-  let lastError;
-  const deadline = Date.now() + verificationTimeoutMs;
-  let attempt = 0;
-  do {
-    attempt += 1;
-    try {
-      const response = await fetch(new URL(path, base), {
-        ...init,
-        signal: AbortSignal.timeout(10_000),
-      });
-      if (!response.ok) {
-        const error = new Error(`${path} returned HTTP ${response.status}`);
-        // Only transient statuses are worth retrying; a 404/403/4xx is a
-        // deterministic deployment problem and should fail immediately.
-        error.retryable = response.status >= 500 || response.status === 429;
-        throw error;
-      }
-      return response;
-    } catch (error) {
-      if (error?.retryable === false) throw error;
-      lastError = error;
-      if (Date.now() + retryDelayMs >= deadline) break;
-      console.warn(`Deployment verification attempt ${attempt} for ${path} failed; retrying.`);
-      await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
-    }
-  } while (Date.now() < deadline);
-  throw lastError;
-}
+const fetchWithRetry = (base, path, init) => fetchDeploymentResponse(base, path, init, {
+  allowRolloutStatuses: process.env.DEPLOYMENT_ROLLOUT === "1",
+});
 
 async function fetchJson(base, path) {
   return await (await fetchWithRetry(base, path, { headers: { accept: "application/json" } })).json();
