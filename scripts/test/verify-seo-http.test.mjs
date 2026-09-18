@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { fetchSeoResponse } from "../verify-seo-http.mjs";
+import { fetchSeoResponse, fetchSitemapUrls } from "../verify-seo-http.mjs";
 
 for (const status of [404, 429, 503]) {
   test(`deployment SEO retries a transient ${status}`, async (t) => {
@@ -27,3 +27,23 @@ for (const [name, status, options] of [
     assert.equal(fetch.mock.callCount(), 1);
   });
 }
+
+const sitemap = (...urls) => new Response(
+  '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + urls.map((url) => `<url><loc>${url}</loc></url>`).join("") + "</urlset>",
+  { headers: { "content-type": "application/xml; charset=utf-8" } },
+);
+
+test("deployment SEO re-reads a sitemap the edge still serves from the previous deployment", async (t) => {
+  const responses = [sitemap("https://ci.invalid/"), sitemap("https://ci.invalid/", "https://ci.invalid/guides/new")];
+  const fetch = t.mock.method(globalThis, "fetch", async () => responses.shift());
+  const urls = await fetchSitemapUrls("https://ci.invalid/sitemap.xml", ["https://ci.invalid/guides/new", "https://ci.invalid/"], { deadline: Date.now() + 1_000, retryDelayMs: 0 });
+  assert.deepEqual(urls, ["https://ci.invalid/", "https://ci.invalid/guides/new"]);
+  assert.equal(fetch.mock.callCount(), 2);
+});
+
+test("a stale sitemap is reported as read once the propagation window expires, and monitors read it once", async (t) => {
+  const fetch = t.mock.method(globalThis, "fetch", async () => sitemap("https://ci.invalid/"));
+  assert.deepEqual(await fetchSitemapUrls("https://ci.invalid/sitemap.xml", ["https://ci.invalid/", "https://ci.invalid/guides/new"], { deadline: Date.now() - 1, retryDelayMs: 0 }), ["https://ci.invalid/"]);
+  assert.deepEqual(await fetchSitemapUrls("https://ci.invalid/sitemap.xml", ["https://ci.invalid/guides/new"]), ["https://ci.invalid/"]);
+  assert.equal(fetch.mock.callCount(), 2);
+});

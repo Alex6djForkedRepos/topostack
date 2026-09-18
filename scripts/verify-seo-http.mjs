@@ -17,6 +17,27 @@ export async function fetchSeoResponse(url, { expectedStatus = 200, deadline = 0
   }
 }
 
+/**
+ * The sitemap is a prerendered asset the edge cache may still serve from the
+ * previous deployment for a short while after the Worker itself is live, so a
+ * fresh deployment keeps re-reading it until it lists the expected pages or
+ * the propagation window closes. Returns the last URL list read, sorted.
+ */
+export async function fetchSitemapUrls(url, expected, { deadline = 0, retryDelayMs = 3_000 } = {}) {
+  const wanted = [...expected].sort();
+  while (true) {
+    const sitemap = await fetchSeoResponse(url, { deadline, retryDelayMs });
+    assert.equal(sitemap.status, 200);
+    assert.match(sitemap.headers.get("content-type"), /xml/);
+    const sitemapDocument = new JSDOM(await sitemap.text(), { contentType: "application/xml" }).window.document;
+    const urls = [...sitemapDocument.querySelectorAll("loc")].map((node) => node.textContent).sort();
+    if (urls.length === wanted.length && urls.every((entry, index) => entry === wanted[index])) return urls;
+    if (Date.now() + retryDelayMs >= deadline) return urls;
+    console.warn(`Sitemap at ${url} does not list the expected pages yet; waiting for deployment assets.`);
+    await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+  }
+}
+
 export async function verifyHttpSeo(origin, environment, { propagationTimeoutMs = 0 } = {}) {
   assert.ok(["production", "development"].includes(environment));
   const production = environment === "production";
@@ -26,13 +47,10 @@ export async function verifyHttpSeo(origin, environment, { propagationTimeoutMs 
   assert.equal(robots.status, 200);
   assert.match(robots.headers.get("content-type"), /^text\/plain/);
   assert.match(await robots.text(), /^User-agent: \*\nAllow: \//);
-  const sitemap = await get("/sitemap.xml");
-  assert.equal(sitemap.status, 200);
-  assert.match(sitemap.headers.get("content-type"), /xml/);
-  const sitemapDocument = new JSDOM(await sitemap.text(), { contentType: "application/xml" }).window.document;
-  const urls = [...sitemapDocument.querySelectorAll("loc")].map((node) => node.textContent);
   const publicPaths = Object.keys(PUBLIC_PAGES);
-  assert.deepEqual(urls.sort(), production ? publicPaths.map((path) => SITE_ORIGIN + path).sort() : [], "Sitemap must list exactly the public pages");
+  const expectedUrls = production ? publicPaths.map((path) => SITE_ORIGIN + path).sort() : [];
+  const urls = await fetchSitemapUrls(new URL("/sitemap.xml", origin), expectedUrls, { deadline });
+  assert.deepEqual(urls, expectedUrls, "Sitemap must list exactly the public pages");
   for (const path of [...publicPaths, "/studio"]) {
     const response = await get(path);
     assert.equal(response.status, 200, path);
