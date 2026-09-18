@@ -73,7 +73,11 @@ describe("TopoStack Svelte shell", () => {
     reset().click();
     await tick();
     [...target.querySelectorAll<HTMLButtonElement>(".reset-dialog button")].find((button) => button.textContent?.trim() === "Reset project")!.click();
-    await vi.waitFor(() => expect(saveProject).toHaveBeenLastCalledWith(DEFAULT_PROJECT));
+    await tick();
+    // Flush the pending snapshot: covered preview work can occupy the main
+    // thread longer than waitFor's default timeout before the save timer runs.
+    window.dispatchEvent(new Event("pagehide"));
+    expect(saveProject).toHaveBeenLastCalledWith(DEFAULT_PROJECT);
     expect(target.querySelector<HTMLInputElement>('[aria-label="Project name"]')?.value).toBe("Crater Lake");
     expect(target.querySelector('[aria-label="Layered relief"]')?.getAttribute("aria-checked")).toBe("true");
     await vi.waitFor(() => expect(target.textContent).toContain("Some lake depths are estimated rather than surveyed."));
@@ -237,7 +241,10 @@ describe("TopoStack Svelte shell", () => {
     expect(fitSwitch.getAttribute("aria-checked")).toBe("true");
     fitSwitch.click();
     await vi.waitFor(() => expect(target.querySelector('[aria-label="Fit lake depth to available layers"]')?.getAttribute("aria-checked")).toBe("false"));
-    await vi.waitFor(() => expect(saveProject).toHaveBeenLastCalledWith(expect.objectContaining({ fitLakeDepth: false })));
+    await tick();
+    // Flush the pending snapshot rather than waiting out the debounce under coverage.
+    window.dispatchEvent(new Event("pagehide"));
+    expect(saveProject).toHaveBeenLastCalledWith(expect.objectContaining({ fitLakeDepth: false }));
     expect(manualButton()).toBeUndefined();
     const saved = vi.mocked(saveProject).mock.lastCall![0];
     await unmount(component!);
