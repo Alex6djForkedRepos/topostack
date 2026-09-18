@@ -293,9 +293,10 @@ Lake geometry is independent of depth estimates. `build-lake-data.mjs` retains
 HydroLAKES polygons even when GLOBathy has no maximum-depth entry. That archive
 change takes effect when the lake archive is rebuilt and provisioned.
 
-The app also ships spatially sharded provider water masks built from the same
+R2 stores spatially sharded provider water masks built from the same
 checksum-pinned Minnesota, Finland, Ontario, Norway, TWDB, and Reclamation inputs
-as the survey rasters. These assets need no raster rebuild or new API endpoint.
+as the survey rasters. The map API streams them from the environment’s VECTOR_DATA
+bucket at `/v1/lake-outlines/<content-digest>.json`.
 All 7,744 regional directory entries have a provider mask. The remaining 31
 NOAA, USGS, and Swiss grid entries have no shoreline in their pinned inputs;
 they use HydroLAKES or OSM. The audit does not claim verified external coverage.
@@ -312,11 +313,43 @@ SURVEY_TEST_APP_URL=http://localhost:5297 node scripts/verify-lake-outlines.mjs 
   --local-archives=/tmp/topostack-survey-archives
 ```
 
-Commit `apps/generator/static/data/lake-outlines/` and
-`scripts/data/lake-outline-coverage.json` together. Each shard is named by its
-content digest; the index lists its geographic extent. Only intersecting shards
-are fetched, with bounded concurrency, request counts, geometry, and timeouts.
-A directory audit fails when any regional entry loses its provider mask.
+Generated geometry lives in `.topostack/lake-outlines/` (ignored by Git), never
+in frontend static assets. Commit `scripts/data/lake-outlines-release.json`
+and `scripts/data/lake-outline-coverage.json` with changes to the directory or
+source pins. The release records the index's SHA-256, object counts and bytes,
+and checksums of the source catalog, directory and coverage audit.
+
+```sh
+# After regenerating: validate every geometry and prepare a reviewable release pin.
+node scripts/provision-lake-outlines.mjs --prepare
+node scripts/provision-lake-outlines.mjs --verify-only
+# Publish to each environment before deploying code that references the new pin.
+node --env-file=.env scripts/provision-lake-outlines.mjs --provision
+node --env-file=.env scripts/provision-lake-outlines.mjs --provision --prod
+# Fresh checkout: recover the pinned data from development R2 and fully validate it.
+node --env-file=.env scripts/fetch-lake-outlines.mjs --download
+# Deployment preflight: verify index bytes and every shard's size/checksum metadata.
+node --env-file=.env scripts/fetch-lake-outlines.mjs
+```
+
+Publishing uses short-lived credentials scoped to `lake-outlines/`, conditional
+creation (never overwrite), and full SHA-256/size readback for every object.
+Shards are uploaded and verified before the index. Existing objects are also
+verified, so retries are safe. Local receipts live in `.topostack/`.
+The browser pins the content-addressed index; its geographic extents select
+only intersecting shards, with bounded concurrency and request counts.
+The API streams objects, checks integrity metadata and size, and supports
+immutable browser/edge caching, ETags, HEAD and CORS. `/ready` requires the
+pinned index. Former `/data/lake-outlines/` URLs redirect to the API so existing
+browser sessions survive the migration. CI checks all objects before deploying, without uploading data.
+
+Keep previous objects: old app versions and rollback still reference them.
+There is no mutable “latest” pointer and no automatic pruning of this prefix.
+Rollback restores the previous release pin and deploys the corresponding app;
+it does not rewrite or delete R2 data. Local development uses the existing
+remote development VECTOR_DATA binding. Production and development are
+provisioned separately. The source-generation scripts, source pins, coverage
+audit and verification tooling remain in Git.
 
 Provider masks preserve islands, including separate Minnesota island records,
 and use a five-metre topology-preserving simplification. Some masks describe

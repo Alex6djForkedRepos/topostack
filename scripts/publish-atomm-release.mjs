@@ -1,3 +1,4 @@
+import { atommReleaseFiles } from "./lib/atomm-release-files.mjs";
 import assert from "node:assert/strict";
 import { validateVersion } from "./versions.mjs";
 import { execFileSync } from "node:child_process";
@@ -25,11 +26,12 @@ export function validatePackage(receipt, archive, checksum, commit, tag) {
   assert.equal(receipt.commit, commit, "Package must match the tested commit");
   assert.equal(receipt.workingTreeDirty, false, "Package must come from a clean checkout");
   assert.equal(receipt.apiOrigin, "https://topostack.echofoxtrot.works", "Package must use the production API");
-  assert.equal(receipt.archive, "topostack-atomm.zip");
+  const files = atommReleaseFiles(receipt.atommVersion);
+  assert.equal(receipt.archive, files.archive);
   assert.equal(receipt.bytes, archive.length, "Archive size does not match its receipt");
   const digest = createHash("sha256").update(archive).digest("hex");
   assert.equal(receipt.sha256, digest, "Archive checksum does not match its receipt");
-  assert.equal(checksum.trim(), `${digest}  topostack-atomm.zip`, "Checksum file does not match the archive");
+  assert.equal(checksum.trim(), `${digest}  ${files.archive}`, "Checksum file does not match the archive");
   return digest;
 }
 
@@ -90,10 +92,11 @@ async function main() {
   validateRun(run, repository);
   const directory = await mkdtemp(join(tmpdir(), "atomm-release-"));
   gh("run", "download", runId, "--repo", repository, "--name", `topostack-atomm-${run.head_sha}`, "--dir", directory);
-  const code = join(directory, "apps/generator/topostack-atomm.zip");
+  const files = atommReleaseFiles(tag.slice("atomm-v".length));
+  const code = join(directory, "apps/generator", files.archive);
   const checksum = code + ".sha256";
-  const receiptPath = join(directory, "apps/generator/topostack-atomm.release.json");
-  const listing = join(directory, "atomm/topostack-listing-upload.zip");
+  const receiptPath = join(directory, "apps/generator", files.receipt);
+  const listing = join(directory, "atomm", files.listing);
   const receipt = JSON.parse(await readFile(receiptPath, "utf8"));
   const digest = validatePackage(receipt, await readFile(code), await readFile(checksum, "utf8"), run.head_sha, tag);
   const build = JSON.parse(execFileSync("unzip", ["-p", code, "version.json"], { encoding: "utf8" }));
@@ -109,11 +112,11 @@ async function main() {
   if (process.argv.includes("--dry-run")) return;
 
   const notes = join(directory, "release-notes.md");
-  await writeFile(notes, `Upload **topostack-atomm.zip** to the Atomm developer console. GitHub's automatic Source code archives are not the upload package.\n\n` +
-    `- **topostack-atomm.zip** — static generator, opening directly in the terrain studio.\n` +
-    `- **topostack-atomm.zip.sha256** — SHA-256 checksum.\n` +
-    `- **topostack-atomm.release.json** — clean source commit, production API, dataset and archive metadata.\n` +
-    `- **topostack-listing-upload.zip** — cover options, feature screenshots, listing copy and media provenance.\n\n` +
+  await writeFile(notes, `Upload **${files.archive}** to the Atomm developer console. GitHub's automatic Source code archives are not the upload package.\n\n` +
+    `- **${files.archive}** — static generator, opening directly in the terrain studio.\n` +
+    `- **${files.checksum}** — SHA-256 checksum.\n` +
+    `- **${files.receipt}** — clean source commit, production API, dataset and archive metadata.\n` +
+    `- **${files.listing}** — cover options, feature screenshots, listing copy and media provenance.\n\n` +
     `Built and deployed by [production CI run ${runId}](${run.html_url}) at commit ${run.head_sha}. These are the exact verified CI assets, without a local rebuild.\n\n` +
     `Main codebase: **${receipt.version}**. Atomm package: **${receipt.atommVersion}**.\n\n` +
     `ZIP SHA-256: \`${digest}\`\n\nAtomm host review and physical fabrication acceptance are separate from automated CI.\n`);

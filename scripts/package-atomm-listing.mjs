@@ -1,3 +1,5 @@
+import { readVersions } from "./versions.mjs";
+import { atommReleaseFiles } from "./lib/atomm-release-files.mjs";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -7,7 +9,7 @@ import { fileURLToPath } from "node:url";
 const root = new URL("../atomm/", import.meta.url);
 const provenance = JSON.parse(await readFile(new URL("media-provenance.json", root), "utf8"));
 const files = ["listing.md", "listing-copy.txt", "media-provenance.json"];
-for (const reference of [provenance.coverPresentation?.prompt, provenance.projectFile, provenance.video?.recipe]) {
+for (const reference of [provenance.coverPresentation?.prompt, provenance.projectFile, provenance.video?.recipe, provenance.video?.projectFile, provenance.projectsFile, provenance.storyboardFile, provenance.coverVideo?.recipe, provenance.legacyVideo?.recipe, provenance.legacyVideo?.projectFile]) {
   if (!reference) continue;
   assert.match(reference, /^[a-z0-9-]+\.(txt|json)$/);
   files.push(reference);
@@ -29,6 +31,7 @@ for (const item of provenance.media) {
   files.push(item.file);
 }
 assert.ok(provenance.media.length <= 20, "Too many listing media files");
-await rm(new URL("topostack-listing-upload.zip", root), { force: true });
-execFileSync("zip", ["-Xq", "topostack-listing-upload.zip", ...new Set(files)], { cwd: fileURLToPath(root), stdio: "inherit" });
-console.log(`Packaged listing text and ${provenance.media.length} media files.`);
+const { listing } = atommReleaseFiles((await readVersions()).atommVersion);
+await rm(new URL(listing, root), { force: true });
+execFileSync("zip", ["-Xq", listing, ...new Set(files)], { cwd: fileURLToPath(root), stdio: "inherit" });
+console.log(`Packaged ${listing} with listing text and ${provenance.media.length} media files.`);

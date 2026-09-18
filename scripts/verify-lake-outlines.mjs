@@ -1,4 +1,4 @@
-/** Exercise shipped provider outlines and real survey archives with HydroLAKES unavailable. */
+/** Exercise R2-backed provider outlines and real survey archives with HydroLAKES unavailable. */
 import assert from "node:assert/strict";
 import { open, readFile } from "node:fs/promises";
 import { resolve } from "node:path";

@@ -1,3 +1,4 @@
+import outlineRelease from "../../../scripts/data/lake-outlines-release.json";
 import { terrainPng } from "./terrain-fixture";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { env as workerEnv, exports } from "cloudflare:workers";
@@ -396,6 +397,7 @@ describe("lake bathymetry archive", () => {
     expect(response.status).toBe(503);
     expect(await response.json()).toMatchObject({ dependencies: { lakeData: { status: "missing", key: "lakes/current.pmtiles" } } });
     await workerEnv.VECTOR_DATA.put("lakes/current.pmtiles", archive.slice());
+    await workerEnv.VECTOR_DATA.put(`lake-outlines/${outlineRelease.index.file}`, new Uint8Array(outlineRelease.index.bytes), { customMetadata: { sha256: outlineRelease.index.sha256 } });
     const ready = await mapWorker.fetch(new Request("http://example.com/ready", { headers: origin }), configured, context);
     expect(ready.status).toBe(200);
   });

@@ -1,55 +1,61 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { createHash } from "node:crypto";
+import { digest, publishOutlines, releasePath } from "../lib/lake-outlines.mjs";
 
-const root = new URL("../../apps/generator/static/data/lake-outlines/", import.meta.url);
-const json = async (url) => JSON.parse(await readFile(url, "utf8"));
+test("outline release pins the source catalog, directory and coverage audit", async () => {
+  const release = JSON.parse(await readFile(releasePath));
+  const auditBytes = await readFile(new URL("../data/lake-outline-coverage.json", import.meta.url));
+  const directory = await readFile(new URL("../../apps/generator/static/data/lake-depth-directory.json", import.meta.url));
+  const sources = await readFile(new URL("../data/lake-survey-sources.json", import.meta.url));
+  const audit = JSON.parse(auditBytes);
+  assert.equal(release.schemaVersion, 1);
+  assert.equal(release.directorySha256, digest(directory));
+  assert.equal(release.coverageSha256, digest(auditBytes));
+  assert.equal(release.sourcesSha256, digest(sources));
+  assert.equal(release.providerOutlines, audit.providerOutlines);
+  assert.equal(release.shards, audit.shards);
+  assert.equal(release.index.file, `${release.index.sha256}.json`);
+  assert.match(release.index.sha256, /^[a-f0-9]{64}$/);
+  assert(release.index.bytes > 0 && release.index.bytes < 1_000_000);
+});
 
-test("every regional surveyed lake has a valid, indexed, checksum-matched outline asset", async () => {
-  const directory = await json(new URL("../lake-depth-directory.json", root));
-  const index = await json(new URL("index.json", root));
-  const audit = await json(new URL("../data/lake-outline-coverage.json", import.meta.url));
-  const entries = new Map(directory.lakes.map((lake) => [lake.id, lake]));
-  const seen = new Set();
-  assert.equal(index.schemaVersion, 1);
-  for (const shard of index.shards) {
-    assert.match(shard.file, /^[a-f0-9]{24}\.json$/);
-    const bytes = await readFile(new URL(shard.file, root));
-    assert.equal(createHash("sha256").update(bytes).digest("hex").slice(0, 24) + ".json", shard.file);
-    assert(bytes.length < 5_000_000, "Each shard must fit the bounded browser download budget");
-    const { features } = JSON.parse(bytes);
-    assert.equal(features.length, shard.count);
-    for (const feature of features) {
-      const id = `${feature.properties.sourceId}:${feature.properties.surveyId}`;
-      assert(entries.has(id), `Unknown survey: ${id}`);
-      assert(!seen.has(id), `Duplicate survey: ${id}`);
-      seen.add(id);
-      assert.equal(shard.sourceId, feature.properties.sourceId);
-      const [w, s, e, n] = feature.bbox;
-      assert(w < e && s < n && w >= -180 && e <= 180 && s > -85.1 && n < 85.1);
-      assert(shard.bounds[0] <= w && shard.bounds[1] <= s && shard.bounds[2] >= e && shard.bounds[3] >= n);
-      assert(["Polygon", "MultiPolygon"].includes(feature.geometry.type));
-      const parts = feature.geometry.type === "Polygon" ? [feature.geometry.coordinates] : feature.geometry.coordinates;
-      assert(parts.length > 0);
-      for (const rings of parts) for (const ring of rings) {
-        assert(ring.length >= 4);
-        assert.deepEqual(ring[0], ring.at(-1));
-        assert(ring.every(([x, y]) => Number.isFinite(x) && Number.isFinite(y) && x >= w - 1e-7 && x <= e + 1e-7 && y >= s - 1e-7 && y <= n + 1e-7));
-      }
+const object = (text) => { const bytes = Buffer.from(text); return { bytes, sha256: digest(bytes), file: `${digest(bytes)}.json` }; };
+function storage({ corrupt = false, existing = false, metadata = true } = {}) {
+  const calls = [], stored = new Map();
+  return { calls, request: async (key, init) => {
+    calls.push([key, init.method]);
+    if (init.method === "PUT") {
+      assert.equal(init.headers["if-none-match"], "*");
+      stored.set(key, corrupt ? Buffer.from("broken") : init.body);
+      return new Response(null, { status: existing ? 412 : 200 });
     }
+    const bytes = stored.get(key);
+    return new Response(bytes, { headers: { "content-length": String(bytes.length), etag: '"verified"', ...(metadata ? { "x-amz-meta-sha256": key.split("/").at(-1).slice(0, -5) } : {}) } });
+  } };
+}
+
+test("index is published only after all shards have passed full remote verification", async () => {
+  const objects = [object("first"), object("second"), object("index")];
+  const remote = storage();
+  await publishOutlines(remote.request, objects);
+  assert.deepEqual(remote.calls.slice(-2), [[`lake-outlines/${objects[2].file}`, "PUT"], [`lake-outlines/${objects[2].file}`, "GET"]]);
+  const retry = storage({ existing: true });
+  await publishOutlines(retry.request, objects);
+});
+
+test("corrupt uploads or existing objects prevent publication of the index", async () => {
+  for (const existing of [false, true]) {
+    const objects = [object("first"), object("index")];
+    const remote = storage({ corrupt: true, existing });
+    await assert.rejects(publishOutlines(remote.request, objects), /mismatch|verification/);
+    assert(!remote.calls.some(([key]) => key.endsWith(objects[1].file)));
   }
-  assert.equal(seen.size, audit.providerOutlines);
-  assert.equal(entries.size, audit.directoryEntries);
-  assert.equal(audit.entries.length, entries.size);
-  assert.deepEqual(new Set(audit.entries.map((entry) => entry.id)), new Set(entries.keys()));
-  for (const entry of audit.entries) {
-    assert(entries.has(entry.id));
-    if (entry.outline === "provider") assert(seen.has(entry.id), `Missing outline: ${entry.id}`);
-    else {
-      assert.match(entry.id, /^(noaa-great-lakes-v1|usgs-[^:]+|swissbathy3d-v1):/);
-      assert.equal(entry.outline, "external-fallback");
-      assert(entry.reason);
-    }
-  }
+});
+
+
+test("pre-existing objects without integrity metadata cannot publish a release", async () => {
+  const remote = storage({ existing: true, metadata: false });
+  await assert.rejects(publishOutlines(remote.request, [object("first"), object("index")]), /metadata mismatch/);
+  assert.equal(remote.calls.length, 2);
 });

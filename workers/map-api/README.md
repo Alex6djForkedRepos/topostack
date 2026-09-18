@@ -90,7 +90,7 @@ Request budgets: PMTiles range reads and terrain cache hits/304s are R2-backed a
 
 Terrain tiles carry an MD5 `etag` on both misses and hits, and conditional hits use an R2 `etagDoesNotMatch` read without fetching the body. Cached tiles are current only with `terrainValidation: png-v1` and `provenance: v2` metadata; older entries are refetched lazily and overwritten (a validated legacy tile is served as `x-topostack-cache: STALE` if the origin is unreachable). Release-pointer resolution for PMTiles reads is memoized per isolate for 60 seconds (missing archives and invalid pointers for 15 seconds); a failed conditional range read evicts it and retries once, and an invalid pointer returns 503 with `retry-after` and an `archive_release_invalid` log.
 
-`/ready` requires both PMTiles archives and a configured geocoder, matching a default project's water-depth requirements. `/health` remains the process liveness check. Gateway completion logs include status, cache outcome, environment, and elapsed milliseconds without search text or provider credentials. Alert on elevated 5xx responses on `/v1/terrain/` and `/v1/geocode`, including cache-miss paths; a fixed canary served from R2 alone cannot establish upstream health.
+`/ready` requires both PMTiles archives, the pinned provider-outline index, and a configured geocoder, matching a default project's water-depth requirements. `/health` remains the process liveness check. Gateway completion logs include status, cache outcome, environment, and elapsed milliseconds without search text or provider credentials. Alert on elevated 5xx responses on `/v1/terrain/` and `/v1/geocode`, including cache-miss paths; a fixed canary served from R2 alone cannot establish upstream health.
 
 Both provisioning scripts save `<archive>.provisioning.json` after remote verification, recording the immutable object, byte count, SHA-256, previous release, and promotion state per bucket. The receipt is saved before pointer activation and updated afterward; keep it even after a partially completed multi-bucket run. Retain the actual archives and receipts outside the repository so the mutable `current.pmtiles` keys can be restored. See [release acceptance and rollback](../../docs/release-acceptance.md). A production browser monitor failure uploads `test-results-live` diagnostics for seven days.
 
@@ -126,3 +126,13 @@ Optional NRCan HRDEM archives use `/v1/terrain-sources/<dataset-id>.pmtiles` and
 `VECTOR_DATA`, with the same bounded ranges and verified release pointers as
 survey archives. The generator prefers valid HRDEM pixels and retains Mapzen
 for gaps or unavailable archives. See [HRDEM coverage, build and rollout](../../docs/hrdem-terrain.md).
+
+
+Provider lake outlines use immutable JSON objects under `lake-outlines/` in
+`VECTOR_DATA`, served at `/v1/lake-outlines/<digest>.json`. The frontend pins
+`scripts/data/lake-outlines-release.json`; no outline geometry is bundled with
+static assets. Publish and verify both environment buckets before deploying a
+new release pin. CI checks the pinned index and all shard metadata before
+Wrangler deploys. See [the outline data workflow](../../docs/lake-bathymetry.md#shoreline-coverage-and-fallback)
+for publication, recovery and rollback commands. Do not apply archive pruning
+or cache lifecycle deletion rules to the `lake-outlines/` prefix.

@@ -1,3 +1,4 @@
+import { index as outlineIndex } from "../../../scripts/data/lake-outlines-release.json";
 import type { GeoBounds, Polygon2D, ProjectConfigV1, WaterAreaV1 } from "@topostack/core";
 import polygonClipping, { type MultiPolygon, type Pair } from "polygon-clipping";
 import { networkSignal } from "./archive";
@@ -21,12 +22,12 @@ const polygon = (rings: Pair[][]): Polygon2D => ({ outer: rings[0]!.map(([x, y])
 /** Assets are spatially sharded and fetched only for the selected map window. */
 export async function loadProviderOutlines(base: string, bounds: GeoBounds, config: Pick<ProjectConfigV1, "widthMm" | "heightMm" | "minimumFeatureMm">, signal?: AbortSignal): Promise<WaterAreaV1[]> {
   const read = async (file: string) => {
-    const response = await fetch(`${base}/data/lake-outlines/${file}`, { signal: networkSignal(signal) });
+    const response = await fetch(`${base}/v1/lake-outlines/${file}`, { signal: networkSignal(signal) });
     if (!response.ok) throw new Error("Lake outlines could not be loaded.");
     return response.json();
   };
   signal?.throwIfAborted();
-  const index = await read("index.json") as OutlineIndex;
+  const index = await read(outlineIndex.file) as OutlineIndex;
   if (index.schemaVersion !== 1 || !Array.isArray(index.shards)) throw new Error("Unknown lake outline index.");
   const shards = index.shards.filter((shard) => intersects(bounds, shard.bounds));
   if (shards.length > 64) throw new Error("Narrow the map area to load survey outlines.");

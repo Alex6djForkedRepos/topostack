@@ -1,3 +1,4 @@
+import release from "../../../scripts/data/lake-outlines-release.json";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_PROJECT, type Polygon2D, type WaterAreaV1 } from "@topostack/core";
 import { loadProviderOutlines, resolveLakeOutlines } from "./lake-outlines";
@@ -62,7 +63,8 @@ describe("provider outline assets", () => {
     const fetch = mockFetch();
     const areas = await loadProviderOutlines("/app", bounds, config);
     expect(fetch).toHaveBeenCalledTimes(2);
-    expect(fetch.mock.calls[1]?.[0]).toBe(`/app/data/lake-outlines/${file}`);
+    expect(fetch.mock.calls[0]?.[0]).toBe(`/app/v1/lake-outlines/${release.index.file}`);
+    expect(fetch.mock.calls[1]?.[0]).toBe(`/app/v1/lake-outlines/${file}`);
     expect(areas).toHaveLength(1);
     expect(areas[0]).toMatchObject({ name: "Survey lake", surveyId: "123", outlineSource: "provider", clipped: false });
     expect(areas[0]?.polygon.holes).toHaveLength(1);

@@ -1,4 +1,3 @@
-import { base } from "$app/paths";
 import { loadProviderOutlines, resolveLakeOutlines } from "./lake-outlines";
 import { mapTiles } from "./tile-requests";
 import { fitCutBounds } from "./selection-bounds";
@@ -299,7 +298,7 @@ export async function loadVectorMarkings(bounds: GeoBounds, requestedZoom: numbe
  */
 export async function loadLakeAreas(bounds: GeoBounds, requestedZoom: number, config: ProjectConfigV1, signal?: AbortSignal): Promise<WaterAreaV1[]> {
   const results = await Promise.allSettled([
-    loadProviderOutlines(base, bounds, config, signal),
+    loadProviderOutlines(apiBase, bounds, config, signal),
     loadHydroLakeAreas(bounds, requestedZoom, config, signal),
   ]);
   signal?.throwIfAborted();
@@ -430,11 +429,11 @@ export async function loadTerrain(config: ProjectConfigV1, signal?: AbortSignal,
     const { lakes: usesWaterDepth, vectors: vectorRequested } = sourceRequirements(config);
     let loaded;
     try {
-      // Imported/custom bounds can be much wider than their stored map zoom.
-      // Downshift terrain resolution until the request fits the bounded tile
-      // budget, matching the vector and lake behavior instead of falling back to
-      // synthetic terrain for an otherwise valid statewide selection.
-      const window = fittingTileWindow(bounds, zoom);
+      // Choose elevation detail from the crop, independently of the camera zoom.
+      // Coarse upstream tiles can contain shoreline spikes absent from finer
+      // levels (for example Lake Granby at z10). Start at the service maximum,
+      // downshift to the tile budget, then resample to the bounded project grid.
+      const window = fittingTileWindow(bounds, 15);
       loaded = await Promise.all([
         loadElevation(window, bounds, signal),
         vectorRequested

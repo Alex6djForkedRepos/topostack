@@ -17,6 +17,7 @@ test-results-live/
 .DS_Store
 *.provisioning.json
 apps/generator/topostack-atomm.release.json
+apps/generator/topostack-atomm-v*.release.json
 __pycache__/
 .venv-data/
 # Local operational receipts (e.g. R2 lifecycle rollback backups).

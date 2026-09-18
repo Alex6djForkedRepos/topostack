@@ -3,7 +3,7 @@
   import Article from "../../lib/Article.svelte";
   import { REPOSITORY_URL } from "../../lib/seo";
   import { MAP_DATA_ATTRIBUTION } from "../../map-attribution";
-  import terrainCatalog from "../../../../../scripts/data/terrain-sources.json";
+  import { sources as terrainCatalogSources } from "../../../../../scripts/data/terrain-sources.json";
   import type { PageData } from "./$types";
 
   let { data }: { data: PageData } = $props();
@@ -17,7 +17,7 @@
   };
   const terrainContributors = MAP_DATA_ATTRIBUTION.filter((source) => !uses[source.name]);
   // Several catalog entries can come from one published dataset; credit each once.
-  const terrainSources = terrainCatalog.sources.filter((source, index, all) => all.findIndex((other) => other.name === source.name && other.license === source.license) === index);
+  const terrainSources = terrainCatalogSources.filter((source, index, all) => all.findIndex((other) => other.name === source.name && other.license === source.license) === index);
   const sections = [
     { id: "terrain", title: "Terrain and elevation" },
     { id: "features", title: "Roads, trails, water, and boundaries" },

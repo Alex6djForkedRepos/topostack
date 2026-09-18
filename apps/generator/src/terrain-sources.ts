@@ -1,12 +1,12 @@
 import type { GeoBounds, SourceAttribution } from "@topostack/core";
-import catalog from "../../../scripts/data/terrain-sources.json";
+import { sources } from "../../../scripts/data/terrain-sources.json";
 import { validateTerrainCatalog, validateTerrainArchiveBounds, rankTerrainSources, type TerrainSource } from "../../../packages/core/src/source-catalog";
 import { createArchive } from "./archive";
 import { decodeTerrainPng } from "./terrain-png";
 import { mapTiles } from "./tile-requests";
 import { latToWorldY, lonToWorldX, TILE_SIZE, worldXToLon, worldYToLat } from "./tile-math";
 
-export const registeredTerrainSources = validateTerrainCatalog(catalog).sources;
+export const registeredTerrainSources = validateTerrainCatalog({ sources }).sources;
 interface TerrainTile { z: number; x: number; y: number; values: Float32Array }
 
 /**

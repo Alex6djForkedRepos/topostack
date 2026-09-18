@@ -1,16 +1,19 @@
 /**
- * Build and package the Atomm static artifact as apps/generator/topostack-atomm.zip.
+ * Build and package the Atomm static artifact as a versioned Atomm ZIP.
  *
  * Each step must exit successfully before the next runs: validate the API
  * origin, build with VITE_SITE_ENV=atomm, verify the built artifact (full
  * endpoint scan), then zip the dist directory contents.
  */
 import { fileURLToPath } from "node:url";
+import { readVersions } from "./versions.mjs";
+import { atommReleaseFiles } from "./lib/atomm-release-files.mjs";
 import { run } from "./lib/process.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const dist = fileURLToPath(new URL("../apps/generator/dist/", import.meta.url));
-const archive = fileURLToPath(new URL("../apps/generator/topostack-atomm.zip", import.meta.url));
+const files = atommReleaseFiles((await readVersions()).atommVersion);
+const archive = fileURLToPath(new URL(`../apps/generator/${files.archive}`, import.meta.url));
 
 try {
   await run(process.execPath, ["scripts/validate-submission-env.mjs"], { cwd: root });

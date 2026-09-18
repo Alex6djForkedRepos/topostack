@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "index": {
+    "file": "13ea4530ff2e6f30ccb535dfe600c88ed954373ba544a704e342704965d17bbd.json",
+    "sha256": "13ea4530ff2e6f30ccb535dfe600c88ed954373ba544a704e342704965d17bbd",
+    "bytes": 57897
+  },
+  "shards": 417,
+  "providerOutlines": 7744,
+  "totalBytes": 77815081,
+  "directorySha256": "45e46f80368d69e33f5ce703dfbd76179a1715c3b7140658978b7c9650ddb05e",
+  "coverageSha256": "f6d5bd45bfff886a5b01bc7db1b172ab22281172280a1a9b7f3276e3a0fc0c0d",
+  "sourcesSha256": "b39bca4838dc1443237662861982da6dbae4a619fadd2f96844977e6c3ddc595"
+}
