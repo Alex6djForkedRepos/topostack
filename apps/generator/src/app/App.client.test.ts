@@ -1040,9 +1040,12 @@ describe("TopoStack Svelte shell", () => {
   });
 
   it("adds, edits, symbolizes, and removes an arbitrary marker list", async () => {
+    const { saveProject } = await import("../storage");
+    vi.mocked(saveProject).mockClear();
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
-    await tick();
+    // Wait for startup restore to enable autosave before editing the marker.
+    await vi.waitFor(() => expect(saveProject).toHaveBeenCalled(), { timeout: 2_000 });
 
     [...target.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes("Add marker"))!.click();
     await vi.waitFor(() => expect(target.querySelectorAll(".marker-card")).toHaveLength(1));
@@ -1052,9 +1055,12 @@ describe("TopoStack Svelte shell", () => {
     expect(size.value).toBe("8");
     size.value = "16";
     size.dispatchEvent(new Event("input", { bubbles: true }));
-    await vi.waitFor(() => expect(size.value).toBe("16"));
-    const { saveProject } = await import("../storage");
-    await vi.waitFor(() => expect(vi.mocked(saveProject).mock.lastCall?.[0].markers[0]?.sizeMm).toBe(16));
+    await tick();
+    expect(size.value).toBe("16");
+    // Flush the pending snapshot: covered preview work can occupy the main
+    // thread longer than waitFor's default timeout before the save timer runs.
+    window.dispatchEvent(new Event("pagehide"));
+    expect(vi.mocked(saveProject).mock.lastCall?.[0].markers[0]?.sizeMm).toBe(16);
     const star = target.querySelector<HTMLButtonElement>('.marker-symbol-options button[title="Star"]')!;
     star.click();
     await vi.waitFor(() => expect(star.getAttribute("aria-checked")).toBe("true"));
