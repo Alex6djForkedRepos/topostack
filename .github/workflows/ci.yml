@@ -363,14 +363,25 @@ jobs:
           VITE_MAP_API_URL: ${{ env.PRODUCTION_URL }}
           VITE_SITE_ENV: atomm
 
+      - name: Resolve versioned Atomm filenames
+        id: atomm-files
+        run: |
+          node --input-type=module <<'JS'
+          import { appendFile } from "node:fs/promises";
+          import { readVersions } from "./scripts/versions.mjs";
+          import { atommReleaseFiles } from "./scripts/lib/atomm-release-files.mjs";
+          const files = atommReleaseFiles((await readVersions()).atommVersion);
+          await appendFile(process.env.GITHUB_OUTPUT, Object.entries(files).map(([key, value]) => `${key}=${value}\n`).join(""));
+          JS
+
       - name: Upload production Atomm release
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: topostack-atomm-${{ github.sha }}
           path: |
-            apps/generator/topostack-atomm.zip
-            apps/generator/topostack-atomm.zip.sha256
-            apps/generator/topostack-atomm.release.json
-            atomm/topostack-listing-upload.zip
+            apps/generator/${{ steps.atomm-files.outputs.archive }}
+            apps/generator/${{ steps.atomm-files.outputs.checksum }}
+            apps/generator/${{ steps.atomm-files.outputs.receipt }}
+            atomm/${{ steps.atomm-files.outputs.listing }}
           if-no-files-found: error
           retention-days: 30

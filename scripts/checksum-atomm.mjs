@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { writeFileAtomic } from "./lib/files.mjs";
+import { atommReleaseFiles } from "./lib/atomm-release-files.mjs";
 import { readVersions } from "./versions.mjs";
 
 // Every check runs before any release output is written, so a failed release
@@ -21,7 +22,9 @@ try {
   process.exit(1);
 }
 
-const archiveUrl = new URL("../apps/generator/topostack-atomm.zip", import.meta.url);
+const versions = await readVersions();
+const files = atommReleaseFiles(versions.atommVersion);
+const archiveUrl = new URL(`../apps/generator/${files.archive}`, import.meta.url);
 const archive = await readFile(archiveUrl);
 const digest = createHash("sha256").update(archive).digest("hex");
 
@@ -31,7 +34,6 @@ async function readApi(path) {
   return response.json();
 }
 const [manifest, readiness] = await Promise.all([readApi("/v1/manifest"), readApi("/ready")]);
-const versions = await readVersions();
 const commit = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
 const build = JSON.parse(execFileSync("unzip", ["-p", fileURLToPath(archiveUrl), "version.json"], { encoding: "utf8" }));
 assert.equal(build.environment, "atomm");
@@ -44,15 +46,15 @@ const receipt = {
   createdAt: new Date().toISOString(),
   commit,
   workingTreeDirty: Boolean(execFileSync("git", ["status", "--porcelain"], { encoding: "utf8" }).trim()),
-  archive: "topostack-atomm.zip", sha256: digest, bytes: archive.byteLength,
+  archive: files.archive, sha256: digest, bytes: archive.byteLength,
   apiOrigin, datasetVersion: manifest.datasetVersion,
   vectorData: readiness.dependencies.vectorData,
   lakeData: readiness.dependencies.lakeData,
 };
 
 const outputs = [
-  [fileURLToPath(new URL("../apps/generator/topostack-atomm.zip.sha256", import.meta.url)), `${digest}  topostack-atomm.zip\n`],
-  [fileURLToPath(new URL("../apps/generator/topostack-atomm.release.json", import.meta.url)), JSON.stringify(receipt, null, 2) + "\n"],
+  [fileURLToPath(new URL(`../apps/generator/${files.checksum}`, import.meta.url)), `${digest}  ${files.archive}\n`],
+  [fileURLToPath(new URL(`../apps/generator/${files.receipt}`, import.meta.url)), JSON.stringify(receipt, null, 2) + "\n"],
 ];
 // Each output replaces its predecessor only once fully written and fsynced.
 for (const [target, contents] of outputs) await writeFileAtomic(target, contents);

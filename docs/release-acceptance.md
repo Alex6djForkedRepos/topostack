@@ -1,6 +1,6 @@
 # Release acceptance and rollback
 
-Use one candidate commit and retain its CI run, Atomm ZIP, checksum, `topostack-atomm.release.json`, and both archive provisioning receipts. A receipt with `workingTreeDirty: true` is local diagnostic evidence; build the published release from a clean commit. Record the intended Worker version ID and deployed frontend revision with the release.
+Use one candidate commit and retain its CI run, Atomm ZIP, checksum, `topostack-atomm-v<atommVersion>.release.json`, and both archive provisioning receipts. A receipt with `workingTreeDirty: true` is local diagnostic evidence; build the published release from a clean commit. Record the intended Worker version ID and deployed frontend revision with the release.
 
 ## Development validation before a production PR
 

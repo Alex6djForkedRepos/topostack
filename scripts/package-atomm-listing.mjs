@@ -1,3 +1,5 @@
+import { readVersions } from "./versions.mjs";
+import { atommReleaseFiles } from "./lib/atomm-release-files.mjs";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -29,6 +31,7 @@ for (const item of provenance.media) {
   files.push(item.file);
 }
 assert.ok(provenance.media.length <= 20, "Too many listing media files");
-await rm(new URL("topostack-listing-upload.zip", root), { force: true });
-execFileSync("zip", ["-Xq", "topostack-listing-upload.zip", ...new Set(files)], { cwd: fileURLToPath(root), stdio: "inherit" });
-console.log(`Packaged listing text and ${provenance.media.length} media files.`);
+const { listing } = atommReleaseFiles((await readVersions()).atommVersion);
+await rm(new URL(listing, root), { force: true });
+execFileSync("zip", ["-Xq", listing, ...new Set(files)], { cwd: fileURLToPath(root), stdio: "inherit" });
+console.log(`Packaged ${listing} with listing text and ${provenance.media.length} media files.`);
