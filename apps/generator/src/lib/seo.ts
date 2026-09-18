@@ -1,4 +1,4 @@
-export const SITE_ORIGIN = "https://topostack.echofoxtrot.works";
+export const SITE_ORIGIN = "https://topostack.app";
 export const REPOSITORY_URL = "https://github.com/Echo-Foxtrot-Works/topostack";
 export const DOCS_HOME = "/guides";
 export const PUBLIC_PAGES: Record<string, { title: string; description: string; label: string }> = {

@@ -6,8 +6,8 @@ import { verifyUpstreamHealth } from "../verify-upstream-health.mjs";
 const healthy = { status: "healthy", fresh: true, ok: true, probes: [] };
 
 test("gateway origins must be bare HTTPS origins", () => {
-  assert.equal(gatewayOrigin("https://topostack.echofoxtrot.works").origin, "https://topostack.echofoxtrot.works");
-  for (const value of [undefined, "", "not a url", "http://topostack.echofoxtrot.works", "https://user:pass@example.test",
+  assert.equal(gatewayOrigin("https://topostack.app").origin, "https://topostack.app");
+  for (const value of [undefined, "", "not a url", "http://topostack.app", "https://user:pass@example.test",
     "https://example.test/health", "https://example.test/?q=1", "https://example.test/#x"]) {
     assert.throws(() => gatewayOrigin(value), /WORKER_URL must be an HTTPS origin/);
   }

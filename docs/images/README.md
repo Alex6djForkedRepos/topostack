@@ -10,7 +10,7 @@ Survey coverage is incomplete: existing terrain or modeled depths fill gaps. The
 Start the normal frontend using the deployed data API:
 
 ```sh
-VITE_MAP_API_URL=https://topostack.echofoxtrot.works npm run dev:web
+VITE_MAP_API_URL=https://topostack.app npm run dev:web
 ```
 
 Then run from the repository root:

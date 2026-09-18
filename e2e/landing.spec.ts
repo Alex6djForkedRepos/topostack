@@ -94,7 +94,7 @@ test("mobile readers can navigate guides, examples and the studio with correct m
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "index, follow, max-image-preview:large");
   await page.getByRole("link", { name: "How to make a layered topographic map" }).click();
   await expect(page).toHaveTitle("How to Make a Laser-Cut Topographic Map | TopoStack");
-  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://topostack.echofoxtrot.works/guides/laser-cut-topographic-map");
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://topostack.app/guides/laser-cut-topographic-map");
   await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toContainText("Layered map guide");
   expect(await page.evaluate(() => document.body.scrollWidth <= innerWidth)).toBe(true);
   await expect(page.getByRole("navigation", { name: "Guides", exact: true })).toBeHidden();

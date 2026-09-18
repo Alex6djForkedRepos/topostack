@@ -21,7 +21,7 @@ Validate an artifact and the actual Worker response behavior:
 ```sh
 VITE_SITE_ENV=production npm run build -w @topostack/generator
 node scripts/verify-seo.mjs --environment production
-node scripts/verify-seo-http.mjs https://topostack.echofoxtrot.works production
+node scripts/verify-seo-http.mjs https://topostack.app production
 ```
 
 The HTTP check is also called by the deployment verifier. Use the development
@@ -84,7 +84,7 @@ search traffic and Cloudflare Web Analytics for visit/device context.
 
 1. Open the existing Search Console property, or verify ownership of the production
    domain. DNS verification requires a token from that account; it is not inferable
-   from the codebase. Submit `https://topostack.echofoxtrot.works/sitemap.xml`.
+   from the codebase. Submit `https://topostack.app/sitemap.xml`.
 2. Inspect the homepage and new guides, their selected canonicals and index status.
    Check Cloudflare security events if the inspection fetch is blocked.
 3. Verify/submit the sitemap in Bing Webmaster Tools.

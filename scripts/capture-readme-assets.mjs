@@ -17,7 +17,7 @@ try {
   page.setDefaultTimeout(180_000);
   // The public API restricts browser origins. Relay genuine responses through
   // Playwright for localhost capture, preserving range headers and response bytes.
-  await page.route("https://topostack.echofoxtrot.works/v1/**", async (route) => {
+  await page.route("https://topostack.app/v1/**", async (route) => {
     const headers = { ...route.request().headers() };
     delete headers.origin;
     delete headers.referer;

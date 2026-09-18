@@ -13,7 +13,7 @@
   },
   "vars": {
     "ENVIRONMENT": "development",
-    "ALLOWED_ORIGINS": "http://localhost:5273,http://127.0.0.1:5273,https://dev-topostack.echofoxtrot.works,https://www.atomm.com",
+    "ALLOWED_ORIGINS": "http://localhost:5273,http://127.0.0.1:5273,https://dev.topostack.app,https://dev-topostack.echofoxtrot.works,https://www.atomm.com",
     "ALLOWED_ORIGIN_SUFFIXES": ".atomm.com",
     "TERRAIN_ORIGIN": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium",
     "GEOCODER_ORIGIN": "https://api.geoapify.com",
@@ -54,12 +54,19 @@
       "triggers": { "crons": ["7 * * * *"] },
       "workers_dev": false,
       "preview_urls": false,
+      // The first route is the canonical app. The legacy echofoxtrot.works
+      // host stays attached only so published Atomm packages keep reaching the
+      // API there: a zone Redirect Rule (scripts/configure-legacy-redirects.mjs)
+      // sends every non-API request on it to the canonical host before the
+      // Worker runs. CORS preflights cannot follow redirects, so the API is
+      // served in place rather than redirected.
       "routes": [
+        { "pattern": "dev.topostack.app", "custom_domain": true },
         { "pattern": "dev-topostack.echofoxtrot.works", "custom_domain": true }
       ],
       "vars": {
         "ENVIRONMENT": "development",
-        "ALLOWED_ORIGINS": "http://localhost:5273,http://127.0.0.1:5273,https://dev-topostack.echofoxtrot.works,https://www.atomm.com",
+        "ALLOWED_ORIGINS": "http://localhost:5273,http://127.0.0.1:5273,https://dev.topostack.app,https://dev-topostack.echofoxtrot.works,https://www.atomm.com",
         "ALLOWED_ORIGIN_SUFFIXES": ".atomm.com",
         "TERRAIN_ORIGIN": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium",
         "GEOCODER_ORIGIN": "https://api.geoapify.com",
@@ -82,12 +89,14 @@
       "triggers": { "crons": ["7 * * * *"] },
       "workers_dev": false,
       "preview_urls": false,
+      // See the development routes for why the legacy host stays attached.
       "routes": [
+        { "pattern": "topostack.app", "custom_domain": true },
         { "pattern": "topostack.echofoxtrot.works", "custom_domain": true }
       ],
       "vars": {
         "ENVIRONMENT": "production",
-        "ALLOWED_ORIGINS": "https://topostack.echofoxtrot.works,https://www.atomm.com",
+        "ALLOWED_ORIGINS": "https://topostack.app,https://topostack.echofoxtrot.works,https://www.atomm.com",
         "ALLOWED_ORIGIN_SUFFIXES": ".atomm.com",
         "TERRAIN_ORIGIN": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium",
         "GEOCODER_ORIGIN": "https://api.geoapify.com",

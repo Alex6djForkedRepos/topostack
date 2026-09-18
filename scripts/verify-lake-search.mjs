@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { expect } from '@playwright/test';
 import { artifactDirectory, openBrowserCheck } from './lib/browser-check.mjs';
 const origin=process.env.LAKE_SEARCH_TEST_URL ?? 'http://localhost:5298';
-if(!['localhost','127.0.0.1','dev-topostack.echofoxtrot.works'].includes(new URL(origin).hostname)) throw new Error('Use a local preview or the development app.');
+if(!['localhost','127.0.0.1','dev.topostack.app'].includes(new URL(origin).hostname)) throw new Error('Use a local preview or the development app.');
 const directory=JSON.parse(await readFile(new URL('../apps/generator/static/data/lake-depth-directory.json',import.meta.url),'utf8'));
 const {page,errors,output,run}=await openBrowserCheck({output:artifactDirectory(process.env.LAKE_SEARCH_TEST_OUTPUT,'lake-search'),pageOptions:{viewport:{width:1440,height:1000}},defaultTimeout:30000});
 let catalogRequests=0;

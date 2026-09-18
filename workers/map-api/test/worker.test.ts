@@ -8,7 +8,7 @@ import { resetArchiveHeadCache } from "../src/archive-release";
 beforeEach(() => resetArchiveHeadCache());
 
 const env = {
-  ALLOWED_ORIGINS: "http://localhost:5273,http://127.0.0.1:5273,https://dev-topostack.echofoxtrot.works,https://www.atomm.com",
+  ALLOWED_ORIGINS: "http://localhost:5273,http://127.0.0.1:5273,https://dev.topostack.app,https://dev-topostack.echofoxtrot.works,https://www.atomm.com",
 } satisfies Pick<Env, "ALLOWED_ORIGINS">;
 
 describe("map API validation", () => {
@@ -33,7 +33,7 @@ describe("map API validation", () => {
 
   it("retains the configured origin policy for event writes", () => {
     expect(isAllowedOrigin("http://localhost:5273", env)).toBe(true);
-    expect(isAllowedOrigin("https://dev-topostack.echofoxtrot.works", env)).toBe(true);
+    expect(isAllowedOrigin("https://dev.topostack.app", env)).toBe(true);
     expect(isAllowedOrigin("https://runtime.atomm.com", env)).toBe(true);
     expect(isAllowedOrigin("https://other.generator.atommapps.com", env)).toBe(false);
     expect(isAllowedOrigin("https://topostack.generator.atommapps.com.evil.example", env)).toBe(false);

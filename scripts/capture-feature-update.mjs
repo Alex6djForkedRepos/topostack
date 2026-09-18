@@ -11,7 +11,7 @@ try {
  page.setDefaultTimeout(180000);
  const surveyResponses = [];
  page.on('response', r => { if(r.url().includes('usgs-crater-lake') && r.ok()) surveyResponses.push(r.url()); });
- await page.route('https://topostack.echofoxtrot.works/v1/**', async route => {
+ await page.route('https://topostack.app/v1/**', async route => {
   const headers = {...route.request().headers()}; delete headers.origin; delete headers.referer;
   try { await route.fulfill({response: await route.fetch({headers, timeout: 180000})}); } catch(e) { console.log('API', e.message); await route.abort(); }
  });

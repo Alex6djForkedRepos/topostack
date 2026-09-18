@@ -6,7 +6,7 @@ beforeEach(() => {
   vi.stubEnv("VITE_SITE_ENV", "production");
   sessionStorage.clear();
   vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 204 })));
-  vi.stubGlobal("location", new URL("https://topostack.echofoxtrot.works/examples/crater-lake?utm_source=github&private=secret"));
+  vi.stubGlobal("location", new URL("https://topostack.app/examples/crater-lake?utm_source=github&private=secret"));
 });
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 const sent = () => vi.mocked(fetch).mock.calls.map((call) => JSON.parse(call[1]?.body as string));
@@ -37,7 +37,7 @@ describe("usage privacy and attribution", () => {
     trackPageView("/");
     const saved = JSON.parse(sessionStorage.getItem("topostack-usage-session")!);
     sessionStorage.setItem("topostack-usage-session", JSON.stringify({ ...saved, updatedAt: Date.now() - 31 * 60 * 1000 }));
-    vi.stubGlobal("location", new URL("https://topostack.echofoxtrot.works/"));
+    vi.stubGlobal("location", new URL("https://topostack.app/"));
     trackPageView("/");
     expect(sent()).toHaveLength(2);
     expect(sent()[1].source).toBe("direct");

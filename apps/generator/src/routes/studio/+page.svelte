@@ -49,7 +49,7 @@
 {:else}
   <main class="startup" aria-busy={!error}>
     <h1>Build the landscape.</h1>
-    <noscript><p>The terrain studio needs JavaScript to generate and preview your map. <a href="https://topostack.echofoxtrot.works/guides/laser-cut-topographic-map">Read the layered map guide</a>.</p></noscript>
+    <noscript><p>The terrain studio needs JavaScript to generate and preview your map. <a href="https://topostack.app/guides/laser-cut-topographic-map">Read the layered map guide</a>.</p></noscript>
     {#if error}<p role="alert">The preview could not load. Reload to try again.</p><button onclick={() => location.reload()}>Reload</button>
     {:else}<p role="status">Preparing your terrain preview…</p>{/if}
   </main>
