@@ -37,6 +37,8 @@ export const MAX_CUSTOM_DATA_POINTS = 10_000;
 export const MIN_WORK_AREA_MM = 20;
 /** Seam divisions per axis. Caps the piece count and keeps cell letters inside A-Z. */
 export const MAX_SEAM_DIVISIONS = 12;
+/** Largest seam offset between adjacent layers; a wider stagger buys no more strength. */
+export const MAX_SEAM_OFFSET_MM = 50;
 /** Total pieces across the stack. Past this the split is abandoned, never emitted partially. */
 export const MAX_WORK_AREA_PIECES = 400;
 
@@ -215,6 +217,13 @@ export interface ProjectConfigV1 {
    */
   workAreaWidthMm: number;
   workAreaHeightMm: number;
+  /**
+   * How far a seam in one layer sits from the matching seam in the layers
+   * glued above and below it, so the joints never stack into one crack. Half
+   * of it is added to the end cells, which can cost an extra division when
+   * the model barely overflows the bed.
+   */
+  seamOffsetMm: number;
   /** Engraves a covered piece id on every piece of a split layer. */
   showAssemblyLabels: boolean;
   showElevationLabels: boolean;
@@ -402,8 +411,8 @@ export interface LayerPieceV1 {
   polygonIndex: number;
   /**
    * Engraved assembly id, e.g. "L03-B2" ("L03-B2-2" for a second component in
-   * one cell). Grids are staggered, so cell B on an odd layer covers a
-   * different span than cell B on an even one; the `Lnn-` prefix is what makes
+   * one cell). Seams are offset on alternating layers, so cell B on an odd
+   * layer covers a slightly different span than cell B on an even one; the `Lnn-` prefix is what makes
    * the id unambiguous across the model.
    */
   id: string;
@@ -452,6 +461,9 @@ export interface SeamPlanV1 {
   rows: number;
   pitchXMm: number;
   pitchYMm: number;
+  /** Distance between adjacent layers' seams along x; 0 when the axis is not split. */
+  seamOffsetXMm: number;
+  seamOffsetYMm: number;
   /** Work area less the full kerf: the largest piece bounding box that still fits. */
   usableWidthMm: number;
   usableHeightMm: number;
@@ -571,6 +583,7 @@ export const DEFAULT_PROJECT: ProjectConfigV1 = {
   laserKerfMm: 0.15,
   workAreaWidthMm: 0,
   workAreaHeightMm: 0,
+  seamOffsetMm: 10,
   showAssemblyLabels: true,
   showElevationLabels: true,
   elevationLabelPosition: { x: -0.55, y: 0.55 },

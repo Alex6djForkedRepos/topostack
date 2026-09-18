@@ -9,7 +9,7 @@ import {
   masterToSvg,
   planSeamGrid,
   projectFingerprint,
-  seamPhase,
+  seamShift,
   validateProject,
   splitLayersForWorkArea,
   type GeometryIRV1,
@@ -106,12 +106,12 @@ function pointInPolygon(point: Point2D, polygon: Polygon2D): boolean {
 /** Interior seam coordinates of one layer along x, excluding the crop edges. */
 function seamsX(config: ProjectConfigV1, layerIndex: number): number[] {
   const grid = planSeamGrid(config)!;
-  return cellEdges(config.widthMm, grid.columns, grid.columns > 1 ? seamPhase(layerIndex) : 0).slice(1, -1);
+  return cellEdges(config.widthMm, grid.columns, seamShift(layerIndex, grid.seamOffsetXMm)).slice(1, -1);
 }
 
 function seamsY(config: ProjectConfigV1, layerIndex: number): number[] {
   const grid = planSeamGrid(config)!;
-  return cellEdges(config.heightMm, grid.rows, grid.rows > 1 ? seamPhase(layerIndex) : 0).slice(1, -1);
+  return cellEdges(config.heightMm, grid.rows, seamShift(layerIndex, grid.seamOffsetYMm)).slice(1, -1);
 }
 
 function rectPolygon(minX: number, minY: number, maxX: number, maxY: number): Polygon2D {
@@ -176,33 +176,67 @@ describe("machine work-area splitting", () => {
     expect(grid.columns).toBe(MAX_SEAM_DIVISIONS);
   });
 
-  it("staggers alternating layers by half a tile on both axes", () => {
-    const [config] = conicalProject({ workAreaWidthMm: 160, workAreaHeightMm: 120 });
-    expect(seamPhase(0)).toBe(0);
-    expect(seamPhase(1)).toBe(0.5);
-    expect(seamPhase(2)).toBe(0);
+  it("offsets alternating layers' seams by the configured amount on both axes", () => {
+    const [config] = conicalProject({ workAreaWidthMm: 160, workAreaHeightMm: 120, seamOffsetMm: 12 });
+    expect(seamShift(0, 12)).toBe(-6);
+    expect(seamShift(1, 12)).toBe(6);
+    expect(seamShift(2, 12)).toBe(-6);
 
-    const grid = planSeamGrid(config)!;
-    // Every seam of an odd layer sits half a pitch from the nearest even seam,
-    // so no crack runs through two glued layers.
+    // Every seam of an odd layer sits the full offset from the nearest even
+    // seam, so no crack runs through two glued layers.
     for (const seam of seamsX(config, 1)) {
       const nearest = Math.min(...seamsX(config, 0).map((other) => Math.abs(other - seam)));
-      expect(nearest).toBeCloseTo(grid.pitchXMm / 2, 6);
+      expect(nearest).toBeCloseTo(12, 6);
     }
     for (const seam of seamsY(config, 1)) {
       const nearest = Math.min(...seamsY(config, 0).map((other) => Math.abs(other - seam)));
-      expect(nearest).toBeCloseTo(grid.pitchYMm / 2, 6);
+      expect(nearest).toBeCloseTo(12, 6);
     }
     expect(seamsX(config, 0)).toEqual(seamsX(config, 2));
   });
 
-  it("gives a staggered axis one more cell, with half-tiles at the ends", () => {
-    const edges = cellEdges(300, 2, 0.5);
-    // Two half-tiles plus one full tile, between the overshot outer edges.
-    expect(edges).toHaveLength(4);
-    expect(edges[1]).toBeCloseTo(-75, 9);
-    expect(edges[2]).toBeCloseTo(75, 9);
-    expect(cellEdges(300, 2, 0)).toHaveLength(3);
+  it("cuts a 300 x 200 model on a 160 x 120 bed into four pieces on every layer", () => {
+    const [config, source] = conicalProject({ workAreaWidthMm: 160, workAreaHeightMm: 120 });
+    const grid = planSeamGrid(config)!;
+    expect(grid).toMatchObject({ columns: 2, rows: 2, seamOffsetXMm: 10, seamOffsetYMm: 10 });
+    // One seam per axis, near the middle, never a half-tile at the ends.
+    expect(seamsX(config, 0)).toEqual([-5]);
+    expect(seamsX(config, 1)).toEqual([5]);
+    expect(seamsY(config, 1)).toEqual([5]);
+    const ir = generateGeometry(config, source);
+    for (const layer of ir.layers) {
+      expect(layer.pieces.length).toBeLessThanOrEqual(4);
+      expect(Math.max(...layer.pieces.map((piece) => piece.column))).toBeLessThanOrEqual(1);
+      expect(Math.max(...layer.pieces.map((piece) => piece.row))).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("adds a division only when the offset end cell would overflow the bed", () => {
+    const [config] = conicalProject();
+    // 150 mm tiles on a 155 mm bed leave 5 mm of slack: a 10 mm offset grows
+    // an end cell by 5 mm and still fits, a 12 mm one does not.
+    const bed = { ...config, workAreaWidthMm: 155 + config.laserKerfMm, workAreaHeightMm: 0 };
+    expect(planSeamGrid({ ...bed, seamOffsetMm: 10 })!.columns).toBe(2);
+    expect(planSeamGrid({ ...bed, seamOffsetMm: 12 })!.columns).toBe(3);
+  });
+
+  it("lines seams up when the offset is zero", () => {
+    const [config] = conicalProject({ workAreaWidthMm: 160, workAreaHeightMm: 120, seamOffsetMm: 0 });
+    expect(seamsX(config, 0)).toEqual(seamsX(config, 1));
+    expect(seamsY(config, 0)).toEqual(seamsY(config, 1));
+  });
+
+  it("keeps the same cell count on every layer, moving only the interior seams", () => {
+    const edges = cellEdges(300, 2, 5);
+    expect(edges).toHaveLength(3);
+    expect(edges[1]).toBeCloseTo(5, 9);
+    expect(cellEdges(300, 3, -5).slice(1, -1)).toEqual([-55, 45]);
+  });
+
+  it("rejects a seam offset outside the supported range", () => {
+    expect(() => validateProject({ ...DEFAULT_PROJECT, seamOffsetMm: -1 })).toThrow(/Seam offset/);
+    expect(() => validateProject({ ...DEFAULT_PROJECT, seamOffsetMm: 51 })).toThrow(/Seam offset/);
+    expect(() => validateProject({ ...DEFAULT_PROJECT, seamOffsetMm: 0 })).not.toThrow();
   });
 
   it("keeps every piece inside the work area and preserves the material", () => {
@@ -440,9 +474,9 @@ describe("split fabrication package", () => {
     const [config, source] = conicalProject(workArea);
     const ir = generateGeometry(config, source);
     // A tall strip split by rows, plus a bar kept whole whose centre sits in
-    // column 0 but which reaches 60 mm into column 1: cell A1 alone would be
-    // 210 mm wide on a 160 mm bed.
-    const layers = [bareLayer(0, [rectPolygon(-150, -100, -80, 100), rectPolygon(-70, -60, 60, -20)]), bareLayer(1, [rectPolygon(-140, -90, -90, 90)])];
+    // column 0 (layer 0's seam sits at x = -5) but which reaches 60 mm into
+    // column 1: cell A1 alone would be 205 mm wide on a 160 mm bed.
+    const layers = [bareLayer(0, [rectPolygon(-150, -100, -80, 100), rectPolygon(-75, -60, 55, -20)]), bareLayer(1, [rectPolygon(-140, -90, -90, 90)])];
     const warnings: GeometryIRV1["warnings"] = [];
     const splitPlan = splitLayersForWorkArea(config, layers, warnings);
     expect(layers[0]!.pieces.filter((piece) => piece.exempt)).toHaveLength(1);
@@ -488,14 +522,16 @@ describe("split fabrication package", () => {
 
   it("stops a marking at the seam instead of engraving past its own sheet", async () => {
     const [base, source] = conicalProject({ ...workArea, showAlignmentGuides: true, showNorthArrow: true, showScaleBar: true });
-    // A map marker on the x = 0 seam of layer 1, near the south edge where only
-    // that layer has material, so its filled symbol and halo cross the seam.
+    // A map marker on layer 1's x seam, near the south edge where only that
+    // layer has material, so its filled symbol and halo cross the seam.
     const bounds = base.location.bounds!;
-    const config: ProjectConfigV1 = { ...base, markers: [{ id: "seam", lat: bounds.south + (bounds.north - bounds.south) * 0.04, lon: (bounds.west + bounds.east) / 2, symbol: "pin" }] };
+    const [seamX] = seamsX(base, 0);
+    const seamLon = bounds.west + (bounds.east - bounds.west) * (seamX! / base.widthMm + 0.5);
+    const config: ProjectConfigV1 = { ...base, markers: [{ id: "seam", lat: bounds.south + (bounds.north - bounds.south) * 0.04, lon: seamLon, symbol: "pin" }] };
     const ir = generateGeometry(config, source);
     const marker = ir.layers[0]!.markings.filter((mark) => mark.id.startsWith("map-marker-"));
     expect(marker.length).toBeGreaterThan(0);
-    expect(marker.some((mark) => mark.points.some((point) => point.x < -1) && mark.points.some((point) => point.x > 1))).toBe(true);
+    expect(marker.some((mark) => mark.points.some((point) => point.x < seamX! - 1) && mark.points.some((point) => point.x > seamX! + 1))).toBe(true);
     const pkg = buildFabricationPackage(ir, config);
     const grid = planSeamGrid(config)!;
     const panels = pkg.files.filter((file) => /-[a-z]\d+\.svg$/.test(file.filename) && !file.filename.endsWith("-engrave.svg"));
@@ -554,7 +590,7 @@ describe("split fabrication package", () => {
   it("explains the seams in the README", async () => {
     const { pkg } = splitPackage();
     const readme = await pkg.files.find((file) => file.filename === "README.txt")!.blob.text();
-    expect(readme).toMatch(/Seams shift half a tile on alternating layers/);
+    expect(readme).toMatch(/Seams shift 10 mm on alternating layers/);
     expect(readme).toMatch(/assembly id/i);
   });
 

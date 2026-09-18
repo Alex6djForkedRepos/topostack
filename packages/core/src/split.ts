@@ -10,18 +10,6 @@ import { MAX_SEAM_DIVISIONS, MAX_WORK_AREA_PIECES } from "./types.js";
 import type { GeometryWarning, LayerIR, LayerPieceV1, Point2D, Polygon2D, ProjectConfigV1, SeamPlanV1 } from "./types.js";
 
 /**
- * Masonry bond: alternating layers shift their seam grid by half a tile, so a
- * seam in layer N sits over the middle of a tile in layers N-1 and N+1 and no
- * crack runs through the glued stack.
- *
- * Parity rather than a longer period because only immediately adjacent layers
- * are glued to each other: phases {0, 1/2} put a seam half a pitch from its
- * nearest neighbour, the maximum possible. Layers N and N+2 sharing a grid is
- * harmless - N+1 sits between them, solid across both.
- */
-const SEAM_STAGGER = 0.5;
-
-/**
  * Millimeters the outermost cell edges reach past the material, so no
  * numerical crumb of terrain falls outside every cell. Interior seam
  * coordinates stay exact and are shared bit-for-bit by the two cells that
@@ -29,8 +17,37 @@ const SEAM_STAGGER = 0.5;
  */
 const EDGE_OVERSHOOT_MM = 1;
 
-export function seamPhase(layerIndex: number): number {
-  return layerIndex % 2 === 1 ? SEAM_STAGGER : 0;
+/**
+ * Signed shift of a layer's seams from the even-pitch grid. Even layers move
+ * back and odd layers forward by half the offset, so every seam sits the full
+ * offset away from the matching seam in the layers glued above and below it,
+ * while each layer keeps the same number of cells. Splitting the offset
+ * across both parities means a cell only ever grows by half of it.
+ *
+ * Parity rather than a longer period because only immediately adjacent layers
+ * are glued to each other: layers N and N+2 sharing a grid is harmless, since
+ * N+1 sits between them, solid across both seams.
+ */
+export function seamShift(layerIndex: number, offsetMm: number): number {
+  return (layerIndex % 2 === 1 ? 0.5 : -0.5) * offsetMm;
+}
+
+/**
+ * One axis of the seam grid: how many equal divisions, and the offset between
+ * adjacent layers' seams.
+ *
+ * The end cells grow by half the offset, so the count is chosen against
+ * `usable - offset / 2` rather than `usable`. The offset is held to half the
+ * usable span, which keeps the shift under a quarter of the bed and therefore
+ * under a pitch: no cell ever collapses or inverts.
+ */
+function planAxis(spanMm: number, usableMm: number, requestedOffsetMm: number): { count: number; offsetMm: number } {
+  // The epsilon keeps a model that fits exactly at one division rather than
+  // letting floating-point span/usable == 1.0000000000000002 split it.
+  if (!Number.isFinite(usableMm) || spanMm / usableMm - 1e-9 <= 1) return { count: 1, offsetMm: 0 };
+  const offsetMm = Math.min(Math.max(0, requestedOffsetMm), usableMm / 2);
+  const count = Math.min(MAX_SEAM_DIVISIONS, Math.max(2, Math.ceil(spanMm / (usableMm - offsetMm / 2) - 1e-9)));
+  return { count, offsetMm };
 }
 
 /**
@@ -44,38 +61,31 @@ export function seamPhase(layerIndex: number): number {
 export function planSeamGrid(config: ProjectConfigV1): SeamPlanV1 | undefined {
   const usableWidthMm = config.workAreaWidthMm > 0 ? config.workAreaWidthMm - config.laserKerfMm : Number.POSITIVE_INFINITY;
   const usableHeightMm = config.workAreaHeightMm > 0 ? config.workAreaHeightMm - config.laserKerfMm : Number.POSITIVE_INFINITY;
-  const divisions = (spanMm: number, usableMm: number) => Number.isFinite(usableMm)
-    // The epsilon keeps a model that fits exactly at one division rather than
-    // letting floating-point width/usable == 1.0000000000000002 split it.
-    ? Math.min(MAX_SEAM_DIVISIONS, Math.max(1, Math.ceil(spanMm / usableMm - 1e-9)))
-    : 1;
-  const columns = divisions(config.widthMm, usableWidthMm);
-  const rows = divisions(config.heightMm, usableHeightMm);
-  if (columns === 1 && rows === 1) return undefined;
+  const x = planAxis(config.widthMm, usableWidthMm, config.seamOffsetMm);
+  const y = planAxis(config.heightMm, usableHeightMm, config.seamOffsetMm);
+  if (x.count === 1 && y.count === 1) return undefined;
   return {
-    columns,
-    rows,
-    pitchXMm: config.widthMm / columns,
-    pitchYMm: config.heightMm / rows,
+    columns: x.count,
+    rows: y.count,
+    pitchXMm: config.widthMm / x.count,
+    pitchYMm: config.heightMm / y.count,
+    seamOffsetXMm: x.offsetMm,
+    seamOffsetYMm: y.offsetMm,
     usableWidthMm,
     usableHeightMm,
   };
 }
 
 /**
- * Cell boundaries along one axis. An unstaggered axis yields `count` cells of
- * one pitch; a staggered one yields `count + 1`, two outer half-tiles plus the
- * full tiles between them. A half-tile is never wider than a pitch, so a
- * staggered layer is never the layer that fails to fit.
+ * Cell boundaries along one axis: always `count` cells, with every interior
+ * seam moved by `shiftMm`. The end cells absorb the shift, one growing and
+ * the other shrinking by the same amount.
  */
-export function cellEdges(spanMm: number, count: number, phase: number): number[] {
+export function cellEdges(spanMm: number, count: number, shiftMm: number): number[] {
   const pitch = spanMm / count;
   const half = spanMm / 2;
   const edges = [-half - EDGE_OVERSHOOT_MM];
-  for (let step = 0; step <= count; step += 1) {
-    const edge = -half + (step + phase) * pitch;
-    if (edge > -half + 1e-9 && edge < half - 1e-9) edges.push(edge);
-  }
+  for (let step = 1; step < count; step += 1) edges.push(-half + step * pitch + shiftMm);
   edges.push(half + EDGE_OVERSHOOT_MM);
   return edges;
 }
@@ -201,9 +211,8 @@ function toLayerPieces(layerIndex: number, pieces: CellPiece[]): LayerPieceV1[] 
 }
 
 function splitLayer(config: ProjectConfigV1, layer: LayerIR, grid: SeamPlanV1): CellPiece[] {
-  const phase = seamPhase(layer.index);
-  const xEdges = cellEdges(config.widthMm, grid.columns, grid.columns > 1 ? phase : 0);
-  const yEdges = cellEdges(config.heightMm, grid.rows, grid.rows > 1 ? phase : 0);
+  const xEdges = cellEdges(config.widthMm, grid.columns, seamShift(layer.index, grid.seamOffsetXMm));
+  const yEdges = cellEdges(config.heightMm, grid.rows, seamShift(layer.index, grid.seamOffsetYMm));
 
   // Partition the input rather than subtracting exempt pieces from the output.
   // Layer polygons are pairwise disjoint (clipContours emits one per connected
@@ -256,9 +265,9 @@ export function splitLayersForWorkArea(config: ProjectConfigV1, layers: LayerIR[
   const grid = planSeamGrid(config);
   if (!grid) return undefined;
 
-  // A staggered axis adds one cell, so this is the worst case before any
+  // Every layer has the same cell count, so this is the worst case before any
   // clipping. All or nothing: a half-split model is worse than an unsplit one.
-  const worstCells = (grid.columns + (grid.columns > 1 ? 1 : 0)) * (grid.rows + (grid.rows > 1 ? 1 : 0));
+  const worstCells = grid.columns * grid.rows;
   if (worstCells * layers.length > MAX_WORK_AREA_PIECES) {
     warnings.push({
       code: "WORK_AREA_UNSPLIT",

@@ -31,7 +31,7 @@ import { northArrowFootprint, northArrowMarkings } from "./north-arrow.js";
 import { sourceRequirements } from "./source-requirements.js";
 import { splitLayersForWorkArea } from "./split.js";
 import { displayElevation, elevationUnit, FEET_PER_METER } from "./units.js";
-import { CUSTOM_LINE_KINDS, MAP_MARKER_CLEARANCE_MM, MAP_MARKER_SIZE_MM, MAP_MARKER_MIN_SIZE_MM, MAP_MARKER_MAX_SIZE_MM, MARKER_SYMBOLS, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_WATER_DEPTH_EXAGGERATION, MIN_WORK_AREA_MM, MIN_WATER_DEPTH_EXAGGERATION, MAX_VERTICAL_EXAGGERATION, MIN_LAYER_COUNT, MIN_VERTICAL_EXAGGERATION, NORTH_ARROW_ANCHORS, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, NORTH_ARROW_STYLES, SEA_LEVEL_M } from "./types.js";
+import { CUSTOM_LINE_KINDS, MAP_MARKER_CLEARANCE_MM, MAP_MARKER_SIZE_MM, MAP_MARKER_MIN_SIZE_MM, MAP_MARKER_MAX_SIZE_MM, MARKER_SYMBOLS, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_SEAM_OFFSET_MM, MAX_WATER_DEPTH_EXAGGERATION, MIN_WORK_AREA_MM, MIN_WATER_DEPTH_EXAGGERATION, MAX_VERTICAL_EXAGGERATION, MIN_LAYER_COUNT, MIN_VERTICAL_EXAGGERATION, NORTH_ARROW_ANCHORS, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, NORTH_ARROW_STYLES, SEA_LEVEL_M } from "./types.js";
 import { type CarvedWater, carveWaterDepth, clampCarveToLadder, fitLakesToLadder } from "./water.js";
 import type {
   ElevationGrid,
@@ -1500,6 +1500,7 @@ export function validateProject(config: ProjectConfigV1): void {
     if (value > 0 && (value < MIN_WORK_AREA_MM || value > MAX_PROJECT_DIMENSION_MM)) throw new Error(`${label} must be 0 (unlimited) or between ${MIN_WORK_AREA_MM} and ${MAX_PROJECT_DIMENSION_MM} mm.`);
     if (value > 0 && value - config.laserKerfMm < MIN_WORK_AREA_MM) throw new Error(`${label} must leave at least ${MIN_WORK_AREA_MM} mm of usable bed after the laser kerf.`);
   }
+  if (!Number.isFinite(config.seamOffsetMm) || config.seamOffsetMm < 0 || config.seamOffsetMm > MAX_SEAM_OFFSET_MM) throw new Error(`Seam offset must be between 0 and ${MAX_SEAM_OFFSET_MM} mm.`);
   if (config.smoothing !== 0 && config.smoothing !== 1) throw new Error("Contour smoothing must be 0 or 1.");
   if (Math.abs(config.elevationLabelPosition.x) > 0.9 || Math.abs(config.elevationLabelPosition.y) > 0.9) throw new Error("Elevation label position must be between -90% and 90%.");
   if (config.textStyle.font !== "technical" && config.textStyle.font !== "rounded" && config.textStyle.font !== "stencil") throw new Error("Text font must be technical, rounded, or stencil.");

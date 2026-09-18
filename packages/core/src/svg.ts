@@ -611,6 +611,8 @@ export function buildFabricationPackage(generated: GeometryIRV1, config: Project
           rows: ir.splitPlan.rows,
           pitchXMm: ir.splitPlan.pitchXMm,
           pitchYMm: ir.splitPlan.pitchYMm,
+          seamOffsetXMm: ir.splitPlan.seamOffsetXMm,
+          seamOffsetYMm: ir.splitPlan.seamOffsetYMm,
           pieceCount: ir.layers.reduce((total, layer) => total + layer.pieces.length, 0),
         } : undefined,
         glueMarginMm: config.glueMarginMm,
@@ -658,10 +660,11 @@ export function buildFabricationPackage(generated: GeometryIRV1, config: Project
   const seams = ir.splitPlan ? (() => {
     const pieces = ir.layers.reduce((total, layer) => total + layer.pieces.length, 0);
     const perLayer = `${ir.splitPlan!.columns} x ${ir.splitPlan!.rows}`;
+    const seamOffset = Math.max(ir.splitPlan!.seamOffsetXMm, ir.splitPlan!.seamOffsetYMm);
     const ids = config.showAssemblyLabels
       ? `Each piece carries its assembly id (layer number and grid cell, e.g. L03-B2) engraved in green as a separate ASSEMBLY operation. Those marks sit where the next layer covers them, so they disappear once the stack is glued; a piece with no covered room carries no id, and the top layer carries none at all - use the panel filename for those.\n`
       : "Assembly ids are turned off. The panel filename is the only piece identifier.\n";
-    return `This model is larger than the ${shownLength(config.workAreaWidthMm || config.widthMm)} x ${shownLength(config.workAreaHeightMm || config.heightMm)} ${cutUnit} work area, so each layer is cut as ${perLayer} pieces (${pieces} in total) that butt together. Every panel SVG holds one work-area cell and fits the machine; a piece kept whole across a seam ships on its own sheet (cell name with a numeric suffix) when it would not fit beside its cell.\n\nSeams shift half a tile on alternating layers, so a seam in one layer always sits over solid material in the layers above and below - glue the stack in layer order and the joints lock like brickwork. Seam edges get the same outward kerf compensation as every other cut edge, so pieces butt together at their nominal size.\n\n${ids}\n`;
+    return `This model is larger than the ${shownLength(config.workAreaWidthMm || config.widthMm)} x ${shownLength(config.workAreaHeightMm || config.heightMm)} work area, so each layer is cut as ${perLayer} pieces (${pieces} in total) that butt together. Every panel SVG holds one work-area cell and fits the machine; a piece kept whole across a seam ships on its own sheet (cell name with a numeric suffix) when it would not fit beside its cell.\n\n${seamOffset > 0 ? `Seams shift ${shownLength(seamOffset)} on alternating layers, so a seam in one layer sits over solid material in the layers above and below - glue the stack in layer order and the joints overlap instead of stacking into one crack.` : "Seams line up on every layer (seam offset 0), so the joints stack straight through the model - back them with a glue strip or a sub-base."} Seam edges get the same outward kerf compensation as every other cut edge, so pieces butt together at their nominal size.\n\n${ids}\n`;
   })() : "";
   const nesting = ir.fabricationNests.length ? `Material nesting reduced ${ir.layers.length} layer panels to ${panels.length} fabrication panels. Smaller layers share cut lines inside lower layers while preserving at least ${shownLength(config.glueMarginMm)} of covered glue land. Keep every loose cutout: nested pieces belong to the layer IDs listed in each panel filename and SVG data-layers attribute.\n\n` : config.optimizeMaterialUse ? (ir.splitPlan
     ? `No safe material nests fit the requested ${shownLength(config.glueMarginMm)} glue margin. A nested piece has to sit wholly inside one donor piece, and a work-area seam usually cuts through that room, so splitting a model normally costs its nesting.\n\n`

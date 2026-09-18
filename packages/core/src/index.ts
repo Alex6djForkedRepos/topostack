@@ -1,5 +1,5 @@
 export * from "./types.js";
-export { cellEdges, planSeamGrid, seamPhase, splitLayersForWorkArea } from "./split.js";
+export { cellEdges, planSeamGrid, seamShift, splitLayersForWorkArea } from "./split.js";
 export * from "./geometry.js";
 export * from "./labels.js";
 export * from "./markers.js";

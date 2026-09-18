@@ -227,6 +227,7 @@ export function parseProject(value: unknown): ProjectConfigV1 {
     laserKerfMm: record.laserKerfMm === undefined ? DEFAULT_PROJECT.laserKerfMm : numberValue(record.laserKerfMm),
     workAreaWidthMm: record.workAreaWidthMm === undefined ? DEFAULT_PROJECT.workAreaWidthMm : numberValue(record.workAreaWidthMm),
     workAreaHeightMm: record.workAreaHeightMm === undefined ? DEFAULT_PROJECT.workAreaHeightMm : numberValue(record.workAreaHeightMm),
+    seamOffsetMm: record.seamOffsetMm === undefined ? DEFAULT_PROJECT.seamOffsetMm : numberValue(record.seamOffsetMm),
     showAssemblyLabels: record.showAssemblyLabels === undefined ? DEFAULT_PROJECT.showAssemblyLabels : booleanValue(record.showAssemblyLabels, "showAssemblyLabels"),
     showElevationLabels: booleanValue(record.showElevationLabels, "showElevationLabels"), showNorthArrow: booleanValue(record.showNorthArrow, "showNorthArrow"), showScaleBar: booleanValue(record.showScaleBar, "showScaleBar"),
     elevationLabelPosition: labelPositionRecord ? { x: numberValue(labelPositionRecord.x), y: numberValue(labelPositionRecord.y) } : { ...DEFAULT_PROJECT.elevationLabelPosition },
