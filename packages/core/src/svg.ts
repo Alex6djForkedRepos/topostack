@@ -8,7 +8,8 @@ import { labelLineSegments, labelPathData } from "./labels.js";
 import { offsetClosedRing } from "./offset.js";
 import { displayElevation, displayLength, elevationUnit, lengthUnit } from "./units.js";
 import { waterPatternStrokes } from "./water-pattern.js";
-import type { ExportFile, FabricationNest, FabricationPackageV1, FabricationPanelV1, GeometryIRV1, LayerIR, LineStyleV1, Point2D, ProjectConfigV1 } from "./types.js";
+import { PAINT_BLEED_MM } from "./paint-regions.js";
+import type { ExportFile, FabricationNest, FabricationPackageV1, FabricationPanelV1, GeometryIRV1, LayerIR, LineStyleV1, PaintRegionKind, Point2D, ProjectConfigV1 } from "./types.js";
 
 const CUT = "#FE0002";
 const SCORE = "#2366FF";
@@ -416,6 +417,38 @@ function panelToSvg(ir: GeometryIRV1, panel: FabricationPanel, bodies: PanelBodi
   return svgDocument(panel.maxX - panel.minX, panel.maxY - panel.minY, body, `${ir.projectName} — ${kind} panel${cell} — ${layerIds}`, panel.minX, panel.minY);
 }
 
+/**
+ * A paper stencil registered to one fabrication panel: the same canvas, each
+ * included piece's outline at nominal size (paper takes no kerf), and the
+ * piece's paint windows for `kind`. Undefined when no piece on the panel has
+ * a window, so a dry sheet gets no empty template.
+ */
+function paintTemplateSvg(ir: GeometryIRV1, panel: FabricationPanel, kind: PaintRegionKind): string | undefined {
+  const regions = (ir.paintRegions ?? []).filter((region) => region.kind === kind && panel.layerIndexes.includes(region.layerIndex)
+    && (!panel.included || panel.included.get(region.layerIndex)?.has(region.polygonIndex)));
+  if (!regions.length) return undefined;
+  const groups = panel.layerIndexes.flatMap((layerIndex) => {
+    const layer = ir.layers[layerIndex];
+    const layerRegions = regions.filter((region) => region.layerIndex === layerIndex);
+    if (!layer || !layerRegions.length) return [];
+    const omitted = omittedNestHoles(ir.fabricationNests, layerIndex);
+    const paths = layerRegions.map(({ polygonIndex, polygons }) => {
+      const polygon = layer.polygons[polygonIndex];
+      if (!polygon) return "";
+      const omittedHoles = omitted.get(polygonIndex) ?? new Set<number>();
+      const outline = [polygon.outer, ...polygon.holes.filter((_, holeIndex) => !omittedHoles.has(holeIndex))].map((ring) => pathData(ring, 0, 0, true)).join(" ");
+      const piece = layer.pieces[polygonIndex]?.id ?? layer.id;
+      const windows = polygons.map((window, windowIndex) => `<path id="${layer.id}-paint-${kind}-${polygonIndex + 1}-window-${windowIndex + 1}" data-role="window" data-kind="${kind}" d="${[window.outer, ...window.holes].map((ring) => pathData(ring, 0, 0, true)).join(" ")}" ${CUT_LINE}/>`).join("");
+      return `<path id="${layer.id}-paint-${kind}-${polygonIndex + 1}-outline" data-role="outline" data-piece="${escapeXml(piece)}" d="${outline}" ${CUT_LINE}/>${windows}`;
+    }).join("");
+    return [`<g id="${layer.id}-PAINT-${kind.toUpperCase()}" data-layers="${layer.id}">${paths}</g>`];
+  }).join("");
+  const layerIds = panel.layerIndexes.map((index) => ir.layers[index]?.id).filter(Boolean).join(", ");
+  const cell = panel.cellName ? ` — cell ${panel.cellName}` : "";
+  const body = `<g id="CUT" data-operation="CUT" fill="none" stroke="${CUT}" stroke-width="0.1" fill-rule="evenodd"><g id="${panelId(panel)}-PAINT-${kind.toUpperCase()}" data-layers="${escapeXml(panel.layerIndexes.map((index) => ir.layers[index]?.id).filter(Boolean).join(" "))}"${panel.cellName ? ` data-cell="${escapeXml(panel.cellName)}"` : ""} data-paint-kind="${kind}">${groups}</g></g>`;
+  return svgDocument(panel.maxX - panel.minX, panel.maxY - panel.minY, body, `${ir.projectName} — ${kind} paint template${cell} — ${layerIds}`, panel.minX, panel.minY);
+}
+
 function segmentOnCropBoundary(start: Point2D, end: Point2D, config: ProjectConfigV1): boolean {
   const epsilon = 0.02;
   if (config.cropShape === "circle") {
@@ -574,10 +607,15 @@ export function buildFabricationPackage(generated: GeometryIRV1, config: Project
     const cell = panel.cellName ? `-${panel.cellName.toLowerCase()}` : "";
     const filename = panel.layerIndexes.length === 1 ? `${base}-${ir.layers[panel.rootLayerIndex]?.id}${cell}.svg` : `${base}-panel-${String(index + 1).padStart(2, "0")}-layers-${layers}${cell}.svg`;
     const engravingFilename = filename.replace(/\.svg$/, "-engrave.svg");
+    const paintFiles: ExportFile[] = config.paintTemplates.flatMap((kind) => {
+      const svg = paintTemplateSvg(ir, panel, kind);
+      return svg ? [{ filename: filename.replace(/\.svg$/, `-paint-${kind}.svg`), blob: new Blob([svg], { type: "image/svg+xml" }) }] : [];
+    });
     return {
       panel,
       file: { filename, blob: new Blob([panelToSvg(ir, panel, bodies[index]!, OPERATIONS, "fabrication")], { type: "image/svg+xml" }) } satisfies ExportFile,
       engravingFile: { filename: engravingFilename, blob: new Blob([panelToSvg(ir, panel, bodies[index]!, ENGRAVE_ONLY, "engraving")], { type: "image/svg+xml" }) } satisfies ExportFile,
+      paintFiles,
     };
   });
   // A split layer is cut across several sheets, so a layer maps to a list.
@@ -618,9 +656,15 @@ export function buildFabricationPackage(generated: GeometryIRV1, config: Project
         glueMarginMm: config.glueMarginMm,
         laserKerfMm: config.laserKerfMm,
         nests: ir.fabricationNests,
-        panels: panelFiles.map(({ panel, file, engravingFile }) => ({
+        paintTemplates: config.paintTemplates.length ? {
+          kinds: config.paintTemplates,
+          bleedMm: PAINT_BLEED_MM,
+          fileCount: panelFiles.reduce((total, { paintFiles }) => total + paintFiles.length, 0),
+        } : undefined,
+        panels: panelFiles.map(({ panel, file, engravingFile, paintFiles }) => ({
           filename: file.filename,
           engravingFilename: engravingFile.filename,
+          paintTemplateFilenames: paintFiles.map((paintFile) => paintFile.filename),
           cell: panel.cellName,
           widthMm: panel.maxX - panel.minX,
           heightMm: panel.maxY - panel.minY,
@@ -666,12 +710,16 @@ export function buildFabricationPackage(generated: GeometryIRV1, config: Project
       : "Assembly ids are turned off. The panel filename is the only piece identifier.\n";
     return `This model is larger than the ${shownLength(config.workAreaWidthMm || config.widthMm)} x ${shownLength(config.workAreaHeightMm || config.heightMm)} work area, so each layer is cut as ${perLayer} pieces (${pieces} in total) that butt together. Every panel SVG holds one work-area cell and fits the machine; a piece kept whole across a seam ships on its own sheet (cell name with a numeric suffix) when it would not fit beside its cell.\n\n${seamOffset > 0 ? `Seams shift ${shownLength(seamOffset)} on alternating layers, so a seam in one layer sits over solid material in the layers above and below - glue the stack in layer order and the joints overlap instead of stacking into one crack.` : "Seams line up on every layer (seam offset 0), so the joints stack straight through the model - back them with a glue strip or a sub-base."} Seam edges get the same outward kerf compensation as every other cut edge, so pieces butt together at their nominal size.\n\n${config.seamTabs ? "Wherever a seam runs under the next layer up, it is cut as interlocking jigsaw tabs. Each piece only fits its true neighbour and locks into line with it; press the tabs home before gluing. Where a seam stays visible - on the top layer or an exposed slope - it is left straight.\n\n" : ""}${ids}\n`;
   })() : "";
+  const paintCount = panelFiles.reduce((total, { paintFiles }) => total + paintFiles.length, 0);
+  const paint = config.paintTemplates.length ? (paintCount
+    ? `Paint templates: ${paintCount} panel${paintCount === 1 ? " has" : "s have"} a registered -paint-<kind>.svg companion (${config.paintTemplates.join(", ")}). Cut each one from paper or stencil film with kerf compensation turned off: its outer outline is the piece at nominal size, and the windows inside it are the ${config.paintTemplates.join("/")} that stays visible after assembly, extended ${shownLength(PAINT_BLEED_MM)} under the layer above so a slightly misplaced stencil leaves no bare edge at the foot of the step. Lay the stencil flush to the cut piece's edge, spray, and remove it before gluing; the bleed lands on covered glue land, so wipe or lightly sand a thick paint film there. Every template path is a red CUT path; a panel with no visible ${config.paintTemplates.join("/")} has no template.\n\n`
+    : `Paint templates are enabled, but no panel has visible ${config.paintTemplates.join("/")}, so none were written.\n\n`) : "";
   const nesting = ir.fabricationNests.length ? `Material nesting reduced ${ir.layers.length} layer panels to ${panels.length} fabrication panels. Smaller layers share cut lines inside lower layers while preserving at least ${shownLength(config.glueMarginMm)} of covered glue land. Keep every loose cutout: nested pieces belong to the layer IDs listed in each panel filename and SVG data-layers attribute.\n\n` : config.optimizeMaterialUse ? (ir.splitPlan
     ? `No safe material nests fit the requested ${shownLength(config.glueMarginMm)} glue margin. A nested piece has to sit wholly inside one donor piece, and a work-area seam usually cuts through that room, so splitting a model normally costs its nesting.\n\n`
     : `No safe material nests fit the requested ${shownLength(config.glueMarginMm)} glue margin, so every layer remains on its own panel.\n\n`) : "Material-saving nesting is disabled.\n\n";
-  const readme = `${ir.projectName}\n\n${ir.layers.length} layers at ${shownLength(config.materialThicknessMm)} each\nFinished stack height: ${shownLength(ir.layers.length * config.materialThicknessMm)}\n${vertical}${fittedDepths}${linework}Fabrication panels: ${panels.length}\n\nCUT ${CUT}\nSCORE ${SCORE}\nENGRAVE ${ENGRAVE}\n${ir.splitPlan && config.showAssemblyLabels ? `ASSEMBLY ${ASSEMBLY}\n` : ""}\nEvery complete panel and the master SVG place engraved and scored paths in named ENGRAVE and SCORE groups, both using Atomm blue for line engraving, separate from red CUT paths. Each panel also has a registered -engrave.svg companion containing the same ENGRAVE paths only. Use either the complete panel SVG, or pair its engraving-only companion with a cut workflow; do not process both engraving copies in the same job.\n\n${alignment}${kerf}${seams}${nesting}Import the master SVG into xTool Studio, or use the fabrication-panel SVGs. In xTool Studio, choose Score for blue linework and Cut for red outlines. Engrave fills closed shapes; use it only for intentionally filled markers, not alignment outlines, contours, or line labels. Marker clearances are gaps in the line geometry; there is no white engraving operation. Verify each color layer's processing type, dimensions, and material settings before fabrication. Terrain data is decorative and is not survey or engineering data.\n`;
+  const readme = `${ir.projectName}\n\n${ir.layers.length} layers at ${shownLength(config.materialThicknessMm)} each\nFinished stack height: ${shownLength(ir.layers.length * config.materialThicknessMm)}\n${vertical}${fittedDepths}${linework}Fabrication panels: ${panels.length}\n\nCUT ${CUT}\nSCORE ${SCORE}\nENGRAVE ${ENGRAVE}\n${ir.splitPlan && config.showAssemblyLabels ? `ASSEMBLY ${ASSEMBLY}\n` : ""}\nEvery complete panel and the master SVG place engraved and scored paths in named ENGRAVE and SCORE groups, both using Atomm blue for line engraving, separate from red CUT paths. Each panel also has a registered -engrave.svg companion containing the same ENGRAVE paths only. Use either the complete panel SVG, or pair its engraving-only companion with a cut workflow; do not process both engraving copies in the same job.\n\n${alignment}${kerf}${seams}${nesting}${paint}Import the master SVG into xTool Studio, or use the fabrication-panel SVGs. In xTool Studio, choose Score for blue linework and Cut for red outlines. Engrave fills closed shapes; use it only for intentionally filled markers, not alignment outlines, contours, or line labels. Marker clearances are gaps in the line geometry; there is no white engraving operation. Verify each color layer's processing type, dimensions, and material settings before fabrication. Terrain data is decorative and is not survey or engineering data.\n`;
   const files: ExportFile[] = [
-    ...panelFiles.flatMap(({ file, engravingFile }) => [file, engravingFile]),
+    ...panelFiles.flatMap(({ file, engravingFile, paintFiles }) => [file, engravingFile, ...paintFiles]),
     master,
     { filename: `${base}-assembly-guide.svg`, blob: new Blob([assemblyGuideToSvg(ir)], { type: "image/svg+xml" }) },
     { filename: `${base}-project.json`, blob: new Blob([JSON.stringify(manifest, null, 2)], { type: "application/json" }) },

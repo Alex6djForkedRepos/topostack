@@ -183,7 +183,7 @@ export async function loadVectorMarkings(bounds: GeoBounds, requestedZoom: numbe
   signal?.throwIfAborted();
   const window = fittingTileWindow(bounds, Math.max(header.minZoom, Math.min(header.maxZoom, Math.round(requestedZoom) + 1)), header.minZoom);
   const projectPoint = tilePointProjector(window, config.widthMm, config.heightMm);
-  const { lakes: usesWaterDepth } = sourceRequirements(config);
+  const { water: usesWaterAreas } = sourceRequirements(config);
   // Share cleanup headroom across the selection. Fixed per-tile/category
   // quotas can discard a dense tile while empty neighbors leave room unused.
   let rawMarkingCount = 0;
@@ -209,7 +209,7 @@ export async function loadVectorMarkings(bounds: GeoBounds, requestedZoom: numbe
         if (feature.type !== 2 && !(isWater && feature.type === 3)) continue;
         const properties = feature.properties as Record<string, unknown>;
         if (isWater && feature.type === 3) {
-          if (!config.showWater && !usesWaterDepth) continue;
+          if (!usesWaterAreas) continue;
           const isOcean = properties.kind === "ocean";
           const geometry = feature.loadGeometry();
           consumeGeometry(geometry, true);
@@ -426,7 +426,7 @@ export async function loadTerrain(config: ProjectConfigV1, signal?: AbortSignal,
   try {
     // Ocean polygons are how geometry separates bathymetry from land relief,
     // so depth modeling needs vectors even when shoreline scoring is hidden.
-    const { lakes: usesWaterDepth, vectors: vectorRequested } = sourceRequirements(config);
+    const { lakes: usesWaterDepth, vectors: vectorRequested, water: usesWaterAreas } = sourceRequirements(config);
     let loaded;
     try {
       // Choose elevation detail from the crop, independently of the camera zoom.
@@ -444,7 +444,7 @@ export async function loadTerrain(config: ProjectConfigV1, signal?: AbortSignal,
               return { markings: [], inland: [], ocean: [], truncated: false, status: "unavailable" as const };
             })
           : Promise.resolve({ markings: [], inland: [], ocean: [], truncated: false, status: "not-requested" as const }),
-        (usesWaterDepth || config.showWater)
+        usesWaterAreas
           ? loadLakeAreas(bounds, zoom, config, signal)
             .then((areas) => ({ areas, status: "available" as const }))
             .catch((error) => {
@@ -470,7 +470,7 @@ export async function loadTerrain(config: ProjectConfigV1, signal?: AbortSignal,
     const [{ elevation, elevationRepairCount, imagerySources, datasetVersion, terrainAttribution, terrainSourceUnavailable, terrainSelection }, vector, lakes] = loaded;
     const base: SourceBundleV1 = { schemaVersion: 1, elevation, elevationRepairCount, terrainSourceUnavailable, terrainSelection, markings: vector.markings, waterPatternAreas: [...vector.ocean, ...vector.inland], inlandWaterAreas: vector.inland, vectorStatus: vector.status, lakeDataStatus: lakes.status, datasetVersion, sourceKind: "real", bounds, imagerySources, resolutionM: groundWidthM(bounds) / elevation.width, attribution: [...MAP_DATA_ATTRIBUTION, ...terrainAttribution] };
     try {
-      const areas = resolveLakeOutlines([], lakes.areas, usesWaterDepth || config.showWater ? vector.inland : []);
+      const areas = resolveLakeOutlines([], lakes.areas, usesWaterAreas ? vector.inland : []);
       const bathymetry = usesWaterDepth
         ? await loadSurveyedLakeDepths(bounds, elevation, zoom, areas, signal, config)
         : { areas, status: "not-covered" as const, datasetVersions: [], attribution: [] };
@@ -480,7 +480,7 @@ export async function loadTerrain(config: ProjectConfigV1, signal?: AbortSignal,
       if (userSignal?.aborted) throw error;
       // Water assembly is an enhancement over good elevation; never trade real
       // terrain for sample terrain because a lake outline failed to clip.
-      const requested = usesWaterDepth || config.showWater;
+      const requested = usesWaterAreas;
       return {
         fallback: false,
         waterWarning: errorMessage(error, "Water outlines could not be assembled."),

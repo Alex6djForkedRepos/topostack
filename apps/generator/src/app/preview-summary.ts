@@ -144,7 +144,8 @@ export function sectionSummary(section: ConfigSectionId, project: ProjectConfigV
     case "advanced": {
       const seams = planSeamGrid(project);
       const contours = project.smoothing === 1 ? "Smooth contours" : "Standard contours";
-      return seams ? `${seams.columns} × ${seams.rows} sheets per layer · ${contours}` : contours;
+      const paint = project.outputMode === "stack" && project.paintTemplates.length ? " · Paint templates" : "";
+      return `${seams ? `${seams.columns} × ${seams.rows} sheets per layer · ${contours}` : contours}${paint}`;
     }
   }
 }

@@ -107,6 +107,7 @@
     <thead><tr><th scope="col">Control</th><th scope="col">Range or options</th><th scope="col">Default</th><th scope="col">Notes</th></tr></thead>
     <tbody>
       <tr><td>Material-saving nests</td><td>On, off</td><td>On</td><td><em>Layered</em>. Cuts upper layers from covered parts of lower sheets.</td></tr>
+      <tr><td>Water paint templates</td><td>On, off</td><td>Off</td><td><em>Layered</em>. Adds a paper stencil SVG beside each panel with visible water, cut to the piece outline with windows over the water that stays visible after assembly, so you can spray paint it without colouring the land. Needs water outlines, which are fetched even with Water outlines and Water depth off.</td></tr>
       <tr><td>Smooth contours</td><td>On, off</td><td>On</td><td>Rounds sharp corners on contour shapes.</td></tr>
       <tr><td>Glue margin</td><td>2–25 mm</td><td>8 mm</td><td><em>Layered</em>, with nests on. Covered glue area kept around nested pieces.</td></tr>
       <tr><td>Laser kerf</td><td>0–1 mm</td><td>0.15 mm</td><td><em>Layered</em>. Full kerf width; half is applied to each side of a cut.</td></tr>

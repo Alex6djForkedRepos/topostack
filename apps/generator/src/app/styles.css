@@ -1515,6 +1515,18 @@ body:has(.app-shell) {
   bottom: 18px;
 }
 
+.paint-template-toggle {
+  right: 18px;
+  bottom: 34px;
+  padding: 4px 9px;
+}
+
+.paint-template-toggle .ldt-switch {
+  font: 9px var(--loidolt-font-utility);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .preview-loading {
   position: absolute;
   inset: 0;

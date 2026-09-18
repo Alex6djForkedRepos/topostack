@@ -288,6 +288,19 @@ function quantile(sorted: Float64Array, count: number, fraction: number): number
   return sorted[Math.min(count - 1, Math.max(0, Math.round(fraction * (count - 1))))] ?? 0;
 }
 
+/**
+ * Where a water area's face sits when nothing carves it: the sea at datum, a
+ * lake at the median of the DEM inside its outline (flat there, so the median
+ * is the surface, in the same datum as the land around it). NaN with no cells.
+ */
+export function waterSurfaceLevelM(area: WaterAreaV1, grid: ElevationGrid, config: ProjectConfigV1): number {
+  if (area.kind === "ocean") return 0;
+  const cells = polygonCells(area.polygon, grid, config);
+  if (!cells.length) return Number.NaN;
+  const sorted = Float64Array.from(cells, (index) => grid.values[index]!).sort();
+  return quantile(sorted, sorted.length, 0.5);
+}
+
 /** One lake's distance-to-shore field, with what the basin fit needs to know about how it was measured. */
 interface LakeShore {
   /** Ground meters from each of the lake's cells to the nearest shore. */

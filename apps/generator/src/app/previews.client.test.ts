@@ -113,6 +113,27 @@ describe("preview resource cleanup", () => {
     expect(path.getAttribute("stroke")).toBe("none");
   });
 
+  it("overlays the paint stencil on a cut layer only when asked", async () => {
+    const geometry = generateGeometry(DEFAULT_PROJECT, createSamplePreviewSource());
+    const square = (r: number) => [{x:-r,y:-r},{x:r,y:-r},{x:r,y:r},{x:-r,y:r},{x:-r,y:-r}];
+    geometry.layers = [{ ...geometry.layers[0]!, polygons: [{ outer: square(40), holes: [] }], markings: [] }];
+    geometry.paintRegions = [{ kind: "water", layerIndex: 0, polygonIndex: 0, polygons: [{ outer: square(10), holes: [square(2)] }] }];
+    const target = document.createElement("div");
+    component = mount(TwoDPreview, { target, props: { geometry, selectedLayer: 0 } });
+    flushSync();
+    expect(target.querySelectorAll('path[data-paint-kind="water"]')).toHaveLength(1);
+    expect(target.querySelector("[data-paint-template]")).toBeNull();
+    const toggle = target.querySelector<HTMLButtonElement>('button[role="switch"][aria-label="Show paint template"]')!;
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    toggle.click();
+    flushSync();
+    const paper = target.querySelector("[data-paint-template] path")!;
+    // Piece outline plus the window and its island: three rings under evenodd.
+    expect(paper.getAttribute("d")?.match(/M/g)).toHaveLength(3);
+    expect(paper.getAttribute("fill-rule")).toBe("evenodd");
+    expect(target.querySelectorAll('[data-paint-template] path[stroke="#c9302c"]')).toHaveLength(1);
+  });
+
   it("keeps covered marker areas empty in the 3D mesh", async () => {
     const geometry = generateGeometry(DEFAULT_PROJECT, createSamplePreviewSource());
     const square = (r: number) => [{x:-r,y:-r},{x:r,y:-r},{x:r,y:r},{x:-r,y:r},{x:-r,y:-r}];

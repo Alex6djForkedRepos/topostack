@@ -10,7 +10,7 @@ Turn a place you love into something you can make. TopoStack is a browser-based 
 
 | Workflow | Controls | Output |
 | --- | --- | --- |
-| **Layered relief** | Physical size, material thickness, vertical exaggeration, map details, and fabrication settings | Master SVG, cut panels, matching engraving panels, and an assembly guide |
+| **Layered relief** | Physical size, material thickness, vertical exaggeration, map details, and fabrication settings | Master SVG, cut panels, matching engraving panels, optional paint templates, and an assembly guide |
 | **Flat engraving** | Physical size, contour density, index contours, linework, map details, and border | One SVG at physical size, containing engraving paths only |
 
 Both workflows support rectangular and circular crops; roads, trails, transportation labels, water outlines and fill patterns; state/province boundaries; latitude/longitude grids; elevation labels; a compass; and a scale bar. Add custom coordinate-based markers, trails, and boundaries to make a map your own.
