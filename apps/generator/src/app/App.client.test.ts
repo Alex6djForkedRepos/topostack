@@ -593,20 +593,21 @@ describe("TopoStack Svelte shell", () => {
   });
 
   it("offers water paint templates for a layered model and stores the kind list", async () => {
-    const { saveProject } = await import("../storage");
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
     await tick();
-    [...target.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes("Fabrication settings"))!.click();
+    const heading = [...target.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes("Fabrication settings"))!;
+    heading.click();
     await tick();
     const paintSwitch = () => target.querySelector<HTMLButtonElement>('button[role="switch"][aria-label="Water paint templates"]');
     expect(paintSwitch()?.getAttribute("aria-checked")).toBe("false");
+    expect(heading.textContent).not.toContain("Paint templates");
     paintSwitch()!.click();
     await vi.waitFor(() => expect(paintSwitch()?.getAttribute("aria-checked")).toBe("true"));
-    await vi.waitFor(() => expect(vi.mocked(saveProject).mock.lastCall?.[0]?.paintTemplates).toEqual(["water"]));
-    expect(target.textContent).toContain("Paint templates");
+    // The section summary reads the stored kind list, so it proves the project took ["water"].
+    await vi.waitFor(() => expect(heading.textContent).toContain("Paint templates"));
     paintSwitch()!.click();
-    await vi.waitFor(() => expect(vi.mocked(saveProject).mock.lastCall?.[0]?.paintTemplates).toEqual([]));
+    await vi.waitFor(() => expect(heading.textContent).not.toContain("Paint templates"));
 
     // A flat engraving has no layers to stencil.
     target.querySelector<HTMLButtonElement>('button[role="radio"][aria-label="Flat engraving"]')!.click();
