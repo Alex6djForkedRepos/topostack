@@ -53,12 +53,12 @@
       <tr><td><code>ENGRAVE</code></td><td><span class="swatch line" aria-hidden="true"></span>Blue <code>#2366FF</code></td><td>Roads, trails, labels, boundaries, the coordinate grid, north arrow, markers, alignment marks, and in flat output the contours and border.</td></tr>
     </tbody>
   </table>
-  <p>Scores and engravings share a color, so assign them by group name rather than color if you want different settings. Inside ENGRAVE, detail groups are named by feature so you can give them separate line weights or turn them off:</p>
+  <p>Choose Score for blue linework in both SCORE and ENGRAVE groups, Cut for red outlines, and Engrave only for intentionally filled blue artwork. Group names organize the SVG; verify the processing type in Studio. Inside ENGRAVE, detail groups are named by feature so you can give them separate line weights or turn them off:</p>
   <ul>
     <li><strong>Layered:</strong> each panel has a <code>fabrication-panel-N-ENGRAVE</code> group listing its layers in a <code>data-layers</code> attribute. Inside it, each layer has groups such as <code>layer-03-ENGRAVE-trails</code>, <code>-major-roads</code>, <code>-local-roads</code>, <code>-transport-labels</code>, <code>-water</code>, <code>-boundaries</code>, <code>-coordinate-grid</code>, <code>-annotations</code> and <code>-general</code>.</li>
     <li><strong>Flat:</strong> <code>ENGRAVE-contours-minor</code>, <code>ENGRAVE-contours-index</code>, <code>ENGRAVE-water-fill</code>, <code>ENGRAVE-map-details</code> (with the same feature subgroups) and <code>ENGRAVE-border</code>.</li>
   </ul>
-  <p>Custom markers sit on a white-filled clearance shape (<code>data-knockout="true"</code>) that hides the lines beneath them. Check that your laser software treats these white shapes as intended and does not engrave them.</p>
+  <p>Marker clearances are gaps in the exported line geometry, not white fabrication objects. Solid marker symbols retain their blue fill with no duplicate outline stroke; use Engrave for those filled shapes.</p>
 
   <h2 id="kerf-panel-size-and-alignment-marks">Kerf, panel size and alignment marks</h2>
   <p>In layered output, <strong>Laser kerf</strong> in Fabrication settings is the full width your beam removes. Outer cuts move outward and holes move inward by half that width, so the finished pieces match the artwork. Each panel's canvas is enlarged by the kerf to make room. Set Laser kerf to 0 if your laser software applies its own compensation.</p>

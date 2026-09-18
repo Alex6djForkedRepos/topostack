@@ -19,7 +19,7 @@
   <p>Warnings appear above the preview. They do not block export, but read them before you cut.</p>
   <dl class="issues">
     <div><dt>Very little elevation change</dt><dd>Flat areas produce layers that look nearly identical, or sparse contours. Raise the vertical exaggeration or contour density, or include more of the surrounding hills.</dd></div>
-    <div><dt>Water is deeper than the sheets below the shoreline can hold</dt><dd>The lake floor is flattened at the bottom of the stack. Select <strong>Fit depth</strong> to compress the lake instead, lower <strong>Depth exaggeration</strong>, or use thinner material. <a href={`${base}/guides/how-lake-depths-work#layers`}>How depth settings affect layers</a>.</dd></div>
+    <div><dt>Water is deeper than the sheets below the shoreline can hold</dt><dd>An explicit depth-layer limit can flatten the lake floor. Turn off <strong>Limit depth layers</strong> for automatic coverage, increase the allowance, or select <strong>Fit depth</strong> to compress the lake instead, lower <strong>Depth exaggeration</strong>, or use thinner material. <a href={`${base}/guides/how-lake-depths-work#layers`}>How depth settings affect layers</a>.</dd></div>
     <div><dt>Some lake depths are estimated rather than surveyed</dt><dd>At least one lake is modeled in whole or part. This is expected for most lakes. <a href={`${base}/guides/how-lake-depths-work#confidence`}>How to read the result</a>.</dd></div>
     <div><dt>A lake extends past the edge of this map</dt><dd>No shoreline is visible, so its depth cannot be modeled. Zoom out to include part of the shore.</dd></div>
     <div><dt>A label or elevation labels were omitted</dt><dd>The text does not fit on the material. Increase the output size or reduce <strong>Text size</strong>.</dd></div>
@@ -31,9 +31,9 @@
 
   <h2>Common questions</h2>
   <h3>Why can’t I choose the number of layers?</h3>
-  <p>Layer count follows from the elevation range, map scale, <strong>Vertical exaggeration</strong> and material thickness, up to 24 sheets. For more layers, raise the exaggeration or use thinner material; for fewer, do the opposite. Lakes with depth use some of those sheets.</p>
+  <p>Layer count follows from the elevation range, map scale, <strong>Vertical exaggeration</strong> and material thickness, with no upper sheet cap. For more layers, raise the exaggeration or use thinner material; for fewer, do the opposite. Automatic lake depth adds sheets below the land without reducing its relief.</p>
   <h3>Why does my exaggeration change after generating?</h3>
-  <p>When the requested relief needs more than 24 sheets, or fewer than 2, TopoStack adjusts the applied exaggeration to fit. The studio shows the applied value, and README.txt records it.</p>
+  <p>TopoStack rounds relief to whole material sheets, with a minimum of two. That rounding can change the applied exaggeration. The studio shows the applied value, and README.txt records it.</p>
   <h3>Why does my lake look flat?</h3>
   <p>The lake may be too shallow for your sheet interval, have no survey or published depth, or have <strong>Water depth</strong> turned off. See <a href={`${base}/guides/how-lake-depths-work#layers`}>why finished layers can look different</a>.</p>
   <h3>My SVG imports at the wrong size.</h3>

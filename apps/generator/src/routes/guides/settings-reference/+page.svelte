@@ -32,7 +32,7 @@
   <table>
     <thead><tr><th scope="col">Control</th><th scope="col">Range or options</th><th scope="col">Default</th><th scope="col">Notes</th></tr></thead>
     <tbody>
-      <tr><td>Vertical exaggeration</td><td>1–20×, in 0.5 steps</td><td>2×</td><td><em>Layered</em>, <em>Regenerate</em>. Adjusted to fit 2–24 sheets; the studio shows the applied value.</td></tr>
+      <tr><td>Vertical exaggeration</td><td>1–10×, in 0.1 steps</td><td>2×</td><td><em>Layered</em>. Updates automatically and rounds to whole sheets, with a minimum of two and no upper layer cap. The studio shows the applied value.</td></tr>
       <tr><td>Material thickness</td><td>0.5–25 mm</td><td>3 mm</td><td><em>Layered</em>. With exaggeration, sets the layer count.</td></tr>
       <tr><td>Contour density</td><td>4–40 lines</td><td>12</td><td><em>Flat</em>. Lines across the elevation range.</td></tr>
       <tr><td>Index contour</td><td>Every 2–10 lines</td><td>5</td><td><em>Flat</em>. Every nth line is drawn heavier.</td></tr>
@@ -52,8 +52,10 @@
       <tr><td>Latitude / longitude grid</td><td>On, off</td><td>Off</td><td></td></tr>
       <tr><td>Engraved border</td><td>On, off</td><td>On</td><td><em>Flat</em>.</td></tr>
       <tr><td>Water depth</td><td>On, off</td><td>On</td><td><em>Layered</em>. Carves lake and sea floors into the stack.</td></tr>
-      <tr><td>Depth exaggeration</td><td>0.25–4×, in 0.25 steps</td><td>1×</td><td><em>Layered</em>, with water depth on. Relative to the terrain's vertical scale.</td></tr>
-      <tr><td>Fit lake depth to available layers</td><td>On, off</td><td>Off</td><td><em>Layered</em>. Compresses over-deep lakes instead of flattening their floors.</td></tr>
+      <tr><td>Depth exaggeration</td><td>0.25–4×, in 0.05 steps</td><td>1×</td><td><em>Layered</em>, with water depth on. Relative to the terrain's vertical scale.</td></tr>
+      <tr><td>Limit depth layers</td><td>On, off</td><td>Off (automatic)</td><td><em>Layered</em>. Automatic coverage adds depth sheets without compressing land relief.</td></tr>
+      <tr><td>Maximum depth layers</td><td>Positive whole number</td><td>Current required depth sheets when enabled</td><td><em>Layered</em>. Explicit allowance below the lowest land; saved with the project.</td></tr>
+      <tr><td>Fit lake depth to available layers</td><td>On, off</td><td>Off</td><td><em>Layered</em>. With an explicit depth-layer limit, compresses over-deep lakes into the allowance instead of flattening their floors.</td></tr>
       <tr><td>Maximum depth</td><td>Per lake, from 1 m</td><td>Published estimate</td><td><em>Layered</em>. Shown for modeled lakes with a depth estimate. Reset restores estimates.</td></tr>
       <tr><td>Assembly guides</td><td>On, off</td><td>On</td><td><em>Layered</em>. Alignment outlines and layer numbers.</td></tr>
       <tr><td>Elevation labels</td><td>On, off</td><td>On</td><td></td></tr>
