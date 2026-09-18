@@ -355,6 +355,25 @@ function coveredParts(polygon: Polygon2D, covering: PreparedPolygons): Polygon2D
 }
 
 /**
+ * Candidate label centres spanning a covered region at label-box spacing. The
+ * global grid is 10% of the model, far coarser than one piece's covered area,
+ * and the alignment guide usually already owns the region's centre.
+ */
+function coveredCandidates(label: string, config: ProjectConfigV1, region: Polygon2D): Point2D[] {
+  const { width, height } = labelDimensions(label, config.textStyle);
+  const bounds = ringBounds(region.outer);
+  const stepX = (width + 1.6) / 2;
+  const stepY = height + 1.6;
+  const candidates: Point2D[] = [];
+  for (let y = bounds.minY + stepY / 2; y <= bounds.maxY - stepY / 2 && candidates.length < 400; y += stepY) {
+    for (let x = bounds.minX + stepX / 2; x <= bounds.maxX - stepX / 2 && candidates.length < 400; x += stepX) {
+      candidates.push({ x: x / (config.widthMm / 2), y: y / (config.heightMm / 2) });
+    }
+  }
+  return candidates;
+}
+
+/**
  * Engrave each cut piece's assembly id where the stack above hides it.
  *
  * A visible id would survive glue-up as a blemish, so a piece with no covered
@@ -383,7 +402,7 @@ function addPieceLabels({ config, flatEngraving, warnings }: GenerationContext, 
       const largest = covered.reduce<Polygon2D | undefined>((best, part) =>
         !best || ringArea(part.outer) > ringArea(best.outer) ? part : best, undefined);
       const point = largest
-        ? placeLabel(piece.id, config, labelIndex, polygonCenter(largest, config), covered)
+        ? placeLabel(piece.id, config, labelIndex, polygonCenter(largest, config), covered, coveredCandidates(piece.id, config, largest))
         : undefined;
       if (!point) {
         omitted.push(piece.id);

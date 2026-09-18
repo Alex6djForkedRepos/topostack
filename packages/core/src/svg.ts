@@ -2,8 +2,9 @@ import { CIRCLE_CROP_SEGMENTS, cropRadiusMm } from "./crop.js";
 import { exportBlockReason } from "./export-policy.js";
 import { formatNumber as format } from "./format.js";
 import { CONTOUR_SIMPLIFICATION_FACTOR, horizontalScaleFor } from "./geometry.js";
-import { clipPolyline, pointAt, pointInPolygon, preparePolygons, type PreparedPolygons, ringBounds } from "./geometry2d.js";
-import { labelPathData } from "./labels.js";
+import polygonClipping, { type MultiPolygon } from "polygon-clipping";
+import { clipPolyline, normalizeMultiPolygon, pointAt, pointInPreparedPolygons, preparePolygons, type PreparedPolygons, ringBounds, toRing } from "./geometry2d.js";
+import { labelLineSegments, labelPathData } from "./labels.js";
 import { offsetClosedRing } from "./offset.js";
 import { displayElevation, displayLength, elevationUnit, lengthUnit } from "./units.js";
 import { waterPatternStrokes } from "./water-pattern.js";
@@ -160,27 +161,29 @@ function nestFamilies(ir: GeometryIRV1): Array<{ rootLayerIndex: number; layerIn
 /**
  * A nested piece is cut out of its donor, so it ships on the donor's sheet
  * whatever its own layer's seam grid says. Walks each cavity back to the
- * family root and answers with that root polygon's cell.
+ * family root and answers with that root polygon's index.
  */
-function cellByPolygon(ir: GeometryIRV1, family: { rootLayerIndex: number; layerIndexes: number[] }): Map<number, Map<number, string>> {
-  const cells = new Map<number, Map<number, string>>();
-  const rootCells = new Map<number, string>();
+function rootPolygonByPolygon(ir: GeometryIRV1, family: { rootLayerIndex: number; layerIndexes: number[] }): Map<number, Map<number, number>> {
+  const roots = new Map<number, Map<number, number>>();
   const root = ir.layers[family.rootLayerIndex];
-  root?.pieces.forEach((piece) => rootCells.set(piece.polygonIndex, `${String.fromCharCode(65 + piece.column)}${piece.row + 1}`));
-  cells.set(family.rootLayerIndex, rootCells);
+  roots.set(family.rootLayerIndex, new Map(root?.polygons.map((_, index) => [index, index] as const) ?? []));
   // Donors always precede the layers nested in them, so one ascending pass
   // resolves every chain.
   for (const nest of ir.fabricationNests) {
     if (!family.layerIndexes.includes(nest.nestedLayerIndex)) continue;
-    const donorCells = cells.get(nest.donorLayerIndex);
-    const nestedCells = cells.get(nest.nestedLayerIndex) ?? new Map<number, string>();
+    const donorRoots = roots.get(nest.donorLayerIndex);
+    const nestedRoots = roots.get(nest.nestedLayerIndex) ?? new Map<number, number>();
     for (const cavity of nest.cavities) {
-      const cell = donorCells?.get(cavity.donorPolygonIndex);
-      if (cell) nestedCells.set(cavity.nestedPolygonIndex, cell);
+      const rootIndex = donorRoots?.get(cavity.donorPolygonIndex);
+      if (rootIndex !== undefined) nestedRoots.set(cavity.nestedPolygonIndex, rootIndex);
     }
-    cells.set(nest.nestedLayerIndex, nestedCells);
+    roots.set(nest.nestedLayerIndex, nestedRoots);
   }
-  return cells;
+  return roots;
+}
+
+function cellName(column: number, row: number): string {
+  return `${String.fromCharCode(65 + column)}${row + 1}`;
 }
 
 function panelBounds(ir: GeometryIRV1, layerIndexes: number[], included?: Map<number, Set<number>>): Pick<FabricationPanelV1, "minX" | "minY" | "maxX" | "maxY"> {
@@ -221,28 +224,78 @@ function panelBounds(ir: GeometryIRV1, layerIndexes: number[], included?: Map<nu
 
 function fabricationPanels(ir: GeometryIRV1): FabricationPanel[] {
   const families = nestFamilies(ir);
-  if (!ir.splitPlan) {
+  const plan = ir.splitPlan;
+  if (!plan) {
     return families.map((family) => ({ ...family, ...panelBounds(ir, family.layerIndexes) }));
   }
+  // The largest canvas the machine holds: usable span plus the kerf the cut
+  // envelope adds, which is how `planSeamGrid` sized the cells.
+  const fits = (bounds: Pick<FabricationPanelV1, "minX" | "minY" | "maxX" | "maxY">) =>
+    bounds.maxX - bounds.minX <= plan.usableWidthMm + ir.laserKerfMm + 1e-6 &&
+    bounds.maxY - bounds.minY <= plan.usableHeightMm + ir.laserKerfMm + 1e-6;
   return families.flatMap((family) => {
-    const cells = cellByPolygon(ir, family);
-    const byCell = new Map<string, Map<number, Set<number>>>();
-    for (const layerIndex of family.layerIndexes) {
-      const layer = ir.layers[layerIndex];
-      if (!layer) continue;
-      layer.polygons.forEach((_, polygonIndex) => {
-        const cell = cells.get(layerIndex)?.get(polygonIndex);
-        if (!cell) return;
-        const included = byCell.get(cell) ?? new Map<number, Set<number>>();
-        included.set(layerIndex, new Set([...(included.get(layerIndex) ?? []), polygonIndex]));
-        byCell.set(cell, included);
-      });
+    const roots = rootPolygonByPolygon(ir, family);
+    const root = ir.layers[family.rootLayerIndex];
+    if (!root) return [];
+    // Sheet per root polygon, initially its seam cell. Nested polygons follow
+    // the root polygon they are cut from.
+    const sheetOf = new Map(root.pieces.map((piece) => [piece.polygonIndex, cellName(piece.column, piece.row)] as const));
+    const exempt = new Set(root.pieces.filter((piece) => piece.exempt).map((piece) => piece.polygonIndex));
+    const group = (): Map<string, Map<number, Set<number>>> => {
+      const bySheet = new Map<string, Map<number, Set<number>>>();
+      for (const layerIndex of family.layerIndexes) {
+        const layer = ir.layers[layerIndex];
+        if (!layer) continue;
+        layer.polygons.forEach((_, polygonIndex) => {
+          const rootIndex = roots.get(layerIndex)?.get(polygonIndex);
+          const sheet = rootIndex === undefined ? undefined : sheetOf.get(rootIndex);
+          if (!sheet) return;
+          const included = bySheet.get(sheet) ?? new Map<number, Set<number>>();
+          included.set(layerIndex, new Set([...(included.get(layerIndex) ?? []), polygonIndex]));
+          bySheet.set(sheet, included);
+        });
+      }
+      return bySheet;
+    };
+    const sheetFits = (sheets: Map<string, Map<number, Set<number>>>, name: string) => {
+      const included = sheets.get(name);
+      return !included || fits(panelBounds(ir, family.layerIndexes, included));
+    };
+    // An exempt piece is assigned to a cell by its centre and may reach past
+    // that cell, so a cell's clipped pieces plus the straddler can outgrow the
+    // bed. Peel straddlers onto extra sheets, widest first, until the cell fits;
+    // a cell with no exempt piece left is already reported as oversize.
+    let sheets = group();
+    for (const cell of new Set(sheetOf.values())) {
+      let extra = 0;
+      while (!sheetFits(sheets, cell)) {
+        const straddler = [...sheetOf.entries()]
+          .filter(([polygonIndex, sheet]) => sheet === cell && exempt.has(polygonIndex))
+          .map(([polygonIndex]) => ({ polygonIndex, bounds: ringBounds(root.polygons[polygonIndex]!.outer) }))
+          .sort((left, right) => (right.bounds.maxX - right.bounds.minX) * (right.bounds.maxY - right.bounds.minY)
+            - (left.bounds.maxX - left.bounds.minX) * (left.bounds.maxY - left.bounds.minY))[0];
+        if (!straddler) break;
+        let placed = false;
+        for (let sheet = 1; sheet <= extra && !placed; sheet += 1) {
+          sheetOf.set(straddler.polygonIndex, `${cell}-${sheet}`);
+          const trial = group();
+          if (sheetFits(trial, `${cell}-${sheet}`)) {
+            sheets = trial;
+            placed = true;
+          }
+        }
+        if (!placed) {
+          extra += 1;
+          sheetOf.set(straddler.polygonIndex, `${cell}-${extra}`);
+          sheets = group();
+        }
+      }
     }
-    return [...byCell.entries()]
+    return [...sheets.entries()]
       .sort(([left], [right]) => left.localeCompare(right))
-      .map(([cellName, included]) => ({
+      .map(([sheetName, included]) => ({
         ...family,
-        cellName,
+        cellName: sheetName,
         included,
         ...panelBounds(ir, family.layerIndexes, included),
       }));
@@ -270,24 +323,50 @@ type PanelBodies = Record<Operation, string>;
  * `clipPolyline` rejoins intervals that meet at a shared coordinate, so a road
  * crossing a seam stays one continuous path in the IR - which is what the
  * preview and the master layout want. A single sheet must not engrave past its
- * own pieces, so narrow the geometry here instead. Labels and closed marker
- * artwork belong whole to the piece holding them; clipping would open the ring
- * or break the glyph apart.
+ * own pieces, so narrow the geometry here instead. A label whose every stroke
+ * lies on this sheet ships whole; one a seam cuts through is exploded into its
+ * strokes and each stroke clipped, so both sheets carry their share of the
+ * glyph. Closed marker artwork is intersected as a polygon so a fill stays a
+ * closed region rather than an open arc.
  */
 function panelMarkings(layer: LayerIR, included?: Set<number>): LayerIR["markings"] {
   if (!included) return layer.markings;
   const polygons = layer.polygons.filter((_, index) => included.has(index));
   if (!polygons.length) return [];
   const prepared = preparePolygons(polygons);
+  const inside = (point: Point2D) => pointInPreparedPolygons(point, prepared);
+  const parted = (mark: LayerIR["markings"][number], parts: Point2D[][], whole: boolean): LayerIR["markings"] => {
+    if (whole && parts.length === 1) return [{ ...mark, points: parts[0]! }];
+    return parts.map((points, index) => ({ ...mark, id: `${mark.id}-part-${index + 1}`, points }));
+  };
   return layer.markings.flatMap((mark) => {
     const first = mark.points[0];
     if (!first) return [];
-    if (mark.label || mark.filled || mark.knockout || mark.points.length < 2) {
-      return polygons.some((polygon) => pointInPolygon(first, polygon)) ? [mark] : [];
+    if (mark.label) {
+      const segments = labelLineSegments(mark.label, first, 0, 0, mark.labelRotationRad, mark.textStyle);
+      if (segments.every(({ start, end }) => inside(start) && inside(end))) return [mark];
+      const { label: _label, labelRotationRad: _rotation, textStyle: _style, ...stroke } = mark;
+      return parted(stroke, segments.flatMap(({ start, end }) => clipPolyline([start, end], prepared)), false);
     }
-    const parts = clipPolyline(mark.points, prepared);
-    if (parts.length === 1) return [{ ...mark, points: parts[0]! }];
-    return parts.map((points, index) => ({ ...mark, id: `${mark.id}-part-${index + 1}`, points }));
+    // A halo is a clearance gap, resolved against the whole layer by
+    // `markerClearance`; it never serializes, so no sheet needs a copy.
+    if (mark.knockout) return [];
+    if (mark.points.length < 2) return inside(first) ? [mark] : [];
+    if (mark.filled) {
+      if (mark.points.every(inside) && (mark.holes ?? []).every((hole) => hole.every(inside))) return [mark];
+      try {
+        const clipped = normalizeMultiPolygon(polygonClipping.intersection(
+          [[toRing(mark.points), ...(mark.holes ?? []).map(toRing)]] as MultiPolygon,
+          polygons.map((polygon) => [toRing(polygon.outer), ...polygon.holes.map(toRing)]) as MultiPolygon,
+        ) as MultiPolygon);
+        if (clipped.length === 1) return [{ ...mark, points: clipped[0]!.outer, holes: clipped[0]!.holes }];
+        return clipped.map((polygon, index) => ({ ...mark, id: `${mark.id}-part-${index + 1}`, points: polygon.outer, holes: polygon.holes }));
+      } catch {
+        // A degenerate ring the clipper refuses is not worth losing the sheet over.
+        return inside(first) ? [mark] : [];
+      }
+    }
+    return parted(mark, clipPolyline(mark.points, prepared), true);
   });
 }
 
@@ -300,7 +379,9 @@ function panelBodies(ir: GeometryIRV1, panel: FabricationPanel): PanelBodies {
       ? layerCutPaths(layer, ir.laserKerfMm, omittedNestHoles(ir.fabricationNests, layer.index), included)
       : layerMarkingPaths(layer, operation === "assembly" ? "engrave" : operation, ir.lineStyle,
         operation === "assembly" ? ASSEMBLY_CATEGORIES : ARTWORK_CATEGORIES, panelMarkings(layer, included));
-    return paths ? `<g id="${layer.id}-${operation.toUpperCase()}">${paths}</g>` : "";
+    // An unsplit package keeps the empty per-layer groups it always had, so
+    // turning the work area off leaves every existing export byte-identical.
+    return paths || (!panel.included && operation !== "assembly") ? `<g id="${layer.id}-${operation.toUpperCase()}">${paths}</g>` : "";
   }).join("");
   return { engrave: body("engrave"), assembly: body("assembly"), score: body("score"), cut: body("cut") };
 }
@@ -577,11 +658,10 @@ export function buildFabricationPackage(generated: GeometryIRV1, config: Project
   const seams = ir.splitPlan ? (() => {
     const pieces = ir.layers.reduce((total, layer) => total + layer.pieces.length, 0);
     const perLayer = `${ir.splitPlan!.columns} x ${ir.splitPlan!.rows}`;
-    const kerfLoss = shownLength(config.laserKerfMm * (ir.splitPlan!.columns - 1 + ir.splitPlan!.rows - 1));
     const ids = config.showAssemblyLabels
       ? `Each piece carries its assembly id (layer number and grid cell, e.g. L03-B2) engraved in green as a separate ASSEMBLY operation. Those marks sit where the next layer covers them, so they disappear once the stack is glued; a piece with no covered room carries no id, and the top layer carries none at all - use the panel filename for those.\n`
       : "Assembly ids are turned off. The panel filename is the only piece identifier.\n";
-    return `This model is larger than the ${shownLength(config.workAreaWidthMm || config.widthMm)} x ${shownLength(config.workAreaHeightMm || config.heightMm)} ${cutUnit} work area, so each layer is cut as ${perLayer} pieces (${pieces} in total) that butt together. Every panel SVG holds one work-area cell and fits the machine.\n\nSeams shift half a tile on alternating layers, so a seam in one layer always sits over solid material in the layers above and below - glue the stack in layer order and the joints lock like brickwork. Each seam cut removes one kerf of material, so the assembled model is about ${kerfLoss} ${cutUnit} narrower than its stated size.\n\n${ids}\n`;
+    return `This model is larger than the ${shownLength(config.workAreaWidthMm || config.widthMm)} x ${shownLength(config.workAreaHeightMm || config.heightMm)} ${cutUnit} work area, so each layer is cut as ${perLayer} pieces (${pieces} in total) that butt together. Every panel SVG holds one work-area cell and fits the machine; a piece kept whole across a seam ships on its own sheet (cell name with a numeric suffix) when it would not fit beside its cell.\n\nSeams shift half a tile on alternating layers, so a seam in one layer always sits over solid material in the layers above and below - glue the stack in layer order and the joints lock like brickwork. Seam edges get the same outward kerf compensation as every other cut edge, so pieces butt together at their nominal size.\n\n${ids}\n`;
   })() : "";
   const nesting = ir.fabricationNests.length ? `Material nesting reduced ${ir.layers.length} layer panels to ${panels.length} fabrication panels. Smaller layers share cut lines inside lower layers while preserving at least ${shownLength(config.glueMarginMm)} of covered glue land. Keep every loose cutout: nested pieces belong to the layer IDs listed in each panel filename and SVG data-layers attribute.\n\n` : config.optimizeMaterialUse ? (ir.splitPlan
     ? `No safe material nests fit the requested ${shownLength(config.glueMarginMm)} glue margin. A nested piece has to sit wholly inside one donor piece, and a work-area seam usually cuts through that room, so splitting a model normally costs its nesting.\n\n`

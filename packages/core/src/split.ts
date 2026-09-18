@@ -158,28 +158,26 @@ function mergeSlivers(pieces: CellPiece[], minimumFeatureMm: number, grid: SeamP
       - (right.bounds.maxX - right.bounds.minX) * (right.bounds.maxY - right.bounds.minY));
   for (const sliver of ordered) {
     if (!remaining.includes(sliver)) continue;
-    const candidates = remaining.filter((piece) => piece !== sliver && !piece.exempt &&
-      Math.abs(piece.column - sliver.column) + Math.abs(piece.row - sliver.row) <= 1 &&
-      sharedEdgeLength(piece.bounds, sliver.bounds) > 0);
-    let target: CellPiece | undefined;
-    let best = 0;
-    for (const candidate of candidates) {
-      const shared = sharedEdgeLength(candidate.bounds, sliver.bounds);
-      if (shared > best) {
-        best = shared;
-        target = candidate;
-      }
+    // Bounding boxes only say which pieces might touch; the union below is
+    // what proves it, so walk the candidates in order of shared edge and take
+    // the first that yields one piece still fitting the bed.
+    const candidates = remaining
+      .filter((piece) => piece !== sliver && !piece.exempt && Math.abs(piece.column - sliver.column) + Math.abs(piece.row - sliver.row) <= 1)
+      .map((piece) => ({ piece, shared: sharedEdgeLength(piece.bounds, sliver.bounds) }))
+      .filter(({ shared }) => shared > 0)
+      .sort((left, right) => right.shared - left.shared);
+    for (const { piece: target } of candidates) {
+      const merged = normalizeMultiPolygon(
+        polygonClipping.union(polygonRings(sliver.polygon), polygonRings(target.polygon)) as MultiPolygon,
+      );
+      // Corner-touching pieces union into two polygons: that is not one piece.
+      if (merged.length !== 1) continue;
+      const bounds = polygonBounds(merged[0]!);
+      if (!fitsWorkArea(bounds, grid)) continue;
+      const replacement: CellPiece = { polygon: merged[0]!, bounds, column: target.column, row: target.row, exempt: false };
+      remaining = remaining.map((piece) => piece === target ? replacement : piece).filter((piece) => piece !== sliver);
+      break;
     }
-    if (!target) continue;
-    const merged = normalizeMultiPolygon(
-      polygonClipping.union(polygonRings(sliver.polygon), polygonRings(target.polygon)) as MultiPolygon,
-    );
-    // Corner-touching pieces union into two polygons: that is not one piece.
-    if (merged.length !== 1) continue;
-    const bounds = polygonBounds(merged[0]!);
-    if (!fitsWorkArea(bounds, grid)) continue;
-    const replacement: CellPiece = { polygon: merged[0]!, bounds, column: target.column, row: target.row, exempt: false };
-    remaining = remaining.map((piece) => piece === target ? replacement : piece).filter((piece) => piece !== sliver);
   }
   return { pieces: remaining, slivers: remaining.filter(isSliver).length };
 }
@@ -284,7 +282,7 @@ export function splitLayersForWorkArea(config: ProjectConfigV1, layers: LayerIR[
   }
   if (slivers) warnings.push({
     code: "SMALL_FEATURES",
-    message: `${slivers} cut piece${slivers === 1 ? " is" : "s are"} narrower than the minimum feature size. Discard the offcut or raise the work area so the seam misses it.`,
+    message: `${slivers} cut piece${slivers === 1 ? " is" : "s are"} narrower than the minimum feature size. Glue the offcut in place with its neighbour, or raise the work area so the seam misses it.`,
   });
   if (oversize.length) warnings.push({
     code: "WORK_AREA_OVERSIZE",

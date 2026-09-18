@@ -11,7 +11,9 @@ import {
   projectFingerprint,
   seamPhase,
   validateProject,
+  splitLayersForWorkArea,
   type GeometryIRV1,
+  type LayerIR,
   type Point2D,
   type Polygon2D,
   type ProjectConfigV1,
@@ -112,7 +114,27 @@ function seamsY(config: ProjectConfigV1, layerIndex: number): number[] {
   return cellEdges(config.heightMm, grid.rows, grid.rows > 1 ? seamPhase(layerIndex) : 0).slice(1, -1);
 }
 
+function rectPolygon(minX: number, minY: number, maxX: number, maxY: number): Polygon2D {
+  return { outer: [{ x: minX, y: minY }, { x: maxX, y: minY }, { x: maxX, y: maxY }, { x: minX, y: maxY }, { x: minX, y: minY }], holes: [] };
+}
+
+function bareLayer(index: number, polygons: Polygon2D[]): LayerIR {
+  return { id: `layer-${String(index + 1).padStart(2, "0")}`, index, elevationM: index * 100, materialThicknessMm: 3, polygons, markings: [], pieces: [] };
+}
+
 describe("machine work-area splitting", () => {
+  it("absorbs a seam offcut into the neighbour across the seam", () => {
+    // 300 x 200 on a 160 x 120 bed: the x seam at 0 leaves a 0.5 mm strip in cell B1.
+    const [config] = conicalProject({ workAreaWidthMm: 160, workAreaHeightMm: 120, minimumFeatureMm: 3 });
+    const layers = [bareLayer(0, [rectPolygon(-150, -100, 0.5, -50)]), bareLayer(1, [rectPolygon(-140, -95, -100, -60)])];
+    const warnings: GeometryIRV1["warnings"] = [];
+    expect(splitLayersForWorkArea(config, layers, warnings)).toBeDefined();
+    expect(layers[0]!.pieces).toHaveLength(1);
+    expect(layers[0]!.pieces[0]!.widthMm).toBeCloseTo(150.5, 9);
+    expect(warnings.some((warning) => warning.code === "SMALL_FEATURES")).toBe(false);
+    expect(materialArea({ layers } as GeometryIRV1)).toBeCloseTo(150.5 * 50 + 40 * 35, 6);
+  });
+
   it("is inert when no work area is set", () => {
     const [config, source] = conicalProject();
     const ir = generateGeometry(config, source);
@@ -414,6 +436,31 @@ describe("split fabrication package", () => {
     }
   });
 
+  it("ships an exempt piece that outgrows its cell on its own sheet", async () => {
+    const [config, source] = conicalProject(workArea);
+    const ir = generateGeometry(config, source);
+    // A tall strip split by rows, plus a bar kept whole whose centre sits in
+    // column 0 but which reaches 60 mm into column 1: cell A1 alone would be
+    // 210 mm wide on a 160 mm bed.
+    const layers = [bareLayer(0, [rectPolygon(-150, -100, -80, 100), rectPolygon(-70, -60, 60, -20)]), bareLayer(1, [rectPolygon(-140, -90, -90, 90)])];
+    const warnings: GeometryIRV1["warnings"] = [];
+    const splitPlan = splitLayersForWorkArea(config, layers, warnings);
+    expect(layers[0]!.pieces.filter((piece) => piece.exempt)).toHaveLength(1);
+    const pkg = buildFabricationPackage({ ...ir, layers, fabricationNests: [], splitPlan, warnings, waterSurfaces: [], waterPatternAreas: [] }, config);
+    const manifest = JSON.parse(await pkg.files.find((file) => file.filename.endsWith("-project.json"))!.blob.text());
+    const panels: Array<{ cell: string; widthMm: number; heightMm: number; layerIds: string[] }> = manifest.result.fabrication.panels;
+    for (const panel of panels) {
+      expect(panel.widthMm).toBeLessThanOrEqual(config.workAreaWidthMm + 1e-6);
+      expect(panel.heightMm).toBeLessThanOrEqual(config.workAreaHeightMm + 1e-6);
+    }
+    expect(panels.map((panel) => panel.cell)).toContain("A1-1");
+    expect(pkg.files.some((file) => file.filename.endsWith("-layer-01-a1-1.svg"))).toBe(true);
+    // Every polygon still ships exactly once.
+    const cutIds = (await Promise.all(pkg.files.filter((file) => /-a\d(-\d)?\.svg$/.test(file.filename)).map((file) => file.blob.text())))
+      .flatMap((svg) => [...svg.matchAll(/id="(layer-01-cut-\d+)-offset-1"/g)].map((match) => match[1]!));
+    expect(cutIds.sort()).toEqual(["layer-01-cut-1", "layer-01-cut-2", "layer-01-cut-3"]);
+  });
+
   it("puts assembly ids in their own operation group", async () => {
     const { pkg } = splitPackage();
     const withIds = [];
@@ -440,8 +487,15 @@ describe("split fabrication package", () => {
   });
 
   it("stops a marking at the seam instead of engraving past its own sheet", async () => {
-    const [config, source] = conicalProject({ ...workArea, showAlignmentGuides: true });
+    const [base, source] = conicalProject({ ...workArea, showAlignmentGuides: true, showNorthArrow: true, showScaleBar: true });
+    // A map marker on the x = 0 seam of layer 1, near the south edge where only
+    // that layer has material, so its filled symbol and halo cross the seam.
+    const bounds = base.location.bounds!;
+    const config: ProjectConfigV1 = { ...base, markers: [{ id: "seam", lat: bounds.south + (bounds.north - bounds.south) * 0.04, lon: (bounds.west + bounds.east) / 2, symbol: "pin" }] };
     const ir = generateGeometry(config, source);
+    const marker = ir.layers[0]!.markings.filter((mark) => mark.id.startsWith("map-marker-"));
+    expect(marker.length).toBeGreaterThan(0);
+    expect(marker.some((mark) => mark.points.some((point) => point.x < -1) && mark.points.some((point) => point.x > 1))).toBe(true);
     const pkg = buildFabricationPackage(ir, config);
     const grid = planSeamGrid(config)!;
     const panels = pkg.files.filter((file) => /-[a-z]\d+\.svg$/.test(file.filename) && !file.filename.endsWith("-engrave.svg"));
@@ -459,6 +513,34 @@ describe("split fabrication package", () => {
       }
     }
     expect(grid.columns * grid.rows).toBeGreaterThan(1);
+    // Both sheets meeting at the seam carry their share of the marker, as
+    // closed fills rather than open arcs.
+    const sheets = await Promise.all(panels.filter((file) => /layer-01-[ab][12]\.svg$/.test(file.filename)).map((file) => file.blob.text()));
+    const withMarker = sheets.filter((svg) => svg.includes('id="map-marker-'));
+    expect(withMarker).toHaveLength(2);
+    for (const svg of withMarker) {
+      const fills = [...svg.matchAll(/<path id="(map-marker-[^"]+)" d="([^"]+)" fill=/g)];
+      expect(fills.length).toBeGreaterThan(0);
+      for (const [, , d] of fills) {
+        const points = [...d!.matchAll(/[ML](-?[\d.]+) (-?[\d.]+)/g)].map((match) => `${match[1]} ${match[2]}`);
+        expect(points[0]).toBe(points.at(-1));
+      }
+    }
+  });
+
+  it("leaves an unsplit package byte-identical apart from its manifest", async () => {
+    const [config, source] = conicalProject({ showAlignmentGuides: true, showNorthArrow: true, showScaleBar: true, optimizeMaterialUse: true });
+    const ir = generateGeometry(config, source);
+    const pkg = buildFabricationPackage(ir, config);
+    for (const file of pkg.files.filter((entry) => entry.filename.endsWith(".svg") && !entry.filename.includes("assembly-guide"))) {
+      const svg = await file.blob.text();
+      // The unsplit writer has always emitted a SCORE group per layer even when
+      // empty; machine software users key on those ids.
+      for (const layerIndex of file.filename.includes("master") ? ir.layers.map((layer) => layer.index) : []) {
+        expect(svg).toContain(`<g id="${ir.layers[layerIndex]!.id}-SCORE">`);
+      }
+      expect(svg).not.toContain('id="ASSEMBLY"');
+    }
   });
 
   it("records the seam grid in the manifest", async () => {
