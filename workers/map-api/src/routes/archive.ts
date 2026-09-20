@@ -1,7 +1,7 @@
 import rawSurveyCatalog from "../../../../scripts/data/lake-bathymetry.json";
 import rawTerrainCatalog from "../../../../scripts/data/terrain-sources.json";
 import { validateSurveyCatalog, validateTerrainCatalog } from "../../../../packages/core/src/source-catalog";
-import { cachedArchiveHead, evictArchiveHead } from "../archive-release";
+import { cachedArchiveHead, evictArchiveHead } from "../archive-head";
 import { edgeCacheKey, matchEdge, teeToEdge } from "../edge-cache";
 import { etagMatches, json } from "../http";
 

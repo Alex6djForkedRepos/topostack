@@ -123,12 +123,12 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
-          cache-dependency-path: scripts/survey-requirements.txt
+          cache-dependency-path: scripts/requirements.txt
 
-      # survey-requirements.txt pins a superset of the NOAA and terrain builder
+      # requirements.txt pins a superset of the NOAA and terrain builder
       # dependencies (numpy, rasterio, Pillow, fiona, scipy, shapely).
       - name: Install pinned builder dependencies
-        run: python -m pip install -r scripts/survey-requirements.txt
+        run: python -m pip install -r scripts/requirements.txt
 
       - name: Test bathymetry, terrain, and lake outline builders
         # Same command developers run locally; package.json is the single source.

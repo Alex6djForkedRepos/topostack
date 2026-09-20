@@ -73,7 +73,7 @@ and the PMTiles CLI. The runtime web application has no new dependencies.
 
 ```sh
 python3.13 -m venv /tmp/topostack-surveys-venv
-/tmp/topostack-surveys-venv/bin/pip install -r scripts/survey-requirements.txt
+/tmp/topostack-surveys-venv/bin/pip install -r scripts/requirements.txt
 /tmp/topostack-surveys-venv/bin/python scripts/test_survey_bathymetry.py
 /tmp/topostack-surveys-venv/bin/python scripts/build-survey-bathymetry.py \
   --cache /tmp/topostack-lake-surveys \

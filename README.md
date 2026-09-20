@@ -142,7 +142,7 @@ The Python data builders under `scripts/` have their own tests, kept out of `npm
 
 ```sh
 python3.13 -m venv .venv-data && . .venv-data/bin/activate
-pip install -r scripts/survey-requirements.txt
+pip install -r scripts/requirements.txt
 npm run test:python
 ```
 
@@ -255,16 +255,12 @@ Terrain and map data are decorative source material, not survey, navigation, or 
 
 ## Further reading
 
-- [SEO and discoverability operations](docs/seo-operations.md)
-- [Flat engraving workflow and SVG contract](docs/flat-engraving.md)
-- [Data, attribution, and fabrication details](docs/data-and-fabrication.md)
-- [Feedback workflow and triage](docs/feedback.md)
+The [documentation index](docs/README.md) groups every doc into design references, operational runbooks, and dated reports.
+
 - [Architecture and geometry conventions](docs/architecture.md)
 - [Map API setup and operations](workers/map-api/README.md)
 - [Release acceptance and rollback](docs/release-acceptance.md)
-- [Terrain expansion plan](docs/terrain-expansion-plan.md)
 - [Roadmap](docs/roadmap.md)
-- [Launch-readiness remediation history](docs/launch-readiness-remediation-2026-09-12.md)
 
 ## License
 

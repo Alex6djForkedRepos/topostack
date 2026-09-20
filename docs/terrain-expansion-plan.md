@@ -119,7 +119,7 @@ manifests, immutable pin/receipt enforcement, measured build receipts, publicati
 extent checks, browser extent checks and credential-free local archive verification.
 The original three registrations were migrated without changing coverage or IDs.
 
-The [initial Canadian benchmark](terrain-benchmark-20260916.md) records twelve
+The [initial Canadian benchmark](reports/terrain-benchmark-20260916.md) records twelve
 verified archives and recommends zoom 13 for further evaluation. Crop-edge losses
 and the runtime's missing parent-tile sampling prevent national activation. The
 larger-host benchmark, national coverage manifest and final budget gate remain open.
