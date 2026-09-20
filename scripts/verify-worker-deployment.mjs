@@ -46,6 +46,35 @@ for (const path of ["/", "/studio"]) {
   }
 }
 
+// Assistant crawlers read the prerendered HTML; they are how the site is
+// described in AI answers. Cloudflare's AI-scraper blocking matches on the
+// user agent, so sending these agents is a faithful probe of that setting and
+// of any WAF rule that starts filtering by user agent. Googlebot is
+// deliberately not spoofed here: Cloudflare verifies it by reverse DNS, so a
+// request from a runner would be judged an impostor and prove nothing.
+const assistantCrawlers = [
+  "Mozilla/5.0 (compatible; GPTBot/1.2; +https://openai.com/gptbot)",
+  // Anthropic publishes this string with an unbalanced parenthesis. It is
+  // copied verbatim on purpose; tidying it would stop probing the real agent.
+  "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; ClaudeBot/1.0; +claudebot@anthropic.com)",
+  "Mozilla/5.0 (compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)",
+];
+for (const userAgent of assistantCrawlers) {
+  const crawled = await fetchWithRetry(publicBase, "/", { headers: { accept: "text/html", "user-agent": userAgent } });
+  const crawledHtml = await crawled.text();
+  if (crawled.status !== 200 || !(crawled.headers.get("content-type") ?? "").includes("text/html") || !crawledHtml.includes("data-sveltekit-preload-data")) {
+    throw new Error(`The homepage was not served to ${userAgent.match(/[A-Za-z]+Bot/)?.[0] ?? userAgent} (HTTP ${crawled.status}). Check Cloudflare's AI scraper blocking, Bot Fight Mode and WAF rules.`);
+  }
+}
+
+// A crawl-all robots file is the site's stated policy; a stray Disallow would
+// remove pages from search and assistants alike without any other symptom.
+const robots = await fetchWithRetry(publicBase, "/robots.txt", { headers: { accept: "text/plain" } });
+const robotsBody = await robots.text();
+if (!(robots.headers.get("content-type") ?? "").includes("text/plain") || !robotsBody.startsWith("User-agent: *\nAllow: /") || /^Disallow: \S/m.test(robotsBody)) {
+  throw new Error(`robots.txt is no longer a permissive plain-text file: ${JSON.stringify(robotsBody.slice(0, 200))}`);
+}
+
 const health = await fetchJson(publicBase, "/health");
 if (health?.service !== "topostack-map-api" || health?.status !== "ok" || health?.environment !== expectedEnvironment) throw new Error(`Unexpected Worker health response: ${JSON.stringify(health)}`);
 

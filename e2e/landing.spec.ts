@@ -95,6 +95,10 @@ test("mobile readers can navigate guides, examples and the studio with correct m
   await page.getByRole("link", { name: "How to make a layered topographic map" }).click();
   await expect(page).toHaveTitle("How to Make a Laser-Cut Topographic Map | TopoStack");
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://topostack.app/guides/laser-cut-topographic-map");
+  // Guides carry article metadata, and it has to survive client-side navigation
+  // rather than only appearing in the prerendered HTML.
+  await expect(page.locator('meta[property="og:type"]')).toHaveAttribute("content", "article");
+  await expect(page.locator('meta[property="article:modified_time"]')).toHaveAttribute("content", /^\d{4}-\d{2}-\d{2}$/);
   await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toContainText("Layered map guide");
   expect(await page.evaluate(() => document.body.scrollWidth <= innerWidth)).toBe(true);
   await expect(page.getByRole("navigation", { name: "Guides", exact: true })).toBeHidden();

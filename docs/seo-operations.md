@@ -12,6 +12,8 @@ CI sets the value explicitly per deployment and verifies generated metadata.
 - Studio: prerendered metadata/loading shell, client-loaded editor, always noindex.
 - Development and Atomm artifacts: noindex in HTML and static response headers.
 - Sitemap: production pages only; non-production builds emit an empty sitemap.
+- Sitemap `lastmod` comes from each page's recorded `updated` date in `PUBLIC_PAGES`.
+- `www.topostack.app` has no Worker route; a zone redirect rule sends it to the apex.
 - Workers.dev and preview URLs are disabled in Wrangler; custom domains remain.
 - Unknown URLs return a real 404. About URLs use permanent HTTP redirects on Workers.
 - The portable About refresh remains in static output for hosts that ignore _redirects.
@@ -28,6 +30,52 @@ The HTTP check is also called by the deployment verifier. Use the development
 origin and `development` argument when checking that environment. Recheck both
 after any indexing or hosting change. Keep new public pages in `PUBLIC_PAGES`
 and the fixed usage landing list; update verification expectations too.
+
+## Page dates and sharing cards
+
+Every entry in `PUBLIC_PAGES` records `published` and `updated` ISO dates. They
+feed three places at once: sitemap `lastmod`, the `TechArticle` JSON-LD on
+guides and examples, and the `article:*` Open Graph tags. Build dates are
+deliberately not used; a `lastmod` that moves on every deploy teaches search
+engines to ignore the field.
+
+**Bump `updated` when a page's substance changes** — new or rewritten guidance,
+a changed procedure, corrected facts. Leave it alone for styling, typography,
+link housekeeping and refactors. `scripts/verify-seo.mjs` asserts that the
+sitemap and the article markup both match the recorded dates, that no date is
+in the future, and that hubs and policy pages carry no article metadata.
+
+Guides and worked examples (`/guides/*`, `/examples/*`) are treated as articles.
+The homepage, the guides hub and the policy pages are not, so they do not claim
+an authorship and publication date.
+
+A page may override the default sharing card with its own `image`, giving the
+URL, real pixel dimensions and alt text. The dimensions are asserted against the
+tags and the file is fetched over HTTP by the deployment verifier, so a card
+that 404s or is mislabelled fails the deploy rather than rendering as a blank
+preview wherever the page is shared.
+
+## Non-goals
+
+`FAQPage` and `HowTo` structured data are intentionally absent. Google removed
+HowTo rich results in 2023 and FAQ rich results on May 7, 2026; both remain
+valid schema.org types but produce no search appearance for a site like this
+one. Adding them would duplicate page copy into metadata that has to be kept in
+sync, for no measurable return.
+
+## Crawler access monitoring
+
+`scripts/verify-worker-deployment.mjs` runs after every deploy and hourly from
+`production-monitor.yml`. It requests the homepage as GPTBot, ClaudeBot and
+PerplexityBot and asserts the prerendered HTML comes back, then asserts that
+robots.txt is still a permissive plain-text file with no `Disallow`.
+
+Cloudflare's AI scraper blocking, Bot Fight Mode and WAF rules are dashboard
+settings that no repository check would otherwise notice; a site can stop being
+readable by assistants without any deploy, test or error. Googlebot is
+deliberately not spoofed: Cloudflare verifies it by reverse DNS, so a request
+from a CI runner is judged an impostor and proves nothing either way. Search
+Console's URL Inspection remains the authority on Googlebot access.
 
 ## Usage measurement
 
@@ -63,7 +111,10 @@ cannot be observed; `export_prepared` is a handoff measure, not proof that a use
 saved a file or made an object.
 
 Attribution is a fixed category derived from an allowlisted `utm_source` or the
-referrer host. Unknown values become `other`. Only that category and the public
+referrer host. Assistant and answer-engine referrers are grouped as `ai` and
+are matched before the search engines, because `gemini.google.com` is a Google
+host whose visitors did not come from a search result page. Unknown values
+become `other`. Only that category and the public
 landing path are kept in tab session storage, with entry deduplication flags and
 a 30-minute inactivity expiry. No coordinates, project names, raw query strings,
 custom data or stable user IDs are sent. Collection honors DNT and GPC and is
@@ -87,12 +138,18 @@ search traffic and Cloudflare Web Analytics for visit/device context.
    from the codebase. Submit `https://topostack.app/sitemap.xml`.
 2. Inspect the homepage and new guides, their selected canonicals and index status.
    Check Cloudflare security events if the inspection fetch is blocked.
-3. Verify/submit the sitemap in Bing Webmaster Tools.
-4. Confirm the Cloudflare beacon script and collection request succeed in a fresh
+3. Verify/submit the sitemap in Bing Webmaster Tools. Import from Search Console
+   rather than re-verifying by hand, and enable IndexNow (Cloudflare's Crawler
+   Hints covers the whole zone without application changes).
+4. After a domain move, verify the previous domain as its own property and run
+   Search Console's Change of Address against it. The legacy 301s must stay in
+   place for at least a year; they are configured by
+   `scripts/configure-redirects.mjs`, which also manages the `www` alias.
+5. Confirm the Cloudflare beacon script and collection request succeed in a fresh
    browser session on the deployed site.
-5. Update the published Atomm listing from `atomm/listing.md`. The immutable slug
+6. Update the published Atomm listing from `atomm/listing.md`. The immutable slug
    stays `topographic-map-generator`.
-6. The GitHub description, website and topics were updated during implementation.
+7. The GitHub description, website and topics were updated during implementation.
    Its custom social preview can be uploaded through repository settings using
    the existing studio screenshot. The site itself already references that image.
 

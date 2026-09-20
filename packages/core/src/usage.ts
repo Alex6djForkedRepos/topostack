@@ -1,7 +1,9 @@
 // Fixed categories only: never send project names, coordinates, queries or user IDs.
 export const USAGE_EVENTS = ["landing_view", "studio_open", "generation_started", "generation_succeeded", "generation_failed", "generation_cancelled", "export_prepared", "export_failed"] as const;
 export const USAGE_LANDINGS = ["/", "/studio", "/guides/laser-cut-topographic-map", "/guides/topographic-map-engraving", "/examples/crater-lake", "/privacy"] as const;
-export const USAGE_SOURCES = ["direct", "google", "bing", "github", "atomm", "social", "other"] as const;
+// "ai" covers assistant and answer-engine referrers, which send a visitor who
+// already read a description of the tool rather than a search result snippet.
+export const USAGE_SOURCES = ["direct", "google", "bing", "duckduckgo", "ai", "github", "atomm", "social", "other"] as const;
 export type UsageEventName = typeof USAGE_EVENTS[number];
 export interface UsageEvent {
   event: UsageEventName;

@@ -22,6 +22,23 @@ describe("usage privacy and attribution", () => {
     expect(sent()[2]).toEqual({ event: "export_prepared", source: "github", landing: "/examples/crater-lake", device: "large", output: "engraving", delivery: "browser" });
     expect(JSON.stringify(sent())).not.toContain("secret");
   });
+  it("separates assistant referrers from search engines and keeps unknown hosts uncategorized", () => {
+    const from = (referrer: string) => {
+      sessionStorage.clear();
+      vi.stubGlobal("location", new URL("https://topostack.app/"));
+      vi.stubGlobal("document", { ...document, referrer });
+      trackPageView("/");
+      return sent().at(-1).source;
+    };
+    expect(from("https://www.google.com/search")).toBe("google");
+    expect(from("https://gemini.google.com/app")).toBe("ai");
+    expect(from("https://chatgpt.com/c/abc")).toBe("ai");
+    expect(from("https://www.perplexity.ai/search")).toBe("ai");
+    expect(from("https://duckduckgo.com/")).toBe("duckduckgo");
+    expect(from("https://old.reddit.com/r/lasercutting")).toBe("social");
+    expect(from("https://example.invalid/")).toBe("other");
+  });
+
   it("does not collect in development or with privacy signals", () => {
     vi.stubEnv("VITE_SITE_ENV", "development");
     trackPageView("/");
