@@ -15,7 +15,7 @@ Keep operator-controlled acquisition and publication, numeric elevation PMTiles,
 | Catalog | `scripts/data/terrain-sources.json`, `packages/data-contracts/src/source-catalog.ts` | Three Ontario HRDEM registrations; priority, native resolution, acquisition year and stable-ID ranking; CGVD2013-only validation |
 | Publication | `scripts/provision-lake-data.mjs`, `scripts/lib/archive-provisioning.mjs` | Immutable staged objects, full remote hash verification, conditional per-archive promotion, previous-release receipts; development default |
 | Serving | `workers/map-api/src/routes/archive.ts`, `workers/map-api/src/archive-head.ts` | Registered archive routes, bounded range reads and release resolution |
-| Selection | `apps/generator/src/terrain-sources.ts`, `apps/generator/src/data-provider.ts` | Valid samples win by rank; gaps fall through; malformed archives are discarded atomically; contribution metadata reaches exports |
+| Selection | `apps/generator/src/lib/domain/terrain-sources.ts`, `apps/generator/src/lib/domain/data-provider.ts` | Valid samples win by rank; gaps fall through; malformed archives are discarded atomically; contribution metadata reaches exports |
 
 The catalog is compiled into both browser and gateway. A manifest entry describes a registration, not proof of deployment. Existing documentation records the three Ontario archives as published in development; this review did not re-download and verify their live archive bytes. Both live gateways advertised archive-release support during the review.
 

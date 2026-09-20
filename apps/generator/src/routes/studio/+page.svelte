@@ -1,16 +1,16 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { DEFAULT_PROJECT, generateGeometry, type GeometryIRV1 } from "@topostack/core";
-  import { createSamplePreviewSource } from "../../sample-preview";
-  import type { GeometryWorkerReady, GeometryWorkerRequest, GeometryWorkerResponse } from "../../app/geometry-worker-client";
-  let App = $state.raw<typeof import("../../app/App.svelte").default>();
-  import "../../app/styles.css";
+  import { createSamplePreviewSource } from "$lib/domain/sample-preview";
+  import type { GeometryWorkerReady, GeometryWorkerRequest, GeometryWorkerResponse } from "$lib/workers/geometry-worker-client";
+  let App = $state.raw<typeof import("$lib/studio/App.svelte").default>();
+  import "$lib/studio/styles.css";
 
   let preview = $state.raw<GeometryIRV1>();
   let error = $state(false);
   onMount(() => {
     let active = true;
-    void import("../../app/App.svelte").then((module) => { if (active) App = module.default; }).catch(() => { if (active) error = true; });
+    void import("$lib/studio/App.svelte").then((module) => { if (active) App = module.default; }).catch(() => { if (active) error = true; });
     const source = createSamplePreviewSource();
     let worker: Worker | undefined;
     const stopWorker = () => { if (worker) { worker.onmessage = null; worker.onerror = null; worker.onmessageerror = null; worker.terminate(); worker = undefined; } };
@@ -23,7 +23,7 @@
       catch { error = true; }
     };
     if (typeof Worker === "undefined") { generateHere(); return () => { active = false; }; }
-    try { worker = new Worker(new URL("../../geometry.worker.ts", import.meta.url), { type: "module" }); }
+    try { worker = new Worker(new URL("../../lib/workers/geometry.worker.ts", import.meta.url), { type: "module" }); }
     catch { generateHere(); return () => { active = false; }; }
     worker.onmessage = (event: MessageEvent<GeometryWorkerResponse | GeometryWorkerReady>) => {
       if (event.data.ready) return;

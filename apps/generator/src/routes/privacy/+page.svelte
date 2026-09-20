@@ -1,5 +1,5 @@
 <script lang="ts">
-  import Article from "../../lib/Article.svelte";
+  import Article from "$lib/site/Article.svelte";
 </script>
 
 <Article title="Privacy and browser storage" intro="TopoStack stores project settings in your browser and requests the map data needed to create your artwork. No account is required.">

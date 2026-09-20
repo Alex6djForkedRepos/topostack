@@ -1,6 +1,6 @@
 <script lang="ts">
   import { base } from "$app/paths";
-  import Article from "../../../lib/Article.svelte";
+  import Article from "$lib/site/Article.svelte";
 </script>
 
 <Article title="Export files and SVG structure" intro="What each TopoStack download contains, how the SVG files are organized, and which files to use in your laser software.">

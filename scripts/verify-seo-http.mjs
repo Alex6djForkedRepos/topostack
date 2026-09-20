@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 import { JSDOM } from "jsdom";
-import { PUBLIC_PAGES, SITE_ORIGIN, socialImage } from "../apps/generator/src/lib/seo.ts";
+import { PUBLIC_PAGES, SITE_ORIGIN, socialImage } from "../apps/generator/src/lib/site/seo.ts";
 
 // Deployment assets can become available shortly after the Worker itself.
 // Only callers verifying a fresh deployment opt into a shared retry window.

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { base } from "$app/paths";
-  import Article from "../../../lib/Article.svelte";
+  import Article from "$lib/site/Article.svelte";
 </script>
 
 <Article title="Troubleshooting and common questions" intro="What the studio's export messages and warnings mean, and how to fix the problems makers run into most often.">
