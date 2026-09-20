@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { buildEngravingPackage, buildFabricationPackage, coordinateGridInterval, createSyntheticSource, DEFAULT_PROJECT, displayLength, engravingToSvg, generateGeometry, geoPointToMapPoint, labelDimensions, labelLineSegments, layerToSvg, longitudeInBounds, masterToSvg, millimetersFromDisplay, MIN_LAYER_COUNT, MM_PER_INCH, northArrowMarkings, planTerrainStack, projectFingerprint, validateProject, waterPatternStrokes, type ProjectConfigV1, type SourceBundleV1, type WaterAreaV1 } from "./index.js";
-import { pointInPreparedPolygons, preparePolygons } from "./geometry2d.js";
-import { carveWaterDepth, distanceToShoreM, solveShapeExponent } from "./water.js";
-import { placeElevationLabel, placeLinearLabel } from "./label-placement.js";
+import { pointInPreparedPolygons, preparePolygons } from "./primitives/geometry2d.js";
+import { carveWaterDepth, distanceToShoreM, solveShapeExponent } from "./water/water.js";
+import { placeElevationLabel, placeLinearLabel } from "./annotate/label-placement.js";
 
 function realSource(project = DEFAULT_PROJECT) {
   return { ...createSyntheticSource(project, 48), sourceKind: "real" as const, imagerySources: ["srtm/N46W122.tif"] };

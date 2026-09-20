@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { buildProjectPackage, createSyntheticSource, DEFAULT_PROJECT, engravingToSvg, generateGeometry, planTerrainStack, type ProjectConfigV1, type SourceBundleV1, type WaterAreaV1 } from "./index.js";
-import { carveWaterDepth } from "./water.js";
-import { pointInRing, ringFitsInsidePolygon, rotatedPoint, segmentsIntersect } from "./geometry2d.js";
-import { labelDimensions } from "./labels.js";
+import { carveWaterDepth } from "./water/water.js";
+import { pointInRing, ringFitsInsidePolygon, rotatedPoint, segmentsIntersect } from "./primitives/geometry2d.js";
+import { labelDimensions } from "./annotate/labels.js";
 
 const bounds = { west: 0, east: 0.1, south: 0, north: 0.1 };
 const base: ProjectConfigV1 = { ...DEFAULT_PROJECT, widthMm: 300, heightMm: 300, showWaterDepth: false, showWater: false, showRoads: false, showTrails: false, showNorthArrow: false, showScaleBar: false, showElevationLabels: false, showAlignmentGuides: false, optimizeMaterialUse: false, location: { ...DEFAULT_PROJECT.location, bounds } };
