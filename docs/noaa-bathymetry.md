@@ -49,7 +49,7 @@ The Python dependencies are build-time only; no new browser dependency is needed
 
 ```sh
 python3 -m venv /tmp/topostack-noaa-venv
-/tmp/topostack-noaa-venv/bin/pip install -r scripts/noaa-requirements.txt
+/tmp/topostack-noaa-venv/bin/pip install -r scripts/requirements.txt
 /tmp/topostack-noaa-venv/bin/python scripts/test_noaa_bathymetry.py
 /tmp/topostack-noaa-venv/bin/python scripts/build-noaa-bathymetry.py \
   --cache /tmp/topostack-noaa-inputs \

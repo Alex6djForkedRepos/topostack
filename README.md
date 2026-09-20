@@ -117,6 +117,7 @@ Explicitly selected busy ports cause an error. The individual `dev:web` and `dev
 | --- | --- |
 | [`apps/generator`](apps/generator) | Svelte 5/SvelteKit homepage and studio, previews, browser storage, downloads, and Atomm integration |
 | [`packages/core`](packages/core) | Portable TypeScript geometry engine, fabrication planning, and SVG generation |
+| [`packages/data-contracts`](packages/data-contracts) | Source-only contracts shared by the studio, the Worker, and scripts: catalog validation, archive releases, terrain PNG decoding, usage events |
 | [`workers/map-api`](workers/map-api) | Cloudflare Worker for terrain, map archives, geocoding, caching, and readiness checks |
 | [`e2e`](e2e) | Deterministic Playwright tests for navigation, previews, generation, and exports |
 | [`e2e-live`](e2e-live) | Browser canary that generates and exports against a deployed API |
@@ -142,7 +143,7 @@ The Python data builders under `scripts/` have their own tests, kept out of `npm
 
 ```sh
 python3.13 -m venv .venv-data && . .venv-data/bin/activate
-pip install -r scripts/survey-requirements.txt
+pip install -r scripts/requirements.txt
 npm run test:python
 ```
 
@@ -255,16 +256,12 @@ Terrain and map data are decorative source material, not survey, navigation, or 
 
 ## Further reading
 
-- [SEO and discoverability operations](docs/seo-operations.md)
-- [Flat engraving workflow and SVG contract](docs/flat-engraving.md)
-- [Data, attribution, and fabrication details](docs/data-and-fabrication.md)
-- [Feedback workflow and triage](docs/feedback.md)
+The [documentation index](docs/README.md) groups every doc into design references, operational runbooks, and dated reports.
+
 - [Architecture and geometry conventions](docs/architecture.md)
 - [Map API setup and operations](workers/map-api/README.md)
 - [Release acceptance and rollback](docs/release-acceptance.md)
-- [Terrain expansion plan](docs/terrain-expansion-plan.md)
 - [Roadmap](docs/roadmap.md)
-- [Launch-readiness remediation history](docs/launch-readiness-remediation-2026-09-12.md)
 
 ## License
 

@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { env as workerEnv } from "cloudflare:workers";
 import worker from "../src/index";
-import { resetArchiveHeadCache } from "../src/archive-release";
+import { resetArchiveHeadCache } from "../src/archive-head";
 import { setEdgeCacheEnabled } from "../src/edge-cache";
 import { terrainPng } from "./terrain-fixture";
 

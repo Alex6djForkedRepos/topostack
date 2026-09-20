@@ -2,7 +2,7 @@ import { terrainPng } from "./terrain-fixture";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { env as workerEnv } from "cloudflare:workers";
 import worker from "../src/index";
-import { resetArchiveHeadCache } from "../src/archive-release";
+import { resetArchiveHeadCache } from "../src/archive-head";
 
 const env = { ...workerEnv, GEOCODER_API_KEY: "test-provider-key" } as unknown as Env;
 const jobs: Promise<unknown>[] = [];

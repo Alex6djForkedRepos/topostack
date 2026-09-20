@@ -36,7 +36,7 @@ Outside the registered region or zoom range there is no extra archive request.
 
 ## Build and verify
 
-Use the existing isolated environment from `scripts/survey-requirements.txt`
+Use the existing isolated environment from `scripts/requirements.txt`
 and the PMTiles CLI. The builder reads a bounded crop of the remote COG using
 HTTP ranges, checks its pinned ETag and byte count before and after reading,
 and records SHA-256 hashes of the local snapshot and final archive. It refuses
@@ -127,5 +127,5 @@ registry and its adjacent immutable manifests. `--verify-only` cannot be combine
 with publication flags. The existing `--provision` / `--promote` workflow remains
 explicit; local registry membership does not assert remote deployment.
 
-See the [Canadian packaging benchmark](terrain-benchmark-20260916.md) for measured
+See the [Canadian packaging benchmark](reports/terrain-benchmark-20260916.md) for measured
 zoom comparisons and the work still required before a national build.

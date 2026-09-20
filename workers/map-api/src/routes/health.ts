@@ -1,5 +1,5 @@
 import { OUTLINE_INDEX_KEY, outlineReadiness } from "./lake-outlines";
-import { archiveHead } from "../archive-release";
+import { archiveHead } from "../archive-head";
 import { json } from "../http";
 import { LAKE_ARCHIVE_KEY, VECTOR_ARCHIVE_KEY } from "./archive";
 import { geocodeResponse, isGeocoderConfigured } from "./geocode";

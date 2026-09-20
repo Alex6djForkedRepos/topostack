@@ -3,7 +3,7 @@ import { terrainPng } from "./terrain-fixture";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { env as workerEnv, exports } from "cloudflare:workers";
 import mapWorker, { geocodeLimit, isAllowedOrigin, isGeocoderConfigured, normalizeGeoapify, parseRangeHeader, validTile } from "../src/index";
-import { resetArchiveHeadCache } from "../src/archive-release";
+import { resetArchiveHeadCache } from "../src/archive-head";
 
 beforeEach(() => resetArchiveHeadCache());
 

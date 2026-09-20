@@ -2,7 +2,7 @@
 """Build versioned lake survey PMTiles. See docs/lake-bathymetry.md.
 
 Inputs are checksum-pinned survey downloads and verified ArcGIS snapshots.
-Uses an isolated Python environment with scripts/survey-requirements.txt.
+Uses an isolated Python environment with scripts/requirements.txt.
 """
 import argparse
 from collections import defaultdict

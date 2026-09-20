@@ -56,6 +56,16 @@ export default tseslint.config(
     },
   },
   {
+    // Workspace packages are consumed by name. Reaching into another
+    // package's src/ bypasses its exports map and hides the dependency graph.
+    files: ["**/*.ts", "**/*.mjs", "**/*.svelte"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        patterns: [{ group: ["**/packages/*/src/**", "**/packages/*/src"], message: "Import workspace packages by name (@topostack/core, @topostack/data-contracts/<module>), not by path." }],
+      }],
+    },
+  },
+  {
     linterOptions: { reportUnusedDisableDirectives: "error" },
   },
 );

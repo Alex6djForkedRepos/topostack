@@ -49,7 +49,7 @@ Priority 1 means address in the first implementation batch; Priority 2 means the
 
 **Priority 1 · High technical impact · Approximately half a day.**
 
-Evidence: [Worker configuration](../workers/map-api/wrangler.jsonc), lines 7–10, uses `not_found_handling: "single-page-application"`. The static asset directory contains neither robots.txt nor sitemap.xml. All three problematic responses in the baseline follow from this fallback.
+Evidence: [Worker configuration](../../workers/map-api/wrangler.jsonc), lines 7–10, uses `not_found_handling: "single-page-application"`. The static asset directory contains neither robots.txt nor sitemap.xml. All three problematic responses in the baseline follow from this fallback.
 
 Recommended implementation:
 
@@ -66,7 +66,7 @@ Missing robots.txt by itself would not prevent indexing, and a tiny linked site 
 
 **Priority 1 · High technical impact · Approximately half a day.**
 
-Evidence: [homepage head](../apps/generator/src/routes/+page.svelte), lines 14–17; [shared headers](../apps/generator/static/_headers); [deployment workflow](../.github/workflows/ci.yml), lines 152–164. The frontend build currently receives no explicit indexing environment; selecting a Wrangler environment afterward does not automatically change prerendered metadata.
+Evidence: [homepage head](../../apps/generator/src/routes/+page.svelte), lines 14–17; [shared headers](../../apps/generator/static/_headers); [deployment workflow](../../.github/workflows/ci.yml), lines 152–164. The frontend build currently receives no explicit indexing environment; selecting a Wrangler environment afterward does not automatically change prerendered metadata.
 
 Recommended implementation:
 
@@ -81,7 +81,7 @@ Recommended implementation:
 
 **Priority 1 · High measurement impact · Approximately half a day, plus funnel instrumentation.**
 
-The live Lighthouse run recorded Cloudflare's injected `static.cloudflareinsights.com/beacon.min.js` script being blocked by Content Security Policy. [Static headers](../apps/generator/static/_headers), line 2, allow the Atomm script origin but omit the Cloudflare analytics origin. Searches found no dedicated acquisition-to-export event instrumentation in the app.
+The live Lighthouse run recorded Cloudflare's injected `static.cloudflareinsights.com/beacon.min.js` script being blocked by Content Security Policy. [Static headers](../../apps/generator/static/_headers), line 2, allow the Atomm script origin but omit the Cloudflare analytics origin. Searches found no dedicated acquisition-to-export event instrumentation in the app.
 
 Allow the intended Cloudflare analytics script through the existing policy while retaining its other protections. Verify successful beacon transmission, not just script download. The existing `connect-src https:` already permits HTTPS collection endpoints; do not broaden unrelated directives. See [Cloudflare's CSP requirements](https://developers.cloudflare.com/fundamentals/reference/policies-compliances/content-security-policies/).
 
@@ -99,7 +99,7 @@ Distinguish layered/flat output and generation/export failures. A preview click 
 
 **Priority 1 · High relevance/conversion opportunity · A few hours.**
 
-Evidence: [homepage](../apps/generator/src/routes/+page.svelte), lines 15–40. The current title emphasizes “laser projects”; the H1 is emotional copy. The page does explain the workflows further down, but its most prominent text does not clearly name a topographic map generator or SVG export.
+Evidence: [homepage](../../apps/generator/src/routes/+page.svelte), lines 15–40. The current title emphasizes “laser projects”; the H1 is emotional copy. The page does explain the workflows further down, but its most prominent text does not clearly name a topographic map generator or SVG export.
 
 Suggested starting copy, subject to product review:
 
@@ -110,7 +110,7 @@ Suggested starting copy, subject to product review:
 
 The current app has no account gate, and the homepage states that donations are optional for every export. Keep the expressive brand copy as supporting text. Add visible, concise answers about file types, physical dimensions, material thickness, fresh generation before export and browser storage. Google recommends using searchers' language in [prominent page content](https://developers.google.com/search/docs/essentials).
 
-**Acceptance:** Initial HTML contains the updated title, description and one descriptive H1; the explanation and CTA remain usable without JavaScript. Update the existing literal-heading assertions in [landing tests](../e2e/landing.spec.ts).
+**Acceptance:** Initial HTML contains the updated title, description and one descriptive H1; the explanation and CTA remain usable without JavaScript. Update the existing literal-heading assertions in [landing tests](../../e2e/landing.spec.ts).
 
 ### 5. Publish practical pages and examples for the two workflows
 
@@ -140,7 +140,7 @@ A spot check of relevant searches surfaced other tools with explicit generator p
 
 Add initial-HTML `og:title`, `og:description`, `og:url`, `og:type`, `og:image`, image alt text, and a Twitter large-image card. Use an absolute, publicly fetchable image URL, ideally showing actual output and the product name. A 1200×630 card is a practical starting asset. Test the fetched HTML and preview image response.
 
-[Studio configuration](../apps/generator/src/routes/studio/+page.ts) disables SSR, so its [Svelte head](../apps/generator/src/routes/studio/+page.svelte), lines 25–28, appears only after client execution. Metadata added only to that component will still be missing from the initial response. Google's renderer can execute JavaScript, but many link-preview consumers do not; see [JavaScript SEO guidance](https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics).
+[Studio configuration](../../apps/generator/src/routes/studio/+page.ts) disables SSR, so its [Svelte head](../../apps/generator/src/routes/studio/+page.svelte), lines 25–28, appears only after client execution. Metadata added only to that component will still be missing from the initial response. Google's renderer can execute JavaScript, but many link-preview consumers do not; see [JavaScript SEO guidance](https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics).
 
 Recommended default: keep the editor client-rendered, give it an intentional initial-HTML `noindex` policy, and use the homepage/guides as search entry points. If direct studio ranking is desired instead, prerender a useful descriptive shell and metadata, loading the browser-only editor after mount. Do not simply turn SSR on around browser-dependent code. Do not canonicalize the distinct studio page to the homepage just to hide it.
 
@@ -157,9 +157,9 @@ The public [GitHub repository](https://github.com/Echo-Foxtrot-Works/topostack) 
 - **Topics:** `topographic-maps`, `laser-cutting`, `laser-engraving`, `svg`, `terrain`, `digital-fabrication`, `svelte`
 - **Social preview:** Use the same recognizable product artwork as the website sharing card.
 
-The homepage calls the project open source, but [README license status](../README.md), lines 223–225, explicitly says no project LICENSE exists. Select an appropriate project license and align the public wording; this is a contributor/adoption clarity gap. This audit does not select a license for the owner.
+The homepage calls the project open source, but [README license status](../../README.md), lines 223–225, explicitly says no project LICENSE exists. Select an appropriate project license and align the public wording; this is a contributor/adoption clarity gap. This audit does not select a license for the owner.
 
-The [Atomm listing](../atomm/listing.md), lines 4–5, emphasizes layered terrain and understates flat engraving. Update the listing copy and cover description to reflect both supported workflows; confirm the actual published listing matches. The immutable generator slug should remain unchanged.
+The [Atomm listing](../../atomm/listing.md), lines 4–5, emphasizes layered terrain and understates flat engraving. Update the listing copy and cover description to reflect both supported workflows; confirm the actual published listing matches. The immutable generator slug should remain unchanged.
 
 After publishing the guides, share a real finished project, reproducible steps and the relevant guide with maker communities and potential tutorial creators. Measure visits and completed exports from those sources. No outreach or external edits were performed during this audit.
 

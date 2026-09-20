@@ -11,7 +11,7 @@ export function validateTerrainRegistrySnapshot(catalog, manifestBytes) {
   }
 }
 
-import { validateTerrainArchiveBounds } from "../../packages/core/src/source-catalog.ts";
+import { validateTerrainArchiveBounds } from "@topostack/data-contracts/source-catalog";
 
 /** Run before any remote mutation. Legacy receipts remain usable only by pinned hash. */
 export function validateTerrainPublication({ source, header, metadata, receipt, sha256, bytes, pin, legacy = false }) {

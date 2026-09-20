@@ -1,8 +1,8 @@
 import type { GeoBounds, SourceAttribution } from "@topostack/core";
 import { sources } from "../../../scripts/data/terrain-sources.json";
-import { validateTerrainCatalog, validateTerrainArchiveBounds, rankTerrainSources, type TerrainSource } from "../../../packages/core/src/source-catalog";
+import { validateTerrainCatalog, validateTerrainArchiveBounds, rankTerrainSources, type TerrainSource } from "@topostack/data-contracts/source-catalog";
 import { createArchive } from "./archive";
-import { decodeTerrainPng } from "./terrain-png";
+import { decodeTerrainPng } from "@topostack/data-contracts/terrain-png";
 import { mapTiles } from "./tile-requests";
 import { latToWorldY, lonToWorldX, TILE_SIZE, worldXToLon, worldYToLat } from "./tile-math";
 

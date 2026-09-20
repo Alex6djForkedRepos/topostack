@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import terrainCatalog from "../../../scripts/data/terrain-sources.json";
-import { rankTerrainSources, validateSurveyCatalog, validateTerrainCatalog } from "./source-catalog";
+import { rankTerrainSources, validateSurveyCatalog, validateTerrainArchiveBounds, validateTerrainCatalog } from "./source-catalog";
 
 const source = { id: "survey-v1", name: "Survey", url: "https://example.test/source", license: "CC BY 4.0", bounds: [-10, 40, 10, 50], encoding: "depth-terrarium-v1", maxZoom: 12 };
 
@@ -44,4 +44,16 @@ it("ranks quality before resolution, then survey year, with stable ID ties", () 
   ];
   expect(rankTerrainSources(sources).map((source) => source.id)).toEqual(["a-v1", "b-v1", "older-v1", "coarse-v1", "low-v1"]);
   expect(rankTerrainSources([...sources].reverse())).toEqual(rankTerrainSources(sources));
+});
+
+it("accepts archive bounds that only differ by PMTiles rounding", () => {
+  const expected = [-80.5, 44.25, -79.75, 44.9];
+  expect(() => validateTerrainArchiveBounds([-80.5000004, 44.25, -79.75, 44.9000003], expected)).not.toThrow();
+});
+
+it("rejects archive bounds that are malformed or extend registered coverage", () => {
+  const expected = [-80.5, 44.25, -79.75, 44.9];
+  for (const actual of [null, [-80.5, 44.25, -79.75], [-80.5, 44.25, -79.75, "44.9"], [-80.5, 44.25, -79.75, Number.NaN], [-80.5, 44.25, -79.75, 44.91]]) {
+    expect(() => validateTerrainArchiveBounds(actual, expected)).toThrow("Terrain archive extent does not match registration.");
+  }
 });

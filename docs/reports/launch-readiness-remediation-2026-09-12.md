@@ -66,7 +66,7 @@ The new production client was also exercised in Chromium with real API requests 
 
 A single cold-start diagnostic at a 390×844 viewport, 4× CPU slowdown, 150 ms network latency, and 200 KB/s download reached the preview canvas in 5.789 seconds. It recorded five long tasks, with the longest at 1.623 seconds. The SDK was unavailable in this probe. Initial geometry now runs off the main thread, but this measurement still leaves renderer/hydration performance work for slower devices; it is not a universal startup guarantee.
 
-The candidate [Atomm ZIP](../apps/generator/topostack-atomm.zip) contains 36 entries and is 692,855 bytes. Its SHA-256 is `2d7c3845568f8907ed25d595380d92582eca0a6314f538546e2485c0ac32362b`. The adjacent [release receipt](../apps/generator/topostack-atomm.release.json) records the API origin, dataset version, both archive identities, and `workingTreeDirty: true`; this is a local candidate built from the preserved working tree. Build the published release from a clean reviewed commit. No deployment was performed.
+The candidate [Atomm ZIP](../../apps/generator/topostack-atomm.zip) contains 36 entries and is 692,855 bytes. Its SHA-256 is `2d7c3845568f8907ed25d595380d92582eca0a6314f538546e2485c0ac32362b`. The adjacent [release receipt](../../apps/generator/topostack-atomm.release.json) records the API origin, dataset version, both archive identities, and `workingTreeDirty: true`; this is a local candidate built from the preserved working tree. Build the published release from a clean reviewed commit. No deployment was performed.
 
 ## Remaining release acceptance
 

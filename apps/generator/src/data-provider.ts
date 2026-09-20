@@ -7,7 +7,7 @@ import { createArchive, networkSignal } from "./archive";
 import { classifyRings, VectorTile } from "@mapbox/vector-tile";
 import { PbfReader } from "pbf";
 import { MAP_DATA_ATTRIBUTION } from "./map-attribution";
-import { decodeTerrainPng } from "./terrain-png";
+import { decodeTerrainPng } from "@topostack/data-contracts/terrain-png";
 import { loadLakeBathymetry, applySurveyProvenance } from "./bathymetry";
 import { applyPreferredTerrain } from "./terrain-sources";
 import { repairElevationSpikes } from "./elevation-cleanup";
