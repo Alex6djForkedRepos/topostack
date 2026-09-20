@@ -17,6 +17,14 @@ Layer count is derived, never configured. `planTerrainStack` turns the mapped gr
 
 Every generated result records a deterministic project fingerprint and source quality. Before markings are clipped and labels are placed, the geometry flow plans same-coordinate material nests and adds their glue-safe cavities to donor layers. Vector-tile buffers are removed and unambiguous degree-two road pieces are stitched before transportation paths are styled as complete routes. Roads use a continuous centerline by default; the optional outlined major-road style offsets the complete route by the configured spacing and adds matching compact joins at forks. Styled routes are then clipped to the highest exposed material across the stack so bends and contour transitions stay continuous. Fabrication export groups each nest family onto one panel and emits shared donor/child cut lines once. Export is rejected when settings changed after generation, the source is synthetic, or any layer is empty.
 
+## Where things live
+
+- [Core package layout](#core-package-layout) below; [`packages/data-contracts/README.md`](../packages/data-contracts/README.md) for the shared contracts package.
+- [`apps/generator/README.md`](../apps/generator/README.md) for the generator's layers, what each may import, the studio panels and their context, and the stylesheet layout.
+- [`workers/map-api/README.md`](../workers/map-api/README.md) for the Worker's routes and operations.
+- [`scripts/README.md`](../scripts/README.md) for every operational script and how it runs.
+- [`CLAUDE.md`](../CLAUDE.md) for the one-page map of where a change goes and the rules the linter enforces.
+
 ## Core package layout
 
 `packages/core/src` is grouped by concern; each folder only imports from the folders above it in this list, and `types.ts` at the root is shared by all of them.

@@ -12,6 +12,14 @@
 - [Terrain system review and source expansion plan](terrain-expansion-plan.md)
 - [Roadmap](roadmap.md)
 
+## Package and tool READMEs
+
+- [Generator](../apps/generator/README.md): layers, import rules, studio panels, stylesheet layout.
+- [Core](../packages/core/README.md) and [data contracts](../packages/data-contracts/README.md).
+- [Map API Worker](../workers/map-api/README.md): setup and operations.
+- [Scripts](../scripts/README.md): every operational script and what runs it.
+- [CLAUDE.md](../CLAUDE.md): one-page map of where a change goes and the enforced rules.
+
 ## Runbooks (operations)
 
 - [Data operations and measured baseline](data-layer-operations.md) — provisioning, cache lifecycle, archive pruning.

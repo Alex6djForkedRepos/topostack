@@ -214,6 +214,8 @@ The [hourly production monitor](.github/workflows/production-monitor.yml) checks
 
 ### Atomm
 
+[Atomm](https://www.atomm.com) is xTool's marketplace of community generators. TopoStack is published there as a second distribution channel: the same studio, built with `VITE_SITE_ENV=atomm`, embedded in the platform's layout with its export lifecycle. The `atomm/` directory holds the listing copy and artwork, and `scripts/release/` packages the bundle.
+
 To preview the local studio in Atomm, use the running frontend URL as its `local` parameter. With the default port:
 
 ```text
