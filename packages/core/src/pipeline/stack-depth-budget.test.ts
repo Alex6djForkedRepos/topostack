@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planTerrainStack } from "./geometry.js";
+import { planTerrainStack } from "./stack-plan.js";
 import { DEFAULT_PROJECT } from "../types.js";
 
 const bounds = { west: -110.756, east: -110.708, south: 43.743, north: 43.780 };

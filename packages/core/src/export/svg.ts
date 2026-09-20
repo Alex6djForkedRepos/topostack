@@ -1,7 +1,8 @@
 import { CIRCLE_CROP_SEGMENTS, cropRadiusMm } from "../primitives/crop.js";
 import { exportBlockReason } from "./export-policy.js";
 import { formatNumber as format } from "../primitives/format.js";
-import { CONTOUR_SIMPLIFICATION_FACTOR, horizontalScaleFor } from "../pipeline/geometry.js";
+import { CONTOUR_SIMPLIFICATION_FACTOR } from "../pipeline/contours.js";
+import { horizontalScaleFor } from "../pipeline/stack-plan.js";
 import polygonClipping, { type MultiPolygon } from "polygon-clipping";
 import { clipPolyline, normalizeMultiPolygon, pointAt, pointInPreparedPolygons, preparePolygons, type PreparedPolygons, ringBounds, toRing } from "../primitives/geometry2d.js";
 import { labelLineSegments, labelPathData } from "../annotate/labels.js";

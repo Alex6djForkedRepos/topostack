@@ -1,4 +1,4 @@
-import { projectFingerprint } from "../pipeline/geometry.js";
+import { projectFingerprint } from "../pipeline/fingerprint.js";
 import { sourceRequirements } from "../pipeline/source-requirements.js";
 import type { GeometryIRV1, ProjectConfigV1 } from "../types.js";
 

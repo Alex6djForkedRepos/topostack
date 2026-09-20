@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import fixture from "./fixtures/bergen-lake.json";
 import { smoothLakePolygon, smoothLakeShorelines } from "./lake-shoreline.js";
 import { close, signedArea } from "../primitives/geometry2d.js";
-import { createSyntheticSource } from "../pipeline/geometry.js";
+import { createSyntheticSource } from "../pipeline/synthetic-source.js";
 import { DEFAULT_PROJECT, type Point2D, type Polygon2D } from "../types.js";
 
 const polygon: Polygon2D = {
