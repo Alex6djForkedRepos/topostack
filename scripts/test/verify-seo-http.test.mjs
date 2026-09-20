@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { fetchSeoResponse, fetchSitemapUrls } from "../verify-seo-http.mjs";
+import { fetchSeoResponse, fetchSitemapUrls } from "../verify/verify-seo-http.mjs";
 
 for (const status of [404, 429, 503]) {
   test(`deployment SEO retries a transient ${status}`, async (t) => {

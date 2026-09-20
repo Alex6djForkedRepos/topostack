@@ -73,9 +73,9 @@ and the PMTiles CLI. The runtime web application has no new dependencies.
 
 ```sh
 python3.13 -m venv /tmp/topostack-surveys-venv
-/tmp/topostack-surveys-venv/bin/pip install -r scripts/requirements.txt
-/tmp/topostack-surveys-venv/bin/python scripts/test_survey_bathymetry.py
-/tmp/topostack-surveys-venv/bin/python scripts/build-survey-bathymetry.py \
+/tmp/topostack-surveys-venv/bin/pip install -r scripts/data-build/requirements.txt
+/tmp/topostack-surveys-venv/bin/python scripts/data-build/test_survey_bathymetry.py
+/tmp/topostack-surveys-venv/bin/python scripts/data-build/build-survey-bathymetry.py \
   --cache /tmp/topostack-lake-surveys \
   --out-dir /tmp/topostack-survey-archives
 ```
@@ -102,7 +102,7 @@ binding or secret is required. Provision each completed archive with its receipt
 SHA-256, for example:
 
 ```sh
-node --env-file=.env scripts/provision-lake-data.mjs \
+node --env-file=.env scripts/provision/provision-lake-data.mjs \
   /tmp/topostack-survey-archives/usgs-crater-lake-v1.pmtiles \
   --source=usgs-crater-lake-v1 --provision --expected-sha256=<receipt-sha256>
 ```
@@ -118,9 +118,9 @@ using its existing bounded Range/CORS/cache handling. Surveys are optional for
 ```sh
 VITE_MAP_API_PORT=8893 TOPOSTACK_WEB_PORT=5293 npm run dev
 # In another terminal, after development archives have been provisioned:
-node scripts/verify-surveys-live.mjs
+node scripts/verify/verify-surveys-live.mjs
 # To check only Finland after adding its archive:
-node scripts/verify-surveys-live.mjs --dataset=syke-finland-lakes-v1 --coverage-only
+node scripts/verify/verify-surveys-live.mjs --dataset=syke-finland-lakes-v1 --coverage-only
 ```
 
 The browser check uses real HydroLAKES polygons and real depth archives, checks
@@ -172,7 +172,7 @@ The directory includes every contributing regional grid in the verified archive 
 Regenerate the static catalog after rebuilding or adding survey archives:
 
 ```sh
-/tmp/topostack-surveys-venv/bin/python scripts/build-lake-directory.py \
+/tmp/topostack-surveys-venv/bin/python scripts/data-build/build-lake-directory.py \
   --cache /tmp/topostack-lake-surveys \
   --archives /tmp/topostack-survey-archives
 ```
@@ -252,8 +252,8 @@ accepted. Retain snapshots for exact offline rebuilds because public services
 may change their contents in place.
 
 ```sh
-/tmp/topostack-surveys-venv/bin/python scripts/test_survey_regions.py
-/tmp/topostack-surveys-venv/bin/python scripts/build-survey-bathymetry.py \
+/tmp/topostack-surveys-venv/bin/python scripts/data-build/test_survey_regions.py
+/tmp/topostack-surveys-venv/bin/python scripts/data-build/build-survey-bathymetry.py \
   --cache /tmp/topostack-expanded-surveys --out-dir /tmp/topostack-survey-archives \
   --dataset ontario-lakes-v1
 ```
@@ -265,7 +265,7 @@ come from the configured development data service. It does not validate a remote
 upload or release pointer.
 
 ```sh
-SURVEY_TEST_APP_URL=http://localhost:5273 node scripts/verify-surveys-live.mjs \
+SURVEY_TEST_APP_URL=http://localhost:5273 node scripts/verify/verify-surveys-live.mjs \
   --coverage-only --local-archives=/tmp/topostack-survey-archives \
   --dataset=ontario-lakes-v1,nve-norway-lakes-v1,twdb-texas-reservoirs-v1,usbr-reservoirs-v1
 ```
@@ -281,7 +281,7 @@ size and enables layered water depth. The directory covers integrated numeric
 archives, not unimported surveys or reference-only PDF maps.
 
 `lake-directory.test.ts` checks searchability for every catalog record. Run
-`node scripts/verify-lake-search.mjs` against the local preview at port 5298, or set
+`node scripts/verify/verify-lake-search.mjs` against the local preview at port 5298, or set
 `LAKE_SEARCH_TEST_URL=https://dev.topostack.app` to verify development.
 The browser check covers all source groups, pagination, independent provider
 failures, retries, mobile layout, framed selection, and saved project state.
@@ -304,12 +304,12 @@ they use HydroLAKES or OSM. The audit does not claim verified external coverage.
 Regenerate after updating the directory or pinned sources:
 
 ```sh
-/tmp/topostack-surveys-venv/bin/python scripts/build-lake-outlines.py \
+/tmp/topostack-surveys-venv/bin/python scripts/data-build/build-lake-outlines.py \
   --cache /tmp/topostack-lake-surveys --cache /tmp/topostack-expanded-surveys
-/tmp/topostack-surveys-venv/bin/python scripts/test_lake_outlines.py
+/tmp/topostack-surveys-venv/bin/python scripts/data-build/test_lake_outlines.py
 node --test scripts/test/lake-outlines.test.mjs
 # With a local Vite server: verify all six regional sources with HydroLAKES blocked.
-SURVEY_TEST_APP_URL=http://localhost:5297 node scripts/verify-lake-outlines.mjs \
+SURVEY_TEST_APP_URL=http://localhost:5297 node scripts/verify/verify-lake-outlines.mjs \
   --local-archives=/tmp/topostack-survey-archives
 ```
 
@@ -321,15 +321,15 @@ and checksums of the source catalog, directory and coverage audit.
 
 ```sh
 # After regenerating: validate every geometry and prepare a reviewable release pin.
-node scripts/provision-lake-outlines.mjs --prepare
-node scripts/provision-lake-outlines.mjs --verify-only
+node scripts/provision/provision-lake-outlines.mjs --prepare
+node scripts/provision/provision-lake-outlines.mjs --verify-only
 # Publish to each environment before deploying code that references the new pin.
-node --env-file=.env scripts/provision-lake-outlines.mjs --provision
-node --env-file=.env scripts/provision-lake-outlines.mjs --provision --prod
+node --env-file=.env scripts/provision/provision-lake-outlines.mjs --provision
+node --env-file=.env scripts/provision/provision-lake-outlines.mjs --provision --prod
 # Fresh checkout: recover the pinned data from development R2 and fully validate it.
-node --env-file=.env scripts/fetch-lake-outlines.mjs --download
+node --env-file=.env scripts/provision/fetch-lake-outlines.mjs --download
 # Deployment preflight: verify index bytes and every shard's size/checksum metadata.
-node --env-file=.env scripts/fetch-lake-outlines.mjs
+node --env-file=.env scripts/provision/fetch-lake-outlines.mjs
 ```
 
 Publishing uses short-lived credentials scoped to `lake-outlines/`, conditional

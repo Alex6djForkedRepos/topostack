@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import test from "node:test";
-import { bumpVersion, nextVersion, readVersions, validateVersion } from "../versions.mjs";
+import { bumpVersion, nextVersion, readVersions, validateVersion } from "../release/versions.mjs";
 import { DATASET_VERSION, assertDatasetVersionsAgree, datasetVersionDrift } from "../lib/dataset-version.mjs";
 
 async function fixture(t) {

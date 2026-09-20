@@ -1,4 +1,4 @@
-import { validateVersion } from "../versions.mjs";
+import { validateVersion } from "../release/versions.mjs";
 
 /** Filenames use the Atomm release version, independently of the main app version. */
 export function atommReleaseFiles(version) {

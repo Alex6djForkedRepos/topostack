@@ -1,5 +1,5 @@
-// Shared by scripts/validate-submission-env.mjs (pre-build gate) and
-// scripts/verify-atomm-dist.mjs (built-artifact scan) so both reject the same
+// Shared by scripts/release/validate-submission-env.mjs (pre-build gate) and
+// scripts/verify/verify-atomm-dist.mjs (built-artifact scan) so both reject the same
 // placeholder and development endpoint families.
 const FORBIDDEN_SUFFIXES = [".localhost", ".invalid", ".test", ".local", ".example", ".workers.dev"];
 

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test from "node:test";
-import { publishRelease, validatePackage, validateRun } from "../publish-atomm-release.mjs";
+import { publishRelease, validatePackage, validateRun } from "../release/publish-atomm-release.mjs";
 
 const commit = "a".repeat(40);
 const repository = "Echo-Foxtrot-Works/topostack";

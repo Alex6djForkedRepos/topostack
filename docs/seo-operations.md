@@ -22,8 +22,8 @@ Validate an artifact and the actual Worker response behavior:
 
 ```sh
 VITE_SITE_ENV=production npm run build -w @topostack/generator
-node scripts/verify-seo.mjs --environment production
-node scripts/verify-seo-http.mjs https://topostack.app production
+node scripts/verify/verify-seo.mjs --environment production
+node scripts/verify/verify-seo-http.mjs https://topostack.app production
 ```
 
 The HTTP check is also called by the deployment verifier. Use the development
@@ -41,7 +41,7 @@ engines to ignore the field.
 
 **Bump `updated` when a page's substance changes** — new or rewritten guidance,
 a changed procedure, corrected facts. Leave it alone for styling, typography,
-link housekeeping and refactors. `scripts/verify-seo.mjs` asserts that the
+link housekeeping and refactors. `scripts/verify/verify-seo.mjs` asserts that the
 sitemap and the article markup both match the recorded dates, that no date is
 in the future, and that hubs and policy pages carry no article metadata.
 
@@ -65,7 +65,7 @@ sync, for no measurable return.
 
 ## Crawler access monitoring
 
-`scripts/verify-worker-deployment.mjs` runs after every deploy and hourly from
+`scripts/verify/verify-worker-deployment.mjs` runs after every deploy and hourly from
 `production-monitor.yml`. It requests the homepage as GPTBot, ClaudeBot and
 PerplexityBot and asserts the prerendered HTML comes back, then asserts that
 robots.txt is still a permissive plain-text file with no `Disallow`.
@@ -144,7 +144,7 @@ search traffic and Cloudflare Web Analytics for visit/device context.
 4. After a domain move, verify the previous domain as its own property and run
    Search Console's Change of Address against it. The legacy 301s must stay in
    place for at least a year; they are configured by
-   `scripts/configure-redirects.mjs`, which also manages the `www` alias.
+   `scripts/build/configure-redirects.mjs`, which also manages the `www` alias.
 5. Confirm the Cloudflare beacon script and collection request succeed in a fresh
    browser session on the deployed site.
 6. Update the published Atomm listing from `atomm/listing.md`. The immutable slug
