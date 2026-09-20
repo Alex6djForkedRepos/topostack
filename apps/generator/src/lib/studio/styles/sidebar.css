@@ -1,0 +1,281 @@
+/* Sidebar: workspace, config panel, panel intro, section disclosures, labels, badges, subgroup headings. */
+
+.workspace {
+  height: 100%;
+  min-height: 0;
+  --ldt-sidebar-width: 288px;
+  overflow: hidden;
+}
+
+.workspace > .ldt-workspace__main {
+  min-height: 0;
+  display: grid;
+  padding: 0;
+}
+
+.config-panel {
+  container: project-controls / inline-size;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+
+  /* One scale for the whole panel. These replace six ad-hoc pixel sizes, with
+     8px alone previously covering eight unrelated roles. */
+  --panel-font-title: 20px;
+  --panel-font-body: 13px;
+  --panel-font-label: 11px;
+  --panel-font-caption: 10px;
+  --panel-font-micro: 8px;
+  --panel-space-1: 6px;
+  --panel-space-2: 10px;
+  --panel-space-3: 14px;
+}
+
+.panel-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 0 20px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--loidolt-border) transparent;
+}
+
+.panel-intro {
+  padding: 12px 20px 10px;
+}
+
+.panel-intro h1 {
+  font-size: var(--panel-font-title);
+  font-weight: 500;
+  margin: 0 0 6px;
+}
+
+.panel-intro > p {
+  margin: 0 0 14px;
+  color: var(--loidolt-text-muted);
+  font-size: var(--panel-font-caption);
+  line-height: 1.5;
+}
+
+.panel-eyebrow {
+  margin-bottom: 8px;
+}
+
+.section-tools {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  padding: 1px;
+  border: var(--loidolt-border-width) solid var(--loidolt-border-soft);
+  background: var(--loidolt-border-soft);
+}
+
+.section-tools button {
+  min-height: 30px;
+  border: 0;
+  background: var(--loidolt-surface);
+  color: var(--loidolt-text-muted);
+  cursor: pointer;
+  font: var(--panel-font-caption) var(--loidolt-font-utility);
+}
+
+.section-tools button:hover:not(:disabled) {
+  color: var(--loidolt-text);
+  background: var(--loidolt-surface-alt);
+}
+
+.section-tools button:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid var(--loidolt-accent);
+  outline-offset: 2px;
+}
+
+.section-disclosure:focus-visible {
+  outline: 2px solid var(--loidolt-accent);
+  outline-offset: -2px;
+}
+
+.section-tools button:disabled {
+  color: var(--loidolt-text-muted);
+  cursor: default;
+  opacity: 0.45;
+}
+
+.config-section {
+  padding-block: 0;
+}
+
+.section-disclosure {
+  width: 100%;
+  min-height: 66px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  background: transparent;
+  color: var(--loidolt-text);
+  padding: 11px 20px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.section-disclosure:hover {
+  background: var(--loidolt-surface-alt);
+}
+
+.section-number {
+  flex: 0 0 34px;
+  color: var(--loidolt-accent);
+  font: var(--panel-font-micro) var(--loidolt-font-utility);
+  letter-spacing: 0.06em;
+}
+
+.section-title {
+  min-width: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  font-size: var(--panel-font-body);
+  font-weight: 600;
+}
+
+.section-title small {
+  overflow: hidden;
+  color: var(--loidolt-text-muted);
+  font: var(--panel-font-micro) var(--loidolt-font-utility);
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.section-content {
+  padding: 2px 20px 20px;
+}
+
+.subsection-label {
+  margin-bottom: 10px;
+  color: var(--loidolt-text-muted);
+  font: var(--panel-font-micro) var(--loidolt-font-utility);
+  text-transform: uppercase;
+  letter-spacing: var(--loidolt-font-tracking-wide);
+}
+
+.subsection-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.subsection-label-row .subsection-label {
+  margin-bottom: 0;
+}
+
+.terrain-data-badge {
+  flex: 0 0 auto;
+  border: var(--loidolt-border-width) solid var(--loidolt-border);
+  padding: 3px 5px;
+  color: var(--loidolt-text-muted);
+  font: 7px var(--loidolt-font-utility);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.terrain-data-badge.pending {
+  border-color: color-mix(in srgb, var(--loidolt-accent) 45%, var(--loidolt-border));
+  background: color-mix(in srgb, var(--loidolt-accent) 8%, transparent);
+  color: var(--loidolt-accent);
+}
+
+.terrain-data-note {
+  margin: 10px 0 0;
+  color: var(--loidolt-text-muted);
+  font-size: var(--panel-font-micro);
+  line-height: 1.45;
+}
+
+.terrain-data-note strong,
+.terrain-data-note span {
+  display: block;
+}
+
+.terrain-data-note.pending strong {
+  color: var(--loidolt-accent);
+}
+
+.vertical-exaggeration-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.section-kicker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--loidolt-text-muted);
+  margin-bottom: 13px;
+}
+
+.section-kicker span {
+  color: var(--loidolt-accent);
+  font-size: var(--panel-font-micro);
+}
+
+.kicker-chevron {
+  margin-left: auto;
+  transition: transform 120ms ease;
+}
+
+.kicker-chevron--open {
+  transform: rotate(180deg);
+}
+
+/* Shared sub-heading: previously three near-identical rules for the advanced
+   subgroups, the north-arrow panel, and the placement row. */
+.subgroup-heading,
+.subgroup-heading > p {
+  margin: 0;
+  color: var(--loidolt-text-muted);
+  font: var(--panel-font-micro) var(--loidolt-font-utility);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.subgroup-heading--action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.subgroup-heading--action button {
+  border: 0;
+  background: transparent;
+  color: var(--loidolt-accent);
+  padding: 2px;
+  cursor: pointer;
+  font: var(--panel-font-micro) var(--loidolt-font-utility);
+  text-transform: uppercase;
+}
+
+.subgroup-heading--action button:focus-visible {
+  outline: 2px solid var(--loidolt-accent);
+  outline-offset: 2px;
+}
+
+.detail-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--panel-space-1);
+}
+
+.detail-column + .detail-column,
+.detail-group + .detail-group {
+  margin-top: var(--panel-space-3);
+}

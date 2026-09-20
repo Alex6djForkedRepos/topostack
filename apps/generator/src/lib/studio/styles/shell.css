@@ -1,0 +1,215 @@
+/* App shell: header, project name, history actions, bar meta, export feedback, context bar, output switch, about link. */
+
+@import "maplibre-gl/dist/maplibre-gl.css";
+
+html:has(.app-shell),
+body:has(.app-shell) {
+  height: 100%;
+  min-height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+.app-shell {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.app-shell > main {
+  min-height: 0;
+}
+
+.app-header {
+  position: relative;
+  z-index: 20;
+  min-width: 0;
+}
+
+.section-kicker,
+.project-name > span {
+  font: var(--loidolt-font-size-xs) var(--loidolt-font-utility);
+  text-transform: uppercase;
+  letter-spacing: var(--loidolt-font-tracking-wide);
+}
+
+.project-name {
+  width: 210px;
+  min-width: 0;
+  border-left: var(--loidolt-border-width) solid var(--loidolt-border);
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.project-name > span {
+  font-size: 8px;
+  color: var(--loidolt-text-muted);
+}
+
+.project-name input {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: 13px;
+}
+
+.history-actions {
+  display: flex;
+}
+
+.bar-meta {
+  margin-left: auto;
+  display: flex;
+  gap: 16px;
+  color: var(--loidolt-text-muted);
+  font: 10px var(--loidolt-font-utility);
+}
+
+.bar-meta span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bar-meta span:before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  background: var(--loidolt-border);
+}
+
+.export-feedback {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 12px;
+  color: var(--loidolt-text);
+  background: var(--loidolt-surface);
+  border: var(--loidolt-border-width) solid var(--loidolt-border);
+  border-radius: var(--loidolt-border-radius);
+  box-shadow: var(--loidolt-shadow-popover);
+}
+
+.export-feedback-indicator {
+  width: 8px;
+  height: 8px;
+  margin-top: 3px;
+  border-radius: 50%;
+  background: var(--loidolt-accent);
+}
+
+.export-feedback--preparing .export-feedback-indicator {
+  animation: pulse 1s infinite;
+}
+
+.export-feedback--ready .export-feedback-indicator {
+  background: var(--loidolt-success);
+}
+
+.export-feedback--error .export-feedback-indicator {
+  background: var(--loidolt-danger);
+}
+
+.export-feedback-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.export-feedback-copy strong {
+  font: 600 11px var(--loidolt-font-utility);
+}
+
+.export-feedback-copy small {
+  color: var(--loidolt-text-muted);
+  font: 10px/1.4 var(--loidolt-font-utility);
+}
+
+[data-atomm-export-button] {
+  --atomm-export-bg: var(--loidolt-accent);
+  --atomm-export-bg-hover: var(--loidolt-accent-hover);
+  --atomm-export-radius: var(--loidolt-border-radius);
+  --atomm-export-height: var(--loidolt-size-control);
+  --atomm-export-font-size: var(--loidolt-font-size-xs);
+}
+
+.export-trigger {
+  height: var(--loidolt-size-control);
+}
+
+.ldt-contextbar__actions {
+  font: var(--loidolt-font-size-xs) var(--loidolt-font-utility);
+  letter-spacing: var(--loidolt-font-tracking-utility);
+  text-transform: uppercase;
+}
+
+.ldt-contextbar__actions .ready {
+  color: var(--loidolt-text-success);
+}
+
+.ldt-contextbar__actions .error {
+  color: var(--loidolt-text-danger);
+}
+
+.terrain-contextbar .ldt-contextbar__actions {
+  gap: var(--loidolt-space-3);
+}
+
+/* Keep icon-and-label toggles centered as a unit, including narrow layouts. */
+.ldt-toggle-group__item > svg {
+  flex-shrink: 0;
+}
+
+.output-mode-switch {
+  width: 264px;
+  flex: 0 0 auto;
+}
+
+.output-mode-switch .ldt-toggle-group__item {
+  flex: 1;
+  padding-inline: var(--loidolt-space-2);
+}
+
+.output-mode-switch__icon {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  display: grid;
+  place-items: center;
+  color: var(--loidolt-text-accent);
+  background: var(--loidolt-surface-sunken);
+  border: var(--loidolt-border-width) solid var(--loidolt-border);
+  border-radius: var(--loidolt-radius-sm);
+  transition: color 120ms ease, background-color 120ms ease, border-color 120ms ease;
+}
+
+.output-mode-switch .ldt-toggle-group__item[data-state="on"] .output-mode-switch__icon {
+  color: var(--loidolt-on-accent);
+  background: color-mix(in srgb, var(--loidolt-on-accent) 14%, transparent);
+  border-color: color-mix(in srgb, var(--loidolt-on-accent) 45%, transparent);
+}
+
+.context-export-status {
+  white-space: nowrap;
+}
+
+.about-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  min-height: var(--loidolt-size-control);
+  color: var(--loidolt-text-muted);
+  border-radius: var(--loidolt-border-radius);
+}
+.about-link:hover { color: var(--loidolt-text); background: var(--loidolt-surface); }
+.about-link:focus-visible { outline: 2px solid var(--loidolt-accent); outline-offset: 3px; }
+@media (pointer: coarse), (max-width: 760px) {
+  .about-link { min-width: 44px; min-height: 44px; }
+}

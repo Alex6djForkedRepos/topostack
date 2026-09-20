@@ -1,0 +1,388 @@
+/* Animations and every responsive breakpoint, in cascade order across all areas. */
+
+@keyframes pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@keyframes contour {
+  0%,
+  100% {
+    transform: scale(0.92);
+    opacity: 0.45;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 1100px) {
+  .ldt-brand__meta,
+  .bar-meta {
+    display: none;
+  }
+
+  .project-name {
+    width: 160px;
+  }
+
+  .workspace {
+    --ldt-sidebar-width: 260px;
+  }
+
+  .preview-readout {
+    display: none;
+  }
+}
+
+/* Stack the workspace when the preview would become a narrow strip, including
+   large portrait tablets. Landscape tablets retain the two-pane workspace. */
+@media (max-width: 1000px), (max-width: 1100px) and (orientation: portrait) {
+  html:has(.app-shell),
+  body:has(.app-shell) {
+    height: auto;
+    overflow-y: auto;
+  }
+
+  .app-shell {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
+  .workspace {
+    height: auto;
+    display: flex;
+    flex-direction: column;
+    overflow: visible;
+  }
+
+  .workspace > .ldt-workspace__main {
+    order: -1;
+  }
+
+  .preview-panel {
+    height: clamp(360px, 58svh, 720px);
+  }
+
+  .config-panel {
+    border-right: 0;
+    border-top: var(--loidolt-border-width) solid var(--loidolt-border);
+    overflow: visible;
+  }
+
+  /* Keep accordion sections in one vertical sequence as their heights change. */
+  .panel-scroll {
+    flex: none;
+    overflow: visible;
+  }
+
+  .generate-dock {
+    flex: none;
+  }
+}
+
+/* Sections remain one accordion. Only related controls inside an open section
+   share columns when the panel itself has enough room. */
+@container project-controls (min-width: 640px) {
+  .panel-intro {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 240px;
+    column-gap: 24px;
+  }
+
+  .panel-intro > .section-tools {
+    grid-column: 2;
+    grid-row: 1 / 4;
+    align-self: center;
+  }
+
+  .section-content > *,
+  .linework-group,
+  .field-stack > * {
+    min-width: 0;
+  }
+
+  #section-setup:not([hidden]),
+  #section-size:not([hidden]),
+  #section-terrain:not([hidden]),
+  #section-details:not([hidden]),
+  #section-custom-data:not([hidden]),
+  .linework-controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 20px 24px;
+  }
+
+  #section-setup > .terrain-data-note {
+    margin: 0;
+    font-size: var(--panel-font-caption);
+    line-height: 1.6;
+  }
+
+  .preset-row {
+    flex-wrap: wrap;
+  }
+
+  .field-stack {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+    gap: 12px 20px;
+  }
+
+  #section-size > .field-stack,
+  #section-terrain > .relief-summary,
+  .custom-data-intro,
+  .linework-group--fields,
+  .linework-note {
+    grid-column: 1 / -1;
+  }
+
+  #section-size > .field-stack {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #section-size > .unit-switch,
+  #section-size > .field-stack,
+  #section-terrain > .range-field,
+  #section-terrain > .field-stack,
+  #section-terrain > .relief-summary,
+  #section-details .detail-group,
+  #section-details > .detail-column,
+  .linework-group > .field-stack {
+    margin: 0;
+  }
+
+  #section-details > .detail-column {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  #section-details .detail-group {
+    padding: 14px;
+    border: 1px solid var(--loidolt-border-soft);
+  }
+
+  .field-stack--offsets {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+    gap: 12px;
+  }
+
+  .marker-coordinate-fields {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 190px), 1fr));
+  }
+
+  .line-presets,
+  .linework-customize {
+    max-width: 440px;
+  }
+
+  .advanced-fields > .toggle-stack {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 24px;
+  }
+
+  .generate-dock {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+    align-items: center;
+    gap: 20px;
+  }
+
+  .generate-dock > .status-line {
+    margin: 0;
+    white-space: normal;
+  }
+}
+
+@media (max-width: 760px) {
+  .topbar {
+    flex-wrap: wrap;
+    gap: var(--loidolt-space-2);
+    padding: var(--loidolt-space-2) 12px;
+  }
+
+  .topbar .ldt-topbar__actions {
+    width: auto;
+    margin-left: auto;
+    overflow: visible;
+  }
+
+  .topbar .ldt-topbar__nav {
+    order: 1;
+    flex: 1 0 100%;
+    align-items: center;
+    justify-content: space-between;
+    overflow: visible;
+  }
+
+  .project-name {
+    flex: 1;
+    width: auto;
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .project-name input {
+    width: 100%;
+  }
+
+  .history-actions {
+    flex: none;
+  }
+
+  .context-export-status {
+    display: none;
+  }
+
+  .output-mode-switch .ldt-toggle-group__item {
+    min-height: 44px;
+  }
+
+  .mode-switch {
+    width: 100%;
+  }
+
+  .mode-switch .ldt-toggle-group__item {
+    gap: 4px;
+    padding-inline: 8px;
+  }
+
+  .preview-toolbar {
+    padding: 4px 10px;
+  }
+
+  .engraving-stage {
+    padding: 14px 14px 34px;
+  }
+
+  .preview-attribution {
+    right: 6px;
+    bottom: 6px;
+    padding: 5px 7px;
+    font-size: 9px;
+  }
+}
+
+/* Custom controls need the same touch targets as the shared theme controls,
+   including on tablets whose width exceeds the phone breakpoint. */
+@media (pointer: coarse), (max-width: 760px) {
+  .section-tools button,
+  .preset-row button,
+  .subgroup-heading--action button,
+  .marker-card__header button,
+  .marker-symbol-options button,
+  .custom-line-kind-options button,
+  .custom-point-heading button,
+  .custom-point-add,
+  .linework-customize,
+  .toggle-stack .ldt-switch,
+  .generate-button,
+  .mode-switch .ldt-toggle-group__item {
+    min-height: 44px;
+  }
+
+  .marker-card__header button,
+  .custom-point-heading button {
+    min-width: 44px;
+  }
+
+  .config-panel .ldt-number-field {
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+  }
+
+  .config-panel .number-input--compact > .ldt-number-field {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .north-arrow-anchor-grid {
+    grid-template-columns: repeat(3, 44px);
+  }
+
+  .north-arrow-anchor-grid button {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* Measure the preview itself: a landscape tablet also has a narrow canvas
+   once the sidebar is accounted for. Keep notices below its zoom controls. */
+@container terrain-preview (max-width: 760px) {
+  .preview-stage:has(.two-d-stage, .engraving-stage) .warning-stack {
+    top: 78px;
+    right: 14px;
+    max-width: none;
+  }
+
+  .preview-stage:has(.engraving-stage) .warning-stack {
+    top: 94px;
+  }
+}
+
+@media (max-width: 480px) {
+  .export-trigger {
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    padding: 0;
+    gap: 0;
+  }
+
+  .export-trigger-label {
+    display: none;
+  }
+
+  .terrain-contextbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--loidolt-space-2);
+    padding: var(--loidolt-space-2) 12px;
+  }
+
+  .terrain-contextbar .ldt-contextbar__location {
+    display: flex;
+    align-items: baseline;
+  }
+
+  .terrain-contextbar .ldt-contextbar__actions {
+    width: 100%;
+    display: flex;
+  }
+
+  .output-mode-switch {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .preset-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .coordinate-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .coordinate-row > button {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Very short windows can scroll instead of clipping the generation dock.
+   This covers landscape phones, split-screen windows, and browser zoom. */
+@media (min-width: 1001px) and (max-height: 600px) {
+  html:has(.app-shell),
+  body:has(.app-shell) {
+    height: auto;
+    overflow-y: auto;
+  }
+
+  .app-shell {
+    height: 600px;
+    overflow: visible;
+  }
+}

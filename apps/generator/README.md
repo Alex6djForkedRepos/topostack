@@ -19,6 +19,10 @@ Rules, enforced by ESLint (`no-restricted-imports` in the root config):
 
 `src/app.html`, `src/hooks.server.ts`, and the ambient `*.d.ts` files stay at the `src/` root because SvelteKit or the compiler looks for them there.
 
+## Styles
+
+`lib/studio/styles.css` is an index of `@import`s over `lib/studio/styles/*.css`, one file per studio area (shell, sidebar, each section, preview, overlays, export dialog) plus `responsive.css`, which holds every breakpoint. Order matters: equal-specificity rules resolve by position, so new area files go before `responsive.css`. The Atomm embed renders the same markup inside the platform's own design system, vendored as `lib/atomm/atomm-workbench.css`; it is a separate skin, not a copy of the studio styles, and has its own bundle budget.
+
 ## Tests
 
 Node tests run with the default Vite config; browser tests are the `*.client.test.ts` files and run under jsdom via `vitest.client.config.ts`. Both are colocated with the code they cover.

@@ -1,0 +1,47 @@
+/* Generation dock: terrain source summary, status line, generate button. */
+
+.terrain-source-summary { grid-column: 1 / -1; margin-bottom: 8px; font-size: 11px; line-height: 1.5; max-height: 180px; overflow: auto; }
+.terrain-source-summary summary { cursor: pointer; }
+.terrain-source-summary p { margin: 5px 0; }
+
+.generate-dock {
+  padding: 12px 20px 16px;
+  background: var(--loidolt-surface);
+  border-top: var(--loidolt-border-width) solid var(--loidolt-border);
+}
+
+.status-line {
+  color: var(--loidolt-text-muted);
+  font: 8px var(--loidolt-font-utility);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-line span {
+  width: 6px;
+  height: 6px;
+  background: var(--loidolt-success);
+}
+
+.status-loading span {
+  background: var(--loidolt-accent);
+  animation: pulse 1s infinite;
+}
+
+.status-error {
+  color: var(--loidolt-text-danger);
+}
+
+.status-error span {
+  background: var(--loidolt-danger);
+}
+
+.generate-button {
+  width: 100%;
+  min-height: 40px;
+}
