@@ -63,6 +63,20 @@ valid schema.org types but produce no search appearance for a site like this
 one. Adding them would duplicate page copy into metadata that has to be kept in
 sync, for no measurable return.
 
+## Crawler access monitoring
+
+`scripts/verify-worker-deployment.mjs` runs after every deploy and hourly from
+`production-monitor.yml`. It requests the homepage as GPTBot, ClaudeBot and
+PerplexityBot and asserts the prerendered HTML comes back, then asserts that
+robots.txt is still a permissive plain-text file with no `Disallow`.
+
+Cloudflare's AI scraper blocking, Bot Fight Mode and WAF rules are dashboard
+settings that no repository check would otherwise notice; a site can stop being
+readable by assistants without any deploy, test or error. Googlebot is
+deliberately not spoofed: Cloudflare verifies it by reverse DNS, so a request
+from a CI runner is judged an impostor and proves nothing either way. Search
+Console's URL Inspection remains the authority on Googlebot access.
+
 ## Usage measurement
 
 The existing Cloudflare Web Analytics beacon is now permitted by CSP. It remains
