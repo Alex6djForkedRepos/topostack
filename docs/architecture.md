@@ -17,6 +17,21 @@ Layer count is derived, never configured. `planTerrainStack` turns the mapped gr
 
 Every generated result records a deterministic project fingerprint and source quality. Before markings are clipped and labels are placed, the geometry flow plans same-coordinate material nests and adds their glue-safe cavities to donor layers. Vector-tile buffers are removed and unambiguous degree-two road pieces are stitched before transportation paths are styled as complete routes. Roads use a continuous centerline by default; the optional outlined major-road style offsets the complete route by the configured spacing and adds matching compact joins at forks. Styled routes are then clipped to the highest exposed material across the stack so bends and contour transitions stay continuous. Fabrication export groups each nest family onto one panel and emits shared donor/child cut lines once. Export is rejected when settings changed after generation, the source is synthetic, or any layer is empty.
 
+## Core package layout
+
+`packages/core/src` is grouped by concern; each folder only imports from the folders above it in this list, and `types.ts` at the root is shared by all of them.
+
+| Folder | Holds |
+| --- | --- |
+| `primitives/` | Pure 2D geometry: polygon prep and clipping (`geometry2d`), ring offsetting, grid sampling, crop shapes, units, number formatting |
+| `water/` | Lake and ocean depth: shore distance, survey and terrain-basin fitting, shoreline smoothing, water fill patterns |
+| `annotate/` | Text and symbols: label metrics and placement, markers, the north arrow |
+| `pipeline/` | Geometry generation: `generate.ts` orchestrates contour tracing, stack planning, material nesting, transportation styling, coordinate grids, validation, and the work-area split; `synthetic-source.ts` builds the deterministic preview source |
+| `export/` | Fabrication output: SVG primitives, panel layout, per-layer/master/assembly SVGs, the flat-engraving SVG, package builders, and the export block policy |
+| `test-support/` | Fixtures shared by tests only; excluded from the build |
+
+`index.ts` names every public entry point explicitly. Consumers import `@topostack/core`; nothing outside the package may reach into these folders.
+
 ## Coordinate conventions
 
 - Geographic inputs are WGS84 longitude/latitude.
