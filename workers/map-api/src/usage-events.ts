@@ -1,4 +1,4 @@
-import { isUsageEvent } from "../../../packages/core/src/usage";
+import { isUsageEvent } from "@topostack/data-contracts/usage";
 import { BodyTooLargeError, readBounded } from "./body";
 
 const MAX_EVENT_BYTES = 1024;

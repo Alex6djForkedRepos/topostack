@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { decodeTerrainPng } from "./terrain-png";
+import { decodeTerrainPng } from "@topostack/data-contracts/terrain-png";
 import { repairElevationSpikes } from "./elevation-cleanup";
 
 describe("elevation spike repair", () => {

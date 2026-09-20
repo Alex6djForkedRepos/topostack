@@ -76,7 +76,7 @@ import { DEFAULT_PROJECT, generateGeometry } from "@topostack/core";
 import { loadTerrain } from "./data-provider";
 import fixture from "./fixtures/hrdem-alexander-z14.json";
 import edgeFixture from "./fixtures/hrdem-alexander-edge-z14.json";
-import { decodeTerrainPng } from "./terrain-png";
+import { decodeTerrainPng } from "@topostack/data-contracts/terrain-png";
 import { afterEach } from "vitest";
 afterEach(() => vi.unstubAllGlobals());
 
@@ -122,7 +122,7 @@ it("loads HRDEM through the complete terrain pipeline and exports its provenance
 }, 30_000);
 
 import terrainCatalog from "../../../scripts/data/terrain-sources.json";
-import { validateTerrainCatalog } from "../../../packages/core/src/source-catalog";
+import { validateTerrainCatalog } from "@topostack/data-contracts/source-catalog";
 
 it("selects by priority regardless of registration order and fills only uncovered pixels", async () => {
   const template = validateTerrainCatalog(terrainCatalog).sources[0]!;

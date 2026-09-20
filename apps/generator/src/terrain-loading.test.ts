@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_PROJECT, generateGeometry, buildProjectPackage } from "@topostack/core";
 import { loadTerrain } from "./data-provider";
-import { decodeTerrainPng } from "./terrain-png";
+import { decodeTerrainPng } from "@topostack/data-contracts/terrain-png";
 import { MAX_DATA_TILES, TILE_SIZE, worldXToLon, worldYToLat } from "./tile-math";
 
 const terrainOnly = { ...DEFAULT_PROJECT, widthMm: 100, heightMm: 200, showRoads: false, showTrails: false, showWater: false, showWaterDepth: false, showBoundaries: false, showElevationLabels: false };

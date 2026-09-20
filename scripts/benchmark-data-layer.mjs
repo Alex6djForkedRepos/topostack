@@ -1,8 +1,9 @@
 import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { chromium } from "@playwright/test";
-import { DEFAULT_PROJECT } from "../packages/core/src/types.ts";
-import { decodeTerrainPng } from "../packages/core/src/terrain-png.ts";
+// @topostack/core resolves to its built dist at runtime: run `npm run build -w @topostack/core` first.
+import { DEFAULT_PROJECT } from "@topostack/core";
+import { decodeTerrainPng } from "@topostack/data-contracts/terrain-png";
 
 const origin = new URL(process.env.PUBLIC_APP_URL ?? "http://localhost:5273");
 if (origin.username || origin.password || !["https:", "http:"].includes(origin.protocol)) throw new Error("PUBLIC_APP_URL must be an HTTP(S) URL without credentials.");

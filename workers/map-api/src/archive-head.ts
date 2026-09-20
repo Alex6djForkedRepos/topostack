@@ -1,4 +1,4 @@
-import { parseArchiveRelease, type ArchiveRelease } from "../../../packages/core/src/archive-release";
+import { parseArchiveRelease, type ArchiveRelease } from "@topostack/data-contracts/archive-release";
 
 export interface ResolvedArchive { key: string; head: R2Object | null; release?: ArchiveRelease }
 

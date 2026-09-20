@@ -1,5 +1,5 @@
 import { PROTOMAPS_BASEMAP_VERSION, PROTOMAPS_SNAPSHOT } from "./dataset";
-import type { SurveySource, TerrainSource } from "../../../packages/core/src/source-catalog";
+import type { SurveySource, TerrainSource } from "@topostack/data-contracts/source-catalog";
 
 interface ManifestSource {
   name: string;

@@ -1,4 +1,4 @@
-import { USAGE_LANDINGS, USAGE_SOURCES, type UsageEvent, type UsageEventName } from "../../../../packages/core/src/usage";
+import { USAGE_LANDINGS, USAGE_SOURCES, type UsageEvent, type UsageEventName } from "@topostack/data-contracts/usage";
 
 const STORAGE_KEY = "topostack-usage-session";
 const SESSION_MS = 30 * 60 * 1000;

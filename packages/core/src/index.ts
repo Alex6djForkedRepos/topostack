@@ -1,6 +1,9 @@
 export * from "./types.js";
 export { cellEdges, planSeamGrid, seamShift, splitLayersForWorkArea } from "./split.js";
 export * from "./geometry.js";
+// Polygon clip inputs appear in exported signatures (paint regions, marker
+// placement), so the prepared form is public even though the primitives stay internal.
+export type { PreparedPolygons } from "./geometry2d.js";
 export * from "./labels.js";
 export * from "./markers.js";
 export * from "./north-arrow.js";

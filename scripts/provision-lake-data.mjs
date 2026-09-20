@@ -12,7 +12,7 @@ import { pathToFileURL } from "node:url";
 import { processRunner } from "./lib/process.mjs";
 import { validateTerrainPublication, validateTerrainRegistrySnapshot } from "./lib/terrain-publication.mjs";
 
-import { validateSurveyCatalog, validateTerrainCatalog } from "../packages/core/src/source-catalog.ts";
+import { validateSurveyCatalog, validateTerrainCatalog } from "@topostack/data-contracts/source-catalog";
 const catalogArgument = process.argv.find((argument) => argument.startsWith("--terrain-catalog="))?.slice("--terrain-catalog=".length);
 const terrainCatalogUrl = catalogArgument ? pathToFileURL(resolve(catalogArgument)) : new URL("./data/terrain-sources.json", import.meta.url);
 const rawTerrainCatalog = JSON.parse(await readFile(terrainCatalogUrl, "utf8"));
