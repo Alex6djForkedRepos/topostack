@@ -22,8 +22,12 @@ function acquisition(): UsageEvent["source"] {
   try {
     const host = new URL(document.referrer).hostname;
     if (host === location.hostname) return "direct";
+    // Assistants are matched before the search engines: gemini.google.com is a
+    // Google host, but its visitors did not come from a search result page.
+    if (["chatgpt.com", "openai.com", "perplexity.ai", "claude.ai", "anthropic.com", "copilot.microsoft.com", "gemini.google.com"].some((domain) => host === domain || host.endsWith("." + domain))) return "ai";
     if (/(^|\.)google\.[a-z.]+$/.test(host)) return "google";
     if (host === "bing.com" || host.endsWith(".bing.com")) return "bing";
+    if (host === "duckduckgo.com" || host.endsWith(".duckduckgo.com")) return "duckduckgo";
     if (host === "github.com" || host.endsWith(".github.com")) return "github";
     if (host === "atomm.com" || host.endsWith(".atomm.com")) return "atomm";
     if (["reddit.com", "youtube.com", "facebook.com", "instagram.com", "pinterest.com", "t.co"].some((domain) => host === domain || host.endsWith("." + domain))) return "social";

@@ -20,7 +20,11 @@ const budgets = {
   // settings reference guides: 56,141 -> 56,676 with Node 22.14.0.
   // Raised 2026-09-18 for the split-large-maps and water-paint-templates
   // guides: measured at 57,252 with Node 22.14.0.
-  landingJavaScriptGzip: 57_800,
+  // Raised 2026-09-20 for article metadata: the shared page registry now also
+  // carries each page's publication and modification dates and its sharing
+  // card, which the layout's Seo component reads on client navigation.
+  // Measured at 58,098 with Node 22.22.2.
+  landingJavaScriptGzip: 58_600,
   landingHtmlGzip: 10_000,
   initialJavaScriptGzip: 180_000,
   // Includes the editor, default 3D preview, and geometry worker. Lake modeling

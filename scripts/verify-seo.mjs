@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile, readdir, stat } from "node:fs/promises";
 import { JSDOM } from "jsdom";
+import { PUBLIC_PAGES, headline, isArticlePage, socialImage } from "../apps/generator/src/lib/seo.ts";
 
 const environment = process.argv[process.argv.indexOf("--environment") + 1];
 assert.ok(["production", "development", "atomm"].includes(environment), "Pass --environment production, development, or atomm");
@@ -28,14 +29,35 @@ for (const file of files) {
   assert.ok(!titles.has(document.title), file + ": distinct title");
   titles.add(document.title);
   assert.equal(document.querySelectorAll("h1").length, 1, file + ": useful initial HTML");
-  assert.equal(document.querySelector('meta[property="og:image"]').content, origin + "/images/social-crater-lake.png");
-  assert.equal(document.querySelector('meta[name="twitter:image"]').content, origin + "/images/social-crater-lake.png");
-  assert.equal(document.querySelector('meta[property="og:image:width"]').content, "1200");
-  assert.equal(document.querySelector('meta[property="og:image:height"]').content, "630");
+  // Declared card dimensions must match the page's own image, or consumers that
+  // trust the tags without fetching the file lay the preview out wrongly.
+  const image = socialImage(path);
+  assert.equal(document.querySelector('meta[property="og:image"]').content, origin + image.url, file + ": og:image");
+  assert.equal(document.querySelector('meta[name="twitter:image"]').content, origin + image.url, file + ": twitter:image");
+  assert.equal(document.querySelector('meta[property="og:image:width"]').content, String(image.width), file + ": og:image:width");
+  assert.equal(document.querySelector('meta[property="og:image:height"]').content, String(image.height), file + ": og:image:height");
+  assert.equal(document.querySelector('meta[property="og:image:alt"]').content, image.alt, file + ": og:image:alt");
   assert.equal(document.querySelector('meta[name="twitter:card"]').content, "summary_large_image");
+  assert.equal(document.querySelector('meta[property="og:locale"]').content, "en_US", file + ": og:locale");
+  const sharedImage = builtPaths.includes(image.url.slice(1)) && (await stat(new URL(image.url.slice(1), dist))).isFile();
+  assert.ok(sharedImage, file + ": sharing image " + image.url + " is missing from the build");
   const structured = document.querySelector('script[type="application/ld+json"]');
   assert.ok(structured, file + ": structured data");
-  assert.ok(JSON.parse(structured.textContent)["@graph"].length);
+  const graph = JSON.parse(structured.textContent)["@graph"];
+  assert.ok(graph.length);
+  // Guides and examples carry dated article metadata; hubs and policy pages
+  // must not claim a publication date they do not have.
+  const articleNode = graph.find((node) => node["@type"] === "TechArticle");
+  const meta = PUBLIC_PAGES[path];
+  assert.equal(Boolean(articleNode), Boolean(meta) && isArticlePage(path), file + ": article metadata policy");
+  if (articleNode) {
+    assert.equal(articleNode.headline, headline(meta.title), file + ": article headline matches the page title");
+    assert.equal(articleNode.datePublished, meta.published, file + ": datePublished");
+    assert.equal(articleNode.dateModified, meta.updated, file + ": dateModified");
+    assert.equal(articleNode.mainEntityOfPage, origin + path, file + ": article canonical");
+    assert.equal(document.querySelector('meta[property="og:type"]').content, "article", file + ": og:type");
+    assert.equal(document.querySelector('meta[property="article:modified_time"]').content, meta.updated, file + ": article:modified_time");
+  }
   if (!noindex) indexable.push(origin + path);
   for (const anchor of document.querySelectorAll("a[href]")) {
     const href = anchor.getAttribute("href");
@@ -51,6 +73,24 @@ const sitemap = new JSDOM(await readFile(new URL("sitemap.xml", dist), "utf8"), 
 assert.equal(sitemap.documentElement.localName, "urlset");
 const urls = [...sitemap.querySelectorAll("loc")].map((node) => node.textContent).sort();
 assert.deepEqual(urls, indexable.sort(), "Sitemap must list exactly the indexable built pages");
+// lastmod must be the recorded content date. A build date on every entry is a
+// signal search engines learn to ignore, so it is rejected here.
+const today = new Date().toISOString().slice(0, 10);
+for (const entry of sitemap.querySelectorAll("url")) {
+  const path = entry.querySelector("loc").textContent.slice(origin.length);
+  const lastmod = entry.querySelector("lastmod")?.textContent;
+  assert.ok(lastmod, path + ": sitemap lastmod");
+  assert.equal(lastmod, PUBLIC_PAGES[path].updated, path + ": lastmod must match the recorded page date");
+  assert.ok(lastmod <= today, path + ": lastmod is in the future");
+}
+// The assistant index must describe exactly the pages that are indexable, so
+// it cannot advertise a page that robots and the sitemap exclude.
+const llms = await readFile(new URL("llms.txt", dist), "utf8");
+assert.ok(llms.startsWith("# TopoStack\n"), "llms.txt heading");
+assert.ok(!llms.includes("<html"));
+const listed = [...llms.matchAll(/\]\((https:\/\/[^)]+)\)/g)].map((match) => match[1]).filter((url) => url.startsWith(origin));
+assert.deepEqual(listed.filter((url) => url !== origin + "/studio").sort(), indexable.toSorted(), "llms.txt must list exactly the indexable pages");
+assert.equal(listed.includes(origin + "/studio"), production, "llms.txt names the studio and says why it is excluded");
 const robots = await readFile(new URL("robots.txt", dist), "utf8");
 assert.ok(robots.startsWith("User-agent: *\nAllow: /\n"));
 assert.equal(robots.includes("Sitemap: " + origin + "/sitemap.xml"), production);
