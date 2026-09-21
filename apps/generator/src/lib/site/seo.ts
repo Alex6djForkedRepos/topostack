@@ -1,6 +1,7 @@
 // Constants live in site.ts so client components can import them without the
 // registry. The explicit extension lets the Node verification scripts load this file.
 import { DEFAULT_SOCIAL_IMAGE, DOCS_HOME, SITE_ORIGIN, type SocialImage } from "./site.ts";
+import latestRelease from "../../../../../changelog/latest.json" with { type: "json" };
 
 export { DEFAULT_SOCIAL_IMAGE, DOCS_HOME, REPOSITORY_URL, SITE_LOCALE, SITE_ORIGIN, type SocialImage } from "./site.ts";
 
@@ -33,6 +34,8 @@ const PAINT_IMAGE: SocialImage = {
   height: 1100,
   alt: "Cut layers view of a Crater Lake layer with the paint template on: land is covered by a stencil and only the lake is open.",
 };
+
+const CHANGELOG_PUBLISHED = "2026-09-21";
 
 export const PUBLIC_PAGES: Record<string, PageMeta> = {
   "/": {
@@ -169,6 +172,14 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     label: "Sources and attribution",
     published: "2026-09-16",
     updated: "2026-09-17",
+  },
+  "/changelog": {
+    title: "Changelog: New Features and Fixes | TopoStack",
+    description: "What changed in each TopoStack release: new studio features, improvements to terrain and lake data, and fixes, newest first, with an Atom feed.",
+    label: "Changelog",
+    published: CHANGELOG_PUBLISHED,
+    // The release script writes the newest release date, so the sitemap moves with each release.
+    updated: latestRelease.date > CHANGELOG_PUBLISHED ? latestRelease.date : CHANGELOG_PUBLISHED,
   },
   "/privacy": {
     title: "Privacy and Browser Storage | TopoStack",

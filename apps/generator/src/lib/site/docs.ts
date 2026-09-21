@@ -41,8 +41,8 @@ export const DOCS_SECTIONS: readonly { id: string; title: string; summary: strin
   {
     id: "reference",
     title: "Reference",
-    summary: "Every studio setting, what each export contains, data sources and credits, and how the site handles your projects.",
-    paths: ["/guides/settings-reference", "/guides/export-files", "/attribution", "/privacy"],
+    summary: "Every studio setting, what each export contains, data sources and credits, how the site handles your projects, and what changed in each release.",
+    paths: ["/guides/settings-reference", "/guides/export-files", "/attribution", "/privacy", "/changelog"],
   },
 ];
 

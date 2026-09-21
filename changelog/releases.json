@@ -1,0 +1,187 @@
+{
+  "schemaVersion": 1,
+  "releases": [
+    {
+      "version": "0.1.2",
+      "date": "2026-09-17",
+      "entries": [
+        {
+          "type": "feature",
+          "title": "Canadian high-resolution terrain",
+          "body": "Projects in covered parts of Canada now use NRCan HRDEM elevation data, with sharper ridges and valleys than the global terrain.",
+          "pr": 29
+        },
+        {
+          "type": "feature",
+          "title": "Guides for every part of the studio",
+          "body": "A new [guides hub](/guides) with a studio tour, map details, custom markers and paths, a settings reference, what each export file contains, and troubleshooting, all with sidebar navigation that works on phones."
+        },
+        {
+          "type": "feature",
+          "title": "Send feedback from any page",
+          "body": "A feedback tab on the site and in the studio opens a prefilled bug report or idea on GitHub.",
+          "pr": 29
+        },
+        {
+          "type": "feature",
+          "title": "Size each marker",
+          "body": "Custom markers can each have their own size, and they stay visible on every stacked layer they sit on instead of disappearing under the layer above."
+        },
+        {
+          "type": "fix",
+          "title": "Smoother lake shorelines",
+          "body": "Lake edges no longer look jagged, and depth blends evenly where surveyed data meets modeled depth.",
+          "pr": 29
+        },
+        {
+          "type": "fix",
+          "title": "No more elevation spikes along shorelines",
+          "body": "Elevation detail now follows the map crop instead of the camera zoom, which removes false cliffs and pits that coarse terrain tiles put along some lake shores."
+        },
+        {
+          "type": "fix",
+          "title": "Crash on some lake shorelines",
+          "body": "Generation no longer fails with a degenerate-segment error when a shoreline spike folds back onto itself."
+        },
+        {
+          "type": "fix",
+          "title": "Engraving preview follows size and shape edits",
+          "body": "Changing the physical size or crop shape of a flat engraving no longer frames the old contours in the preview."
+        },
+        {
+          "type": "fix",
+          "title": "North arrow placement",
+          "body": "The north arrow lands on terrain that is actually exposed on its layer instead of under the layer above."
+        },
+        {
+          "type": "fix",
+          "title": "Transportation labels and the 3D coordinate grid",
+          "body": "Road and trail labels are placed more reliably, and the latitude/longitude grid shows in the 3D preview."
+        },
+        {
+          "type": "fix",
+          "title": "Atomm layout and dark theme fixes",
+          "body": "Inside Atomm, the studio fits the platform panel, selected text stays readable in dark themes, and fabrication exports and lake depths were fixed."
+        }
+      ]
+    },
+    {
+      "version": "0.1.1",
+      "date": "2026-09-16",
+      "entries": [
+        {
+          "type": "feature",
+          "title": "Resize the map selection on the map",
+          "body": "Drag the selection's edges and corners directly on the map, and lock its aspect ratio to the physical size you set."
+        },
+        {
+          "type": "feature",
+          "title": "Lake depth shaped by the surrounding terrain",
+          "body": "Lakes without a survey get floors modeled from the slopes around them, and the studio explains where each depth comes from. See [how lake depths work](/guides/how-lake-depths-work)."
+        },
+        {
+          "type": "feature",
+          "title": "Sources and attribution page",
+          "body": "A [single page](/attribution) lists every terrain, map, lake-depth and software source with its credits and license, linked from the studio."
+        },
+        {
+          "type": "improvement",
+          "title": "Clearer location search",
+          "body": "Search results keep separate lakes that share a name and drop duplicate survey records."
+        },
+        {
+          "type": "improvement",
+          "title": "Faster SVG preview",
+          "body": "Panning and zooming the cut-layer and engraving previews stays smooth, and close zoom renders crisply."
+        },
+        {
+          "type": "fix",
+          "title": "Missing lake outlines",
+          "body": "Lakes that had no outline now get one from provider data, with OpenStreetMap as a fallback, so water shows up in the layers and the engraving.",
+          "pr": 28
+        },
+        {
+          "type": "fix",
+          "title": "Circular crops and the preview toolbar",
+          "body": "Circular maps keep their proportions, and the preview mode buttons line up without their icons shrinking."
+        }
+      ]
+    },
+    {
+      "version": "0.1.0",
+      "date": "2026-09-16",
+      "entries": [
+        {
+          "type": "feature",
+          "title": "First tagged release",
+          "body": "TopoStack's first versioned release, after four weeks of public development that began on August 19. Everything below shipped in that time."
+        },
+        {
+          "type": "feature",
+          "title": "Layered laser-cut reliefs",
+          "body": "Turn real elevation data into a stack of cut layers. The number of sheets follows from the terrain's relief, the map scale, vertical exaggeration and your material thickness. See [the layered map guide](/guides/laser-cut-topographic-map)."
+        },
+        {
+          "type": "feature",
+          "title": "Flat topographic engravings",
+          "body": "Export a single contour SVG at physical size, with contour density, index contours, linework widths, state and province boundaries and a latitude/longitude grid. See [the engraving guide](/guides/topographic-map-engraving)."
+        },
+        {
+          "type": "feature",
+          "title": "Lake depth",
+          "body": "Layered maps carve lake floors from USGS and state surveys, NOAA Great Lakes bathymetry, or a modeled depth where no survey exists, and fit surveyed depths to the shoreline."
+        },
+        {
+          "type": "feature",
+          "title": "Searchable lake depth directory",
+          "body": "Find which lakes have surveyed depth data by name, region or source, and open one straight in the studio. See [the directory](/guides/lake-depth-data)."
+        },
+        {
+          "type": "feature",
+          "title": "Map details",
+          "body": "Add roads, trails and their labels, water outlines and fill patterns, collision-free elevation labels, a scale bar, and a choice of north arrow designs."
+        },
+        {
+          "type": "feature",
+          "title": "Custom markers and paths",
+          "body": "Place your own markers, trails and boundaries by coordinates, with styled pins that stay anchored where you put them."
+        },
+        {
+          "type": "feature",
+          "title": "Fabrication-ready cut files",
+          "body": "Layered exports compensate for laser kerf, nest smaller pieces into the waste of larger sheets without breaking glue surfaces, and engrave where the next layer goes as an assembly guide."
+        },
+        {
+          "type": "feature",
+          "title": "Previews and exports",
+          "body": "Check a project on the map, as 2D cut layers, as an engraving, or as a stacked or exploded 3D model, then download the complete project, single artwork files, or just the settings."
+        },
+        {
+          "type": "feature",
+          "title": "Homepage and studio",
+          "body": "An illustrated homepage explains the two workflows, and the editor lives at `/studio` with light and dark themes and layouts for phones and tablets."
+        },
+        {
+          "type": "feature",
+          "title": "Open in Atomm",
+          "body": "TopoStack runs inside the Atomm platform and hands finished artwork to its studio."
+        },
+        {
+          "type": "fix",
+          "title": "Terrain depth spikes",
+          "body": "Isolated bad values in the upstream terrain are repaired before they reach your layers, and every repair is noted in the export."
+        },
+        {
+          "type": "fix",
+          "title": "Continuous rivers and smooth contours",
+          "body": "Rivers stay continuous across terrain layers, and contour corners are smoothed correctly."
+        },
+        {
+          "type": "fix",
+          "title": "Crop aspect ratios",
+          "body": "Rectangular and circular crops keep the proportions of the physical size you set."
+        }
+      ]
+    }
+  ]
+}

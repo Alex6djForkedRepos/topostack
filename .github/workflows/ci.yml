@@ -43,6 +43,9 @@ jobs:
       - name: Check release version consistency
         run: npm run version:check
 
+      - name: Check the changelog agrees with the release version
+        run: npm run changelog:verify
+
       # Deploys are gated only on high-severity advisories in runtime
       # dependencies; the full audit runs non-blocking in dependency-audit.
       - name: Audit production dependencies
@@ -334,6 +337,50 @@ jobs:
           PUBLIC_APP_URL: ${{ github.ref_name == 'main' && env.PRODUCTION_URL || env.DEVELOPMENT_URL }}
           EXPECTED_WORKER_ENVIRONMENT: ${{ github.ref_name == 'main' && 'production' || 'development' }}
           SEO_PROPAGATION_TIMEOUT_MS: "180000"
+
+  # A dev -> main promotion carries a "Release vX.Y.Z" commit from
+  # release-prepare.yml. Once production is deployed, tag that version and
+  # publish its GitHub release from the changelog. Reruns and promotions that
+  # did not bump the version find the tag and do nothing.
+  tag-release:
+    name: Tag release
+    needs: deploy-worker
+    if: github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    concurrency:
+      group: tag-release
+      cancel-in-progress: false
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Tag and publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null; then
+            echo "v$VERSION is already tagged."
+            exit 0
+          fi
+          npm run --silent changelog:notes -- "$VERSION" > "$RUNNER_TEMP/notes.md"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "v$VERSION" "$GITHUB_SHA" -m "TopoStack $VERSION"
+          git push origin "v$VERSION"
+          gh release create "v$VERSION" --verify-tag --title "TopoStack $VERSION" --notes-file "$RUNNER_TEMP/notes.md" --latest
 
   package-atomm:
     name: Package Atomm release

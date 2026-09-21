@@ -4,7 +4,7 @@
 
 <Article title="Privacy and browser storage" intro="TopoStack stores project settings in your browser and requests the map data needed to create your artwork. No account is required.">
   <h2>Your projects</h2>
-  <p>Project settings are stored in this browser's IndexedDB. If a saved project cannot be read, a copy is kept there as a backup before autosave replaces it. Your theme and which studio menu sections are open are stored in localStorage. Export a settings backup before clearing browser storage. Downloaded files remain wherever you choose to save them.</p>
+  <p>Project settings are stored in this browser's IndexedDB. If a saved project cannot be read, a copy is kept there as a backup before autosave replaces it. Your theme, which studio menu sections are open, and the newest release you have seen in the changelog are stored in localStorage. Export a settings backup before clearing browser storage. Downloaded files remain wherever you choose to save them.</p>
   <p>A share link contains the whole design, including its location, name, custom markers and paths, after the <code>#</code> in the address. Browsers do not send that part of a link to TopoStack, but anyone you give the link to can read it, and apps you paste it into may store it.</p>
   <h2>Map and platform services</h2>
   <p>Place searches are sent through the TopoStack map API to Geoapify. The search text is part of the request URL. Results are cached by TopoStack for 24 hours under a SHA-256 hash of the normalized query, and your browser may also cache them for up to a day. The hash is a lookup key, not a privacy protection: common searches can be recovered by guessing.</p>

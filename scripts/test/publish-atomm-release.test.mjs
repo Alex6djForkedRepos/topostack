@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test from "node:test";
-import { publishRelease, validatePackage, validateRun } from "../release/publish-atomm-release.mjs";
+import { atommChangeNotes, previousAtommTag, publishRelease, validatePackage, validateRun } from "../release/publish-atomm-release.mjs";
 
 const commit = "a".repeat(40);
 const repository = "Echo-Foxtrot-Works/topostack";
@@ -84,4 +84,26 @@ test("refuses moved tags, published releases, and unexpected lookup failures", (
   assert.throws(() => publishRelease({ gh: fakeGh({ tagSha: commit, release: { isDraft: false } }).gh, ...publishOptions }), /already published/);
   const failing = () => { throw Object.assign(new Error("Command failed"), { stderr: "HTTP 500" }); };
   assert.throws(() => publishRelease({ gh: failing, ...publishOptions }), /Command failed/);
+});
+
+test("finds the previous Atomm tag by version, ignoring other tags", () => {
+  const tags = ["v0.1.1", "atomm-v0.1.0", "atomm-v0.1.10", "atomm-v0.1.2", "atomm-v0.2.0-rc.1", "atomm-vX"];
+  assert.equal(previousAtommTag(tags, "atomm-v0.2.0"), "atomm-v0.2.0-rc.1");
+  assert.equal(previousAtommTag(tags, "atomm-v0.1.10"), "atomm-v0.1.2");
+  assert.equal(previousAtommTag(tags, "atomm-v0.1.0"), undefined);
+});
+
+test("lists user-facing changes since the previous Atomm release's main version", () => {
+  const entry = { type: "feature", title: "Share links", body: "Open a design from a [link](/guides)." };
+  const changelog = { schemaVersion: 1, releases: [
+    { version: "0.3.0", date: "2026-10-01", entries: [{ ...entry, title: "Not packaged yet" }] },
+    { version: "0.2.0", date: "2026-09-21", entries: [entry] },
+    { version: "0.1.2", date: "2026-09-17", entries: [{ ...entry, title: "Already shipped" }] },
+  ] };
+  const notes = atommChangeNotes(changelog, "0.1.2", "0.2.0");
+  assert.match(notes, /^## What's changed\n\nChanges since the previous Atomm release \(TopoStack 0\.1\.2\)\.\n\n### TopoStack 0\.2\.0 \(2026-09-21\)\n\n#### New\n/);
+  assert.match(notes, /\[link\]\(https:\/\/topostack\.app\/guides\)/);
+  assert.doesNotMatch(notes, /Already shipped|Not packaged yet/);
+  assert.equal(atommChangeNotes(changelog, "0.2.0", "0.2.0"), "", "a repackage without a main release adds nothing");
+  assert.equal(atommChangeNotes(changelog, undefined, "0.2.0"), "", "the first Atomm release has no baseline");
 });

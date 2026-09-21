@@ -1,4 +1,4 @@
-/* App shell: header, project name, history actions, bar meta, export feedback, context bar, output switch, about link. */
+/* App shell: header, project name, history actions, bar meta, export feedback, context bar, output switch, about and what's-new links. */
 
 @import "maplibre-gl/dist/maplibre-gl.css";
 
@@ -207,6 +207,17 @@ body:has(.app-shell) {
   min-height: var(--loidolt-size-control);
   color: var(--loidolt-text-muted);
   border-radius: var(--loidolt-border-radius);
+}
+.whats-new-link { position: relative; }
+.whats-new-dot {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--loidolt-accent);
+  box-shadow: 0 0 0 2px var(--loidolt-background);
 }
 .about-link:hover { color: var(--loidolt-text); background: var(--loidolt-surface); }
 .about-link:focus-visible { outline: 2px solid var(--loidolt-accent); outline-offset: 3px; }

@@ -17,7 +17,8 @@ Development is the first deployment gate. A production CORS failure or an unpubl
    ```
 
 4. Check the Atomm iframe origin and an unrelated origin for credential-free public reads, archive ranges and preflights. The deployment smoke includes the actual Atomm origin. Verify restricted writes remain denied, and exercise the representative terrain/lake projects below on the dev site.
-5. Record the deployed Worker/frontend identity and test results before opening the production PR. Production deployment, Atomm publication, Studio import and physical fabrication remain separate acceptance steps.
+5. Check `/changelog` on the development site: its Unreleased section is what the next release will say. Fix wording in the fragments on `dev` before promoting.
+6. Record the deployed Worker/frontend identity and test results before opening the production PR. Opening it runs Prepare release, which pushes a `Release vX.Y.Z` commit to `dev` and re-runs development CI; confirm the new `/version.json` there. Production deployment, Atomm publication, Studio import and physical fabrication remain separate acceptance steps. See [changelog.md](changelog.md).
 
 ## Automated acceptance
 

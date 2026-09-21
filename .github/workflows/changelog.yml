@@ -1,0 +1,51 @@
+name: Changelog
+
+# Separate from CI so adding or removing the no-changelog label re-runs only
+# this check. release-prepare.yml dispatches it on dev after pushing a release
+# commit, which runs the promotion guard. See docs/changelog.md.
+on:
+  pull_request:
+    branches: [dev, main]
+    types: [opened, reopened, synchronize, labeled, unlabeled]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: changelog-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changelog:
+    name: Changelog fragment
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.22.2"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund --ignore-scripts
+
+      # Feature work must describe itself for users, or say it has nothing to say.
+      - name: Require a fragment
+        if: github.base_ref == 'dev'
+        env:
+          SKIP: ${{ contains(github.event.pull_request.labels.*.name, 'no-changelog') || github.event.pull_request.user.login == 'dependabot[bot]' }}
+        run: npm run changelog:check -- --base "origin/${{ github.base_ref }}" $([ "$SKIP" = true ] && echo --skip)
+
+      # release-prepare.yml folds the fragments into a release commit on dev;
+      # until it has, a promotion would ship without a version or changelog.
+      - name: Require a prepared release
+        if: github.base_ref == 'main' || github.event_name == 'workflow_dispatch'
+        run: npm run changelog:pending

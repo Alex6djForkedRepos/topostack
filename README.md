@@ -182,17 +182,14 @@ The main codebase uses one SemVer version, sourced from the root `package.json` 
 
 ```sh
 npm run version:check
-npm run version:main -- patch
 npm run version:atomm -- patch
-# Also accepts minor, major, or an explicit version:
-npm run version:main -- 1.0.0-rc.1
 ```
 
-Use patch for fixes, minor for features, and major for breaking changes. During `0.x`, use minor for breaking changes. An explicit version supports prereleases; `patch` on a prerelease promotes it to the corresponding stable version. Main version bumps update all workspace manifests and the lockfile without changing dependencies. Bump Atomm whenever publishing a new Atomm package, including when incorporating a main-codebase update. These commands only edit files: review and commit the changes through the normal `dev` → `main` process. CI rejects mismatched versions.
+The main version is released from the changelog; see [docs/changelog.md](docs/changelog.md). Each user-facing pull request adds a fragment under `changelog/unreleased/`. When `dev` is proposed for `main`, a workflow folds the fragments into `changelog/releases.json`, bumps every workspace manifest and the lockfile by the largest change (breaking → major, feature → minor, otherwise patch), and pushes a `Release vX.Y.Z` commit to `dev`. CI rejects mismatched versions and a changelog that disagrees with the package version. Bump Atomm by hand whenever publishing a new Atomm package, including when incorporating a main-codebase update; these commands only edit files, so commit the change through the normal `dev` → `main` process.
 
 Every frontend build includes `version.json` with the main version, source commit, environment, and dirty-tree flag; Atomm ZIPs additionally include `atommVersion`. Read `/version.json` on a deployed site or extract it from the ZIP to identify a build. Source-only builds without Git report null source metadata. Atomm release receipts record both versions, and publishing requires the tag to match the embedded Atomm version.
 
-Use `v<main-version>` for main-codebase release tags (for example `v0.1.0`) and `atomm-v<atomm-version>` for Atomm releases. After successful production CI, tag the tested main commit with `git tag -a v<main-version> <tested-commit> -m "TopoStack <main-version>"` and push that tag explicitly. Publish Atomm using the workflow below. Existing release tags must never be moved or reused; bump the relevant version for another release. Version changes do not automatically tag, publish, or deploy.
+Use `v<main-version>` for main-codebase release tags (for example `v0.1.0`) and `atomm-v<atomm-version>` for Atomm releases. After production deploys, CI's `Tag release` job tags the deployed commit `v<main-version>` and publishes a GitHub release with that version's changelog; it skips versions that are already tagged. Publish Atomm using the workflow below; its notes list the changelog releases since the previous Atomm release. Existing release tags must never be moved or reused; bump the relevant version for another release.
 
 
 [GitHub Actions](.github/workflows/ci.yml) validates pull requests targeting `dev` or `main`. Successful pushes to those branches, or manual runs on them, deploy the matching environment after quality, build, and browser checks pass.

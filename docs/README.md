@@ -28,6 +28,7 @@
 - [NRCan HRDEM terrain](hrdem-terrain.md)
 - [Curated terrain coverage](terrain-coverage.md)
 - [Release acceptance and rollback](release-acceptance.md)
+- [Changelog and releases](changelog.md) — writing fragments, the automated release commit, tags, and the /changelog page.
 - [Search and discovery operations](seo-operations.md)
 - [Feedback workflow and triage](feedback.md)
 

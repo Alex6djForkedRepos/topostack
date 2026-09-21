@@ -109,7 +109,7 @@
       </nav>
     {/if}
   </div>
-  <footer>TopoStack · Free, browser-based terrain tools · <a href={`${base}${DOCS_HOME}`}>Guides</a> · <a href={REPOSITORY_URL}>GitHub</a> · <a href={`${base}/attribution`}>Sources and attribution</a>{#if !plain} · <FeedbackButton />{/if}</footer>
+  <footer>TopoStack · Free, browser-based terrain tools · <a href={`${base}${DOCS_HOME}`}>Guides</a> · <a href={REPOSITORY_URL}>GitHub</a> · <a href={`${base}/attribution`}>Sources and attribution</a> · <a href={`${base}/changelog`}>Changelog</a>{#if !plain} · <FeedbackButton />{/if}</footer>
 </div>
 
 <style>

@@ -1,6 +1,8 @@
 import { atommReleaseFiles } from "../lib/atomm-release-files.mjs";
 import assert from "node:assert/strict";
 import { validateVersion } from "./versions.mjs";
+import { notesBetween, readChangelog } from "./changelog.mjs";
+import { compareVersions } from "@topostack/data-contracts/changelog";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
@@ -33,6 +35,25 @@ export function validatePackage(receipt, archive, checksum, commit, tag) {
   assert.equal(receipt.sha256, digest, "Archive checksum does not match its receipt");
   assert.equal(checksum.trim(), `${digest}  ${files.archive}`, "Checksum file does not match the archive");
   return digest;
+}
+
+/** The newest atomm-v tag older than `tag`, if any. */
+export function previousAtommTag(tags, tag) {
+  const current = tag.slice("atomm-v".length);
+  return tags
+    .filter((name) => /^atomm-v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(name))
+    .map((name) => name.slice("atomm-v".length))
+    .filter((version) => compareVersions(version, current) < 0)
+    .sort(compareVersions)
+    .map((version) => `atomm-v${version}`)
+    .at(-1);
+}
+
+/** User-facing changes since the main version the previous Atomm release shipped. */
+export function atommChangeNotes(changelog, previousMainVersion, mainVersion) {
+  if (!previousMainVersion) return "";
+  const notes = notesBetween(changelog, previousMainVersion, mainVersion);
+  return notes ? `## What's changed\n\nChanges since the previous Atomm release (TopoStack ${previousMainVersion}).\n\n${notes.replaceAll(/^### /gm, "### TopoStack ")}\n` : "";
 }
 
 const isNotFound = (error) => /HTTP 404|Not Found|release not found/i.test(`${error?.message ?? ""}\n${error?.stderr ?? ""}`);
@@ -112,6 +133,12 @@ async function main() {
   if (process.argv.includes("--dry-run")) return;
 
   const notes = join(directory, "release-notes.md");
+  const tags = api(`repos/${repository}/git/matching-refs/tags/atomm-v`).map((ref) => ref.ref.slice("refs/tags/".length));
+  const previous = previousAtommTag(tags, tag);
+  const previousMainVersion = previous
+    ? JSON.parse(Buffer.from(api(`repos/${repository}/contents/package.json?ref=${previous}`).content, "base64").toString("utf8")).version
+    : undefined;
+  const changes = atommChangeNotes(await readChangelog(), previousMainVersion, receipt.version);
   await writeFile(notes, `Upload **${files.archive}** to the Atomm developer console. GitHub's automatic Source code archives are not the upload package.\n\n` +
     `- **${files.archive}** — static generator, opening directly in the terrain studio.\n` +
     `- **${files.checksum}** — SHA-256 checksum.\n` +
@@ -119,7 +146,8 @@ async function main() {
     `- **${files.listing}** — cover options, feature screenshots, listing copy and media provenance.\n\n` +
     `Built and deployed by [production CI run ${runId}](${run.html_url}) at commit ${run.head_sha}. These are the exact verified CI assets, without a local rebuild.\n\n` +
     `Main codebase: **${receipt.version}**. Atomm package: **${receipt.atommVersion}**.\n\n` +
-    `ZIP SHA-256: \`${digest}\`\n\nAtomm host review and physical fabrication acceptance are separate from automated CI.\n`);
+    `ZIP SHA-256: \`${digest}\`\n\nAtomm host review and physical fabrication acceptance are separate from automated CI.\n` +
+    (changes ? `\n${changes}` : ""));
   const prerelease = tag.slice("atomm-v".length).includes("-");
   console.log(publishRelease({ gh, repository, tag, sha: run.head_sha, assets: [code, checksum, receiptPath, listing],
     title: `TopoStack ${tag.slice("atomm-".length)} for Atomm`, notesFile: notes, prerelease }));

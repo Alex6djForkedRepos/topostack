@@ -33,6 +33,7 @@ Run generator tests from `apps/generator` or via `npm run test -w @topostack/gen
 | Serving, caching, geocoding | `workers/map-api/src/routes/` |
 | An operational script | `scripts/<purpose>/` and a row in `scripts/README.md` saying how it runs |
 | A design decision or runbook | `docs/`, then a line in `docs/README.md` |
+| What users will notice about a change | a fragment in `changelog/unreleased/` (`npm run changelog:new`); see [docs/changelog.md](docs/changelog.md) |
 
 ## Rules the linter and CI enforce
 
@@ -43,6 +44,7 @@ Run generator tests from `apps/generator` or via `npm run test -w @topostack/gen
 - `ProjectConfigV1`, `SourceBundleV1`, `GeometryIRV1`, and the export manifest are versioned; an incompatible change needs a migration, never a silent reinterpretation.
 - Tests sit beside the code they cover. Coverage thresholds live in each workspace's `vitest.config.ts`, not in npm scripts.
 - Pull requests target `dev`; releases are promoted to `main`.
+- A pull request users will notice adds a `changelog/unreleased/` fragment written for makers; others are labelled `no-changelog`. Versions change only through `changelog:prepare`, which the promotion workflow runs.
 
 ## Verifying a change
 
