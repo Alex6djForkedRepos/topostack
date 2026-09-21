@@ -11,7 +11,7 @@ Zoom 12 loses noticeably more detail in these samples. Zoom 13 is promising, but
 ## Reproduce
 
 ```sh
-.terrain-venv/bin/python scripts/benchmark-terrain.py --out-dir /tmp/topostack-mrdem-benchmark-new
+.terrain-venv/bin/python scripts/data-build/benchmark-terrain.py --out-dir /tmp/topostack-mrdem-benchmark-new
 ```
 
 The output directory must be new. The script records the official STAC response, upstream ETag and byte size, candidate parameters, snapshot/sample hashes, verified archive hashes, tool versions, timings and comparison metrics. Each build runs in a fresh process. The source pin is checked before and after every remote crop.

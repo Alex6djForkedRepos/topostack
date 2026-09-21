@@ -74,7 +74,12 @@ export default tseslint.config(
       "no-restricted-imports": ["error", {
         patterns: [
           { group: ["**/packages/*/src/**", "**/packages/*/src"], message: "Import workspace packages by name (@topostack/core, @topostack/data-contracts/<module>), not by path." },
-          { group: ["../lib/**", "../../lib/**", "../../../lib/**", "../../../../lib/**", "../atomm/**", "../domain/**", "../site/**", "../storage/**", "../studio/**", "../workers/**"], message: "Import other generator modules as $lib/<layer>/<module>; relative imports are for siblings only." },
+          {
+            // Only static data, shared catalogs, and the terrain test fixture
+            // may cross a parent directory; all app modules use $lib aliases.
+            regex: String.raw`^(?!(?:\.\./){3,4}static/|(?:\.\./){5}scripts/data/|(?:\.\./){5}workers/map-api/test/terrain-fixture$)(?:\./)*\.\.(?:/|$)`,
+            message: "Import other generator modules as $lib/<layer>/<module>; relative imports are for siblings only.",
+          },
         ],
       }],
     },

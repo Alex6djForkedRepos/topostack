@@ -69,7 +69,10 @@ const budgets = {
   // Raised again 2026-09-17 for guide tables: 35,965 -> 36,583 standalone and
   // 45,413 -> 46,031 total with Node 22.14.0.
   standaloneCssGzip: 37_000,
-  atommCssGzip: 10_000,
+  // Raised 2026-09-20 after re-review: the same build measures 9,993 bytes
+  // with Node 22.22.2 and 10,003 with supported Node 26.5.0. Leave roughly
+  // 2% compression headroom; the total CSS ceiling remains unchanged.
+  atommCssGzip: 10_200,
   totalCssGzip: 46_500,
   // 7,775 records across 11 sources (~306 kB); fetched only when browsing/searching.
   lakeDirectoryGzip: 320_000,

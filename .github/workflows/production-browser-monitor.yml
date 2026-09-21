@@ -56,6 +56,9 @@ jobs:
         env:
           PUBLIC_APP_URL: https://topostack.app
 
+      - name: Build core for the data benchmark
+        run: npm run build -w @topostack/core
+
       - name: Measure cold and warm data loading
         run: npm run data:benchmark
         env:

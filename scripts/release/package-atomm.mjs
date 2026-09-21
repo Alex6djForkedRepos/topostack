@@ -13,7 +13,7 @@ import { run } from "../lib/process.mjs";
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const dist = fileURLToPath(new URL("../../apps/generator/dist/", import.meta.url));
 const files = atommReleaseFiles((await readVersions()).atommVersion);
-const archive = fileURLToPath(new URL(`../apps/generator/${files.archive}`, import.meta.url));
+const archive = fileURLToPath(new URL(`../../apps/generator/${files.archive}`, import.meta.url));
 
 try {
   await run(process.execPath, ["scripts/release/validate-submission-env.mjs"], { cwd: root });

@@ -24,7 +24,7 @@ try {
 
 const versions = await readVersions();
 const files = atommReleaseFiles(versions.atommVersion);
-const archiveUrl = new URL(`../apps/generator/${files.archive}`, import.meta.url);
+const archiveUrl = new URL(`../../apps/generator/${files.archive}`, import.meta.url);
 const archive = await readFile(archiveUrl);
 const digest = createHash("sha256").update(archive).digest("hex");
 
@@ -53,8 +53,8 @@ const receipt = {
 };
 
 const outputs = [
-  [fileURLToPath(new URL(`../apps/generator/${files.checksum}`, import.meta.url)), `${digest}  ${files.archive}\n`],
-  [fileURLToPath(new URL(`../apps/generator/${files.receipt}`, import.meta.url)), JSON.stringify(receipt, null, 2) + "\n"],
+  [fileURLToPath(new URL(`../../apps/generator/${files.checksum}`, import.meta.url)), `${digest}  ${files.archive}\n`],
+  [fileURLToPath(new URL(`../../apps/generator/${files.receipt}`, import.meta.url)), JSON.stringify(receipt, null, 2) + "\n"],
 ];
 // Each output replaces its predecessor only once fully written and fsynced.
 for (const [target, contents] of outputs) await writeFileAtomic(target, contents);

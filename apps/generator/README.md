@@ -15,7 +15,7 @@ Rules, enforced by ESLint (`no-restricted-imports` in the root config):
 
 - Relative imports are for siblings in the same folder only. Anything in another layer is `$lib/<layer>/...`, so the layer a file depends on is visible in every import.
 - Workspace packages are imported by name, never by path.
-- Data files outside the app (`scripts/data/*.json`, `static/`, the Worker's test fixtures) are the one place a `../` path is allowed.
+- Data files outside the app (`scripts/data/*.json`, `static/`, the Worker's terrain test fixture) are the one place a `../` path is allowed.
 
 `src/app.html`, `src/hooks.server.ts`, and the ambient `*.d.ts` files stay at the `src/` root because SvelteKit or the compiler looks for them there.
 

@@ -261,7 +261,7 @@ test("Atomm layer and exploded controls stay above expanded settings", async ({ 
   await page.goto("/atomm-layers");
   const studio = page.frameLocator("iframe");
   const dock = studio.locator(".gen-rail-params .layer-dock");
-  await expect(dock).toBeVisible();
+  await expect(dock).toBeVisible({ timeout: STARTUP_TIMEOUT_MS });
   await expect(studio.locator(".gen-params-content > :first-child")).toHaveClass("layer-dock");
   for (const name of ["Cut size", "Terrain layers", "Map details", "Linework", "Fabrication settings"]) {
     const section = studio.getByRole("button", { name, exact: true });

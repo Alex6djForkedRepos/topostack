@@ -7,5 +7,5 @@ The portable geometry engine: project validation, contour tracing, stack plannin
 ```bash
 npm run test -w @topostack/core
 npm run coverage -w @topostack/core   # thresholds in vitest.config.ts
-npm run build -w @topostack/core      # emits dist/ for Node consumers
+npm run build -w @topostack/core      # cleans and emits dist/ for Node consumers
 ```
