@@ -33,7 +33,6 @@
     "package:atomm-listing": "node scripts/release/package-atomm-listing.mjs",
     "version:check": "node scripts/release/versions.mjs check",
     "version:main": "node scripts/release/versions.mjs main",
-    "version:atomm": "node scripts/release/versions.mjs atomm",
     "changelog:new": "node scripts/release/changelog.mjs new",
     "changelog:check": "node scripts/release/changelog.mjs check",
     "changelog:pending": "node scripts/release/changelog.mjs pending",
