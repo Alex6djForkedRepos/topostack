@@ -89,6 +89,6 @@ The changelog, version consistency, and the Atomm marketplace bundle. See [chang
 | `checksum-atomm.mjs` | Write and verify the SHA-256 of the packaged Atomm ZIP | `npm run release:atomm` |
 | `package-atomm-listing.mjs` | Package the Atomm marketplace listing (copy and cover assets) | `npm run package:atomm-listing` |
 | `package-atomm.mjs` | Build and package the Atomm static artifact as a versioned ZIP | `npm run package:atomm` |
-| `publish-atomm-release.mjs` | Tag, draft, upload, and publish an Atomm GitHub release, with the changelog since the previous one | CI/workflows |
+| `publish-atomm-release.mjs` | Tag, draft, upload, and publish the Atomm GitHub release for a version, with the changelog since the previous one | CI/workflows (automatically after production CI) |
 | `validate-submission-env.mjs` | Fail-closed gate for Atomm packaging: the embedded map API URL must be production | manual |
-| `versions.mjs` | Check or bump the release version across workspaces and the Atomm manifest | `npm run version:check`; `npm run version:main`; `npm run version:atomm`; CI/workflows |
+| `versions.mjs` | Check or bump the one release version across workspaces, the lockfile, and the Atomm manifest | `npm run version:check`; `npm run version:main`; CI/workflows |

@@ -76,7 +76,7 @@
       </div>
     {/if}
     <details class="export-more">
-      <summary>Individual files <span class="export-more-count">{files.length}</span></summary>
+      <summary>Individual files <small>({files.length})</small></summary>
       <div class="export-rows">
         {#each files as file (file.id)}
           <button type="button" class="export-row" disabled={artworkDisabled || file.unavailable} aria-describedby={blockedBy} onclick={() => onDownload(file.id)}>

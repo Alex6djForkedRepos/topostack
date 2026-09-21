@@ -25,7 +25,7 @@
       <a class="header-guide" href="#how-it-works">How it works</a>
       <a class="header-guide" href={`${base}/guides`}>Guides</a>
       <a class="primary-link header-cta" href={studioUrl}>Start creating <ArrowRight size={16} aria-hidden="true" /></a>
-      <ThemeToggle {theme} />
+      <ThemeToggle {theme} label="Color scheme" />
     {/snippet}
   </Topbar>
 

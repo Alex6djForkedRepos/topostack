@@ -57,6 +57,8 @@ export interface StudioContext {
   readonly exportPhase: ExportPhase;
   readonly exportBlockedBy: string | undefined;
   readonly exportReady: boolean;
+  /** Layer, panel and height counts (or contour count) for the preview readout. */
+  readonly outputSummary: readonly string[];
   readonly booted: boolean;
   readonly historyAvailability: HistoryAvailability;
   readonly embeddedInPlatform: boolean;

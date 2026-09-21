@@ -75,7 +75,11 @@ const budgets = {
   // Raised 2026-09-20 for the same Tier 1 features: measured with Node 22.22.2
   // at 929,291 on dev -> 939,067 with all five merged, a 9,776 byte delta that
   // includes the lazy share-link and geo-import chunks, leaving 933 bytes.
-  totalJavaScriptGzip: 950_000,
+  // Raised 2026-09-21 for the header rework (project and studio menus, export
+  // readiness on the button, stats in the preview readout): measured with
+  // Node 22.22.2 at 949,670 on dev -> 951,163, a 1,493 byte delta, when dev
+  // had 330 bytes left. Set to 960,000 to restore roughly 1% headroom.
+  totalJavaScriptGzip: 960_000,
   largestJavaScriptGzip: 300_000,
   // Public guides add styles outside the studio. Keep a separate allowance for
   // the Atomm template, which is loaded only inside the platform iframe.

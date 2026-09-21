@@ -2,6 +2,48 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "0.2.0",
+      "date": "2026-09-18",
+      "entries": [
+        {
+          "type": "feature",
+          "title": "Split large maps to fit your laser bed",
+          "body": "Set a machine work area and each layer is cut into bed-sized pieces along staggered seams, with puzzle tabs and assembly ids. See [the guide](/guides/split-large-maps).",
+          "pr": 34
+        },
+        {
+          "type": "feature",
+          "title": "Water paint templates",
+          "body": "Export registered paper stencils that leave only the water open on each layer, so lakes and rivers are easy to paint. See [the guide](/guides/water-paint-templates).",
+          "pr": 37
+        },
+        {
+          "type": "improvement",
+          "title": "Reset asks before discarding a project",
+          "body": "Reset now confirms first, says what it clears, and can be undone. The Crater Lake preview comes back instantly without generating terrain.",
+          "pr": 34
+        },
+        {
+          "type": "improvement",
+          "title": "Crisper marker symbols",
+          "body": "Pins are true teardrops with an engraved eye, circles are smoother, and crosses cut as one outline instead of doubling where the bars meet.",
+          "pr": 35
+        },
+        {
+          "type": "improvement",
+          "title": "Studio layout touch-ups",
+          "body": "The aspect-lock controls sit in a small corner card that no longer hides warnings, and engraving font samples are centered in their swatches.",
+          "pr": 35
+        },
+        {
+          "type": "improvement",
+          "title": "TopoStack moved to topostack.app",
+          "body": "The site and studio now live at topostack.app, and links to the old address redirect to the same page.",
+          "pr": 38
+        }
+      ]
+    },
+    {
       "version": "0.1.2",
       "date": "2026-09-17",
       "entries": [

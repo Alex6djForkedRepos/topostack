@@ -19,6 +19,16 @@ vi.mock("$lib/studio/ThreePreview.svelte", async () => ({ default: (await import
 
 import App from "$lib/studio/App.svelte";
 
+/** Opens a header menu if it is closed and returns the item whose text starts with `name`. */
+async function menuItem(target: HTMLElement, menu: string, name: string) {
+  const trigger = target.querySelector<HTMLButtonElement>(`button[aria-label^="${menu}"]`)!;
+  if (trigger.getAttribute("aria-expanded") !== "true") {
+    trigger.click();
+    await tick();
+  }
+  return [...target.querySelectorAll<HTMLElement>('[role="menu"] [role^="menuitem"]')].find((item) => item.textContent?.trim().startsWith(name))! as HTMLButtonElement;
+}
+
 describe("TopoStack Svelte shell", () => {
   let component: ReturnType<typeof mount> | undefined;
   let initialPreview: GeometryIRV1;
@@ -59,9 +69,9 @@ describe("TopoStack Svelte shell", () => {
     vi.mocked(saveProject).mockClear();
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
-    const reset = () => target.querySelector<HTMLButtonElement>('button[aria-label="Reset project"]')!;
-    await vi.waitFor(() => expect(reset().disabled).toBe(false));
-    reset().click();
+    const reset = () => menuItem(target, "Project actions", "Reset project");
+    await vi.waitFor(async () => expect((await reset()).disabled).toBe(false));
+    (await reset()).click();
     await tick();
     const dialog = target.querySelector<HTMLDialogElement>(".reset-dialog")!;
     expect(dialog.open).toBe(true);
@@ -70,7 +80,7 @@ describe("TopoStack Svelte shell", () => {
     await tick();
     expect(target.querySelector(".reset-dialog")).toBeNull();
     expect(target.querySelector<HTMLInputElement>('[aria-label="Project name"]')?.value).toBe(saved.name);
-    reset().click();
+    (await reset()).click();
     await tick();
     [...target.querySelectorAll<HTMLButtonElement>(".reset-dialog button")].find((button) => button.textContent?.trim() === "Reset project")!.click();
     await tick();
@@ -95,7 +105,8 @@ describe("TopoStack Svelte shell", () => {
     document.body.append(target);
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
     const name = () => target.querySelector<HTMLInputElement>('[aria-label="Project name"]')!;
-    await vi.waitFor(() => expect(target.querySelector<HTMLButtonElement>('button[aria-label="Reset project"]')?.disabled).toBe(false));
+    await vi.waitFor(async () => expect((await menuItem(target, "Project actions", "Reset project")).disabled).toBe(false));
+    target.querySelector<HTMLButtonElement>('button[aria-label="Project actions"]')!.click();
     name().value = "Keyboard peak";
     name().dispatchEvent(new Event("input", { bubbles: true }));
     await vi.waitFor(() => expect(target.querySelector<HTMLButtonElement>('button[aria-label="Undo"]')?.disabled).toBe(false));
@@ -119,11 +130,11 @@ describe("TopoStack Svelte shell", () => {
     loadTerrainMock.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
-    const reset = () => target.querySelector<HTMLButtonElement>('button[aria-label="Reset project"]')!;
-    await vi.waitFor(() => expect(reset().disabled).toBe(false));
+    const reset = () => menuItem(target, "Project actions", "Reset project");
+    await vi.waitFor(async () => expect((await reset()).disabled).toBe(false));
     target.querySelector<HTMLButtonElement>(".generate-button")!.click();
     await vi.waitFor(() => expect(finish).toBeDefined());
-    reset().click();
+    (await reset()).click();
     await tick();
     [...target.querySelectorAll<HTMLButtonElement>(".reset-dialog button")].find((button) => button.textContent?.trim() === "Reset project")!.click();
     await tick();
@@ -353,7 +364,7 @@ describe("TopoStack Svelte shell", () => {
     const first = document.createElement("div");
     component = mount(App, { target: first, props: { initialPreview: structuredClone(initialPreview) } });
     await vi.waitFor(() => expect(first.querySelector<HTMLInputElement>('[aria-label="Project name"]')?.value).toBe("Saved mountain"));
-    first.querySelector<HTMLButtonElement>('button[aria-label="Copy share link"]')!.click();
+    (await menuItem(first, "Project actions", "Copy share link")).click();
     await vi.waitFor(() => expect(writeText).toHaveBeenCalledOnce());
     const link = new URL((writeText.mock.calls[0] as unknown as [string])[0]);
     expect(link.pathname).toBe("/studio");
@@ -404,7 +415,7 @@ describe("TopoStack Svelte shell", () => {
     await vi.waitFor(() => expect(target.querySelector(".status-line")?.textContent).toContain("Real terrain ready"));
     const exportStatus = () => target.querySelector(".context-export-status")?.textContent;
     expect(exportStatus()).toContain("Ready to export");
-    const stackSummary = () => target.querySelector(".bar-meta")?.textContent;
+    const stackSummary = () => target.querySelector(".output-summary")?.textContent;
     const initialStack = stackSummary();
 
     const material = target.querySelector<HTMLInputElement>('input[aria-label="Material"]')!;
@@ -536,7 +547,7 @@ describe("TopoStack Svelte shell", () => {
     await vi.waitFor(() => expect(rippleFill.getAttribute("aria-checked")).toBe("true"));
     await vi.waitFor(() => expect(target.querySelector('[data-water-pattern="ripples"]')).not.toBeNull());
     expect(target.querySelector(".layer-dock")).toBeNull();
-    expect(target.querySelector(".bar-meta")?.textContent).toContain("No cut paths");
+    expect(target.querySelector(".output-summary")?.textContent).toContain("No cut paths");
     const viewport = target.querySelector<HTMLElement>("[data-svg-viewport]")!;
     const artwork = target.querySelector<SVGSVGElement>('svg[aria-label="Flat engraving preview"]')!;
     const initialViewBox = artwork.getAttribute("viewBox");
@@ -778,18 +789,43 @@ describe("TopoStack Svelte shell", () => {
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
     await tick();
-    const toggle = target.querySelector<HTMLButtonElement>('button[data-theme-preference="system"]')!;
-    expect(toggle.getAttribute("aria-label")).toBe("Colour scheme: System");
-    toggle.click();
+    const scheme = (name: string) => menuItem(target, "Studio menu", name);
+    expect((await scheme("System")).getAttribute("aria-checked")).toBe("true");
+    (await scheme("Light")).click();
     await tick();
-    expect(toggle.dataset.themePreference).toBe("light");
-    toggle.click();
+    expect(theme.preference).toBe("light");
+    expect(target.querySelector('[role="menu"]')).toBeNull();
+    (await scheme("Dark")).click();
     await tick();
-    expect(toggle.dataset.themePreference).toBe("dark");
-    expect(toggle.getAttribute("aria-label")).toBe("Colour scheme: Dark");
+    expect((await scheme("Dark")).getAttribute("aria-checked")).toBe("true");
+    expect((await scheme("Light")).getAttribute("aria-checked")).toBe("false");
     expect(document.documentElement.dataset.theme).toBe("dark");
     expect(localStorage.getItem("topostack-theme")).toBe("dark");
     expect(document.head.querySelector<HTMLMetaElement>('meta[name="theme-color"]')).not.toBeNull();
+  });
+
+  it("moves through header menus from the keyboard and returns focus on Escape", async () => {
+    const target = document.createElement("div");
+    document.body.append(target);
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await tick();
+    const trigger = target.querySelector<HTMLButtonElement>('button[aria-label^="Studio menu"]')!;
+    trigger.focus();
+    trigger.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    await vi.waitFor(() => expect(document.activeElement?.textContent).toContain("Light"));
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+    const menu = target.querySelector<HTMLElement>('[role="menu"]')!;
+    menu.dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true }));
+    expect(document.activeElement?.textContent).toContain("TopoStack home");
+    expect(document.activeElement?.getAttribute("href")).toBe("/");
+    menu.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    expect(document.activeElement?.textContent).toContain("Light");
+    expect(menu.querySelector(".studio-menu__version")?.textContent).toMatch(/^TopoStack v\d+\.\d+\.\d+$/);
+    menu.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await tick();
+    expect(target.querySelector('[role="menu"]')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    target.remove();
   });
 
   it("automatically fetches the new map area after debounced cut aspect-ratio edits", async () => {

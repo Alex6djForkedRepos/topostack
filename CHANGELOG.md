@@ -1,8 +1,22 @@
 # Changelog
 
-User-facing changes to TopoStack, newest first. Also at https://topostack.app/changelog with an [Atom feed](https://topostack.app/changelog.xml).
+User-facing changes to TopoStack, newest first. Also at https://topostack.app/changelog with a [feed](https://topostack.app/changelog.xml) for feed readers.
 
 Generated from `changelog/releases.json` by `npm run changelog:prepare`; do not edit by hand. See [docs/changelog.md](docs/changelog.md).
+
+## 0.2.0 (2026-09-18)
+
+### New
+
+- **Split large maps to fit your laser bed**: Set a machine work area and each layer is cut into bed-sized pieces along staggered seams, with puzzle tabs and assembly ids. See [the guide](https://topostack.app/guides/split-large-maps). ([#34](https://github.com/Echo-Foxtrot-Works/topostack/pull/34))
+- **Water paint templates**: Export registered paper stencils that leave only the water open on each layer, so lakes and rivers are easy to paint. See [the guide](https://topostack.app/guides/water-paint-templates). ([#37](https://github.com/Echo-Foxtrot-Works/topostack/pull/37))
+
+### Improved
+
+- **Reset asks before discarding a project**: Reset now confirms first, says what it clears, and can be undone. The Crater Lake preview comes back instantly without generating terrain. ([#34](https://github.com/Echo-Foxtrot-Works/topostack/pull/34))
+- **Crisper marker symbols**: Pins are true teardrops with an engraved eye, circles are smoother, and crosses cut as one outline instead of doubling where the bars meet. ([#35](https://github.com/Echo-Foxtrot-Works/topostack/pull/35))
+- **Studio layout touch-ups**: The aspect-lock controls sit in a small corner card that no longer hides warnings, and engraving font samples are centered in their swatches. ([#35](https://github.com/Echo-Foxtrot-Works/topostack/pull/35))
+- **TopoStack moved to topostack.app**: The site and studio now live at topostack.app, and links to the old address redirect to the same page. ([#38](https://github.com/Echo-Foxtrot-Works/topostack/pull/38))
 
 ## 0.1.2 (2026-09-17)
 

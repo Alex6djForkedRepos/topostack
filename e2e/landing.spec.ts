@@ -33,7 +33,7 @@ test("homepage stays lightweight and opens the studio under the built CSP", asyn
   });
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/");
-  await page.getByRole("button", { name: /Colour scheme/ }).click();
+  await page.getByRole("button", { name: /Color scheme/ }).click();
   await expect.poll(() => page.evaluate(() => localStorage.getItem("topostack-theme"))).not.toBeNull();
   await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 375);
   expect(workers).toEqual([]);
@@ -44,7 +44,8 @@ test("homepage stays lightweight and opens the studio under the built CSP", asyn
   await page.getByRole("link", { name: "Try the terrain studio" }).click();
   await expect(page).toHaveURL(`${baseURL}/studio`);
   await expect(page.getByRole("button", { name: "Export", exact: true })).toBeVisible();
-  const home = page.getByRole("link", { name: "TopoStack home and getting started" });
+  await page.getByRole("button", { name: /^Studio menu/ }).click();
+  const home = page.getByRole("menuitem", { name: /TopoStack home/ });
   await expect(home).toHaveAttribute("target", "_blank");
   await expect(home).toHaveJSProperty("href", `${baseURL}/`);
   // A return visit must restore page scrolling after editor CSS was loaded.

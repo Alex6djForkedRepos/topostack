@@ -25,12 +25,15 @@ export function nextVersion(current, bump) {
   return `${major}.${minor}.${current.includes("-") ? patch : patch + 1n}`;
 }
 
+// The web app and the Atomm package release together under one version.
+// atomm/version.json mirrors it so the package metadata stays self-describing,
+// and atommVersion is kept in the returned shape for the packaging scripts.
 export async function readVersions(base = root) {
   const read = async (path) => JSON.parse(await readFile(new URL(path, base), "utf8"));
   const main = await read("package.json");
   const atomm = await read("atomm/version.json");
   const version = validateVersion(main.version);
-  validateVersion(atomm.version);
+  assert.equal(atomm.version, version, "atomm/version.json is out of sync; the Atomm package releases with the main version");
   const lock = await read("package-lock.json");
   assert.equal(lock.version, version, "Lockfile root version is out of sync");
   assert.equal(lock.packages[""].version, version, "Lockfile package version is out of sync");
@@ -38,16 +41,14 @@ export async function readVersions(base = root) {
     assert.equal((await read(`${workspace}/package.json`)).version, version, `${workspace} version is out of sync`);
     assert.equal(lock.packages[workspace].version, version, `${workspace} lockfile version is out of sync`);
   }
-  return { version, atommVersion: atomm.version };
+  return { version, atommVersion: version };
 }
 
 export async function bumpVersion(target, bump, base = root) {
-  assert.ok(["main", "atomm"].includes(target), "Target must be main or atomm");
+  assert.equal(target, "main", "Target must be main; the Atomm package follows the main version");
   const versions = await readVersions(base);
-  const version = nextVersion(target === "main" ? versions.version : versions.atommVersion, bump);
-  const paths = target === "main"
-    ? ["package.json", ...workspaces.map((path) => `${path}/package.json`), "package-lock.json"]
-    : ["atomm/version.json"];
+  const version = nextVersion(versions.version, bump);
+  const paths = ["package.json", ...workspaces.map((path) => `${path}/package.json`), "package-lock.json", "atomm/version.json"];
   // Prepare every edit before writing, preserving all unrelated package fields.
   const edits = await Promise.all(paths.map(async (path) => {
     const file = new URL(path, base);
@@ -73,7 +74,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     console.log({ datasetVersion: await assertDatasetVersionsAgree() });
   }
   else {
-    assert.ok(bump, "Usage: versions.mjs check | <main|atomm> <major|minor|patch|version>");
+    assert.ok(bump, "Usage: versions.mjs check | main <major|minor|patch|version>");
     console.log(`${target}: ${await bumpVersion(target, bump)}`);
   }
 }

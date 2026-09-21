@@ -66,7 +66,7 @@
   <a class="skip" href="#article">Skip to content</a>
   <Topbar>
     {#snippet brand()}<Brand name="TopoStack" meta="Guides" href={`${base}/`} />{/snippet}
-    {#snippet actions()}<a class="top-link" href={`${base}${DOCS_HOME}`}>Guides</a><a class="start" href={`${base}/studio`}>Open studio</a>{#if !plain}<ThemeToggle {theme} />{/if}{/snippet}
+    {#snippet actions()}<a class="top-link" href={`${base}${DOCS_HOME}`}>Guides</a><a class="start" href={`${base}/studio`}>Open studio</a>{#if !plain}<ThemeToggle {theme} label="Color scheme" />{/if}{/snippet}
   </Topbar>
   <div class="docs-layout">
     <nav class="docs-sidebar docs-links" aria-label="Guides">{@render guideLinks()}</nav>

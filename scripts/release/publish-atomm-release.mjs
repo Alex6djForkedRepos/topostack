@@ -23,6 +23,7 @@ export function validateRun(run, repository) {
 export function validatePackage(receipt, archive, checksum, commit, tag) {
   validateVersion(receipt.version);
   validateVersion(receipt.atommVersion);
+  assert.equal(receipt.atommVersion, receipt.version, "The Atomm package must carry the main version; they release together");
   assert.equal(tag, `atomm-v${receipt.atommVersion}`, "Release tag must match the packaged Atomm version");
   assert.equal(receipt.schemaVersion, 1);
   assert.equal(receipt.commit, commit, "Package must match the tested commit");
@@ -145,7 +146,7 @@ async function main() {
     `- **${files.receipt}** — clean source commit, production API, dataset and archive metadata.\n` +
     `- **${files.listing}** — cover options, feature screenshots, listing copy and media provenance.\n\n` +
     `Built and deployed by [production CI run ${runId}](${run.html_url}) at commit ${run.head_sha}. These are the exact verified CI assets, without a local rebuild.\n\n` +
-    `Main codebase: **${receipt.version}**. Atomm package: **${receipt.atommVersion}**.\n\n` +
+    `TopoStack **${receipt.version}**, the same version as the web app's [v${receipt.version}](https://github.com/${repository}/releases/tag/v${receipt.version}) release.\n\n` +
     `ZIP SHA-256: \`${digest}\`\n\nAtomm host review and physical fabrication acceptance are separate from automated CI.\n` +
     (changes ? `\n${changes}` : ""));
   const prerelease = tag.slice("atomm-v".length).includes("-");
