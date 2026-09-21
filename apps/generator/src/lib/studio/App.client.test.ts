@@ -128,8 +128,11 @@ describe("TopoStack Svelte shell", () => {
     [...target.querySelectorAll<HTMLButtonElement>(".reset-dialog button")].find((button) => button.textContent?.trim() === "Reset project")!.click();
     await tick();
     finish!({ source: createSyntheticSource(DEFAULT_PROJECT, 32), fallback: true });
-    await vi.waitFor(() => expect(saveProject).toHaveBeenLastCalledWith(DEFAULT_PROJECT));
-    expect(target.querySelector(".status-line")?.textContent).toContain("Project reset to Crater Lake defaults");
+    await vi.waitFor(() => expect(target.querySelector(".status-line")?.textContent).toContain("Project reset to Crater Lake defaults"));
+    // Flush the pending snapshot rather than relying on an earlier test's last save.
+    vi.mocked(saveProject).mockClear();
+    window.dispatchEvent(new Event("pagehide"));
+    expect(saveProject).toHaveBeenLastCalledWith(DEFAULT_PROJECT);
     expect(target.textContent).not.toContain("Sample terrain generated");
   });
 
