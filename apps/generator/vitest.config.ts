@@ -6,6 +6,8 @@ import viteConfig from "./vite.config";
 export default mergeConfig(viteConfig, defineConfig({
   test: {
     include: ["src/**/*.test.ts"],
+    // Let Vite resolve the theme's font assets (`?url`) instead of Node loading them.
+    server: { deps: { inline: ["@loidolt/theme-styles"] } },
     exclude: [...configDefaults.exclude, "src/**/*.client.test.ts"],
     coverage: {
       reportsDirectory: "coverage/node",

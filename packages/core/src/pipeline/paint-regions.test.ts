@@ -249,6 +249,27 @@ describe("paint regions", () => {
 });
 
 describe("paint template export", () => {
+  it("tells the assembly guide which templates exist and which layers they paint", async () => {
+    const [project, scaled] = scaledForLayers(base, flatLake(base), 8);
+    const result = generateGeometry(project, { ...scaled, waterAreas: [lakeArea()] });
+    const output = buildFabricationPackage(result, project);
+    const paintFiles = output.files.filter((file) => file.filename.endsWith("-paint-water.svg"));
+    expect(paintFiles.length).toBeGreaterThan(0);
+    const html = await output.files.find((file) => file.filename.endsWith("-assembly-guide.html"))!.blob.text();
+    expect(html).toContain('<p class="label">Section 2</p>\n<h2>Paint before you glue</h2>');
+    expect(html).toContain("kerf compensation turned off");
+    expect(html).toContain('<p class="label">Section 3</p>\n<h2>Build the stack</h2>');
+    expect(html).toContain("If the step says to paint, do that first");
+    expect(html).toContain(`Paper or stencil film for ${paintFiles.length === 1 ? "1 paint template" : `${paintFiles.length} paint templates`}`);
+    for (const file of paintFiles) expect(html).toContain(`<code>${file.filename}</code>`);
+    // Each painted layer's step names its own template; dry layers' steps say nothing.
+    const paintedLayers = new Set((result.paintRegions ?? []).map((region) => region.layerIndex));
+    result.layers.forEach((layer, index) => {
+      const step = html.slice(html.indexOf(`id="step-${index + 1}"`));
+      expect(step.slice(0, step.indexOf("</article>")).includes("Paint the water first")).toBe(paintedLayers.has(layer.index));
+    });
+  });
+
   it("writes a registered template beside each panel with visible water and leaves dry panels alone", async () => {
     const [project, scaled] = scaledForLayers(base, flatLake(base), 8);
     const result = generateGeometry(project, { ...scaled, waterAreas: [lakeArea()] });

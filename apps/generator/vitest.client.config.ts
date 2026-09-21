@@ -8,6 +8,8 @@ export default defineConfig({
     environment: "jsdom",
     environmentOptions: { jsdom: { url: "http://localhost/" } },
     include: ["src/lib/**/*.client.test.ts"],
+    // Let Vite resolve the theme's font assets (`?url`) instead of Node loading them.
+    server: { deps: { inline: ["@loidolt/theme-styles"] } },
     testTimeout: 20_000,
     coverage: {
       reportsDirectory: "coverage/client",

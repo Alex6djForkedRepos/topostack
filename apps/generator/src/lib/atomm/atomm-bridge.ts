@@ -31,10 +31,11 @@ export function connectAtomm(getCurrent: CurrentExport, onReady: () => void, onE
       // serialization occupies the main thread.
       await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
       try {
-        const { createAtommExport } = await import("$lib/studio/export-policy");
+        const { createAtommExport, loadGuideFonts } = await import("$lib/studio/export-policy");
         if (!currentExport) throw new Error("TopoStack is not ready to export.");
+        const fonts = intent === "download" ? await loadGuideFonts() : [];
         const { geometry, project } = currentExport();
-        const output = createAtommExport(geometry, project, intent);
+        const output = createAtommExport(geometry, project, intent, fonts);
         currentExportUpdate?.({ phase: "ready", intent, fileCount: Array.isArray(output) ? output.length : 1 });
         return output;
       } catch (error) {

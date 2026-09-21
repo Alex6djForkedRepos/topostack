@@ -35,7 +35,7 @@ Every generated result records a deterministic project fingerprint and source qu
 | `water/` | Lake and ocean depth: shore distance, survey and terrain-basin fitting, shoreline smoothing, water fill patterns |
 | `annotate/` | Text and symbols: label metrics and placement, markers, the north arrow |
 | `pipeline/` | Geometry generation: `generate.ts` orchestrates contour tracing, stack planning, material nesting, transportation styling, coordinate grids, validation, and the work-area split; `synthetic-source.ts` builds the deterministic preview source |
-| `export/` | Fabrication output: SVG primitives, panel layout, per-layer/master/assembly SVGs, the flat-engraving SVG, package builders, and the export block policy |
+| `export/` | Fabrication output: SVG primitives, panel layout, per-layer/master SVGs, the printable assembly booklet (`assembly-guide.ts`), the flat-engraving SVG, package builders, and the export block policy |
 | `test-support/` | Fixtures shared by tests only; excluded from the build |
 
 `index.ts` names every public entry point explicitly. Consumers import `@topostack/core`; nothing outside the package may reach into these folders.

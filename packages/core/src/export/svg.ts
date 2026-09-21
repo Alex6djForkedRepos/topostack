@@ -4,7 +4,6 @@ import { formatNumber as format } from "../primitives/format.js";
 import polygonClipping, { type MultiPolygon } from "polygon-clipping";
 import { clipPolyline, normalizeMultiPolygon, pointInPreparedPolygons, preparePolygons, toRing } from "../primitives/geometry2d.js";
 import { labelLineSegments } from "../annotate/labels.js";
-import { displayElevation, displayLength, elevationUnit, lengthUnit } from "../primitives/units.js";
 import { omittedNestHoles, paintStencil } from "../pipeline/paint-regions.js";
 import type { GeometryIRV1, LayerIR, LineStyleV1, PaintRegionKind, Point2D, ProjectConfigV1 } from "../types.js";
 
@@ -178,18 +177,4 @@ export function masterToSvg(ir: GeometryIRV1, panels = fabricationPanels(ir), bo
     return panelOperationGroup(ir, panel, operation, bodies[index]![operation], offsetX, offsetY);
   }).join(""), ir.lineStyle)).join("");
   return svgDocument(width, height, body, `${ir.projectName} — master layout`, -width / 2, -height / 2);
-}
-
-export function assemblyGuideToSvg(ir: GeometryIRV1): string {
-  const width = 210;
-  const height = 297;
-  const scale = Math.min(150 / ir.widthMm, 130 / ir.heightMm);
-  const stack = ir.layers.map((layer, index) => {
-    const offsetX = 105;
-    const offsetY = 90 + index * Math.min(2.2, 20 / ir.layers.length);
-    const paths = layer.polygons.flatMap((polygon) => [polygon.outer, ...polygon.holes]).map((ring) => `<path d="${pathData(ring, offsetX, offsetY, true)}"/>`).join("");
-    return `<g transform="scale(${format(scale)}) translate(${format(offsetX / scale - offsetX)} ${format(offsetY / scale - offsetY)})" fill="none" stroke="#33443b" stroke-width="${format(0.25 / scale)}">${paths}</g>`;
-  }).join("");
-  const body = `<rect width="210" height="297" fill="#f5f0e7"/><text x="20" y="25" font-family="sans-serif" font-size="9" font-weight="700" fill="#18241f">${escapeXml(ir.projectName)}</text><text x="20" y="38" font-family="sans-serif" font-size="4" fill="#5a6b61">Stack ${ir.layers.length} layers from layer 01 upward · ${format(displayLength(ir.layers[0]?.materialThicknessMm ?? 0, ir.units))} ${lengthUnit(ir.units)} material</text>${ir.splitPlan ? `<text x="20" y="46" font-family="sans-serif" font-size="4" fill="#5a6b61">Each layer is cut as ${ir.splitPlan.columns} x ${ir.splitPlan.rows} pieces; seams alternate between layers, so glue in layer order.</text>` : ""}${stack}<text x="20" y="260" font-family="sans-serif" font-size="4" fill="#18241f">Elevation range: ${Math.round(displayElevation(ir.minElevationM, ir.units))}–${Math.round(displayElevation(ir.maxElevationM, ir.units))} ${elevationUnit(ir.units)}</text><text x="20" y="271" font-family="sans-serif" font-size="3.2" fill="#5a6b61">Decorative terrain data only. Verify dimensions, material, kerf, power, and speed with a test cut.</text>`;
-  return svgDocument(width, height, body, `${ir.projectName} — assembly guide`, 0, 0);
 }

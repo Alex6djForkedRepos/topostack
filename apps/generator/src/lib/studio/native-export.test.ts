@@ -29,7 +29,7 @@ describe("export choices", () => {
   const output: FabricationPackageV1 = { schemaVersion: 1, master, files: [master,
     file("ridge-layer-01-layer-01.svg"), file("ridge-layer-01-layer-01-engrave.svg"),
     file("ridge-layer-01-panel-02-layers-02-03.svg"), file("ridge-layer-01-panel-02-layers-02-03-engrave.svg"),
-    file("ridge-layer-01-assembly-guide.svg"), file("README.txt"), file("ATTRIBUTION.txt"),
+    file("ridge-layer-01-assembly-guide.html"), file("README.txt"), file("ATTRIBUTION.txt"),
   ] };
 
   it.each(["panels", "engravings"] as const)("downloads only the selected %s plus supporting files", async (option) => {
@@ -48,7 +48,7 @@ describe("export choices", () => {
     const sheets = ["ridge-layer-01-a1", "ridge-layer-01-b2", "ridge-layer-01-a1-2", "ridge-panel-03-layers-03-04-c1"];
     const split: FabricationPackageV1 = { schemaVersion: 1, master, files: [master,
       ...sheets.flatMap((sheet) => [file(`${sheet}.svg`), file(`${sheet}-engrave.svg`)]),
-      file("ridge-assembly-guide.svg"), file("README.txt"), file("ATTRIBUTION.txt"),
+      file("ridge-assembly-guide.html"), file("README.txt"), file("ATTRIBUTION.txt"),
     ] };
     const files = unzipSync(new Uint8Array(await (await prepareSelectedDownload(split, option)).blob.arrayBuffer()));
     const suffix = option === "engravings" ? "-engrave.svg" : ".svg";
@@ -59,7 +59,7 @@ describe("export choices", () => {
     const sheets = ["ridge-layer-01", "ridge-layer-03-a1", "ridge-panel-03-layers-03-04-c1-2"];
     const painted: FabricationPackageV1 = { schemaVersion: 1, master, files: [master,
       ...sheets.flatMap((sheet) => [file(`${sheet}.svg`), file(`${sheet}-engrave.svg`), file(`${sheet}-paint-water.svg`)]),
-      file("ridge-assembly-guide.svg"), file("README.txt"), file("ATTRIBUTION.txt"),
+      file("ridge-assembly-guide.html"), file("README.txt"), file("ATTRIBUTION.txt"),
     ] };
     for (const option of ["panels", "engravings"] as const) {
       const files = unzipSync(new Uint8Array(await (await prepareSelectedDownload(painted, option)).blob.arrayBuffer()));
@@ -72,9 +72,9 @@ describe("export choices", () => {
     await expect(prepareSelectedDownload(output, "paint")).rejects.toThrow(/no paint templates/i);
   });
 
-  it("downloads individual SVGs without wrapping them in a ZIP", async () => {
+  it("downloads individual files without wrapping them in a ZIP", async () => {
     expect(await prepareSelectedDownload(output, "master")).toEqual({ ...master, fileCount: 1 });
-    expect((await prepareSelectedDownload(output, "assembly")).filename).toBe("ridge-layer-01-assembly-guide.svg");
+    expect((await prepareSelectedDownload(output, "assembly")).filename).toBe("ridge-layer-01-assembly-guide.html");
   });
 
   it("rejects panel exports for a flat engraving package", async () => {
