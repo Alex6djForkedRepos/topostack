@@ -21,6 +21,7 @@
   import ResetProjectDialog from "$lib/studio/ResetProjectDialog.svelte";
   import { readAtommLocale } from "$lib/atomm/atomm-locale";
   import { ProjectHistory } from "$lib/studio/history";
+  import { historyShortcut } from "$lib/studio/history-keys";
   import { ENGRAVING_MODE_OPTIONS, PRESETS, STACK_MODE_OPTIONS } from "$lib/studio/options";
   import * as edits from "$lib/studio/project-edits";
   import { isAbortError, PreviewPipeline } from "$lib/studio/preview-pipeline";
@@ -507,6 +508,13 @@
   function undo(): void { const previous = projectHistory.undo(project); if (previous) restoreProject(previous, "Undo"); }
   function redo(): void { const next = projectHistory.redo(project); if (next) restoreProject(next, "Redo"); }
 
+  function handleHistoryKey(event: KeyboardEvent): void {
+    const shortcut = historyShortcut(event);
+    if (!shortcut) return;
+    event.preventDefault();
+    if (shortcut === "undo") undo(); else redo();
+  }
+
   function invalidatePendingPreview(): void {
     const wasGenerating = generationState === "loading";
     generationAbort?.abort();
@@ -724,6 +732,8 @@
     shownLength, shownDepth, shownLineWidth, shownTextSize, storedLength, workAreaLength, updateProject, updateFabrication, updateMapDetails, updateLocation, updateVerticalExaggeration, updateDepthLayerLimit, setLakeDepth, setLineWidth, applyCustomDataEdit, choosePlace, undo, redo, importProject, generate, cancelGeneration, toggleSection, setAllSections, sectionSummary, navigateChoice, dismissPreviewWarning, previewMarkingPath, trailPatternDash, getFeedbackContext,
   });
 </script>
+
+<svelte:window onkeydown={handleHistoryKey} />
 
 <svelte:head>
   <meta name="theme-color" content={themeColor} />
