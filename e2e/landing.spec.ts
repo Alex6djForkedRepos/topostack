@@ -154,6 +154,23 @@ test("the example gallery leads to an example with its render, sharing card and 
   expect(file.capture.layers).toBeGreaterThan(3);
 });
 
+test("the changelog lists releases newest first with a feed, without JavaScript", async ({ browser, baseURL }) => {
+  const { releases } = JSON.parse(readFileSync(new URL("../changelog/releases.json", import.meta.url), "utf8"));
+  const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
+  const page = await context.newPage();
+  await page.goto("/changelog");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Changelog");
+  await expect(page.getByRole("heading", { level: 2 }).first()).toHaveText(`Version ${releases[0].version}`);
+  // Production builds never show pending fragments.
+  await expect(page.getByRole("heading", { name: "Unreleased" })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Guides", exact: true }).getByRole("link", { name: "Changelog" })).toHaveAttribute("aria-current", "page");
+  await expect(page.locator('link[rel="alternate"][type="application/atom+xml"]')).toHaveCount(1);
+  const feed = await context.request.get("/changelog.xml");
+  expect(feed.ok()).toBe(true);
+  expect(await feed.text()).toContain(`<title>TopoStack ${releases[0].version}</title>`);
+  await context.close();
+});
+
 test("the guides hub lists every guide and marks the current page in the sidebar", async ({ page, baseURL }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");

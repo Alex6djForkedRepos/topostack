@@ -37,6 +37,7 @@
   import { generationStatus, generationToast, previewPendingStatus, previewUpdatedStatus, type PreviewUpdateKind } from "$lib/studio/status-messages";
   import { provideStudio, type GenerateState, type LineWidthKey, type PreviewMode } from "$lib/studio/studio-context";
   import ProjectControls from "$lib/studio/panels/ProjectControls.svelte";
+  import WhatsNewLink from "$lib/studio/panels/WhatsNewLink.svelte";
   import OutputSwitch from "$lib/studio/panels/OutputSwitch.svelte";
   import SetupSection from "$lib/studio/panels/SetupSection.svelte";
   import CustomDataSection from "$lib/studio/panels/CustomDataSection.svelte";
@@ -820,6 +821,7 @@
           <div class="bar-meta">{#if project.outputMode === "engraving"}<span>{project.engravingContourCount} contours</span><span>1 engrave SVG</span><span>No cut paths</span>{:else}<span>{geometry.layers.length} layers</span><span>{fabricationPanelCount} cut panels</span><span>{shownLength(totalHeight)} {shownLengthUnit} tall</span>{/if}</div>
           <Button class="export-trigger" aria-label="Export" title="Export" aria-haspopup="dialog" onclick={(event: MouseEvent) => { if (event.currentTarget instanceof HTMLElement) event.currentTarget.focus(); exportOpen = true; }}><Download size={18} aria-hidden="true" /><span class="export-trigger-label">Export</span></Button>
           <ThemeToggle {theme} class="theme-toggle" />
+          {#if import.meta.env.VITE_SITE_ENV !== "atomm"}<WhatsNewLink />{/if}
           <a class="about-link" href={`${base}/`} target="_blank" rel="noopener noreferrer" aria-label="TopoStack home and getting started (opens in a new tab)" title="TopoStack home and getting started (opens in a new tab)"><House size={18} aria-hidden="true" /></a>
         {/snippet}
       </Topbar>

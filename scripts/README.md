@@ -81,13 +81,14 @@ Check deployed services, SEO output, and data quality. CI and the production mon
 
 ## Release and Atomm packaging (`release/`)
 
-Version consistency and the Atomm marketplace bundle.
+The changelog, version consistency, and the Atomm marketplace bundle. See [changelog.md](../docs/changelog.md).
 
 | Script | Purpose | Run by |
 | --- | --- | --- |
+| `changelog.mjs` | Scaffold, check, and verify changelog fragments; fold them into a release with its version bump; print release notes | `npm run changelog:new`; `npm run changelog:check`; `npm run changelog:pending`; `npm run changelog:verify`; `npm run changelog:prepare`; `npm run changelog:render`; `npm run changelog:notes`; CI/workflows |
 | `checksum-atomm.mjs` | Write and verify the SHA-256 of the packaged Atomm ZIP | `npm run release:atomm` |
 | `package-atomm-listing.mjs` | Package the Atomm marketplace listing (copy and cover assets) | `npm run package:atomm-listing` |
 | `package-atomm.mjs` | Build and package the Atomm static artifact as a versioned ZIP | `npm run package:atomm` |
-| `publish-atomm-release.mjs` | Tag, draft, upload, and publish an Atomm GitHub release | CI/workflows |
+| `publish-atomm-release.mjs` | Tag, draft, upload, and publish an Atomm GitHub release, with the changelog since the previous one | CI/workflows |
 | `validate-submission-env.mjs` | Fail-closed gate for Atomm packaging: the embedded map API URL must be production | manual |
 | `versions.mjs` | Check or bump the release version across workspaces and the Atomm manifest | `npm run version:check`; `npm run version:main`; `npm run version:atomm`; CI/workflows |

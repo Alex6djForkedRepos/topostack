@@ -33,7 +33,14 @@
     "package:atomm-listing": "node scripts/release/package-atomm-listing.mjs",
     "version:check": "node scripts/release/versions.mjs check",
     "version:main": "node scripts/release/versions.mjs main",
-    "version:atomm": "node scripts/release/versions.mjs atomm"
+    "version:atomm": "node scripts/release/versions.mjs atomm",
+    "changelog:new": "node scripts/release/changelog.mjs new",
+    "changelog:check": "node scripts/release/changelog.mjs check",
+    "changelog:pending": "node scripts/release/changelog.mjs pending",
+    "changelog:verify": "node scripts/release/changelog.mjs verify",
+    "changelog:prepare": "node scripts/release/changelog.mjs prepare",
+    "changelog:render": "node scripts/release/changelog.mjs render",
+    "changelog:notes": "node scripts/release/changelog.mjs notes"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

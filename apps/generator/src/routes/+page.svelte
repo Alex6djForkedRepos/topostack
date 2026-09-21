@@ -142,7 +142,7 @@
     </section>
   </main>
 
-  <footer><span>TopoStack <span class="footer-note">/ Terrain studio</span></span><a href={`${base}/guides`}>Guides</a><a href={`${base}/lakes`}>Lake depth maps</a><a href={`${base}/attribution`}>Sources and attribution</a><a href={`${base}/privacy`}>Privacy</a><FeedbackButton /><a href={studioUrl}>Open terrain studio <ArrowUpRight size={14} aria-hidden="true" /></a></footer>
+  <footer><span>TopoStack <span class="footer-note">/ Terrain studio</span></span><a href={`${base}/guides`}>Guides</a><a href={`${base}/lakes`}>Lake depth maps</a><a href={`${base}/attribution`}>Sources and attribution</a><a href={`${base}/privacy`}>Privacy</a><a href={`${base}/changelog`}>Changelog</a><FeedbackButton /><a href={studioUrl}>Open terrain studio <ArrowUpRight size={14} aria-hidden="true" /></a></footer>
 </div>
 
 {/if}
