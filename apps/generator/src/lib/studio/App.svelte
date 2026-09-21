@@ -351,6 +351,7 @@
         projectHistory.push(previous);
         replaceSourceProject(next, createProjectPreviewSource(next));
       },
+      generate: () => { void generate(); },
       openSharedProject: (next, previous) => {
         invalidatePendingPreview();
         projectHistory.push(previous);

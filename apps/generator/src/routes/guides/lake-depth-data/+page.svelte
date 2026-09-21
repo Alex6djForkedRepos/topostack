@@ -99,7 +99,7 @@
   </section>
   <p><a href={`${base}/attribution#surveys`}>View survey credits and how each source is used</a>.</p>
   <h2>Using a lake’s depth data</h2>
-  <p>Select <strong>Open in studio</strong> to frame the survey area, then generate terrain with <strong>Water depth</strong> enabled. Some small lakes may lack a matching lake outline. The studio warns when a lake has incomplete survey coverage or estimated depths, and the exported <strong>ATTRIBUTION.txt</strong> credits the surveys used.</p>
+  <p>Select <strong>Open in studio</strong> to frame the survey area; the studio turns on <strong>Water depth</strong> and generates the terrain as it opens. Some small lakes may lack a matching lake outline. The studio warns when a lake has incomplete survey coverage or estimated depths, and the exported <strong>ATTRIBUTION.txt</strong> credits the surveys used.</p>
   <p>If a deep lake exceeds the available layers, choose <strong>Fit depth</strong> in the warning, or turn on <strong>Fit lake depth to available layers</strong>, to compress its depths while keeping the shoreline fixed. <strong>Use manual depth</strong> restores your requested scale. See the <a href={`${base}/guides/laser-cut-topographic-map`}>layered map guide</a> for fabrication steps.</p>
   <details class="source-notes"><summary>Sources and coverage notes</summary>
     <p>These are the survey datasets integrated into TopoStack. Survey dates, resolutions and water-level references vary; <a href={`${base}/guides/how-lake-depths-work#surveys`}>how surveys become a lake floor</a> explains the caveats. Source credits and applied depth scaling are included in exports.</p>

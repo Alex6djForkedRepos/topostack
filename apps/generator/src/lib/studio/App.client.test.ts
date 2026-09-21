@@ -320,15 +320,18 @@ describe("TopoStack Svelte shell", () => {
     expect(target.querySelector(".preview-warning .warning-action")?.textContent?.trim()).toBe("Fit depth");
   });
 
-  it("opens a directory lake after restoring settings and consumes the place link once", async () => {
+  it("opens a directory lake after restoring settings, consumes the place link once and generates it", async () => {
     const { loadProject, saveProject } = await import("$lib/storage/storage");
     vi.mocked(saveProject).mockClear();
+    loadTerrainMock.mockImplementationOnce(() => new Promise(() => undefined));
     vi.mocked(loadProject).mockResolvedValueOnce({ ...DEFAULT_PROJECT, name: "Saved mountain", materialThicknessMm: 5, outputMode: "engraving", showWaterDepth: false });
     window.history.replaceState(null, "", "/studio?lake=Lake%20Tahoe&bounds=-120.2,38.9,-119.8,39.3");
     try {
       const target = document.createElement("div");
       component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
-      await vi.waitFor(() => expect(target.textContent).toContain("Lake selected from the depth directory"));
+      await vi.waitFor(() => expect(loadTerrainMock).toHaveBeenCalledOnce());
+      expect(loadTerrainMock.mock.calls[0]![0]).toMatchObject({ name: "Lake Tahoe", outputMode: "stack", showWaterDepth: true, location: { label: "Lake Tahoe" } });
+      expect(target.textContent).toContain("Fetching elevation and map details");
       expect(target.querySelector<HTMLInputElement>('[aria-label="Project name"]')?.value).toBe("Lake Tahoe");
       expect(target.querySelector('[aria-label="Water depth"]')?.getAttribute("aria-checked")).toBe("true");
       expect(window.location.search).toBe("");
@@ -337,8 +340,6 @@ describe("TopoStack Svelte shell", () => {
         location: expect.objectContaining({ label: "Lake Tahoe", lon: -120 }),
       })));
       expect(vi.mocked(saveProject).mock.lastCall![0].location.lat).toBeCloseTo(39.1);
-      expect(loadTerrainMock).not.toHaveBeenCalled();
-      expect(target.querySelector(".context-export-status")?.textContent).toContain("Generate before export");
     } finally { window.history.replaceState(null, "", "/"); }
   });
 
