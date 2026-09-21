@@ -62,6 +62,27 @@ tags and the file is fetched over HTTP by the deployment verifier, so a card
 that 404s or is mislabelled fails the deploy rather than rendering as a blank
 preview wherever the page is shared.
 
+## Generated lake depth pages
+
+`/lakes` (registered in `PUBLIC_PAGES`) indexes one page per lake region,
+generated at build time from `static/data/lake-depth-directory.json` by
+`buildLakePages()` in `apps/generator/src/lib/site/lake-pages.ts`:
+
+- Minnesota is split into county pages (counties with at least 8 lakes; the
+  rest are listed on the Minnesota page). Ontario, Finland and Norway are split
+  into consecutive initial-letter ranges of at most 400 lakes.
+- Every lake appears on exactly one page (`lake-pages.test.ts`). A new directory
+  source must be assigned to a region in `REGIONS`, or the build fails.
+- Letter-range slugs follow the data, so a large directory change can move a
+  lake to a different range URL. Check the sitemap diff after data releases.
+- Lake pages set `csr = false`: they are plain HTML with no hydration script,
+  so they share the site CSP instead of adding `_headers` rules (Cloudflare
+  allows 100). `finalizeStaticHeaders` skips pages whose scripts the fallback
+  policy already covers, and JSON-LD is not hashed.
+- Metadata comes from `lakePageSeo()`; the sitemap, `llms.txt` and both SEO
+  verifiers include the generated pages. Usage events from any `/lakes/*` page
+  report the `/lakes` landing.
+
 ## Non-goals
 
 `FAQPage` and `HowTo` structured data are intentionally absent. Google removed

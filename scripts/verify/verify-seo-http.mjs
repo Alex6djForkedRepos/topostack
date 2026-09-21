@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 import { JSDOM } from "jsdom";
+import { readFileSync } from "node:fs";
 import { PUBLIC_PAGES, SITE_ORIGIN, socialImage } from "../../apps/generator/src/lib/site/seo.ts";
+import { buildLakePages } from "../../apps/generator/src/lib/site/lake-pages.ts";
+
+const { pages: lakePages } = buildLakePages(JSON.parse(readFileSync(new URL("../../apps/generator/static/data/lake-depth-directory.json", import.meta.url), "utf8")));
 
 // Deployment assets can become available shortly after the Worker itself.
 // Only callers verifying a fresh deployment opt into a shared retry window.
@@ -68,11 +72,14 @@ export async function verifyHttpSeo(origin, environment, { propagationTimeoutMs 
   assert.match(robots.headers.get("content-type"), /^text\/plain/);
   assert.match(await robots.text(), /^User-agent: \*\nAllow: \//);
   const publicPaths = Object.keys(PUBLIC_PAGES);
-  const expectedUrls = production ? publicPaths.map((path) => SITE_ORIGIN + path).sort() : [];
-  const recordedDates = Object.fromEntries(publicPaths.map((path) => [SITE_ORIGIN + path, PUBLIC_PAGES[path].updated]));
+  const recorded = [...publicPaths.map((path) => [path, PUBLIC_PAGES[path].updated]), ...[...lakePages.values()].map((page) => [page.path, page.updated])];
+  const expectedUrls = production ? recorded.map(([path]) => SITE_ORIGIN + path).sort() : [];
+  const recordedDates = Object.fromEntries(recorded.map(([path, updated]) => [SITE_ORIGIN + path, updated]));
   const urls = await fetchSitemapUrls(new URL("/sitemap.xml", origin), expectedUrls, { deadline, lastmod: production ? recordedDates : undefined });
   assert.deepEqual(urls, expectedUrls, "Sitemap must list exactly the public pages");
-  for (const path of [...publicPaths, "/studio"]) {
+  // Every registered page, and each lake region page as a sample of the generated ones.
+  const lakeRegions = [...lakePages.keys()].filter((path) => path.split("/").length === 3);
+  for (const path of [...publicPaths, ...lakeRegions, "/studio"]) {
     const response = await get(path);
     assert.equal(response.status, 200, path);
     const document = new JSDOM(await response.text()).window.document;

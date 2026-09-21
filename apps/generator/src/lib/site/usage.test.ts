@@ -22,6 +22,13 @@ describe("usage privacy and attribution", () => {
     expect(sent()[2]).toEqual({ event: "export_prepared", source: "github", landing: "/examples/crater-lake", device: "large", output: "engraving", delivery: "browser" });
     expect(JSON.stringify(sent())).not.toContain("secret");
   });
+  it("attributes every generated lake page to the lakes landing", () => {
+    vi.stubGlobal("location", new URL("https://topostack.app/lakes/minnesota/crow-wing-county"));
+    trackPageView("/lakes/minnesota/crow-wing-county");
+    trackPageView("/guides/unknown");
+    expect(sent()).toHaveLength(1);
+    expect(sent()[0]).toMatchObject({ event: "landing_view", landing: "/lakes" });
+  });
   it("separates assistant referrers from search engines and keeps unknown hosts uncategorized", () => {
     const from = (referrer: string) => {
       sessionStorage.clear();

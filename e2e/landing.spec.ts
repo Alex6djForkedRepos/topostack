@@ -127,6 +127,19 @@ test("a guide explains the workflow with JavaScript disabled", async ({ browser,
   await context.close();
 });
 
+test("lake depth pages list surveyed lakes without JavaScript and link into the studio", async ({ browser, baseURL }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
+  const page = await context.newPage();
+  await page.goto("/lakes/minnesota");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Minnesota lake depth maps");
+  await page.getByRole("link", { name: "Crow Wing County", exact: true }).click();
+  await expect(page).toHaveTitle("Crow Wing County, Minnesota Lake Depth Maps | TopoStack");
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://topostack.app/lakes/minnesota/crow-wing-county");
+  await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toContainText(/Lake depth maps\s*\/\s*Minnesota\s*\/\s*Crow Wing County/);
+  await expect(page.getByRole("link", { name: "Pelican", exact: true }).first()).toHaveAttribute("href", /studio\?lake=Pelican&bounds=/);
+  await context.close();
+});
+
 test("the guides hub lists every guide and marks the current page in the sidebar", async ({ page, baseURL }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");

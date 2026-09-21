@@ -45,7 +45,11 @@ const budgets = {
   // offset behind paintStencil ship in generateGeometry, and the cut-layer
   // overlay imports it for legacy IR. CI measured 474,123 with Node 22.22.2,
   // 123 bytes over the old line.
-  startupJavaScriptGzip: 480_000,
+  // Raised 2026-09-21 for the lake depth routes (/lakes, two generated lake
+  // page templates) and the custom lake map guide. Every route entry counts
+  // here even though the studio loads none of them: 476,968 -> 480,828 with
+  // Node 22.22.2 (production build).
+  startupJavaScriptGzip: 490_000,
   // All routes, lazy-loaded tools, and workers, including the interactive lake
   // guide and MapLibre's worker. The fetched lake catalog is budgeted below.
   // Raised 2026-09-17 for the same two guide routes: 888,934 -> 895,695.

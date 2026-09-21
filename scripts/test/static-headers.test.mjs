@@ -22,6 +22,14 @@ test("many prerendered pages stay under deployment limits with page-specific has
  assert.match(output, /frame-ancestors 'self'/);
  assert.doesNotMatch(output, /script-src[^;]*unsafe-inline/);
 });
+test("pages without scripts of their own fall back to the site policy instead of adding rules", () => {
+ const staticPages = new Map([...pages, ...Array.from({length: 120}, (_, i) => [`lakes/page-${i}.html`, `<script>home()</script><script type="application/ld+json">{"page":${i}}</script>`])]);
+ const output = finalizeStaticHeaders(template, staticPages, "production");
+ assert.doesNotMatch(output, /\/lakes\/page-/);
+ assert.equal(pageSecurityPolicy(output, "/lakes/page-3"), pageSecurityPolicy(output, "/*"));
+ assert.ok(!pageSecurityPolicy(output, "/*").includes(hash('{"page":3}')), "JSON-LD needs no script hash");
+ assert.ok(pageSecurityPolicy(output, "/guides/page-3").includes(hash("guide(3)")));
+});
 test("development excludes indexing and rejects limits before deployment", () => {
  assert.match(finalizeStaticHeaders(template, pages, "development"), /\/\*\n {2}X-Robots-Tag: noindex, follow/);
  assert.throws(() => validateStaticHeaders(`/*\n  X: ${'a'.repeat(2000)}`), /2000/);

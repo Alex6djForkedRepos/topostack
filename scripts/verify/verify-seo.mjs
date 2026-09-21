@@ -2,12 +2,15 @@ import assert from "node:assert/strict";
 import { readFile, readdir, stat } from "node:fs/promises";
 import { JSDOM } from "jsdom";
 import { PUBLIC_PAGES, headline, isArticlePage, socialImage } from "../../apps/generator/src/lib/site/seo.ts";
+import { buildLakePages } from "../../apps/generator/src/lib/site/lake-pages.ts";
 
 const environment = process.argv[process.argv.indexOf("--environment") + 1];
 assert.ok(["production", "development", "atomm"].includes(environment), "Pass --environment production, development, or atomm");
 const production = environment === "production";
 const origin = "https://topostack.app";
 const dist = new URL("../../apps/generator/dist/", import.meta.url);
+const { pages: lakePages } = buildLakePages(JSON.parse(await readFile(new URL("../../apps/generator/static/data/lake-depth-directory.json", import.meta.url), "utf8")));
+const recordedDate = (path) => PUBLIC_PAGES[path]?.updated ?? lakePages.get(path)?.updated;
 const builtPaths = await readdir(dist, { recursive: true });
 const files = builtPaths.filter((path) => path.endsWith(".html"));
 const indexable = [];
@@ -80,7 +83,7 @@ for (const entry of sitemap.querySelectorAll("url")) {
   const path = entry.querySelector("loc").textContent.slice(origin.length);
   const lastmod = entry.querySelector("lastmod")?.textContent;
   assert.ok(lastmod, path + ": sitemap lastmod");
-  assert.equal(lastmod, PUBLIC_PAGES[path].updated, path + ": lastmod must match the recorded page date");
+  assert.equal(lastmod, recordedDate(path), path + ": lastmod must match the recorded page date");
   assert.ok(lastmod <= today, path + ": lastmod is in the future");
 }
 // The assistant index must describe exactly the pages that are indexable, so
