@@ -8,7 +8,7 @@ The SvelteKit site and studio, prerendered as a static site. `src/routes/` holds
 | `lib/storage/` | IndexedDB project persistence and parsing | `domain` |
 | `lib/workers/` | The geometry Web Worker and its client protocol | `core` |
 | `lib/site/` | Marketing pages' shared pieces: SEO metadata, guide index, `Article`, feedback, usage events, theme | `domain` |
-| `lib/studio/` | The editor: `App.svelte`, previews, dialogs, export flow, project history, global `styles.css` | everything above |
+| `lib/studio/` | The editor: `App.svelte` owns the state and generation lifecycle; `panels/` holds the sidebar sections, preview panel, and generation dock, which read App state through the `StudioContext` in `studio-context.ts`; previews, dialogs, export flow, project history, global `styles.css` | everything above |
 | `lib/atomm/` | The xTool Atomm marketplace embed: alternate shell, SDK bridge, locale, and its stylesheet | `studio`, `site` |
 
 Rules, enforced by ESLint (`no-restricted-imports` in the root config):

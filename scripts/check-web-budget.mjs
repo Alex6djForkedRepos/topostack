@@ -52,7 +52,11 @@ const budgets = {
   // geometry worker, the stencil writer, the export card and the cut-layer
   // overlay): measured with Node 22.22.2 at 919,013 on dev -> 922,607 on the
   // merged branch, a 3,594 byte delta.
-  totalJavaScriptGzip: 930_000,
+  // Raised 2026-09-20 for splitting App.svelte into fifteen studio panel
+  // components behind a shared context: measured with Node 22.22.2 at
+  // 927,025 before -> 929,316 after, a 2,291 byte delta, leaving 684 bytes
+  // of headroom. Set to 940,000 so ordinary studio changes fit again.
+  totalJavaScriptGzip: 940_000,
   largestJavaScriptGzip: 300_000,
   // Public guides add styles outside the studio. Keep a separate allowance for
   // the Atomm template, which is loaded only inside the platform iframe.
