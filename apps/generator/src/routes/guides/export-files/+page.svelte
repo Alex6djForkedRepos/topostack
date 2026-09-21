@@ -84,9 +84,15 @@
   dt { font-weight: 600; }
   dt span { margin-left: 8px; font: 12px var(--loidolt-font-utility); color: var(--loidolt-text-muted); }
   dd { margin: 6px 0 0; line-height: 1.7; }
-  td code { overflow-wrap: anywhere; }
+  td:first-child code { white-space: nowrap; }
   .swatch { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 2px; }
   .swatch.cut { background: #fe0002; }
   .swatch.line { background: #2366ff; }
-  @media (max-width: 600px) { table { font-size: 14px; } }
+  @media (max-width: 700px) {
+    table, tbody, tr, td { display: block; }
+    thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+    tr { padding-block: 10px; border-bottom: 1px solid var(--loidolt-border); }
+    td { padding: 2px 0; border: 0; font-size: 14px; }
+    td:first-child code { white-space: normal; overflow-wrap: anywhere; }
+  }
 </style>
