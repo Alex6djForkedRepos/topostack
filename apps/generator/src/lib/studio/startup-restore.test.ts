@@ -20,6 +20,7 @@ function host(overrides: Partial<StartupRestoreHost> = {}) {
     currentProject: () => project,
     restoreSaved: vi.fn((saved: ProjectConfigV1) => { project = saved; }),
     openLinkedLake: vi.fn((next: ProjectConfigV1) => { project = next; }),
+    generate: vi.fn(() => undefined),
     openSharedProject: vi.fn((next: ProjectConfigV1) => { project = next; }),
     setStatus: (message: string) => { statuses.push(message); },
     ...overrides,
@@ -36,6 +37,7 @@ describe("startup restore", () => {
     loadProject.mockResolvedValueOnce(saved);
     await restoreStartupProject(value);
     expect(value.openSharedProject).toHaveBeenCalledWith(expect.objectContaining({ name: "Shared ridge", widthMm: 420 }), saved);
+    expect(value.generate).not.toHaveBeenCalled();
     expect(project()).toMatchObject({ name: "Shared ridge", widthMm: 420 });
     expect(value.consumeShareLink).toHaveBeenCalledOnce();
     // A share link takes precedence over a directory link in the same URL.
@@ -64,6 +66,9 @@ describe("startup restore", () => {
     expect(project()).toMatchObject({ name: "Crater Lake", materialThicknessMm: 5, outputMode: "stack", showWaterDepth: true });
     expect(value.openLinkedLake).toHaveBeenCalledWith(project(), expect.objectContaining({ name: DEFAULT_PROJECT.name }));
     expect(statuses.at(-1)).toContain("Lake selected");
+    // Generation starts only after the lake is open, so it builds the lake rather than the saved project.
+    expect(value.generate).toHaveBeenCalledOnce();
+    expect(vi.mocked(value.openLinkedLake).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(value.generate).mock.invocationCallOrder[0]!);
   });
 
   it("keeps autosave running when an unreadable project was backed up, and still opens the link", async () => {

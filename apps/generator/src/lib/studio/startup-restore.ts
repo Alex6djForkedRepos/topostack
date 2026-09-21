@@ -19,6 +19,8 @@ export interface StartupRestoreHost {
   restoreSaved: (saved: ProjectConfigV1) => void;
   /** Open a directory lake as an undoable change of `previous`. */
   openLinkedLake: (next: ProjectConfigV1, previous: ProjectConfigV1) => void;
+  /** Start terrain generation for the project now open; it reports its own progress. */
+  generate: () => void;
   /** Open a shared design as an undoable change of `previous`, so Undo returns to the saved project. */
   openSharedProject: (next: ProjectConfigV1, previous: ProjectConfigV1) => void;
   setStatus: (message: string) => void;
@@ -32,7 +34,8 @@ export interface StartupRestoreResult {
 /**
  * Restore the autosaved project, then apply a shared design (`#p=`) or a
  * `?lake=` directory link on top of it. A saved project that cannot be read
- * still lets the link open.
+ * still lets the link open. A directory lake is generated on arrival; a
+ * shared design waits for Generate.
  */
 export async function restoreStartupProject(host: StartupRestoreHost): Promise<StartupRestoreResult> {
   let autosave = true;
@@ -74,7 +77,9 @@ export async function restoreStartupProject(host: StartupRestoreHost): Promise<S
     const previous = host.currentProject();
     const next: ProjectConfigV1 = { ...previous, name: linkedLake.label.slice(0, MAX_PROJECT_NAME_LENGTH), location: linkedLake, outputMode: "stack", showWaterDepth: true };
     host.openLinkedLake(next, previous);
-    host.setStatus("Lake selected from the depth directory · generate terrain to load survey data");
+    host.setStatus("Lake selected from the depth directory · loading survey data");
+    // A directory link promises that lake's terrain, so build it on arrival.
+    host.generate();
   } catch (error) {
     if (host.isCancelled()) return { autosave };
     console.error("TopoStack could not restore the saved project.", error);
