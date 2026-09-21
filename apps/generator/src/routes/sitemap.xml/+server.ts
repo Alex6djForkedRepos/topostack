@@ -1,5 +1,7 @@
 import { PUBLIC_PAGES, SITE_ORIGIN } from "$lib/site/seo";
 import { LAKE_PAGES } from "$lib/site/lake-pages.server";
+import { examplePath } from "$lib/site/examples";
+import { PUBLISHED_EXAMPLES } from "$lib/site/examples.server";
 export const prerender = true;
 export function GET(): Response {
   const production = import.meta.env.VITE_SITE_ENV === "production";
@@ -7,6 +9,7 @@ export function GET(): Response {
   // the build date: a value that moved on every deploy would be ignored.
   const pages = production ? [
     ...Object.entries(PUBLIC_PAGES).map(([path, meta]) => [path, meta.updated] as const),
+    ...PUBLISHED_EXAMPLES.map((example) => [examplePath(example.slug), example.updated] as const),
     ...[...LAKE_PAGES.values()].map((page) => [page.path, page.updated] as const),
   ] : [];
   const entries = pages.map(([path, updated]) => "<url><loc>" + SITE_ORIGIN + path + "</loc><lastmod>" + updated + "</lastmod></url>").join("");

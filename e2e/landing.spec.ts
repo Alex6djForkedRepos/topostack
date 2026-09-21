@@ -140,6 +140,20 @@ test("lake depth pages list surveyed lakes without JavaScript and link into the 
   await context.close();
 });
 
+test("the example gallery leads to an example with its render, sharing card and importable project", async ({ page, request }) => {
+  await page.goto("/examples");
+  await expect(page).toHaveTitle("Topographic Map Examples: Laser-Cut Terrain Projects | TopoStack");
+  await page.getByRole("link", { name: /Mount Fuji/ }).first().click();
+  await expect(page).toHaveTitle("Mount Fuji Topographic Map: A Laser-Cut Project | TopoStack");
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute("content", "https://topostack.app/images/examples/mount-fuji-card.jpg");
+  await expect(page.locator('meta[property="og:type"]')).toHaveAttribute("content", "article");
+  await expect(page.locator("article picture img")).toBeVisible();
+  const download = page.getByRole("link", { name: "Download the project file" });
+  const file = await (await request.get(new URL(await download.getAttribute("href") ?? "", page.url()).href)).json();
+  expect(file.project).toMatchObject({ schemaVersion: 1, cropShape: "circle", outputMode: "stack" });
+  expect(file.capture.layers).toBeGreaterThan(3);
+});
+
 test("the guides hub lists every guide and marks the current page in the sidebar", async ({ page, baseURL }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");

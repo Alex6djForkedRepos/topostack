@@ -5,6 +5,7 @@ export const SITE_ORIGIN = "https://topostack.app";
 export const REPOSITORY_URL = "https://github.com/Echo-Foxtrot-Works/topostack";
 export const DOCS_HOME = "/guides";
 export const LAKES_HOME = "/lakes";
+export const EXAMPLES_HOME = "/examples";
 export const SITE_LOCALE = "en_US";
 
 /** Sharing card. Dimensions are declared so consumers that refuse to fetch the file still lay it out. */

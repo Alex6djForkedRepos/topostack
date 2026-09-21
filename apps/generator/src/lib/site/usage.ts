@@ -34,9 +34,9 @@ function acquisition(): UsageEvent["source"] {
   } catch { /* Unknown referrers use the fixed fallback category. */ }
   return "other";
 }
-/** The fixed landing category for a path; generated lake pages share "/lakes". */
+/** The fixed landing category for a path; generated lake and example pages share "/lakes" and "/examples". */
 function landingOf(path: string): UsageEvent["landing"] | undefined {
-  return USAGE_LANDINGS.find((landing) => landing === path) ?? (path.startsWith("/lakes/") ? "/lakes" : undefined);
+  return USAGE_LANDINGS.find((landing) => landing === path) ?? (path.startsWith("/lakes/") ? "/lakes" : path.startsWith("/examples/") ? "/examples" : undefined);
 }
 function session(): Session {
   try {
