@@ -102,8 +102,10 @@ export function clearLineData(data: string, clearance?: MarkerClearance): string
   }).join(" ");
 }
 
-export function markingPath(mark: LayerIR["markings"][number], clearance?: MarkerClearance, stroke?: string): string {
+export function markingPath(mark: LayerIR["markings"][number], sharedClearance?: MarkerClearance, stroke?: string): string {
   if (mark.knockout) return "";
+  // The title's own backing is a knockout; it must clear what lies beneath, not the title.
+  const clearance = mark.id.startsWith("plaque-") ? undefined : sharedClearance;
   const color = stroke ?? (mark.operation === "score" ? SCORE : ENGRAVE);
   if (mark.label && mark.points[0]) return `<path id="${escapeXml(mark.id)}" d="${clearLineData(labelPathData(mark.label, mark.points[0], 0, 0, mark.labelRotationRad, mark.textStyle), clearance)}" fill="none" stroke="${color}"${mark.textStyle?.font === "rounded" ? ' stroke-linecap="round" stroke-linejoin="round"' : ""}/>`;
   const paint = mark.filled ? `fill="${color}" stroke="none"` : `fill="none" stroke="${color}"`;

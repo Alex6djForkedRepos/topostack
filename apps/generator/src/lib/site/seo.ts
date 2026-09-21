@@ -114,7 +114,7 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     description: "Choose roads, trails, water fills and boundaries, place elevation labels and the north arrow, and set line widths for laser engraving.",
     label: "Map details and linework",
     published: "2026-09-17",
-    updated: "2026-09-17",
+    updated: "2026-09-20",
   },
   "/guides/custom-markers-and-paths": {
     title: "Add Custom Markers and Trails to a Topographic Map | TopoStack",
@@ -128,7 +128,7 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     description: "Every TopoStack studio control with its range, default and output type, from vertical exaggeration and kerf to linework widths.",
     label: "Settings reference",
     published: "2026-09-17",
-    updated: "2026-09-18",
+    updated: "2026-09-20",
   },
   "/guides/export-files": {
     title: "Laser Export Files and SVG Structure | TopoStack",

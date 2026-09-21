@@ -1,4 +1,4 @@
-import { MAP_MARKER_SIZE_MM, MAP_MARKER_MIN_SIZE_MM, MAP_MARKER_MAX_SIZE_MM, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, type CustomLineFeatureV1, type GeoPoint, type MapMarkerV1, type ProjectConfigV1 } from "@topostack/core";
+import { DEFAULT_PLAQUE_SIZE_MM, PLAQUE_MAX_LINE_LENGTH, PLAQUE_MAX_LINES, PLAQUE_MAX_SIZE_MM, PLAQUE_MIN_SIZE_MM, type PlaqueV1, MAP_MARKER_SIZE_MM, MAP_MARKER_MIN_SIZE_MM, MAP_MARKER_MAX_SIZE_MM, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, type CustomLineFeatureV1, type GeoPoint, type MapMarkerV1, type ProjectConfigV1 } from "@topostack/core";
 import { clampLongitude, isSupportedCoordinate } from "$lib/domain/coordinates";
 
 /**
@@ -86,4 +86,17 @@ export function removeCustomLinePoint(project: Project, id: string, pointIndex: 
 
 export function removeCustomLine(project: Project, id: string): CustomLinesPatch {
   return { customLines: project.customLines.filter((line) => line.id !== id) };
+}
+
+/** Title text limited to what the project accepts, so typing past a limit never makes the project invalid. */
+export function plaqueText(text: string): string {
+  return text.split(/\r?\n/).slice(0, PLAQUE_MAX_LINES).map((line) => line.slice(0, PLAQUE_MAX_LINE_LENGTH)).join("\n");
+}
+
+export const clampPlaqueSize = (sizeMm: number): number => Math.min(PLAQUE_MAX_SIZE_MM, Math.max(PLAQUE_MIN_SIZE_MM, sizeMm));
+
+/** The title's settings, starting from the project name in the free bottom-left corner the first time it is switched on. */
+export function plaqueSettings(project: Pick<ProjectConfigV1, "name" | "plaque">, patch: Partial<PlaqueV1>): PlaqueV1 {
+  const current = project.plaque ?? { enabled: false, text: plaqueText(project.name), sizeMm: DEFAULT_PLAQUE_SIZE_MM, placement: { anchor: "bottom-left", offset: { x: 0, y: 0 } } };
+  return { ...current, ...patch };
 }

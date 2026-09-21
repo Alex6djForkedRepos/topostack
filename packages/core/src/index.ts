@@ -13,6 +13,7 @@ export type { PreparedPolygons } from "./primitives/geometry2d.js";
 export * from "./annotate/labels.js";
 export * from "./annotate/markers.js";
 export * from "./annotate/north-arrow.js";
+export * from "./annotate/plaque.js";
 export * from "./primitives/offset.js";
 export { assemblyGuideToSvg, layerToSvg, masterToSvg } from "./export/svg.js";
 export { engravingToSvg } from "./export/engraving-svg.js";

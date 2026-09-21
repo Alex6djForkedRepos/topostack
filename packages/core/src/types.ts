@@ -60,6 +60,23 @@ export const NORTH_ARROW_MIN_SIZE_MM = 12;
 export const NORTH_ARROW_MAX_SIZE_MM = 200;
 export const NORTH_ARROW_MAX_MAP_FRACTION = 0.45;
 
+/** Engraved title text, such as a place name and date, anchored like the north arrow. */
+export interface PlaqueV1 {
+  /** Kept when switched off so the text survives toggling. */
+  enabled: boolean;
+  /** Up to PLAQUE_MAX_LINES lines separated by newlines; engraved in capitals. */
+  text: string;
+  /** Cap height in millimeters; uses the project's text font. */
+  sizeMm: number;
+  placement: NorthArrowPlacementV1;
+}
+
+export const PLAQUE_MAX_LINES = 3;
+export const PLAQUE_MAX_LINE_LENGTH = 40;
+export const PLAQUE_MIN_SIZE_MM = 3;
+export const PLAQUE_MAX_SIZE_MM = 30;
+export const DEFAULT_PLAQUE_SIZE_MM = 6;
+
 export interface TextStyleV1 {
   font: TextFont;
   /** Physical cap height of fabrication text in millimeters. */
@@ -245,6 +262,8 @@ export interface ProjectConfigV1 {
   northArrowSizeMm: number;
   northArrowPlacement: NorthArrowPlacementV1;
   showScaleBar: boolean;
+  /** Optional engraved title. Absent in projects saved before titles existed, which keeps their fingerprints. */
+  plaque?: PlaqueV1;
   /** User-placed symbols, projected from geographic coordinates onto the artwork. */
   markers: MapMarkerV1[];
   /** User-authored geographic paths, independent of fetched map-detail toggles. */

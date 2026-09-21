@@ -988,6 +988,31 @@ describe("TopoStack Svelte shell", () => {
     expect(loadTerrainMock).not.toHaveBeenCalled();
   });
 
+  it("engraves a title from the project name, edits it, and keeps it when switched off", async () => {
+    const { saveProject } = await import("$lib/storage/storage");
+    vi.mocked(saveProject).mockClear();
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await vi.waitFor(() => expect(saveProject).toHaveBeenCalled(), { timeout: 2_000 });
+    const stage = target.querySelector<HTMLElement>(".preview-stage")!;
+    expect(stage.dataset.plaqueMarkings).toBe("0");
+    const title = target.querySelector<HTMLButtonElement>('button[role="switch"][aria-label="Title"]')!;
+    title.click();
+    const text = () => target.querySelector<HTMLTextAreaElement>('textarea[aria-label="Title text"]');
+    await vi.waitFor(() => expect(text()?.value).toBe("Crater Lake"));
+    await vi.waitFor(() => expect(Number(stage.dataset.plaqueMarkings)).toBeGreaterThan(0));
+    text()!.value = "Crater Lake\nOregon, 2026\nthird\nfourth line dropped";
+    text()!.dispatchEvent(new Event("input", { bubbles: true }));
+    await vi.waitFor(() => expect(text()!.value).toBe("Crater Lake\nOregon, 2026\nthird"));
+    text()!.value = "Café";
+    text()!.dispatchEvent(new Event("input", { bubbles: true }));
+    await vi.waitFor(() => expect(target.querySelector(".plaque-warning")?.textContent).toContain("é"));
+    title.click();
+    await vi.waitFor(() => expect(stage.dataset.plaqueMarkings).toBe("0"));
+    window.dispatchEvent(new Event("pagehide"));
+    expect(vi.mocked(saveProject).mock.lastCall![0].plaque).toMatchObject({ enabled: false, text: "Café", placement: { anchor: "bottom-left" } });
+  });
+
   it("keeps the current preview visible and interactive during an expensive detail refresh", async () => {
     const projectWithoutVectors = { ...DEFAULT_PROJECT, showRoads: false, showTrails: false, showWater: false, showWaterDepth: false };
     const source = { ...createSyntheticSource(projectWithoutVectors, 32), sourceKind: "real" as const, vectorStatus: "not-requested" as const };

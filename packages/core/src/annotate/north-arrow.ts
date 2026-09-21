@@ -1,15 +1,6 @@
-import { cropRadiusMm } from "../primitives/crop.js";
-import { clamp } from "../primitives/geometry2d.js";
+import { anchoredCenter } from "./anchor.js";
 import { labelDimensions } from "./labels.js";
-import type { NorthArrowAnchor, OperationPath, Point2D, ProjectConfigV1, TextStyleV1 } from "../types.js";
-
-const CLEARANCE_MM = 3;
-
-const ANCHOR_VECTORS: Record<NorthArrowAnchor, Point2D> = {
-  "top-left": { x: -1, y: -1 }, top: { x: 0, y: -1 }, "top-right": { x: 1, y: -1 },
-  left: { x: -1, y: 0 }, center: { x: 0, y: 0 }, right: { x: 1, y: 0 },
-  "bottom-left": { x: -1, y: 1 }, bottom: { x: 0, y: 1 }, "bottom-right": { x: 1, y: 1 },
-};
+import type { OperationPath, Point2D, ProjectConfigV1, TextStyleV1 } from "../types.js";
 
 function circle(radius: number, steps = 48): Point2D[] {
   const points = Array.from({ length: steps }, (_, index) => {
@@ -32,26 +23,8 @@ function star(pointRadii: number[], valleyRadius: number): Point2D[] {
 }
 
 function centerFor(config: ProjectConfigV1): Point2D {
-  const vector = ANCHOR_VECTORS[config.northArrowPlacement.anchor];
   const halfSymbol = config.northArrowSizeMm / 2;
-  const availableX = Math.max(0, config.widthMm / 2 - halfSymbol - CLEARANCE_MM);
-  const availableY = Math.max(0, config.heightMm / 2 - halfSymbol - CLEARANCE_MM);
-  const offset = config.northArrowPlacement.offset;
-
-  if (config.cropShape === "rectangle") {
-    return {
-      x: clamp((vector.x + offset.x) * availableX, -availableX, availableX),
-      y: clamp((vector.y + offset.y) * availableY, -availableY, availableY),
-    };
-  }
-
-  const availableRadius = Math.max(0, cropRadiusMm(config) - halfSymbol - CLEARANCE_MM);
-  const anchorLength = Math.hypot(vector.x, vector.y);
-  const anchor = anchorLength > 1 ? { x: vector.x / anchorLength, y: vector.y / anchorLength } : vector;
-  const desired = { x: (anchor.x + offset.x) * availableRadius, y: (anchor.y + offset.y) * availableRadius };
-  const length = Math.hypot(desired.x, desired.y);
-  if (length <= availableRadius || length === 0) return desired;
-  return { x: desired.x * availableRadius / length, y: desired.y * availableRadius / length };
+  return anchoredCenter(config, config.northArrowPlacement, halfSymbol, halfSymbol);
 }
 
 function transform(points: Point2D[], center: Point2D, sizeMm: number): Point2D[] {

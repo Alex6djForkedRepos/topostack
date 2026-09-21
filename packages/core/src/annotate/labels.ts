@@ -28,7 +28,16 @@ const GLYPHS: Record<string, string[]> = {
   ":": ["000", "010", "000", "010", "000"], "/": ["001", "001", "010", "100", "100"],
   "_": ["000", "000", "000", "000", "111"], "+": ["000", "010", "111", "010", "000"],
   " ": ["0", "0", "0", "0", "0"], "?": ["111", "001", "010", "000", "010"],
+  ",": ["00", "00", "00", "01", "10"], "'": ["1", "1", "0", "0", "0"], "!": ["1", "1", "1", "0", "1"],
+  "(": ["01", "10", "10", "10", "01"], ")": ["10", "01", "01", "01", "10"],
+  "&": ["0100", "1010", "0100", "1011", "0110"], "#": ["01010", "11111", "01010", "11111", "01010"],
+  "°": ["111", "101", "111", "000", "000"],
 };
+
+/** Characters in `text` that the stroke font cannot draw; they would engrave as "?". */
+export function unsupportedLabelCharacters(text: string): string[] {
+  return [...new Set([...text].filter((character) => character !== "\n" && !GLYPHS[character] && !GLYPHS[character.toUpperCase()]))];
+}
 
 function glyphFor(character: string): string[] {
   return GLYPHS[character] ?? GLYPHS[character.toUpperCase()] ?? GLYPHS["?"]!;
