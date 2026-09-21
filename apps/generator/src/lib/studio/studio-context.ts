@@ -108,6 +108,7 @@ export interface StudioContext {
   undo(): void;
   redo(): void;
   importProject(file: File | undefined): Promise<void>;
+  copyShareLink(): Promise<void>;
 
   // Generation
   generate(): Promise<void>;
