@@ -1,17 +1,8 @@
-export const SITE_ORIGIN = "https://topostack.app";
-export const REPOSITORY_URL = "https://github.com/Echo-Foxtrot-Works/topostack";
-export const DOCS_HOME = "/guides";
-export const SITE_LOCALE = "en_US";
+// Constants live in site.ts so client components can import them without the
+// registry. The explicit extension lets the Node verification scripts load this file.
+import { DEFAULT_SOCIAL_IMAGE, DOCS_HOME, SITE_ORIGIN, type SocialImage } from "./site.ts";
 
-/** Sharing card. Dimensions are declared so consumers that refuse to fetch the file still lay it out. */
-export interface SocialImage { url: string; width: number; height: number; alt: string }
-
-export const DEFAULT_SOCIAL_IMAGE: SocialImage = {
-  url: "/images/social-crater-lake.png",
-  width: 1200,
-  height: 630,
-  alt: "TopoStack Crater Lake relief with USGS surveyed lake-floor bathymetry and exaggerated depth.",
-};
+export { DEFAULT_SOCIAL_IMAGE, DOCS_HOME, REPOSITORY_URL, SITE_LOCALE, SITE_ORIGIN, type SocialImage } from "./site.ts";
 
 export interface PageMeta {
   title: string;
@@ -188,4 +179,43 @@ export function headline(title: string): string {
 
 export function socialImage(path: string): SocialImage {
   return PUBLIC_PAGES[path]?.image ?? DEFAULT_SOCIAL_IMAGE;
+}
+
+/**
+ * Everything the document head needs for one page, resolved on the server.
+ * The layout's server load hands this to `Seo.svelte`, so the registry above
+ * stays out of the homepage's JavaScript however many pages it gains.
+ */
+export interface PageSeo {
+  title: string;
+  description: string;
+  canonical: string;
+  /** Registered in PUBLIC_PAGES, so eligible for indexing, the sitemap and breadcrumbs. */
+  registered: boolean;
+  image: SocialImage;
+  article?: { headline: string; published: string; updated: string };
+  breadcrumbs: { name: string; item: string }[];
+}
+
+export function pageSeo(path: string): PageSeo | undefined {
+  const registered = PUBLIC_PAGES[path];
+  const meta = registered ?? (path === "/studio" ? STUDIO_META : undefined);
+  if (!meta) return undefined;
+  const canonical = SITE_ORIGIN + path;
+  const breadcrumbs = registered && path !== "/" ? [
+    { name: "TopoStack", item: SITE_ORIGIN + "/" },
+    ...(path === DOCS_HOME ? [] : [{ name: PUBLIC_PAGES[DOCS_HOME]!.label, item: SITE_ORIGIN + DOCS_HOME }]),
+    { name: registered.label, item: canonical },
+  ] : [];
+  return {
+    title: meta.title,
+    description: meta.description,
+    canonical,
+    registered: Boolean(registered),
+    image: socialImage(path),
+    // Only pages with recorded dates claim article metadata, so a new page cannot
+    // advertise a publication date before one is written down for it.
+    ...(registered && isArticlePage(path) ? { article: { headline: headline(registered.title), published: registered.published, updated: registered.updated } } : {}),
+    breadcrumbs,
+  };
 }

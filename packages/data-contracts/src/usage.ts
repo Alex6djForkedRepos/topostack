@@ -1,6 +1,13 @@
 // Fixed categories only: never send project names, coordinates, queries or user IDs.
 export const USAGE_EVENTS = ["landing_view", "studio_open", "generation_started", "generation_succeeded", "generation_failed", "generation_cancelled", "export_prepared", "export_failed"] as const;
-export const USAGE_LANDINGS = ["/", "/studio", "/guides/laser-cut-topographic-map", "/guides/topographic-map-engraving", "/examples/crater-lake", "/privacy"] as const;
+// Every public page, so a search landing on any guide is attributed to it.
+// Additions are compatible; removing a path rejects events from open tabs.
+export const USAGE_LANDINGS = [
+  "/", "/studio", "/guides", "/guides/laser-cut-topographic-map", "/guides/topographic-map-engraving", "/examples/crater-lake", "/privacy",
+  "/attribution", "/guides/split-large-maps", "/guides/water-paint-templates", "/guides/lake-depth-data", "/guides/how-lake-depths-work",
+  "/guides/studio-tour", "/guides/map-details", "/guides/custom-markers-and-paths", "/guides/settings-reference", "/guides/export-files",
+  "/guides/troubleshooting",
+] as const;
 // "ai" covers assistant and answer-engine referrers, which send a visitor who
 // already read a description of the tool rather than a search result snippet.
 export const USAGE_SOURCES = ["direct", "google", "bing", "duckduckgo", "ai", "github", "atomm", "social", "other"] as const;

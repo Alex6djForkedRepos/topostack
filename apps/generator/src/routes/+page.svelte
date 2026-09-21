@@ -83,7 +83,7 @@
 
     <section class="section" aria-labelledby="example-title">
       <div class="section-heading"><p class="eyebrow">Inside the studio</p><h2 id="example-title">Explore the Crater Lake terrain preview</h2><p>See how real elevation becomes a stack of contours. Follow the example, then generate fresh terrain to create your own fabrication files.</p></div>
-      <figure class="studio-example"><img src={`${base}/images/studio-crater-lake.png`} width="1280" height="900" loading="lazy" decoding="async" alt="TopoStack studio with freshly generated Crater Lake terrain and USGS surveyed lake-floor relief." /><figcaption>Crater Lake with USGS surveyed bathymetry where available. Gaps use existing terrain or modeled depths; depth is exaggerated.</figcaption></figure>
+      <figure class="studio-example"><picture><source type="image/webp" srcset={`${base}/images/studio-crater-lake-640.webp 640w, ${base}/images/studio-crater-lake.webp 1280w`} sizes="(max-width: 720px) 100vw, 1280px" /><img src={`${base}/images/studio-crater-lake.png`} width="1280" height="900" loading="lazy" decoding="async" alt="TopoStack studio with freshly generated Crater Lake terrain and USGS surveyed lake-floor relief." /></picture><figcaption>Crater Lake with USGS surveyed bathymetry where available. Gaps use existing terrain or modeled depths; depth is exaggerated.</figcaption></figure>
       <a class="secondary-link" href={`${base}/examples/crater-lake`}>Follow the Crater Lake project <ArrowRight size={16} aria-hidden="true" /></a>
     </section>
 
