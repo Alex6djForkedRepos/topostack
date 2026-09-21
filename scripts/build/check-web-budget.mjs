@@ -107,7 +107,11 @@ const budgets = {
   // 45,413 -> 46,031 total with Node 22.14.0.
   // Raised 2026-09-21 for the example gallery and example pages: 36,731 ->
   // 37,034 with Node 22.22.2 (production build), on top of the lake pages.
-  standaloneCssGzip: 37_800,
+  // Raised 2026-09-21 for the engraving font picker (a compact dropdown with a
+  // grouped list; its options reuse the theme's menu items): 37,725 on dev ->
+  // 37,820 with Node 22.22.2 (production build), 20 bytes over the old line.
+  // Set to 38,400 for roughly 1.5%.
+  standaloneCssGzip: 38_400,
   // Raised 2026-09-20 after re-review: the same build measures 9,993 bytes
   // with Node 22.22.2 and 10,003 with supported Node 26.5.0. Leave roughly
   // 2% compression headroom; the total CSS ceiling remains unchanged.

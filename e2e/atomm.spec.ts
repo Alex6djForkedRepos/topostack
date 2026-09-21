@@ -102,12 +102,22 @@ test("Atomm uses the platform export hook and template layout across desktop, RT
   expect(gridded.error).toBe("");
   expect(gridded.files[0]!.text).not.toBe(resized.files[0]!.text);
   await studio.getByRole("checkbox", { name: "North arrow", exact: true }).check();
-  for (const label of ["North arrow design", "Engraving font"]) {
-    const options = studio.getByRole("radiogroup", { name: label, exact: true });
-    await options.scrollIntoViewIfNeeded();
-    expect(await options.locator("button").evaluateAll(buttons => buttons.every(button => button.scrollWidth <= button.clientWidth))).toBe(true);
-    expect(await options.evaluate(el => el.getBoundingClientRect().right <= el.closest(".gen-rail-params")!.getBoundingClientRect().right - 16)).toBe(true);
+  const arrows = studio.getByRole("radiogroup", { name: "North arrow design", exact: true });
+  await arrows.scrollIntoViewIfNeeded();
+  expect(await arrows.locator("button").evaluateAll(buttons => buttons.every(button => button.scrollWidth <= button.clientWidth))).toBe(true);
+  expect(await arrows.evaluate(el => el.getBoundingClientRect().right <= el.closest(".gen-rail-params")!.getBoundingClientRect().right - 16)).toBe(true);
+  // The font picker is one row; its open list must stay inside the rail too.
+  const fontPicker = studio.getByRole("combobox", { name: "Engraving font", exact: true });
+  await fontPicker.scrollIntoViewIfNeeded();
+  await fontPicker.click();
+  const fontList = studio.getByRole("listbox", { name: "Engraving font", exact: true });
+  await expect(fontList.getByRole("option")).toHaveCount(11);
+  for (const element of [fontPicker, fontList]) {
+    expect(await element.evaluate(el => el.getBoundingClientRect().right <= el.closest(".gen-rail-params")!.getBoundingClientRect().right - 16)).toBe(true);
   }
+  expect(await fontList.getByRole("option").evaluateAll(options => options.every(option => option.scrollWidth <= option.clientWidth))).toBe(true);
+  await fontList.press("Escape");
+  await expect(fontList).toBeHidden();
   await studio.getByRole("radio", { name: "2D", exact: true }).click();
   expect(await studio.locator(".mode-switch").evaluate(el => getComputedStyle(el).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
   expect(await studio.locator(".status-line").evaluate(el => getComputedStyle(el).whiteSpace)).toBe("normal");

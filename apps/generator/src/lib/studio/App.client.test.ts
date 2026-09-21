@@ -645,8 +645,14 @@ describe("TopoStack Svelte shell", () => {
     // Text engraving and the elevation label position now sit beside what they
     // affect in Map details rather than in the fabrication panel.
     expect(fields.querySelector(".swatch-options")).toBeNull();
-    // Three built-in styles, four single-line fonts and four filled typefaces.
-    expect(target.querySelectorAll('[role="radiogroup"][aria-label="Engraving font"] button[role="radio"]')).toHaveLength(11);
+    // One compact picker row; its list holds three built-in styles, four
+    // single-line fonts and four filled typefaces.
+    const fontPicker = target.querySelector<HTMLButtonElement>('button[role="combobox"][aria-label="Engraving font"]')!;
+    expect(fontPicker.textContent).toContain("Technical");
+    expect(target.querySelector('[role="listbox"][aria-label="Engraving font"]')).toBeNull();
+    fontPicker.click();
+    await vi.waitFor(() => expect(target.querySelectorAll('[role="listbox"][aria-label="Engraving font"] [role="option"]')).toHaveLength(11));
+    expect(target.querySelectorAll('[role="listbox"][aria-label="Engraving font"] [role="group"]')).toHaveLength(3);
     expect(target.querySelectorAll('input[aria-label="Label X"]')).toHaveLength(1);
   });
 
@@ -700,9 +706,18 @@ describe("TopoStack Svelte shell", () => {
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
     await tick();
-    const stencil = [...target.querySelectorAll<HTMLButtonElement>('[role="radiogroup"][aria-label="Engraving font"] button[role="radio"]')].find((button) => button.textContent?.includes("Stencil"))!;
-    stencil.click();
-    await vi.waitFor(() => expect(stencil.getAttribute("aria-checked")).toBe("true"));
+    const picker = target.querySelector<HTMLButtonElement>('button[role="combobox"][aria-label="Engraving font"]')!;
+    picker.click();
+    await tick();
+    // Keyboard: typeahead lands on Stencil and Enter picks it and closes the list.
+    const list = target.querySelector<HTMLElement>('[role="listbox"][aria-label="Engraving font"]')!;
+    list.dispatchEvent(new KeyboardEvent("keydown", { key: "s", bubbles: true }));
+    list.dispatchEvent(new KeyboardEvent("keydown", { key: "t", bubbles: true }));
+    await tick();
+    expect(list.querySelector(`#${CSS.escape(list.getAttribute("aria-activedescendant")!)}`)?.textContent).toContain("Stencil");
+    list.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    await vi.waitFor(() => expect(picker.textContent).toContain("Stencil"));
+    expect(target.querySelector('[role="listbox"][aria-label="Engraving font"]')).toBeNull();
     const size = target.querySelector<HTMLInputElement>('input[aria-label="Text size"]')!;
     size.value = "5";
     size.dispatchEvent(new Event("input", { bubbles: true }));
@@ -1128,12 +1143,16 @@ describe("TopoStack Svelte shell", () => {
     await vi.waitFor(() => expect(saveProject).toHaveBeenCalled(), { timeout: 2_000 });
     const stage = target.querySelector<HTMLElement>(".preview-stage")!;
     target.querySelector<HTMLButtonElement>('button[role="switch"][aria-label="Title"]')!.click();
-    const fonts = () => [...target.querySelectorAll<HTMLButtonElement>('[role="radiogroup"][aria-label="Title font"] button[role="radio"]')];
-    await vi.waitFor(() => expect(fonts()).toHaveLength(12));
-    expect(fonts()[0]!.textContent).toContain("Same as labels");
-    expect(fonts()[0]!.getAttribute("aria-checked")).toBe("true");
-    fonts().find((button) => button.textContent?.includes("Jost"))!.click();
-    await vi.waitFor(() => expect(fonts().find((button) => button.textContent?.includes("Jost"))!.getAttribute("aria-checked")).toBe("true"));
+    const picker = () => target.querySelector<HTMLButtonElement>('button[role="combobox"][aria-label="Title font"]')!;
+    const options = () => [...target.querySelectorAll<HTMLElement>('[role="listbox"][aria-label="Title font"] [role="option"]')];
+    await vi.waitFor(() => expect(picker()).not.toBeNull());
+    expect(picker().textContent).toContain("Same as labels");
+    picker().click();
+    await vi.waitFor(() => expect(options()).toHaveLength(12));
+    expect(options()[0]!.textContent).toContain("Same as labels");
+    expect(options()[0]!.getAttribute("aria-selected")).toBe("true");
+    options().find((option) => option.textContent?.includes("Jost"))!.click();
+    await vi.waitFor(() => expect(picker().textContent).toContain("Jost"));
     await vi.waitFor(() => expect(Number(stage.dataset.plaqueMarkings)).toBeGreaterThan(0));
     expect(target.querySelector("#plaque-text-hint")?.textContent).toContain("engraved as typed in Jost");
     const text = target.querySelector<HTMLTextAreaElement>('textarea[aria-label="Title text"]')!;
@@ -1142,8 +1161,15 @@ describe("TopoStack Svelte shell", () => {
     // Jost draws é; Greek is outside the shipped subset.
     await vi.waitFor(() => expect(target.querySelector(".plaque-warning")?.textContent).toMatch(/Not in Jost.*Ω/));
     expect(target.querySelector(".plaque-warning")?.textContent).not.toContain("é");
-    fonts()[0]!.click();
-    await vi.waitFor(() => expect(fonts()[0]!.getAttribute("aria-checked")).toBe("true"));
+    picker().click();
+    await vi.waitFor(() => expect(options().find((option) => option.textContent?.includes("Jost"))?.getAttribute("aria-selected")).toBe("true"));
+    // A click outside closes the list without choosing.
+    document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    await vi.waitFor(() => expect(options()).toHaveLength(0));
+    picker().click();
+    await vi.waitFor(() => expect(options()).toHaveLength(12));
+    options()[0]!.click();
+    await vi.waitFor(() => expect(picker().textContent).toContain("Same as labels"));
     window.dispatchEvent(new Event("pagehide"));
     expect(vi.mocked(saveProject).mock.lastCall![0].plaque).not.toHaveProperty("font");
   });
