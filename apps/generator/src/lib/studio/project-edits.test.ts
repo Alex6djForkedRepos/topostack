@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_PROJECT, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_MAP_MARKERS, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, type CustomLineFeatureV1, type ProjectConfigV1 } from "@topostack/core";
-import { addCustomLine, addCustomLinePoint, addMarker, canAddCustomLine, northArrowMaximumMm, removeCustomLine, removeCustomLinePoint, removeMarker, updateCustomLine, updateCustomLinePoint, updateMarker } from "$lib/studio/project-edits";
+import { addCustomLine, addCustomLinePoint, addMarker, addMarkerAt, appendCustomData, canAddCustomLine, clampPlaqueSize, customDataCapacity, plaqueSettings, plaqueText, northArrowMaximumMm, removeCustomLine, removeCustomLinePoint, removeMarker, updateCustomLine, updateCustomLinePoint, updateMarker } from "$lib/studio/project-edits";
 
 const line = (id: string, count = 2): CustomLineFeatureV1 => ({ id, kind: "trail", points: Array.from({ length: count }, (_, index) => ({ lat: 40, lon: -105 + index * 0.01 })) });
 const withData = (patch: Partial<ProjectConfigV1>): ProjectConfigV1 => ({ ...DEFAULT_PROJECT, ...patch });
@@ -66,5 +66,37 @@ describe("custom line edits", () => {
     expect(removeCustomLinePoint(project, "a", 0)?.customLines[0]?.points).toHaveLength(2);
     expect(removeCustomLinePoint(project, "b", 0)).toBeUndefined();
     expect(removeCustomLine(project, "a").customLines.map((item) => item.id)).toEqual(["b"]);
+  });
+});
+
+describe("title plaque edits", () => {
+  it("limits text to the accepted lines and length and starts from the project name", () => {
+    expect(plaqueText(`${"A".repeat(50)}\nB\nC\nD`)).toBe(`${"A".repeat(40)}\nB\nC`);
+    expect(clampPlaqueSize(1)).toBe(3);
+    expect(clampPlaqueSize(99)).toBe(30);
+    const first = plaqueSettings({ name: "Crater Lake", plaque: undefined }, { enabled: true });
+    expect(first).toEqual({ enabled: true, text: "Crater Lake", sizeMm: 6, placement: { anchor: "bottom-left", offset: { x: 0, y: 0 } } });
+    expect(plaqueSettings({ name: "Other", plaque: first }, { enabled: false })).toEqual({ ...first, enabled: false });
+  });
+});
+
+describe("imported custom data", () => {
+  it("reports the remaining allowance and appends pins and paths with fresh ids", () => {
+    const project: ProjectConfigV1 = { ...DEFAULT_PROJECT, markers: [{ id: "m", lat: 1, lon: 1, symbol: "star", sizeMm: 5 }], customLines: [{ id: "l", kind: "boundary", points: [{ lat: 1, lon: 1 }, { lat: 2, lon: 2 }, { lat: 3, lon: 3 }] }] };
+    expect(customDataCapacity(project)).toEqual({ markers: MAX_MAP_MARKERS - 1, lines: 249, points: MAX_CUSTOM_DATA_POINTS - 3 });
+    let id = 0;
+    const patch = appendCustomData(project, { markers: [{ lat: 4, lon: 5 }], lines: [{ kind: "trail", points: [{ lat: 4, lon: 5 }, { lat: 6, lon: 7 }] }] }, () => `new-${id += 1}`);
+    expect(patch.markers).toEqual([project.markers[0], { id: "new-1", lat: 4, lon: 5, symbol: "pin", sizeMm: 8 }]);
+    expect(patch.customLines).toEqual([project.customLines[0], { id: "new-2", kind: "trail", points: [{ lat: 4, lon: 5 }, { lat: 6, lon: 7 }] }]);
+  });
+});
+
+describe("placing markers on the map", () => {
+  it("adds a pin at the clicked point unless it is unsupported or the list is full", () => {
+    const patch = addMarkerAt(DEFAULT_PROJECT, "placed", { lat: 42.95, lon: -122.1 });
+    expect(patch?.markers).toEqual([{ id: "placed", lat: 42.95, lon: -122.1, symbol: "pin", sizeMm: 8 }]);
+    expect(addMarkerAt(DEFAULT_PROJECT, "polar", { lat: 89, lon: 0 })).toBeUndefined();
+    const full = { ...DEFAULT_PROJECT, markers: Array.from({ length: MAX_MAP_MARKERS }, (_, index) => ({ id: String(index), lat: 1, lon: 1, symbol: "pin" as const, sizeMm: 8 })) };
+    expect(addMarkerAt(full, "extra", { lat: 1, lon: 1 })).toBeUndefined();
   });
 });

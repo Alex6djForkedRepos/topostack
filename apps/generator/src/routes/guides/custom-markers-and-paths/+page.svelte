@@ -3,9 +3,18 @@
   import Article from "$lib/site/Article.svelte";
 </script>
 
-<Article title="Add custom markers, trails and boundaries" intro="Mark a summit you climbed, a cabin, or the route you hiked. Custom Data engraves your own points and paths from latitude and longitude.">
+<Article title="Add custom markers, trails and boundaries" intro="Mark a summit you climbed, a cabin, or the route you hiked. Custom Data engraves your own points and paths, imported from a GPS file or entered by latitude and longitude.">
   <h2>What you need</h2>
   <p>Coordinates in decimal degrees, such as <code>42.9446, -122.1090</code>. Latitudes south of the equator and longitudes west of Greenwich are negative. You can copy coordinates from most online maps, or from a GPS track exported by your hiking app.</p>
+
+  <h2>Import a GPS track or map file</h2>
+  <p>Select <strong>Import GPX, KML or GeoJSON</strong> in <strong>Custom Data</strong> and choose a file exported from your hiking app, GPS watch, Google Earth or a mapping tool (up to 20 MB). TopoStack adds everything it finds in one step, and <strong>Undo</strong> removes the whole import:</p>
+  <ul>
+    <li>GPX tracks and routes, KML line strings and Google Earth tracks, and GeoJSON lines become <strong>Trails</strong>. Each GPX track segment becomes its own path.</li>
+    <li>KML and GeoJSON polygon outlines become <strong>Boundaries</strong>. Holes inside a polygon are left out.</li>
+    <li>GPX waypoints and KML or GeoJSON points become <strong>Pin</strong> markers; change the symbol afterwards if you like.</li>
+  </ul>
+  <p>Long recordings are simplified to fit the point limits below, keeping the corners and bends that define the route's shape. The status line says when a file was simplified, when features did not fit, and when any lie outside the framed area. KMZ archives are not read directly; open them in Google Earth and save as KML first.</p>
 
   <h2>1. Add a marker</h2>
   <ol>
@@ -38,7 +47,7 @@
     <li>Up to 250 markers and 250 paths per project.</li>
     <li>Up to 2,000 points in one path, and 10,000 path points in total.</li>
   </ul>
-  <p>For a long recorded track, keep only the points needed to show its shape.</p>
+  <p>Imported tracks are simplified automatically to stay within these limits.</p>
 
   <h2>Keeping your custom data</h2>
   <p>Markers and paths are saved with the project in this browser and included in exported project settings. They are not included in usage events or in optional feedback diagnostics.</p>

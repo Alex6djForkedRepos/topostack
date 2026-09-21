@@ -1,5 +1,5 @@
 // Fixed categories only: never send project names, coordinates, queries or user IDs.
-export const USAGE_EVENTS = ["landing_view", "studio_open", "generation_started", "generation_succeeded", "generation_failed", "generation_cancelled", "export_prepared", "export_failed"] as const;
+export const USAGE_EVENTS = ["landing_view", "studio_open", "generation_started", "generation_succeeded", "generation_failed", "generation_cancelled", "export_prepared", "export_failed", "share_link_copied", "share_link_opened"] as const;
 // Every public page, so a search landing on any guide is attributed to it.
 // Additions are compatible; removing a path rejects events from open tabs.
 export const USAGE_LANDINGS = [

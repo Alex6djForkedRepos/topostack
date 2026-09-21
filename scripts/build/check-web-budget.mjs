@@ -45,7 +45,15 @@ const budgets = {
   // offset behind paintStencil ship in generateGeometry, and the cut-layer
   // overlay imports it for legacy IR. CI measured 474,123 with Node 22.22.2,
   // 123 bytes over the old line.
-  startupJavaScriptGzip: 480_000,
+  // Raised 2026-09-20 for the Tier 1 studio features, measured with Node
+  // 22.22.2 on dev (476,667) against all five branches merged (482,651), a
+  // 5,984 byte delta: undo shortcuts +359, share links +1,162, GPX/KML/GeoJSON
+  // import +1,275 (the parser and wording load lazily; this is the panel
+  // control), map marker placement +649, and the title plaque +3,265 (layout,
+  // anchoring and validation ship in generateGeometry, counted on the main
+  // thread and in the worker). dev already sat under the 2% headroom note;
+  // set to 490,000 to restore roughly 1.5%.
+  startupJavaScriptGzip: 490_000,
   // All routes, lazy-loaded tools, and workers, including the interactive lake
   // guide and MapLibre's worker. The fetched lake catalog is budgeted below.
   // Raised 2026-09-17 for the same two guide routes: 888,934 -> 895,695.
@@ -59,7 +67,10 @@ const budgets = {
   // components behind a shared context: measured with Node 22.22.2 at
   // 927,025 before -> 929,316 after, a 2,291 byte delta, leaving 684 bytes
   // of headroom. Set to 940,000 so ordinary studio changes fit again.
-  totalJavaScriptGzip: 940_000,
+  // Raised 2026-09-20 for the same Tier 1 features: measured with Node 22.22.2
+  // at 929,291 on dev -> 939,067 with all five merged, a 9,776 byte delta that
+  // includes the lazy share-link and geo-import chunks, leaving 933 bytes.
+  totalJavaScriptGzip: 950_000,
   largestJavaScriptGzip: 300_000,
   // Public guides add styles outside the studio. Keep a separate allowance for
   // the Atomm template, which is loaded only inside the platform iframe.

@@ -135,6 +135,7 @@
   #section-size > .field-stack,
   #section-terrain > .relief-summary,
   .custom-data-intro,
+  .custom-data-import,
   .linework-group--fields,
   .linework-note {
     grid-column: 1 / -1;
@@ -279,6 +280,8 @@
   .custom-line-kind-options button,
   .custom-point-heading button,
   .custom-point-add,
+  .custom-point-expand,
+  .custom-data-import__button,
   .linework-customize,
   .toggle-stack .ldt-switch,
   .generate-button,
