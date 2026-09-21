@@ -40,7 +40,7 @@
 
 <Article title={page.heading} intro={page.intro} trail={page.trail} static>
   <p>{page.about}</p>
-  <p>Each lake name below opens the studio framed to that lake’s survey area. You can also <a href={`${base}/guides/lake-depth-data`}>search every surveyed lake</a> or <a href={`${base}${LAKES_HOME}`}>browse other regions</a>.</p>
+  <p>Each lake name below opens the studio framed to that lake’s survey area and generates its terrain. You can also <a href={`${base}/guides/lake-depth-data`}>search every surveyed lake</a> or <a href={`${base}${LAKES_HOME}`}>browse other regions</a>.</p>
 
   {#if page.children.length}
     <h2>{byCounty ? "Browse by county" : "Browse by name"}</h2>
@@ -66,8 +66,8 @@
 
   <h2>Make a lake map from this data</h2>
   <ol>
-    <li>Open a lake from the list. The studio frames its survey area; widen the frame if you want more shoreline.</li>
-    <li>Generate terrain with <strong>Water depth</strong> on. The studio warns when survey coverage is partial or depths are estimated; <a href={`${base}/guides/how-lake-depths-work`}>how lake depths work</a> explains why.</li>
+    <li>Open a lake from the list. The studio frames its survey area, turns on <strong>Water depth</strong> and generates the terrain. Widen the frame and regenerate if you want more shoreline.</li>
+    <li>Check the warnings above the preview. The studio warns when survey coverage is partial or depths are estimated; <a href={`${base}/guides/how-lake-depths-work`}>how lake depths work</a> explains why.</li>
     <li>Enter your sheet thickness in <strong>Terrain layers</strong>; the studio works out the layer count. If a deep lake needs more sheets than you want, <strong>Fit depth</strong> compresses it while keeping the shoreline. The <a href={`${base}/guides/custom-lake-depth-map`}>custom lake map guide</a> walks through the whole build.</li>
     <li>Turn on <a href={`${base}/guides/water-paint-templates`}>paint templates</a> to spray only the water on each layer, and <a href={`${base}/guides/split-large-maps`}>split the map</a> if it is bigger than your laser bed.</li>
     <li>Export the SVG layers. The download’s <strong>ATTRIBUTION.txt</strong> credits the survey used.</li>
@@ -83,11 +83,13 @@
 </Article>
 
 <style>
-  .page-links, .lake-list { list-style: none; padding: 0; columns: 3 13rem; column-gap: 32px; }
-  .page-links li, .lake-list li { break-inside: avoid; padding-block: 4px; line-height: 1.45; }
-  .lake-list.detailed { columns: 1; }
+  /* A grid, not CSS columns: article list items carry a vertical margin that
+     multi-column layout keeps only at the top of the first column, and WebKit
+     splits a lone item's text from its underline across columns. */
+  .page-links, .lake-list { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); column-gap: 32px; align-items: start; }
+  .page-links li, .lake-list li { margin: 0; padding-block: 4px; line-height: 1.45; }
+  .lake-list.detailed, .featured { grid-template-columns: 1fr; }
   .lake-list.detailed li { padding-block: 10px; border-bottom: 1px solid var(--loidolt-border); }
-  .featured { columns: 1; }
   .meta, .note { color: var(--loidolt-text-muted); font-size: 13px; }
   .meta { margin-left: 6px; }
   .note { display: block; }
