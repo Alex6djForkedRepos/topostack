@@ -341,7 +341,9 @@ jobs:
   # A dev -> main promotion carries a "Release vX.Y.Z" commit from
   # release-prepare.yml. Once production is deployed, tag that version and
   # publish its GitHub release from the changelog. Reruns and promotions that
-  # did not bump the version find the tag and do nothing.
+  # did not bump the version find the tag and do nothing. The release is not
+  # marked Latest: that stays on the Atomm release (release-atomm.yml), whose
+  # assets are what people download.
   tag-release:
     name: Tag release
     needs: deploy-worker
@@ -380,7 +382,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "v$VERSION" "$GITHUB_SHA" -m "TopoStack $VERSION"
           git push origin "v$VERSION"
-          gh release create "v$VERSION" --verify-tag --title "TopoStack $VERSION" --notes-file "$RUNNER_TEMP/notes.md" --latest
+          gh release create "v$VERSION" --verify-tag --title "TopoStack $VERSION" --notes-file "$RUNNER_TEMP/notes.md" --latest=false
 
   package-atomm:
     name: Package Atomm release

@@ -11,7 +11,7 @@
 </svelte:head>
 
 <Article title="Changelog" intro="New features, improvements and fixes in each TopoStack release, newest first.">
-  <p>Follow new releases with the <a href={`${base}/changelog.xml`}>Atom feed</a>, or report a problem from the feedback button at the bottom of any page.</p>
+  <p>Subscribe to the <a href={`${base}/changelog.xml`}>changelog feed</a> in any feed reader to hear about new releases, or report a problem from the feedback button at the bottom of any page.</p>
   {#if data.unreleased.length}
     <section>
       <h2 id="unreleased">Unreleased</h2>

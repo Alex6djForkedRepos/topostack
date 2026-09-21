@@ -28,12 +28,12 @@ test("validates stable and prerelease versions without ambiguous numeric identif
   assert.equal(nextVersion("0.1.0", "1.0.0-rc.1"), "1.0.0-rc.1");
 });
 
-test("main bumps synchronize every workspace and lock entry without changing Atomm or dependency data", async (t) => {
+test("main bumps synchronize every workspace, lock entry and the Atomm manifest without changing dependency data", async (t) => {
   const base = await fixture(t);
-  const before = await readVersions(base);
   const oldLock = JSON.parse(await readFile(new URL("package-lock.json", base), "utf8"));
   const version = await bumpVersion("main", "minor", base);
-  assert.deepEqual(await readVersions(base), { version, atommVersion: before.atommVersion });
+  assert.deepEqual(await readVersions(base), { version, atommVersion: version });
+  assert.equal(JSON.parse(await readFile(new URL("atomm/version.json", base), "utf8")).version, version, "the Atomm package moves with the main version");
   const newLock = JSON.parse(await readFile(new URL("package-lock.json", base), "utf8"));
   assert.equal(JSON.parse(await readFile(new URL("packages/data-contracts/package.json", base), "utf8")).version, version);
   oldLock.version = version;
@@ -41,16 +41,17 @@ test("main bumps synchronize every workspace and lock entry without changing Ato
   assert.deepEqual(newLock, oldLock);
 });
 
-test("Atomm bumps independently and invalid input makes no edits", async (t) => {
+test("Atomm cannot be bumped or drift on its own, and invalid input makes no edits", async (t) => {
   const base = await fixture(t);
   const before = await readVersions(base);
   const lock = await readFile(new URL("package-lock.json", base), "utf8");
-  const atommVersion = await bumpVersion("atomm", "patch", base);
-  assert.deepEqual(await readVersions(base), { version: before.version, atommVersion });
-  await assert.rejects(bumpVersion("atomm", "broken", base));
+  await assert.rejects(bumpVersion("atomm", "patch", base), /follows the main version/);
+  await assert.rejects(bumpVersion("main", "broken", base));
   await assert.rejects(bumpVersion("other", "patch", base));
-  assert.deepEqual(await readVersions(base), { version: before.version, atommVersion });
+  assert.deepEqual(await readVersions(base), before);
   assert.equal(await readFile(new URL("package-lock.json", base), "utf8"), lock);
+  await writeFile(new URL("atomm/version.json", base), JSON.stringify({ version: "9.9.9" }));
+  await assert.rejects(readVersions(base), /atomm\/version\.json is out of sync/);
 });
 
 test("detects workspace and lock drift before attempting a bump", async (t) => {

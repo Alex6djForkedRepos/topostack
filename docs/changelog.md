@@ -1,6 +1,6 @@
 # Changelog and releases
 
-TopoStack's changelog is written once, in the pull request that makes a change, and everything after that is automated: the version bump, the release commit, the tag, the GitHub release, the [/changelog](https://topostack.app/changelog) page, its [Atom feed](https://topostack.app/changelog.xml), the studio's what's-new marker, and the Atomm release notes.
+TopoStack's changelog is written once, in the pull request that makes a change, and everything after that is automated: the version bump, the release commit, the tag, the GitHub release, the [/changelog](https://topostack.app/changelog) page, its [feed](https://topostack.app/changelog.xml) (Atom format, readable by any feed reader), the studio's what's-new marker, and the Atomm release notes.
 
 ## Flow
 
@@ -11,7 +11,8 @@ dev -> main PR opened  release-prepare.yml folds every fragment into changelog/r
                        bumps all workspace versions, and pushes "Release vX.Y.Z" to dev
 merge to main          CI deploys production (page and feed already built from releases.json),
                        then tag-release creates tag vX.Y.Z and its GitHub release
-Atomm publish          release-atomm.yml adds the releases since the previous atomm-v* tag
+CI run succeeds        release-atomm.yml publishes that run's package as atomm-vX.Y.Z (marked Latest),
+                       with the changelog since the previous atomm-v* release
 ```
 
 ## Writing a fragment
@@ -56,7 +57,7 @@ Skip the fragment only when users will not notice the change (tests, tooling, re
 - `changelog/latest.json`: the newest version and date. The page registry dates `/changelog` with it, and the studio compares it with the `topostack-changelog-seen` localStorage key. It is the only changelog file in client bundles.
 - `CHANGELOG.md`: generated for readers on GitHub. Do not edit it.
 
-Versions change only through `changelog:prepare`. `changelog:verify` fails when the newest release and the package version disagree, so a manual `npm run version:main` needs a matching release entry. The Atomm version is still bumped by hand (`npm run version:atomm`).
+Versions change only through `changelog:prepare`. `changelog:verify` fails when the newest release and the package version disagree, so a manual `npm run version:main` needs a matching release entry. The Atomm package shares the version: `atomm/version.json` is bumped with every workspace, `version:check` rejects drift, and each release publishes both `vX.Y.Z` and `atomm-vX.Y.Z`. The web-app release is not marked Latest, so the Releases page leads with the downloadable Atomm package.
 
 ## Setup
 
@@ -70,4 +71,5 @@ This relies on the `dev` ruleset allowing ordinary pushes from GitHub Actions (i
 - **Nothing was prepared.** The promotion pull request's Changelog check fails with "unreleased fragment(s) remain". Re-run Prepare release from the pull request's checks; if its push was rejected, check the `dev` ruleset.
 - **The release commit has no checks.** Start them by hand: `gh workflow run ci.yml --ref dev` and `gh workflow run changelog.yml --ref dev`.
 - **Tagging failed after deploy.** Re-run the `Tag release` job. It skips a version that is already tagged, and tags are never moved.
+- **The Atomm release did not publish.** Run Publish Atomm release by hand with the production CI run ID and `atomm-vX.Y.Z`. It resumes a draft left by a partial run.
 - **A fix after release.** Edit the entry in `releases.json`, run `npm run changelog:render`, and ship it like any change. The page and feed update on the next deploy; the GitHub release body is edited by hand.

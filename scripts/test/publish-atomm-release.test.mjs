@@ -8,7 +8,7 @@ const repository = "Echo-Foxtrot-Works/topostack";
 const run = { repository: { full_name: repository }, path: ".github/workflows/ci.yml", head_branch: "main", event: "push", status: "completed", conclusion: "success", head_sha: commit };
 const archive = Buffer.from("test artifact bytes");
 const digest = createHash("sha256").update(archive).digest("hex");
-const receipt = { schemaVersion: 1, version: "0.1.0", atommVersion: "0.2.0", commit, workingTreeDirty: false, apiOrigin: "https://topostack.app", archive: "topostack-atomm-v0.2.0.zip", bytes: archive.length, sha256: digest };
+const receipt = { schemaVersion: 1, version: "0.2.0", atommVersion: "0.2.0", commit, workingTreeDirty: false, apiOrigin: "https://topostack.app", archive: "topostack-atomm-v0.2.0.zip", bytes: archive.length, sha256: digest };
 const checksum = `${digest}  topostack-atomm-v0.2.0.zip\n`;
 
 test("accepts completed production CI and its matching clean artifact", () => {
@@ -32,7 +32,7 @@ test("rejects mismatched, dirty, nonproduction, and tampered artifacts", () => {
 
 test("rejects missing versions and tags that do not match the packaged version", () => {
   assert.throws(() => validatePackage(receipt, archive, checksum, commit, "atomm-v0.3.0"));
-  for (const patch of [{ version: undefined }, { atommVersion: undefined }, { atommVersion: "01.2.0" }]) {
+  for (const patch of [{ version: undefined }, { atommVersion: undefined }, { atommVersion: "01.2.0" }, { version: "0.1.0" }]) {
     assert.throws(() => validatePackage({ ...receipt, ...patch }, archive, checksum, commit, "atomm-v0.2.0"));
   }
 });

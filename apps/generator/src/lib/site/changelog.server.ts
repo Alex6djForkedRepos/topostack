@@ -58,7 +58,7 @@ function tokenHtml(token: InlineToken): string {
   return `<a href="${escapeXml(token.href.startsWith("/") ? SITE_ORIGIN + token.href : token.href)}">${escapeXml(token.text)}</a>`;
 }
 
-/** One release as HTML for the Atom feed; every token is escaped. */
+/** One release as HTML for the feed (Atom format); every token is escaped. */
 export function releaseHtml(release: ReleaseView): string {
   return release.groups.map((group) => `<h3>${group.label}</h3><ul>${group.entries.map((entry) =>
     `<li><strong>${escapeXml(entry.title)}</strong>: ${entry.tokens.map(tokenHtml).join("")}` +
