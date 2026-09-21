@@ -1,11 +1,10 @@
 import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 import { JSDOM } from "jsdom";
-import { readFileSync } from "node:fs";
-import { PUBLIC_PAGES, SITE_ORIGIN, socialImage } from "../../apps/generator/src/lib/site/seo.ts";
-import { buildLakePages } from "../../apps/generator/src/lib/site/lake-pages.ts";
+import { SITE_ORIGIN } from "../../apps/generator/src/lib/site/seo.ts";
+import { expectedPages } from "./seo-pages.mjs";
 
-const { pages: lakePages } = buildLakePages(JSON.parse(readFileSync(new URL("../../apps/generator/static/data/lake-depth-directory.json", import.meta.url), "utf8")));
+const pages = expectedPages();
 
 // Deployment assets can become available shortly after the Worker itself.
 // Only callers verifying a fresh deployment opt into a shared retry window.
@@ -71,15 +70,14 @@ export async function verifyHttpSeo(origin, environment, { propagationTimeoutMs 
   assert.equal(robots.status, 200);
   assert.match(robots.headers.get("content-type"), /^text\/plain/);
   assert.match(await robots.text(), /^User-agent: \*\nAllow: \//);
-  const publicPaths = Object.keys(PUBLIC_PAGES);
-  const recorded = [...publicPaths.map((path) => [path, PUBLIC_PAGES[path].updated]), ...[...lakePages.values()].map((page) => [page.path, page.updated])];
+  const recorded = [...pages].map(([path, page]) => [path, page.updated]);
   const expectedUrls = production ? recorded.map(([path]) => SITE_ORIGIN + path).sort() : [];
   const recordedDates = Object.fromEntries(recorded.map(([path, updated]) => [SITE_ORIGIN + path, updated]));
   const urls = await fetchSitemapUrls(new URL("/sitemap.xml", origin), expectedUrls, { deadline, lastmod: production ? recordedDates : undefined });
   assert.deepEqual(urls, expectedUrls, "Sitemap must list exactly the public pages");
-  // Every registered page, and each lake region page as a sample of the generated ones.
-  const lakeRegions = [...lakePages.keys()].filter((path) => path.split("/").length === 3);
-  for (const path of [...publicPaths, ...lakeRegions, "/studio"]) {
+  // Every page except the generated lake sub-pages, which the region pages sample.
+  const checked = [...pages].filter(([path, page]) => !page.lake || path.split("/").length === 3).map(([path]) => path);
+  for (const path of [...checked, "/studio"]) {
     const response = await get(path);
     assert.equal(response.status, 200, path);
     const document = new JSDOM(await response.text()).window.document;
@@ -105,7 +103,7 @@ export async function verifyHttpSeo(origin, environment, { propagationTimeoutMs 
   assert.match(image.headers.get("content-type"), /image\/png/);
   // Every declared sharing card must actually be fetchable: a 404 here means
   // link previews render without an image wherever the page is shared.
-  for (const url of new Set(publicPaths.map((path) => socialImage(path).url))) {
+  for (const url of new Set([...pages.values()].map((page) => page.image.url))) {
     const card = await get(url);
     assert.equal(card.status, 200, url + " sharing card");
     assert.match(card.headers.get("content-type"), /^image\//, url + " content type");

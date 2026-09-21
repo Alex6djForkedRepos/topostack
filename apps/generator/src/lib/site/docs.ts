@@ -12,7 +12,7 @@ export const DOCS_SECTIONS: readonly { id: string; title: string; summary: strin
     id: "start",
     title: "Get started",
     summary: "Find your way around the studio and follow a complete first project.",
-    paths: ["/guides/studio-tour", "/examples/crater-lake"],
+    paths: ["/guides/studio-tour", "/examples", "/examples/crater-lake"],
   },
   {
     id: "make",

@@ -1,0 +1,96 @@
+{
+  "project": {
+    "schemaVersion": 1,
+    "id": "topostack-example-yosemite-valley",
+    "name": "Yosemite Valley · TopoStack example",
+    "location": {
+      "lat": 37.735,
+      "lon": -119.585,
+      "label": "Yosemite Valley, California, USA",
+      "zoom": 11,
+      "bounds": {
+        "west": -119.67587046838706,
+        "south": 37.68676690025093,
+        "east": -119.49412953161293,
+        "north": 37.78323309974907
+      }
+    },
+    "cropShape": "rectangle",
+    "units": "metric",
+    "outputMode": "stack",
+    "widthMm": 406.4,
+    "heightMm": 270.933,
+    "engravingContourCount": 12,
+    "engravingIndexInterval": 5,
+    "showEngravingBorder": true,
+    "lineStyle": {
+      "contourMm": 0.16,
+      "indexContourMm": 0.32,
+      "majorRoadMm": 0.38,
+      "localRoadMm": 0.26,
+      "trailMm": 0.22,
+      "waterMm": 0.3,
+      "boundaryMm": 0.24,
+      "coordinateGridMm": 0.16,
+      "annotationMm": 0.2,
+      "borderMm": 0.34,
+      "trailPattern": "dashed",
+      "roadStyle": "centerline",
+      "majorRoadSpacingMm": 0.8,
+      "roadCap": "round"
+    },
+    "materialThicknessMm": 3.175,
+    "verticalExaggeration": 1.25,
+    "minimumFeatureMm": 0.8,
+    "smoothing": 1,
+    "showRoads": true,
+    "showTrails": true,
+    "showTransportationLabels": false,
+    "showWater": true,
+    "waterFillPattern": "none",
+    "showBoundaries": false,
+    "showCoordinateGrid": false,
+    "showWaterDepth": true,
+    "waterDepthExaggeration": 1,
+    "fitLakeDepth": false,
+    "waterDepthOverrides": {},
+    "showAlignmentGuides": true,
+    "optimizeMaterialUse": true,
+    "glueMarginMm": 8,
+    "laserKerfMm": 0.15,
+    "showElevationLabels": true,
+    "elevationLabelPosition": {
+      "x": -0.55,
+      "y": 0.55
+    },
+    "textStyle": {
+      "font": "technical",
+      "sizeMm": 3.1
+    },
+    "showNorthArrow": true,
+    "northArrowStyle": "classic",
+    "northArrowSizeMm": 24,
+    "northArrowPlacement": {
+      "anchor": "bottom-right",
+      "offset": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    "showScaleBar": true,
+    "markers": [],
+    "customLines": [],
+    "explodedPreview": 0
+  },
+  "capture": {
+    "capturedAt": "2026-09-21",
+    "layers": 18,
+    "reliefM": 1714,
+    "heightMm": 57.15,
+    "surveyed": false,
+    "image": {
+      "width": 1105,
+      "height": 668
+    }
+  }
+}

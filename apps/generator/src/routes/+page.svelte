@@ -84,7 +84,7 @@
     <section class="section" aria-labelledby="example-title">
       <div class="section-heading"><p class="eyebrow">Inside the studio</p><h2 id="example-title">Explore the Crater Lake terrain preview</h2><p>See how real elevation becomes a stack of contours. Follow the example, then generate fresh terrain to create your own fabrication files.</p></div>
       <figure class="studio-example"><picture><source type="image/webp" srcset={`${base}/images/studio-crater-lake-640.webp 640w, ${base}/images/studio-crater-lake.webp 1280w`} sizes="(max-width: 720px) 100vw, 1280px" /><img src={`${base}/images/studio-crater-lake.png`} width="1280" height="900" loading="lazy" decoding="async" alt="TopoStack studio with freshly generated Crater Lake terrain and USGS surveyed lake-floor relief." /></picture><figcaption>Crater Lake with USGS surveyed bathymetry where available. Gaps use existing terrain or modeled depths; depth is exaggerated.</figcaption></figure>
-      <a class="secondary-link" href={`${base}/examples/crater-lake`}>Follow the Crater Lake project <ArrowRight size={16} aria-hidden="true" /></a>
+      <div class="example-links"><a class="secondary-link" href={`${base}/examples/crater-lake`}>Follow the Crater Lake project <ArrowRight size={16} aria-hidden="true" /></a><a class="secondary-link" href={`${base}/examples`}>More examples: Grand Canyon, Mount Fuji and others <ArrowRight size={16} aria-hidden="true" /></a></div>
     </section>
 
     <section class="section details-section" aria-labelledby="details-title">
@@ -175,6 +175,7 @@
   h1 { font-size: clamp(36px, 4.5vw, 58px); line-height: 1.09; letter-spacing: -0.045em; margin-bottom: 25px; font-weight: 600; }
   h1 span { color: var(--loidolt-text-muted); }
   .studio-example { margin: 24px 0; }
+  .example-links { display: flex; flex-wrap: wrap; gap: 0 28px; }
   .studio-example img { display: block; width: 100%; height: auto; border: 1px solid var(--loidolt-border); border-radius: var(--loidolt-border-radius); }
   p { font-size: 15px; line-height: 1.75; color: var(--loidolt-text-muted); }
   .intro { max-width: 480px; font-size: 17px; margin-bottom: 30px; }

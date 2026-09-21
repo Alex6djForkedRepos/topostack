@@ -83,6 +83,23 @@ generated at build time from `static/data/lake-depth-directory.json` by
   verifiers include the generated pages. Usage events from any `/lakes/*` page
   report the `/lakes` landing.
 
+## Example projects
+
+`/examples` lists worked projects; each page under `/examples/<slug>` comes from
+`ALL_EXAMPLES` in `apps/generator/src/lib/site/examples.ts` (Crater Lake keeps
+its own route). Pages never state numbers by hand: layer count, elevation range
+and model height come from `static/examples/<slug>.json`, which
+`scripts/dev/capture-examples.mjs` writes after generating the project in the
+real studio. The same file is the download; the studio imports it directly.
+
+- To add or change an example, edit its entry and re-run the capture for that
+  slug. `examples.test.ts` fails when the committed project file no longer
+  matches the entry, or when a render, card or capture is missing.
+- An entry with `draft` set is captured on request but gets no page. Lake Tahoe
+  is a draft until its survey stops rendering with east–west bands.
+- Sharing cards are 1200×630 JPEGs; renders are WebP at capture size plus an
+  800 px variant.
+
 ## Non-goals
 
 `FAQPage` and `HowTo` structured data are intentionally absent. Google removed

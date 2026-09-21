@@ -80,7 +80,9 @@ const budgets = {
   // with Node 22.22.2 and 10,003 with supported Node 26.5.0. Leave roughly
   // 2% compression headroom; the total CSS ceiling remains unchanged.
   atommCssGzip: 10_200,
-  totalCssGzip: 46_500,
+  // Raised 2026-09-21 for the example gallery and example pages: 46,396 ->
+  // 46,699 total with Node 22.22.2 (production build).
+  totalCssGzip: 47_500,
   // 7,775 records across 11 sources (~306 kB); fetched only when browsing/searching.
   lakeDirectoryGzip: 320_000,
   studioHtmlBytes: 10_000,

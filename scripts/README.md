@@ -26,6 +26,7 @@ Local helpers; nothing in CI depends on them.
 | `capture-feature-update.mjs` | Screenshot a feature for a release note or docs image | manual |
 | `capture-preview-fixture.mjs` | Regenerate the bundled Crater Lake preview source (`sample-preview.generated.ts`) | manual |
 | `capture-readme-assets.mjs` | Screenshot the studio and workflows for the README images | manual |
+| `capture-examples.mjs` | Generate each example project in the studio and save its render, sharing card and project file (`node scripts/dev/capture-examples.mjs [slug ...]` against `npm run dev`; needs `cwebp`) | manual |
 | `dev.mjs` | Start the generator and the map-api Worker together, picking free ports | `npm run dev` |
 
 ## Data builders (Python) (`data-build/`)
