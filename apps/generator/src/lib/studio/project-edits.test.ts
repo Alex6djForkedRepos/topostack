@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_PROJECT, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_MAP_MARKERS, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, type CustomLineFeatureV1, type ProjectConfigV1 } from "@topostack/core";
-import { addCustomLine, addCustomLinePoint, addMarker, canAddCustomLine, northArrowMaximumMm, removeCustomLine, removeCustomLinePoint, removeMarker, updateCustomLine, updateCustomLinePoint, updateMarker } from "$lib/studio/project-edits";
+import { addCustomLine, addCustomLinePoint, addMarker, appendCustomData, canAddCustomLine, customDataCapacity, northArrowMaximumMm, removeCustomLine, removeCustomLinePoint, removeMarker, updateCustomLine, updateCustomLinePoint, updateMarker } from "$lib/studio/project-edits";
 
 const line = (id: string, count = 2): CustomLineFeatureV1 => ({ id, kind: "trail", points: Array.from({ length: count }, (_, index) => ({ lat: 40, lon: -105 + index * 0.01 })) });
 const withData = (patch: Partial<ProjectConfigV1>): ProjectConfigV1 => ({ ...DEFAULT_PROJECT, ...patch });
@@ -66,5 +66,16 @@ describe("custom line edits", () => {
     expect(removeCustomLinePoint(project, "a", 0)?.customLines[0]?.points).toHaveLength(2);
     expect(removeCustomLinePoint(project, "b", 0)).toBeUndefined();
     expect(removeCustomLine(project, "a").customLines.map((item) => item.id)).toEqual(["b"]);
+  });
+});
+
+describe("imported custom data", () => {
+  it("reports the remaining allowance and appends pins and paths with fresh ids", () => {
+    const project: ProjectConfigV1 = { ...DEFAULT_PROJECT, markers: [{ id: "m", lat: 1, lon: 1, symbol: "star", sizeMm: 5 }], customLines: [{ id: "l", kind: "boundary", points: [{ lat: 1, lon: 1 }, { lat: 2, lon: 2 }, { lat: 3, lon: 3 }] }] };
+    expect(customDataCapacity(project)).toEqual({ markers: MAX_MAP_MARKERS - 1, lines: 249, points: MAX_CUSTOM_DATA_POINTS - 3 });
+    let id = 0;
+    const patch = appendCustomData(project, { markers: [{ lat: 4, lon: 5 }], lines: [{ kind: "trail", points: [{ lat: 4, lon: 5 }, { lat: 6, lon: 7 }] }] }, () => `new-${id += 1}`);
+    expect(patch.markers).toEqual([project.markers[0], { id: "new-1", lat: 4, lon: 5, symbol: "pin", sizeMm: 8 }]);
+    expect(patch.customLines).toEqual([project.customLines[0], { id: "new-2", kind: "trail", points: [{ lat: 4, lon: 5 }, { lat: 6, lon: 7 }] }]);
   });
 });
