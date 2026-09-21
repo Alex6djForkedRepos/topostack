@@ -88,6 +88,31 @@ describe("TopoStack Svelte shell", () => {
     await vi.waitFor(() => expect(saveProject).toHaveBeenLastCalledWith(DEFAULT_PROJECT));
   });
 
+  it("undoes and redoes project edits from the keyboard outside text fields", async () => {
+    const { saveProject } = await import("$lib/storage/storage");
+    vi.mocked(saveProject).mockClear();
+    const target = document.createElement("div");
+    document.body.append(target);
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    const name = () => target.querySelector<HTMLInputElement>('[aria-label="Project name"]')!;
+    await vi.waitFor(() => expect(target.querySelector<HTMLButtonElement>('button[aria-label="Reset project"]')?.disabled).toBe(false));
+    name().value = "Keyboard peak";
+    name().dispatchEvent(new Event("input", { bubbles: true }));
+    await vi.waitFor(() => expect(target.querySelector<HTMLButtonElement>('button[aria-label="Undo"]')?.disabled).toBe(false));
+    // Inside a text field the browser's own undo wins.
+    const fromField = new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true, cancelable: true });
+    name().dispatchEvent(fromField);
+    expect(fromField.defaultPrevented).toBe(false);
+    expect(name().value).toBe("Keyboard peak");
+    const undoKey = new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true, cancelable: true });
+    document.body.dispatchEvent(undoKey);
+    expect(undoKey.defaultPrevented).toBe(true);
+    await vi.waitFor(() => expect(name().value).toBe("Crater Lake"));
+    document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Z", metaKey: true, shiftKey: true, bubbles: true, cancelable: true }));
+    await vi.waitFor(() => expect(name().value).toBe("Keyboard peak"));
+    target.remove();
+  });
+
   it("discards terrain generation that finishes after resetting the project", async () => {
     const { saveProject } = await import("$lib/storage/storage");
     let finish: ((value: unknown) => void) | undefined;
@@ -103,8 +128,11 @@ describe("TopoStack Svelte shell", () => {
     [...target.querySelectorAll<HTMLButtonElement>(".reset-dialog button")].find((button) => button.textContent?.trim() === "Reset project")!.click();
     await tick();
     finish!({ source: createSyntheticSource(DEFAULT_PROJECT, 32), fallback: true });
-    await vi.waitFor(() => expect(saveProject).toHaveBeenLastCalledWith(DEFAULT_PROJECT));
-    expect(target.querySelector(".status-line")?.textContent).toContain("Project reset to Crater Lake defaults");
+    await vi.waitFor(() => expect(target.querySelector(".status-line")?.textContent).toContain("Project reset to Crater Lake defaults"));
+    // Flush the pending snapshot rather than relying on an earlier test's last save.
+    vi.mocked(saveProject).mockClear();
+    window.dispatchEvent(new Event("pagehide"));
+    expect(saveProject).toHaveBeenLastCalledWith(DEFAULT_PROJECT);
     expect(target.textContent).not.toContain("Sample terrain generated");
   });
 
