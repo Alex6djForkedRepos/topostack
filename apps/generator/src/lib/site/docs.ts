@@ -29,8 +29,8 @@ export const DOCS_SECTIONS: readonly { id: string; title: string; summary: strin
   {
     id: "lakes",
     title: "Lakes and depth",
-    summary: "How TopoStack builds lake floors from surveys and terrain, and which lakes have surveyed data.",
-    paths: ["/guides/how-lake-depths-work", "/guides/lake-depth-data"],
+    summary: "Make a layered lake map, browse lakes with surveyed depth data, and learn how TopoStack builds lake floors.",
+    paths: ["/guides/custom-lake-depth-map", "/lakes", "/guides/lake-depth-data", "/guides/how-lake-depths-work"],
   },
   {
     id: "help",

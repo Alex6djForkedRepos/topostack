@@ -53,7 +53,12 @@ const budgets = {
   // anchoring and validation ship in generateGeometry, counted on the main
   // thread and in the worker). dev already sat under the 2% headroom note;
   // set to 490,000 to restore roughly 1.5%.
-  startupJavaScriptGzip: 490_000,
+  // The lake depth routes (/lakes, two generated lake page templates) and the
+  // custom lake map guide add route entries the studio never loads but this
+  // total counts. Raised 2026-09-21: 482,942 on dev (with the head-metadata
+  // change) -> 489,247 with the lake pages, leaving 0.15%; set to 500,000 to
+  // restore roughly 2%. Node 22.22.2, production build.
+  startupJavaScriptGzip: 500_000,
   // All routes, lazy-loaded tools, and workers, including the interactive lake
   // guide and MapLibre's worker. The fetched lake catalog is budgeted below.
   // Raised 2026-09-17 for the same two guide routes: 888,934 -> 895,695.
@@ -87,7 +92,9 @@ const budgets = {
   // with Node 22.22.2 and 10,003 with supported Node 26.5.0. Leave roughly
   // 2% compression headroom; the total CSS ceiling remains unchanged.
   atommCssGzip: 10_200,
-  totalCssGzip: 46_500,
+  // Raised 2026-09-21 for the lake depth pages: 46,218 on dev (with the
+  // head-metadata change) -> 46,724, Node 22.22.2, production build.
+  totalCssGzip: 47_500,
   // 7,775 records across 11 sources (~306 kB); fetched only when browsing/searching.
   lakeDirectoryGzip: 320_000,
   studioHtmlBytes: 10_000,

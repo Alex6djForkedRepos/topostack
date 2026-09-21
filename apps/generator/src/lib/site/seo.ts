@@ -86,6 +86,20 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     published: "2026-09-15",
     updated: "2026-09-17",
   },
+  "/guides/custom-lake-depth-map": {
+    title: "How to Make a Custom Lake Depth Map from Wood | TopoStack",
+    description: "Make a layered wooden lake map from surveyed depth data. Find your lake, frame the shoreline, set depth layers, paint the water and export SVG files.",
+    label: "Custom lake depth map",
+    published: "2026-09-21",
+    updated: "2026-09-21",
+  },
+  "/lakes": {
+    title: "Lake Depth Maps for Laser Cutting: Surveyed Lakes by Region | TopoStack",
+    description: "Browse thousands of lakes with surveyed depth data in Minnesota, Ontario, Finland, Norway, Switzerland and the Great Lakes, and turn one into a layered wood lake map.",
+    label: "Lake depth maps by region",
+    published: "2026-09-21",
+    updated: "2026-09-21",
+  },
   "/guides/how-lake-depths-work": {
     title: "How Lake Depths Work: Surveys, Predictions and Layers | TopoStack",
     description: "Learn how TopoStack combines lake surveys, shoreline terrain and depth estimates, handles missing data, and turns lake floors into cut layers.",
