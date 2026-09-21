@@ -1,9 +1,7 @@
 <script lang="ts">
   import { onMount, untrack, setContext } from "svelte";
-  import { base } from "$app/paths";
-  import { House } from "@lucide/svelte";
   import { Download } from "@lucide/svelte";
-  import { AppShell, Brand, Button, ContextBar, Sidebar, ThemeToggle, Topbar, Workspace } from "@loidolt/theme-svelte";
+  import { AppShell, Brand, Button, ContextBar, Sidebar, Topbar, Workspace } from "@loidolt/theme-svelte";
   import { sourceRequirements, DEFAULT_PROJECT, planSeamGrid, displayElevation, displayLength, elevationUnit, generateGeometry, labelPathData, lengthUnit, MAX_PROJECT_NAME_LENGTH, millimetersFromDisplay, planTerrainStack, projectFingerprint, validateProject, type GeometryIRV1, type LineStyleV1, type OperationPath, type ProjectConfigV1, type SourceBundleV1 } from "@topostack/core";
   import { assembleWater, boundsForProject, loadLakeAreas, loadSurveyedLakeDepths, loadTerrain, loadVectorMarkings, type PlaceResult } from "$lib/domain/data-provider";
   import { applySurveyProvenance } from "$lib/domain/bathymetry";
@@ -37,7 +35,7 @@
   import { generationStatus, generationToast, previewPendingStatus, previewUpdatedStatus, type PreviewUpdateKind } from "$lib/studio/status-messages";
   import { provideStudio, type GenerateState, type LineWidthKey, type PreviewMode } from "$lib/studio/studio-context";
   import ProjectControls from "$lib/studio/panels/ProjectControls.svelte";
-  import WhatsNewLink from "$lib/studio/panels/WhatsNewLink.svelte";
+  import StudioMenu from "$lib/studio/panels/StudioMenu.svelte";
   import OutputSwitch from "$lib/studio/panels/OutputSwitch.svelte";
   import SetupSection from "$lib/studio/panels/SetupSection.svelte";
   import CustomDataSection from "$lib/studio/panels/CustomDataSection.svelte";
@@ -191,6 +189,8 @@
   const terrainDataAction = $derived(geometry.sourceKind === "real" ? "regenerate" : "generate");
   const exportBlockedBy = $derived(exportBlockReason(geometry, project));
   const exportReady = $derived(!exportBlockedBy);
+  const exportStatusLabel = $derived(exportPhase === "preparing" ? "Preparing files" : exportPhase === "ready" ? "Export ready" : exportPhase === "error" ? "Export failed" : exportReady ? "Ready to export" : "Generate before export");
+  const exportStatusTone = $derived(exportPhase === "error" ? "error" : exportPhase === "preparing" ? "busy" : exportReady ? "ready" : "blocked");
   const platformExportAvailable = $derived(atommReady && embeddedInPlatform);
   const lakeDepthFittingOn = $derived(project.outputMode === "stack" && project.showWaterDepth && project.fitLakeDepth
     && geometry.waterSurfaces.some((surface) => surface.kind === "lake" && surface.depthFitScale !== undefined && surface.depthFitScale < 1));
@@ -208,6 +208,9 @@
 
   const layerTicks = $derived(geometry.layers.map((layer) => Math.round(displayElevation(layer.elevationM, project.units))));
   const shownLengthUnit = $derived(lengthUnit(project.units));
+  const outputSummary = $derived(project.outputMode === "engraving"
+    ? [`${project.engravingContourCount} contours`, "No cut paths"]
+    : [`${geometry.layers.length} layers`, `${fabricationPanelCount} cut panels`, `${shownLength(totalHeight)} ${shownLengthUnit} tall`]);
   const seamGrid = $derived(planSeamGrid(project));
   const seamSummary = $derived(seamGrid
     ? `${seamGrid.columns} × ${seamGrid.rows} sheets per layer · ${shownLength(seamGrid.pitchXMm)} × ${shownLength(seamGrid.pitchYMm)} ${shownLengthUnit} tiles`
@@ -743,6 +746,7 @@
     get exportPhase() { return exportPhase; },
     get exportBlockedBy() { return exportBlockedBy; },
     get exportReady() { return exportReady; },
+    get outputSummary() { return outputSummary; },
     get booted() { return booted; },
     get historyAvailability() { return historyAvailability; },
     get embeddedInPlatform() { return embeddedInPlatform; },
@@ -818,11 +822,9 @@
           <ProjectControls />
         {/snippet}
         {#snippet actions()}
-          <div class="bar-meta">{#if project.outputMode === "engraving"}<span>{project.engravingContourCount} contours</span><span>1 engrave SVG</span><span>No cut paths</span>{:else}<span>{geometry.layers.length} layers</span><span>{fabricationPanelCount} cut panels</span><span>{shownLength(totalHeight)} {shownLengthUnit} tall</span>{/if}</div>
-          <Button class="export-trigger" aria-label="Export" title="Export" aria-haspopup="dialog" onclick={(event: MouseEvent) => { if (event.currentTarget instanceof HTMLElement) event.currentTarget.focus(); exportOpen = true; }}><Download size={18} aria-hidden="true" /><span class="export-trigger-label">Export</span></Button>
-          <ThemeToggle {theme} class="theme-toggle" />
-          {#if import.meta.env.VITE_SITE_ENV !== "atomm"}<WhatsNewLink />{/if}
-          <a class="about-link" href={`${base}/`} target="_blank" rel="noopener noreferrer" aria-label="TopoStack home and getting started (opens in a new tab)" title="TopoStack home and getting started (opens in a new tab)"><House size={18} aria-hidden="true" /></a>
+          <Button class="export-trigger" aria-label="Export" aria-describedby="export-status" title={exportStatusLabel} aria-haspopup="dialog" onclick={(event: MouseEvent) => { if (event.currentTarget instanceof HTMLElement) event.currentTarget.focus(); exportOpen = true; }}><Download size={18} aria-hidden="true" /><span class="export-trigger-label">Export</span><span class="export-status-dot" data-status={exportStatusTone} aria-hidden="true"></span></Button>
+          <span id="export-status" class="context-export-status ldt-visually-hidden">{exportStatusLabel}</span>
+          <StudioMenu />
         {/snippet}
       </Topbar>
       <ContextBar class="terrain-contextbar" section="Terrain" title={project.location.label.split(",")[0]} detail={project.location.label.split(",").slice(1).join(",") || "Selected coordinates"}>

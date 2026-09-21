@@ -1,4 +1,4 @@
-/* App shell: header, project name, history actions, bar meta, export feedback, context bar, output switch, about and what's-new links. */
+/* App shell: header, project name and menu, history actions, export trigger and feedback, studio menu, context bar, output switch. */
 
 @import "maplibre-gl/dist/maplibre-gl.css";
 
@@ -34,6 +34,20 @@ body:has(.app-shell) {
   letter-spacing: var(--loidolt-font-tracking-wide);
 }
 
+/* The nav now holds only the name, its menu and undo/redo, so it no longer needs
+   the theme's scroll container, which would clip the project menu. */
+.topbar .ldt-topbar__nav {
+  align-items: center;
+  overflow: visible;
+}
+
+.project-identity {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
 .project-name {
   width: 210px;
   min-width: 0;
@@ -59,27 +73,6 @@ body:has(.app-shell) {
 
 .history-actions {
   display: flex;
-}
-
-.bar-meta {
-  margin-left: auto;
-  display: flex;
-  gap: 16px;
-  color: var(--loidolt-text-muted);
-  font: 10px var(--loidolt-font-utility);
-}
-
-.bar-meta span {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.bar-meta span:before {
-  content: "";
-  width: 5px;
-  height: 5px;
-  background: var(--loidolt-border);
 }
 
 .export-feedback {
@@ -140,7 +133,102 @@ body:has(.app-shell) {
 }
 
 .export-trigger {
+  position: relative;
   height: var(--loidolt-size-control);
+}
+
+/* Export readiness rides on the button instead of a separate label. */
+.export-status-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.45;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--loidolt-background) 35%, transparent);
+}
+.export-status-dot[data-status="ready"] { background: var(--loidolt-success); opacity: 1; }
+.export-status-dot[data-status="error"] { background: var(--loidolt-danger); opacity: 1; }
+.export-status-dot[data-status="busy"] { opacity: 1; animation: pulse 1s infinite; }
+
+.ldt-topbar__actions {
+  gap: var(--loidolt-space-2);
+}
+
+.header-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.header-menu__list {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+}
+
+.header-menu__list--start {
+  right: auto;
+  left: 0;
+}
+
+.header-menu__list .ldt-menu__item {
+  cursor: pointer;
+  font-size: var(--loidolt-font-size-sm);
+}
+
+.header-menu__list .ldt-menu__item:focus-visible {
+  outline: 2px solid var(--loidolt-accent);
+  outline-offset: -2px;
+}
+
+.header-menu__list .ldt-menu__item:disabled:hover {
+  color: var(--loidolt-text);
+  background: transparent;
+}
+
+.header-menu__list .ldt-menu__item > svg {
+  flex-shrink: 0;
+  color: var(--loidolt-text-muted);
+}
+
+.studio-menu__row {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.studio-menu__scheme[aria-checked="true"]::after {
+  content: "✓";
+  font: var(--loidolt-font-size-sm) var(--loidolt-font-utility);
+}
+
+.studio-menu__version {
+  padding: 0.35rem 0.55rem 0.2rem;
+  color: var(--loidolt-text-muted);
+  font: var(--loidolt-font-size-xs) var(--loidolt-font-utility);
+  letter-spacing: var(--loidolt-font-tracking-wide);
+}
+
+.studio-menu__badge {
+  padding: 1px 5px;
+  color: var(--loidolt-on-accent);
+  background: var(--loidolt-accent);
+  font: 9px var(--loidolt-font-utility);
+  letter-spacing: var(--loidolt-font-tracking-wide);
+  text-transform: uppercase;
+}
+
+.project-menu-trigger,
+.studio-menu-trigger {
+  position: relative;
+  color: var(--loidolt-text-muted);
+}
+
+.project-menu-trigger[aria-expanded="true"],
+.studio-menu-trigger[aria-expanded="true"] {
+  color: var(--loidolt-text);
+  background: var(--loidolt-surface);
 }
 
 .ldt-contextbar__actions {
@@ -195,20 +283,6 @@ body:has(.app-shell) {
   border-color: color-mix(in srgb, var(--loidolt-on-accent) 45%, transparent);
 }
 
-.context-export-status {
-  white-space: nowrap;
-}
-
-.about-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 36px;
-  min-height: var(--loidolt-size-control);
-  color: var(--loidolt-text-muted);
-  border-radius: var(--loidolt-border-radius);
-}
-.whats-new-link { position: relative; }
 .whats-new-dot {
   position: absolute;
   top: 7px;
@@ -219,8 +293,8 @@ body:has(.app-shell) {
   background: var(--loidolt-accent);
   box-shadow: 0 0 0 2px var(--loidolt-background);
 }
-.about-link:hover { color: var(--loidolt-text); background: var(--loidolt-surface); }
-.about-link:focus-visible { outline: 2px solid var(--loidolt-accent); outline-offset: 3px; }
 @media (pointer: coarse), (max-width: 760px) {
-  .about-link { min-width: 44px; min-height: 44px; }
+  .studio-menu-trigger,
+  .project-menu-trigger { min-width: 44px; min-height: 44px; }
+  .header-menu__list .ldt-menu__item { min-height: 44px; }
 }
