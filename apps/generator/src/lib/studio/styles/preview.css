@@ -91,37 +91,11 @@
   box-shadow: none;
 }
 
-.crop-corner {
-  width: 9px;
-  height: 9px;
-  position: absolute;
-  background: #fff;
-  border: 2px solid var(--loidolt-accent);
-}
 
-.crop-corner-a {
-  left: -6px;
-  top: -6px;
-}
 
-.crop-corner-b {
-  right: -6px;
-  top: -6px;
-}
 
-.crop-corner-c {
-  left: -6px;
-  bottom: -6px;
-}
 
-.crop-corner-d {
-  right: -6px;
-  bottom: -6px;
-}
 
-.crop-circle .crop-corner {
-  display: none;
-}
 
 .map-crosshair {
   position: absolute;
@@ -237,13 +211,6 @@
   font: 9px var(--loidolt-font-utility);
 }
 
-.north-axis {
-  top: 18px;
-  right: 18px;
-  display: flex;
-  gap: 4px;
-  align-items: center;
-}
 
 .layer-elevation {
   left: 18px;

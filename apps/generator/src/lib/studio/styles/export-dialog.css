@@ -1,6 +1,6 @@
 /* Export dialog: recommended download, individual files, support panel. */
 
-/* Export dialog */
+/* Shell */
 .export-dialog:not([open]) { display: none; }
 .export-dialog {
   --export-dialog-gap: 16px;
@@ -13,41 +13,64 @@
   transform: none;
   padding: 0;
   grid-template-rows: auto minmax(0, 1fr);
-  width: min(780px, calc(100% - 2 * var(--export-dialog-gap)));
+  width: min(680px, calc(100% - 2 * var(--export-dialog-gap)));
   height: fit-content;
   max-width: none;
   max-height: calc(100dvh - var(--export-dialog-top) - var(--export-dialog-bottom));
   overflow: hidden;
 }
-.export-dialog .ldt-dialog__header { align-items: flex-start; gap: 16px; }
-.export-dialog .section-kicker { display: block; margin-bottom: 8px; color: var(--loidolt-text-muted); font-size: 9px; }
-.export-dialog .ldt-dialog__title { font-size: 26px; }
-.export-dialog .ldt-dialog__description { overflow-wrap: anywhere; }
-.export-dialog-body { display: grid; grid-auto-rows: max-content; min-height: 0; gap: 20px; overflow-y: auto; overscroll-behavior: contain; }
+.export-dialog .ldt-dialog__header { align-items: flex-start; gap: 16px; padding: 20px 24px; }
+.export-dialog .ldt-dialog__title { font-size: 26px; line-height: 1.2; }
+.export-dialog-body { display: grid; grid-auto-rows: max-content; gap: 16px; min-height: 0; padding: 20px 24px 24px; overflow-y: auto; overscroll-behavior: contain; }
 .export-blocked { margin: 0; padding: 12px 14px; border-left: 3px solid var(--loidolt-accent); background: var(--loidolt-surface-alt); color: var(--loidolt-text-muted); font-size: 12px; line-height: 1.6; }
-.export-hero, .export-hero { gap: 16px; padding: 20px; background: color-mix(in srgb, var(--loidolt-accent) 7%, var(--loidolt-surface)); border-color: color-mix(in srgb, var(--loidolt-accent) 45%, var(--loidolt-border)); }
+
+/* Download buttons: the recommended hero and the smaller rows share one layout. */
+.export-hero, .export-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 12px 14px;
+  text-align: left;
+  background: var(--loidolt-surface);
+  border: 1px solid var(--loidolt-border);
+  border-radius: var(--loidolt-border-radius);
+  transition: border-color 120ms, background 120ms;
+}
+.export-hero-icon, .export-row-icon { display: flex; color: var(--loidolt-accent); }
+.export-hero-copy, .export-row-copy { display: grid; gap: 4px; min-width: 0; }
+.export-hero:focus-visible, .export-row:focus-visible, .export-more summary:focus-visible, .export-donate:focus-visible { outline: 2px solid var(--loidolt-accent); outline-offset: 3px; }
+.export-hero:disabled, .export-row:disabled { opacity: 0.5; }
+
+.export-hero { gap: 16px; padding: 20px; background: color-mix(in srgb, var(--loidolt-accent) 7%, var(--loidolt-surface)); border-color: color-mix(in srgb, var(--loidolt-accent) 45%, var(--loidolt-border)); }
 .export-hero:hover:enabled { border-color: var(--loidolt-accent); background: color-mix(in srgb, var(--loidolt-accent) 12%, var(--loidolt-surface)); }
 .export-hero-kicker { font: 10px var(--loidolt-font-utility); letter-spacing: 0.08em; text-transform: uppercase; color: var(--loidolt-accent); }
 .export-hero strong { font-size: 17px; font-weight: 600; }
 .export-hero-description { color: var(--loidolt-text-muted); font-size: 12px; line-height: 1.55; }
-.export-hero-action { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 18px; border-radius: var(--loidolt-border-radius); background: var(--loidolt-accent); color: var(--loidolt-on-accent); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.export-hero-action { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 18px; border-radius: var(--loidolt-border-radius); background: var(--loidolt-accent); color: var(--loidolt-on-accent); font-size: 13px; font-weight: 600; white-space: nowrap; transition: background 120ms; }
 .export-hero:hover:enabled .export-hero-action { background: var(--loidolt-accent-hover); }
-.export-more { border-top: 1px solid var(--loidolt-border); padding-top: 14px; }
-.export-more summary { display: flex; align-items: center; gap: 8px; min-height: 36px; list-style: none; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--loidolt-text); }
-.export-more summary::-webkit-details-marker { display: none; }
-.export-more summary::before { content: "›"; width: 12px; font-size: 18px; line-height: 1; color: var(--loidolt-text-muted); transition: transform 120ms; }
-.export-more[open] summary::before { transform: rotate(90deg); }
-.export-rows { display: grid; gap: 8px; margin-top: 10px; }
+
 .export-row:hover:enabled { border-color: var(--loidolt-accent); background: color-mix(in srgb, var(--loidolt-accent) 8%, var(--loidolt-surface)); }
-.export-hero-icon, .export-row-icon { display: flex; color: var(--loidolt-accent); }
-.export-hero-copy, .export-row-copy { display: grid; gap: 4px; min-width: 0; }
 .export-row-copy strong { font-size: 13px; font-weight: 600; }
 .export-row-copy span { color: var(--loidolt-text-muted); font-size: 12px; line-height: 1.5; }
-.export-row-format { display: inline-flex; align-items: center; gap: 6px; font: 10px var(--loidolt-font-utility); letter-spacing: 0.08em; color: var(--loidolt-accent); }
-.export-hero:focus-visible, .export-row:focus-visible, .export-more summary:focus-visible, .export-donate:focus-visible { outline: 2px solid var(--loidolt-accent); outline-offset: 3px; }
-.export-hero:disabled, .export-row:disabled { opacity: 0.5; cursor: not-allowed; }
+.export-row-format { display: inline-flex; align-items: center; gap: 6px; font: 10px var(--loidolt-font-utility); letter-spacing: 0.08em; color: var(--loidolt-accent); white-space: nowrap; }
+
+/* Progress sits inline in the dialog, so it drops the floating-toast shadow. */
+.export-dialog .export-feedback { box-shadow: none; background: var(--loidolt-surface-alt); }
+
+/* Individual files */
+.export-more { padding-top: 12px; border-top: 1px solid var(--loidolt-border); }
+.export-more summary { display: flex; align-items: center; gap: 8px; min-height: 44px; list-style: none; font-size: 13px; font-weight: 600; }
+.export-more summary::-webkit-details-marker { display: none; }
+.export-more summary::before { content: "›"; width: 12px; font-size: 18px; line-height: 1; text-align: center; color: var(--loidolt-text-muted); transition: transform 120ms; }
+.export-more[open] summary::before { transform: rotate(90deg); }
+.export-more-count { padding: 2px 7px; border: 1px solid var(--loidolt-border); border-radius: 999px; font: 400 10px var(--loidolt-font-utility); color: var(--loidolt-text-muted); }
+.export-rows { display: grid; gap: 8px; margin-top: 6px; }
+
+/* Support */
 .export-support { display: flex; gap: 14px; align-items: flex-start; padding-top: 20px; border-top: 1px solid var(--loidolt-border); }
-.export-support-icon { color: var(--loidolt-accent); padding-top: 2px; }
+.export-support-icon { display: flex; padding-top: 2px; color: var(--loidolt-accent); }
 .export-support-copy { flex: 1; min-width: 0; }
 .export-support h3 { margin: 0 0 7px; font-size: 14px; font-weight: 600; }
 .export-support p { margin: 0 0 8px; color: var(--loidolt-text-muted); font-size: 12px; line-height: 1.6; }
@@ -70,6 +93,7 @@
   transition: border-color 120ms, color 120ms;
 }
 .export-donate:hover { border-color: var(--loidolt-accent); color: var(--loidolt-accent); }
+
 @media (prefers-reduced-motion: reduce) {
   .export-donate, .export-hero, .export-row, .export-more summary::before { transition: none; }
   .contour-loader span { animation: none; }
@@ -82,9 +106,12 @@
 }
 @media (max-width: 420px) {
   .export-dialog { --export-dialog-gap: 10px; }
-  .export-dialog .ldt-dialog__header, .export-dialog-body { padding: 18px; }
+  .export-dialog .ldt-dialog__header, .export-dialog-body { padding: 16px; }
   .export-dialog .ldt-dialog__title { font-size: 22px; }
   .export-hero-icon, .export-row-icon { display: none; }
   .export-hero { grid-template-columns: minmax(0, 1fr); }
   .export-row { grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
+  .export-support { grid-template-columns: minmax(0, 1fr); }
+  .export-support-icon { display: none; }
+  .export-donate { grid-column: 1; }
 }
