@@ -37,7 +37,7 @@ export default defineConfig({
             // Capture shared site dependencies before guides so the homepage
             // never needs the guide content chunk. Split shared JS by actual
             // consumers to avoid loading guide-only navigation on the homepage.
-            { name: "site", test: /node_modules\/(?:@loidolt\/|@sveltejs\/kit\/)|\/src\/lib\/(?:FeedbackButton\.svelte|theme\.ts|seo\.ts|support\.ts)$/, priority: 20, entriesAware: true },
+            { name: "site", test: /node_modules\/(?:@loidolt\/|@sveltejs\/kit\/)|\/src\/lib\/site\/(?:FeedbackButton\.svelte|theme\.ts|seo\.ts|support\.ts)$/, priority: 20, entriesAware: true },
             { name: "guides", test: /\/src\/routes\/(?:guides(?:\/.*)?|examples\/[^/]+|privacy)\/\+page\.svelte$/, priority: 10 },
           ],
         },

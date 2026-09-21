@@ -32,6 +32,10 @@ Every generated result records a deterministic project fingerprint and source qu
 
 `index.ts` names every public entry point explicitly. Consumers import `@topostack/core`; nothing outside the package may reach into these folders.
 
+## Generator layout
+
+`apps/generator/src/lib` is split into `domain/`, `storage/`, `workers/`, `site/`, `studio/`, and `atomm/`; routes hold only pages. Modules are imported as `$lib/<layer>/<module>` and relative imports are for siblings only, so a file's dependencies name their layer. See the [generator README](../apps/generator/README.md) for what each layer may import.
+
 ## Coordinate conventions
 
 - Geographic inputs are WGS84 longitude/latitude.

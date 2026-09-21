@@ -8,7 +8,7 @@ import polygonClipping from "polygon-clipping";
 const API_BASE = (process.env.VITE_MAP_API_URL ?? "https://topostack.app").replace(/\/$/, "");
 const VECTOR_ARCHIVE_URL = "https://build.protomaps.com/20260905.pmtiles";
 const LAKE_ARCHIVE_URL = `${API_BASE}/v1/lakes.pmtiles`;
-const OUTPUT = new URL("../apps/generator/src/sample-preview.generated.ts", import.meta.url);
+const OUTPUT = new URL("../apps/generator/src/lib/domain/sample-preview.generated.ts", import.meta.url);
 const TILE_SIZE = 256;
 const MAJOR_ROAD_DETAILS = new Set(["motorway", "motorway_link", "trunk", "trunk_link", "primary", "primary_link", "secondary", "secondary_link"]);
 const LOCAL_ROAD_DETAILS = new Set(["tertiary", "tertiary_link", "residential", "service", "unclassified", "road", "raceway", "driveway", "parking_aisle", "alley", "drive-through", "emergency_access"]);

@@ -1,4 +1,4 @@
-import { PUBLIC_PAGES, SITE_ORIGIN } from "../../lib/seo";
+import { PUBLIC_PAGES, SITE_ORIGIN } from "$lib/site/seo";
 export const prerender = true;
 export function GET(): Response {
   const paths = import.meta.env.VITE_SITE_ENV === "production" ? Object.keys(PUBLIC_PAGES) : [];

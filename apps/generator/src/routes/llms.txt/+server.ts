@@ -1,5 +1,5 @@
-import { DOCS_SECTIONS } from "../../lib/docs";
-import { PUBLIC_PAGES, REPOSITORY_URL, SITE_ORIGIN, headline } from "../../lib/seo";
+import { DOCS_SECTIONS } from "$lib/site/docs";
+import { PUBLIC_PAGES, REPOSITORY_URL, SITE_ORIGIN, headline } from "$lib/site/seo";
 export const prerender = true;
 
 // An index of the same pages the sitemap lists, in reading order, for

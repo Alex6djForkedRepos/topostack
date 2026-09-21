@@ -252,7 +252,7 @@ Provisioning writes development by default. **`--prod` stages verified archives 
 
 `/ready` requires both archives and the geocoder configuration. Fabrication export requires current real terrain and any requested map/lake data; missing or truncated requested data blocks export. The bundled preview and synthetic fallback are for previewing and development.
 
-Terrain and map data are decorative source material, not survey, navigation, or engineering data. Exported projects include attribution; see [data and fabrication notes](docs/data-and-fabrication.md) and the maintained [source-credit list](apps/generator/src/map-attribution.ts).
+Terrain and map data are decorative source material, not survey, navigation, or engineering data. Exported projects include attribution; see [data and fabrication notes](docs/data-and-fabrication.md) and the maintained [source-credit list](apps/generator/src/lib/domain/map-attribution.ts).
 
 ## Further reading
 

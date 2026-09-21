@@ -1,6 +1,6 @@
 <script lang="ts">
   import { base } from "$app/paths";
-  import Article from "../../../lib/Article.svelte";
+  import Article from "$lib/site/Article.svelte";
 </script>
 
 <Article title="Paint lakes with water paint templates" intro="Color the water on a layered relief without masking by hand. TopoStack cuts a paper stencil for each panel, open exactly where the lake stays visible once the stack is glued.">

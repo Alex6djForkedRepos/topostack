@@ -66,6 +66,20 @@ export default tseslint.config(
     },
   },
   {
+    // Inside the generator, modules live in src/lib/<layer>/ and are imported
+    // as $lib/<layer>/<module>. Relative imports may only point at siblings so
+    // a file's layer is visible in every import that reaches it.
+    files: ["apps/generator/src/**/*.ts", "apps/generator/src/**/*.svelte"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        patterns: [
+          { group: ["**/packages/*/src/**", "**/packages/*/src"], message: "Import workspace packages by name (@topostack/core, @topostack/data-contracts/<module>), not by path." },
+          { group: ["../lib/**", "../../lib/**", "../../../lib/**", "../../../../lib/**", "../atomm/**", "../domain/**", "../site/**", "../storage/**", "../studio/**", "../workers/**"], message: "Import other generator modules as $lib/<layer>/<module>; relative imports are for siblings only." },
+        ],
+      }],
+    },
+  },
+  {
     linterOptions: { reportUnusedDisableDirectives: "error" },
   },
 );

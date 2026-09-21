@@ -75,7 +75,7 @@ try {
   }
 } finally {
   await browser.close();
-  const png = await readFile(new URL("../apps/generator/src/fixtures/west-point-z12.png", import.meta.url));
+  const png = await readFile(new URL("../apps/generator/src/lib/domain/fixtures/west-point-z12.png", import.meta.url));
   decodeTerrainPng(png); // warm-up outside the measurement
   const cpu = process.cpuUsage(); const start = performance.now();
   for (let i = 0; i < 100; i += 1) decodeTerrainPng(png);

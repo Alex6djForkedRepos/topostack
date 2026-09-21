@@ -1,8 +1,8 @@
 <script lang="ts">
   import { base } from "$app/paths";
-  import Article from "../../lib/Article.svelte";
-  import { REPOSITORY_URL } from "../../lib/seo";
-  import { MAP_DATA_ATTRIBUTION } from "../../map-attribution";
+  import Article from "$lib/site/Article.svelte";
+  import { REPOSITORY_URL } from "$lib/site/seo";
+  import { MAP_DATA_ATTRIBUTION } from "$lib/domain/map-attribution";
   import { sources as terrainCatalogSources } from "../../../../../scripts/data/terrain-sources.json";
   import type { PageData } from "./$types";
 

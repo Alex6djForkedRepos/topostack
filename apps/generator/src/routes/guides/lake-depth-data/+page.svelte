@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { base } from "$app/paths";
-  import Article from "../../../lib/Article.svelte";
-  import { depthKindLabel, indexLakeDirectory, lakeStudioLink, searchLakes, type LakeDirectory } from "../../../lib/lake-directory";
+  import Article from "$lib/site/Article.svelte";
+  import { depthKindLabel, indexLakeDirectory, lakeStudioLink, searchLakes, type LakeDirectory } from "$lib/site/lake-directory";
 
   let directory = $state.raw<LakeDirectory>();
   let loading = $state(true);

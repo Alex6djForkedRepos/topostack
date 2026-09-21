@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile, readdir, stat } from "node:fs/promises";
 import { JSDOM } from "jsdom";
-import { PUBLIC_PAGES, headline, isArticlePage, socialImage } from "../apps/generator/src/lib/seo.ts";
+import { PUBLIC_PAGES, headline, isArticlePage, socialImage } from "../apps/generator/src/lib/site/seo.ts";
 
 const environment = process.argv[process.argv.indexOf("--environment") + 1];
 assert.ok(["production", "development", "atomm"].includes(environment), "Pass --environment production, development, or atomm");

@@ -1,6 +1,6 @@
 import { themeScript } from "@loidolt/theme-svelte";
 import type { Handle } from "@sveltejs/kit";
-import { THEME_OPTIONS } from "./lib/theme";
+import { THEME_OPTIONS } from "$lib/site/theme";
 
 const initialThemeScript = themeScript(THEME_OPTIONS);
 
