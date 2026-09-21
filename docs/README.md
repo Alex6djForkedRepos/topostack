@@ -5,6 +5,7 @@
 - [Architecture and geometry conventions](architecture.md) — the one authoritative geometry flow, coordinate conventions, versioning, launch invariants.
 - [Data, attribution, and fabrication safety](data-and-fabrication.md)
 - [Flat engraving workflow and SVG contract](flat-engraving.md)
+- [Engraving fonts](fonts.md) — the font kinds, the glyph build, adding a typeface, and why glyph data is immutable.
 - [Terrain source selection](terrain-selection.md)
 - [Terrain-informed lake basins](terrain-informed-lake-basins.md)
 - [Lake shoreline smoothing](lake-shoreline-smoothing.md)

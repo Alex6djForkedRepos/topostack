@@ -1,3 +1,4 @@
+import { isTextFont } from "../annotate/font-data.js";
 import {
   CUSTOM_LINE_KINDS,
   PAINT_REGION_KINDS,
@@ -118,7 +119,7 @@ export function validateProject(config: ProjectConfigV1): void {
   if (!Number.isFinite(config.seamOffsetMm) || config.seamOffsetMm < 0 || config.seamOffsetMm > MAX_SEAM_OFFSET_MM) throw new Error(`Seam offset must be between 0 and ${MAX_SEAM_OFFSET_MM} mm.`);
   if (config.smoothing !== 0 && config.smoothing !== 1) throw new Error("Contour smoothing must be 0 or 1.");
   if (Math.abs(config.elevationLabelPosition.x) > 0.9 || Math.abs(config.elevationLabelPosition.y) > 0.9) throw new Error("Elevation label position must be between -90% and 90%.");
-  if (config.textStyle.font !== "technical" && config.textStyle.font !== "rounded" && config.textStyle.font !== "stencil") throw new Error("Text font must be technical, rounded, or stencil.");
+  if (!isTextFont(config.textStyle.font)) throw new Error("Text font must be one of the listed engraving fonts.");
   if (config.textStyle.sizeMm < 2 || config.textStyle.sizeMm > 10) throw new Error("Text size must be between 2 and 10 mm.");
   if (!NORTH_ARROW_STYLES.includes(config.northArrowStyle)) throw new Error("North arrow style must be minimal, classic, or mariner.");
   if (!NORTH_ARROW_ANCHORS.includes(config.northArrowPlacement.anchor)) throw new Error("North arrow anchor is invalid.");
@@ -141,6 +142,7 @@ function validatePlaque(plaque: PlaqueV1): void {
   if (lines.length > PLAQUE_MAX_LINES) throw new Error(`Title text must be ${PLAQUE_MAX_LINES} lines or fewer.`);
   if (lines.some((line) => line.length > PLAQUE_MAX_LINE_LENGTH)) throw new Error(`Each title line must be ${PLAQUE_MAX_LINE_LENGTH} characters or fewer.`);
   if (!Number.isFinite(plaque.sizeMm) || plaque.sizeMm < PLAQUE_MIN_SIZE_MM || plaque.sizeMm > PLAQUE_MAX_SIZE_MM) throw new Error(`Title size must be between ${PLAQUE_MIN_SIZE_MM} and ${PLAQUE_MAX_SIZE_MM} mm.`);
+  if (plaque.font !== undefined && !isTextFont(plaque.font)) throw new Error("Title font must be one of the listed engraving fonts.");
   const placement = plaque.placement;
   if (!placement || typeof placement !== "object" || !NORTH_ARROW_ANCHORS.includes(placement.anchor)) throw new Error("Title anchor is invalid.");
   if (!placement.offset || ![placement.offset.x, placement.offset.y].every(Number.isFinite) || Math.abs(placement.offset.x) > 1 || Math.abs(placement.offset.y) > 1) throw new Error("Title offsets must be between -100% and 100%.");

@@ -174,6 +174,7 @@ describe("project import validation", () => {
   });
   it("validates and restores fabrication typography", () => {
     expect(parseProject({ ...DEFAULT_PROJECT, textStyle: { font: "stencil", sizeMm: 5 } }).textStyle).toEqual({ font: "stencil", sizeMm: 5 });
+    expect(parseProject({ ...DEFAULT_PROJECT, textStyle: { font: "relief", sizeMm: 5 } }).textStyle).toEqual({ font: "relief", sizeMm: 5 });
     expect(() => parseProject({ ...DEFAULT_PROJECT, textStyle: { font: "serif", sizeMm: 5 } })).toThrow(/text font/i);
     expect(() => parseProject({ ...DEFAULT_PROJECT, textStyle: { font: "technical", sizeMm: 1 } })).toThrow(/text size/i);
   });
@@ -192,6 +193,10 @@ describe("project import validation", () => {
     expect(() => parseProject({ ...DEFAULT_PROJECT, plaque: { ...plaque, text: 5 } })).toThrow(/title text/i);
     expect(() => parseProject({ ...DEFAULT_PROJECT, plaque: { ...plaque, placement: { anchor: "outside", offset: { x: 0, y: 0 } } } })).toThrow(/title anchor/i);
     expect(() => parseProject({ ...DEFAULT_PROJECT, plaque: { ...plaque, sizeMm: 50 } })).toThrow(/title size/i);
+    // A title font is kept; without one the title follows the label font and stays keyless.
+    expect(parseProject({ ...DEFAULT_PROJECT, plaque: { ...plaque, font: "lora" } }).plaque).toEqual({ ...plaque, font: "lora" });
+    expect("font" in parseProject({ ...DEFAULT_PROJECT, plaque }).plaque!).toBe(false);
+    expect(() => parseProject({ ...DEFAULT_PROJECT, plaque: { ...plaque, font: "comic" } })).toThrow(/text font/i);
   });
   it("defaults smoothing, minimum feature, and exploded preview for legacy projects", () => {
     const {

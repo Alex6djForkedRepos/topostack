@@ -1,4 +1,4 @@
-import { DEFAULT_PROJECT, markerSymbolPaths, northArrowMarkings, type CustomLineKind, type LineStyleV1, type MarkerSymbol, type NorthArrowAnchor, type NorthArrowStyle, type OperationPath, type Point2D, type RoadCap, type RoadStyle, type TextFont, type TrailPattern, type WaterFillPattern } from "@topostack/core";
+import { DEFAULT_PROJECT, FONT_CATALOG, markerSymbolPaths, northArrowMarkings, type CustomLineKind, type LineStyleV1, type MarkerSymbol, type NorthArrowAnchor, type NorthArrowStyle, type OperationPath, type Point2D, type RoadCap, type RoadStyle, type FontCatalogEntry, type FontKind, type TrailPattern, type WaterFillPattern } from "@topostack/core";
 import type { PlaceResult } from "$lib/domain/data-provider";
 
 /** Fixed choices for the studio controls. */
@@ -12,7 +12,12 @@ export const UNIT_OPTIONS = [{ value: "metric", label: "Metric" }, { value: "imp
 export const SHAPE_OPTIONS = [{ value: "rectangle", label: "Rectangle" }, { value: "circle", label: "Circle" }];
 export const STACK_MODE_OPTIONS = [{ value: "map", label: "Map" }, { value: "2d", label: "Cut layers" }, { value: "3d", label: "3D stack" }];
 export const ENGRAVING_MODE_OPTIONS = [{ value: "map", label: "Map" }, { value: "engraving", label: "Engraving" }];
-export const FONT_OPTIONS: Array<{ value: TextFont; label: string }> = [{ value: "technical", label: "Technical" }, { value: "rounded", label: "Rounded" }, { value: "stencil", label: "Stencil" }];
+/** The engraving fonts, grouped by how a laser runs them. */
+export const FONT_GROUPS: Array<{ kind: FontKind; label: string; hint: string; fonts: FontCatalogEntry[] }> = ([
+  { kind: "bitmap", label: "Built-in", hint: "Compact capitals drawn as short strokes." },
+  { kind: "single-line", label: "Single line", hint: "Real letterforms drawn as one pass of the laser: fast, crisp vector engraving." },
+  { kind: "outline", label: "Filled", hint: "Typefaces engraved as filled areas. Set the engrave layer to fill or raster." },
+] as const).map((group) => ({ ...group, fonts: FONT_CATALOG.filter((entry) => entry.kind === group.kind) }));
 export const LINE_PRESETS: Array<{ value: string; label: string; description: string; style: LineStyleV1 }> = [
   { value: "fine", label: "Fine", description: "Dense detail", style: { contourMm: 0.1, indexContourMm: 0.22, majorRoadMm: 0.3, localRoadMm: 0.18, trailMm: 0.14, waterMm: 0.22, boundaryMm: 0.16, coordinateGridMm: 0.1, annotationMm: 0.14, borderMm: 0.26, trailPattern: "dotted", roadStyle: "centerline", majorRoadSpacingMm: 0.65, roadCap: "round" } },
   { value: "balanced", label: "Balanced", description: "Clear hierarchy", style: { ...DEFAULT_PROJECT.lineStyle } },

@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import noaaFixture from "$lib/domain/fixtures/noaa-erie-z11.json";
 import { mount, tick, unmount } from "svelte";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -13,6 +14,13 @@ const loadVectorMarkingsMock = vi.hoisted(() => vi.fn());
 const loadLakeAreasMock = vi.hoisted(() => vi.fn());
 vi.mock("$lib/domain/data-provider", async (importOriginal) => ({ ...await importOriginal<typeof import("$lib/domain/data-provider")>(), loadTerrain: loadTerrainMock, loadVectorMarkings: loadVectorMarkingsMock, loadLakeAreas: loadLakeAreasMock }));
 vi.mock("$lib/storage/storage", async (importOriginal) => ({ ...await importOriginal<typeof import("$lib/storage/storage")>(), loadProject: vi.fn(async () => undefined), saveProject: vi.fn(async () => undefined) }));
+// Glyph files are fetched in the browser; here they are read from the source tree.
+vi.mock("$lib/domain/fonts", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("$lib/domain/fonts")>();
+  // The URL is the dev server path of the glyph file, rooted at this app.
+  const read = async (url: string) => JSON.parse(readFileSync(join(import.meta.dirname, "../../..", url.split("?")[0]!), "utf8"));
+  return { ...actual, ensureFonts: (fonts: Parameters<typeof actual.ensureFonts>[0]) => actual.ensureFonts(fonts, read) };
+});
 vi.mock("$lib/atomm/atomm-bridge", () => ({ connectAtomm: vi.fn(() => () => undefined) }));
 vi.mock("$app/navigation", () => ({ replaceState: (url: URL) => window.history.replaceState(window.history.state, "", url) }));
 vi.mock("$lib/studio/ThreePreview.svelte", async () => ({ default: (await import("$lib/studio/TestPreview.svelte")).default }));
@@ -637,7 +645,8 @@ describe("TopoStack Svelte shell", () => {
     // Text engraving and the elevation label position now sit beside what they
     // affect in Map details rather than in the fabrication panel.
     expect(fields.querySelector(".swatch-options")).toBeNull();
-    expect(target.querySelectorAll('.swatch-options[aria-label="Engraving font"] button[role="radio"]')).toHaveLength(3);
+    // Three built-in styles, four single-line fonts and four filled typefaces.
+    expect(target.querySelectorAll('[role="radiogroup"][aria-label="Engraving font"] button[role="radio"]')).toHaveLength(11);
     expect(target.querySelectorAll('input[aria-label="Label X"]')).toHaveLength(1);
   });
 
@@ -691,7 +700,7 @@ describe("TopoStack Svelte shell", () => {
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
     await tick();
-    const stencil = [...target.querySelectorAll<HTMLButtonElement>('.swatch-options[aria-label="Engraving font"] button[role="radio"]')].find((button) => button.textContent?.includes("Stencil"))!;
+    const stencil = [...target.querySelectorAll<HTMLButtonElement>('[role="radiogroup"][aria-label="Engraving font"] button[role="radio"]')].find((button) => button.textContent?.includes("Stencil"))!;
     stencil.click();
     await vi.waitFor(() => expect(stencil.getAttribute("aria-checked")).toBe("true"));
     const size = target.querySelector<HTMLInputElement>('input[aria-label="Text size"]')!;
@@ -1109,6 +1118,34 @@ describe("TopoStack Svelte shell", () => {
     await vi.waitFor(() => expect(stage.dataset.plaqueMarkings).toBe("0"));
     window.dispatchEvent(new Event("pagehide"));
     expect(vi.mocked(saveProject).mock.lastCall![0].plaque).toMatchObject({ enabled: false, text: "Café", placement: { anchor: "bottom-left" } });
+  });
+
+  it("gives the title its own typeface, loaded on demand, keeping its case", async () => {
+    const { saveProject } = await import("$lib/storage/storage");
+    vi.mocked(saveProject).mockClear();
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await vi.waitFor(() => expect(saveProject).toHaveBeenCalled(), { timeout: 2_000 });
+    const stage = target.querySelector<HTMLElement>(".preview-stage")!;
+    target.querySelector<HTMLButtonElement>('button[role="switch"][aria-label="Title"]')!.click();
+    const fonts = () => [...target.querySelectorAll<HTMLButtonElement>('[role="radiogroup"][aria-label="Title font"] button[role="radio"]')];
+    await vi.waitFor(() => expect(fonts()).toHaveLength(12));
+    expect(fonts()[0]!.textContent).toContain("Same as labels");
+    expect(fonts()[0]!.getAttribute("aria-checked")).toBe("true");
+    fonts().find((button) => button.textContent?.includes("Jost"))!.click();
+    await vi.waitFor(() => expect(fonts().find((button) => button.textContent?.includes("Jost"))!.getAttribute("aria-checked")).toBe("true"));
+    await vi.waitFor(() => expect(Number(stage.dataset.plaqueMarkings)).toBeGreaterThan(0));
+    expect(target.querySelector("#plaque-text-hint")?.textContent).toContain("engraved as typed in Jost");
+    const text = target.querySelector<HTMLTextAreaElement>('textarea[aria-label="Title text"]')!;
+    text.value = "Café Ωmega";
+    text.dispatchEvent(new Event("input", { bubbles: true }));
+    // Jost draws é; Greek is outside the shipped subset.
+    await vi.waitFor(() => expect(target.querySelector(".plaque-warning")?.textContent).toMatch(/Not in Jost.*Ω/));
+    expect(target.querySelector(".plaque-warning")?.textContent).not.toContain("é");
+    fonts()[0]!.click();
+    await vi.waitFor(() => expect(fonts()[0]!.getAttribute("aria-checked")).toBe("true"));
+    window.dispatchEvent(new Event("pagehide"));
+    expect(vi.mocked(saveProject).mock.lastCall![0].plaque).not.toHaveProperty("font");
   });
 
   it("keeps the current preview visible and interactive during an expensive detail refresh", async () => {

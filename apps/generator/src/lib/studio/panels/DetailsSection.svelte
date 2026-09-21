@@ -1,19 +1,25 @@
 <script lang="ts">
   import { ChevronDown, Compass, Grid3X3, Layers3, Map as MapIcon, Minus, Mountain, Square, Type, Waves } from "@lucide/svelte";
   import { Field, Section } from "@loidolt/theme-svelte";
-  import { displayElevation, displayLength, labelDimensions, labelPathData, MAX_WATER_DEPTH_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, NORTH_ARROW_MIN_SIZE_MM, PLAQUE_MAX_LINE_LENGTH, PLAQUE_MAX_LINES, PLAQUE_MAX_SIZE_MM, PLAQUE_MIN_SIZE_MM, unsupportedLabelCharacters } from "@topostack/core";
+  import { displayElevation, displayLength, fontEntry, isBitmapFont, MAX_WATER_DEPTH_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, NORTH_ARROW_MIN_SIZE_MM, PLAQUE_MAX_LINE_LENGTH, PLAQUE_MAX_LINES, PLAQUE_MAX_SIZE_MM, PLAQUE_MIN_SIZE_MM, plaqueFont, unsupportedLabelCharacters } from "@topostack/core";
   import FeedbackButton from "$lib/site/FeedbackButton.svelte";
   import NumberField from "$lib/studio/StudioNumberField.svelte";
-  import { FONT_OPTIONS, NORTH_ARROW_ANCHOR_OPTIONS, NORTH_ARROW_OPTIONS, WATER_FILL_PATTERNS } from "$lib/studio/options";
+  import FontPicker from "$lib/studio/panels/FontPicker.svelte";
+  import { NORTH_ARROW_ANCHOR_OPTIONS, NORTH_ARROW_OPTIONS, WATER_FILL_PATTERNS } from "$lib/studio/options";
   import Switch from "$lib/studio/StudioSwitch.svelte";
   import LakeDepthHelp from "$lib/studio/panels/LakeDepthHelp.svelte";
   import { getStudio } from "$lib/studio/studio-context";
-  import { clampPlaqueSize, plaqueSettings, plaqueText } from "$lib/studio/project-edits";
+  import { clampPlaqueSize, plaqueSettings, plaqueText, plaqueWithFont } from "$lib/studio/project-edits";
 
   let { openLakeDepthHelp }: { openLakeDepthHelp?: (trigger: HTMLButtonElement) => void } = $props();
   const studio = getStudio();
   const plaque = $derived(studio.project.plaque);
-  const unsupportedTitleCharacters = $derived(plaque ? unsupportedLabelCharacters(plaque.text) : []);
+  const titleFont = $derived(plaqueFont(studio.project));
+  const unsupportedTitleCharacters = $derived.by(() => {
+    // A typeface reports missing letters once it has loaded, which a new preview follows.
+    void studio.geometry;
+    return plaque ? unsupportedLabelCharacters(plaque.text, titleFont) : [];
+  });
   const { getFeedbackContext, navigateChoice, previewMarkingPath, sectionSummary, setLakeDepth, shownDepth, shownLength, shownTextSize, storedLength, toggleSection, updateDepthLayerLimit, updateFabrication, updateMapDetails } = studio;
 </script>
 
@@ -175,9 +181,11 @@
               <button type="button" onclick={() => void updateFabrication({ plaque: plaqueSettings(studio.project, { text: plaqueText(studio.project.name) }) })}>Use project name</button>
             </div>
             <textarea class="plaque-text" aria-label="Title text" aria-describedby="plaque-text-hint" rows={PLAQUE_MAX_LINES} spellcheck="false" value={plaque.text} oninput={(event) => { const text = plaqueText(event.currentTarget.value); if (text !== event.currentTarget.value) event.currentTarget.value = text; void updateFabrication({ plaque: plaqueSettings(studio.project, { text }) }); }}></textarea>
-            <small id="plaque-text-hint">Up to {PLAQUE_MAX_LINES} lines of {PLAQUE_MAX_LINE_LENGTH} characters, engraved in capitals in the {studio.project.textStyle.font} font.</small>
-            {#if unsupportedTitleCharacters.length}<small class="plaque-warning" role="status">Not in the engraving font, shown as “?”: {unsupportedTitleCharacters.join(" ")}</small>{/if}
+            <small id="plaque-text-hint">Up to {PLAQUE_MAX_LINES} lines of {PLAQUE_MAX_LINE_LENGTH} characters, {isBitmapFont(titleFont) ? "engraved in capitals" : "engraved as typed"} in {fontEntry(titleFont).name}.</small>
+            {#if unsupportedTitleCharacters.length}<small class="plaque-warning" role="status">Not in {fontEntry(titleFont).name}, shown as “?”: {unsupportedTitleCharacters.join(" ")}</small>{/if}
             <Field label="Letter height" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label="Title size" value={shownTextSize(plaque.sizeMm)} min={displayLength(PLAQUE_MIN_SIZE_MM, studio.project.units)} max={displayLength(PLAQUE_MAX_SIZE_MM, studio.project.units)} step={studio.project.units === "imperial" ? 0.01 : 0.5} onValueChange={(value) => { const sizeMm = clampPlaqueSize(storedLength(value)); if (sizeMm !== plaque.sizeMm) void updateFabrication({ plaque: plaqueSettings(studio.project, { sizeMm }) }); }} /><em>{studio.shownLengthUnit}</em></span>{/snippet}</Field>
+            <p class="subgroup-heading">Title font</p>
+            <FontPicker label="Title font" value={plaque.font} inherited={{ label: "Same as labels", font: studio.project.textStyle.font }} onSelect={(font) => void updateFabrication({ plaque: plaqueWithFont(studio.project, font) })} />
             <p class="subgroup-heading">Placement</p>
             <div class="north-arrow-anchor-grid" role="radiogroup" aria-label="Title anchor">
               {#each NORTH_ARROW_ANCHOR_OPTIONS as option}
@@ -192,16 +200,7 @@
 
   <div class="detail-group">
     <p class="subgroup-heading">Text engraving</p>
-    <div class="swatch-options" role="radiogroup" aria-label="Engraving font">
-      {#each FONT_OPTIONS as option}
-        {@const sampleStyle = { font: option.value, sizeMm: 3.1 }}
-        <button type="button" role="radio" aria-checked={studio.project.textStyle.font === option.value} data-state={studio.project.textStyle.font === option.value ? "on" : "off"} tabindex={studio.project.textStyle.font === option.value ? 0 : -1} onclick={() => void updateFabrication({ textStyle: { ...studio.project.textStyle, font: option.value } })} onkeydown={navigateChoice}>
-          <!-- Glyphs run right and down from their origin, so start the sample half its size up and left of the box centre. -->
-          <svg viewBox="-8.5 -2.1 17 4.2" aria-hidden="true"><path stroke-linecap={option.value === "rounded" ? "round" : "butt"} stroke-linejoin={option.value === "rounded" ? "round" : "miter"} d={labelPathData("123m", { x: -labelDimensions("123m", sampleStyle).width / 2, y: -1.4 }, 0, 0, 0, sampleStyle)} /></svg>
-          <span>{option.label}</span>
-        </button>
-      {/each}
-    </div>
+    <FontPicker label="Engraving font" value={studio.project.textStyle.font} onSelect={(font) => font && void updateFabrication({ textStyle: { ...studio.project.textStyle, font } })} />
     <div class="range-field">
       <span class="range-field__label"><b>Text size</b></span>
       <div class="range-field__row">

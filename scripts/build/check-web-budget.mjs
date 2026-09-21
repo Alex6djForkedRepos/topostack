@@ -62,7 +62,13 @@ const budgets = {
   // total counts. Raised 2026-09-21: 482,942 on dev (with the head-metadata
   // change) -> 489,247 with the lake pages, leaving 0.15%; set to 500,000 to
   // restore roughly 2%. Node 22.22.2, production build.
-  startupJavaScriptGzip: 500_000,
+  // Raised 2026-09-21 for engraving typefaces: measured with Node 22.22.2
+  // (production build) at 496,279 on dev -> 505,733, a 9,454 byte delta. Glyph
+  // layout, curve flattening and the non-zero outline merge ship in
+  // generateGeometry (counted on the main thread and in the worker); the font
+  // picker and its 2.3 kB of sample paths sit in the details panel. The glyph
+  // files are fetched JSON and not counted. Set to 516,000 for roughly 2%.
+  startupJavaScriptGzip: 516_000,
   // All routes, lazy-loaded tools, and workers, including the interactive lake
   // guide and MapLibre's worker. The fetched lake catalog is budgeted below.
   // Raised 2026-09-17 for the same two guide routes: 888,934 -> 895,695.
@@ -83,7 +89,11 @@ const budgets = {
   // readiness on the button, stats in the preview readout): measured with
   // Node 22.22.2 at 949,670 on dev -> 951,163, a 1,493 byte delta, when dev
   // had 330 bytes left. Set to 960,000 to restore roughly 1% headroom.
-  totalJavaScriptGzip: 960_000,
+  // Raised 2026-09-21 for engraving typefaces: measured with Node 22.22.2 at
+  // 959,749 on dev (251 bytes left) -> 970,231, a 10,482 byte delta (the
+  // startup cost above plus the font loader in the worker). Set to 990,000
+  // for roughly 2%.
+  totalJavaScriptGzip: 990_000,
   largestJavaScriptGzip: 300_000,
   // Public guides add styles outside the studio. Keep a separate allowance for
   // the Atomm template, which is loaded only inside the platform iframe.

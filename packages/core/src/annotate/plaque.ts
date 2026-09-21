@@ -1,15 +1,25 @@
 import { ANCHOR_VECTORS, anchoredCenter } from "./anchor.js";
+import { isBitmapFont } from "./font-data.js";
 import { labelDimensions } from "./labels.js";
-import { PLAQUE_MAX_LINES, type OperationPath, type PlaqueV1, type Point2D, type ProjectConfigV1, type TextStyleV1 } from "../types.js";
+import { PLAQUE_MAX_LINES, type OperationPath, type PlaqueV1, type Point2D, type ProjectConfigV1, type TextFont, type TextStyleV1 } from "../types.js";
 
 /** Space between plaque lines as a fraction of the cap height. */
 const LINE_GAP = 0.6;
 /** Material kept clear around the text block, as a fraction of the cap height. */
 const FOOTPRINT_PADDING = 0.5;
 
-/** The lines a plaque engraves: trimmed, non-empty, capitalized, at most PLAQUE_MAX_LINES. */
-export function plaqueLines(text: string): string[] {
-  return text.split(/\r?\n/).map((line) => line.trim().toUpperCase()).filter(Boolean).slice(0, PLAQUE_MAX_LINES);
+/**
+ * The lines a plaque engraves: trimmed, non-empty, at most PLAQUE_MAX_LINES.
+ * The built-in fonts have capitals only, so their titles are capitalized;
+ * typefaces keep the case as typed.
+ */
+export function plaqueLines(text: string, font: TextFont = "technical"): string[] {
+  return text.split(/\r?\n/).map((line) => (isBitmapFont(font) ? line.trim().toUpperCase() : line.trim())).filter(Boolean).slice(0, PLAQUE_MAX_LINES);
+}
+
+/** The font a title engraves in: its own, or the project's text font. */
+export function plaqueFont(config: Pick<ProjectConfigV1, "plaque" | "textStyle">): TextFont {
+  return config.plaque?.font ?? config.textStyle.font;
 }
 
 /** The plaque to engrave, or undefined when it is off or has no text. */
@@ -20,11 +30,14 @@ export function activePlaque(config: Pick<ProjectConfigV1, "plaque">): PlaqueV1 
 interface PlaqueLayout { lines: string[]; style: TextStyleV1; widths: number[]; width: number; height: number; center: Point2D }
 
 function layout(config: ProjectConfigV1, plaque: PlaqueV1): PlaqueLayout {
-  const lines = plaqueLines(plaque.text);
-  const style: TextStyleV1 = { font: config.textStyle.font, sizeMm: plaque.sizeMm };
+  const font = plaqueFont(config);
+  const lines = plaqueLines(plaque.text, font);
+  const style: TextStyleV1 = { font, sizeMm: plaque.sizeMm };
   const widths = lines.map((line) => labelDimensions(line, style).width);
   const width = Math.max(0, ...widths);
-  const height = lines.length * plaque.sizeMm + (lines.length - 1) * plaque.sizeMm * LINE_GAP;
+  // The last line's box reaches down to the descenders of a typeface.
+  const lastLineHeight = labelDimensions("", style).height;
+  const height = (lines.length - 1) * plaque.sizeMm * (1 + LINE_GAP) + lastLineHeight;
   const center = anchoredCenter(config, plaque.placement, width / 2, height / 2, Math.hypot(width, height) / 2);
   return { lines, style, widths, width, height, center };
 }

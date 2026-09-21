@@ -24,7 +24,7 @@ import {
   toPoint,
   toRing,
 } from "../primitives/geometry2d.js";
-import { labelDimensions, labelLineSegments } from "../annotate/labels.js";
+import { labelDimensions, labelGeometry } from "../annotate/labels.js";
 import { addLabelObstacles, indexLabelLayer, placeElevationLabelStack, placeLabel, placeLinearLabel } from "../annotate/label-placement.js";
 import { geoPointToMapPoint, longitudeInBounds, markerSymbolCenterForAnchor, markerSymbolPaths } from "../annotate/markers.js";
 import { markerLayerPolygons } from "../annotate/marker-placement.js";
@@ -597,7 +597,7 @@ function routeFlatMarking(config: ProjectConfigV1, feature: MarkingFeature, feat
       transportationClass,
       points,
     }));
-    const label = feature.label && config.showTransportationLabels ? fabricationLabel(feature.label) : undefined;
+    const label = feature.label && config.showTransportationLabels ? fabricationLabel(feature.label, config.textStyle.font) : undefined;
     if (label && clipped.length) addTransportationLabelCandidate(labels, label, { layer: baseLayer, paths: clipped, transportationClass, excludedPolygons: [] });
     return;
   }
@@ -614,7 +614,7 @@ function routeStackMarking(config: ProjectConfigV1, feature: MarkingFeature, fea
   const transportationClass = transportationClassOf(feature);
   if (transportationClass) {
     const outlines = transportationOutlines(feature.points, transportationClass, config);
-    const label = feature.label && config.showTransportationLabels ? fabricationLabel(feature.label) : undefined;
+    const label = feature.label && config.showTransportationLabels ? fabricationLabel(feature.label, config.textStyle.font) : undefined;
     clips.forEach(({ layer, material, covering }) => {
       const clipped = clipPolyline(feature.points, material, covering);
       styledTransportationPaths(outlines, clipped, material, covering).forEach((points, styleIndex) => layer.markings.push({
@@ -736,9 +736,19 @@ function annotationPlacer({ config, clip, warnings, flatEngraving }: GenerationC
       // Letters use the same strokes as preview/SVG text so they remain complete
       // even when a contour passes through a glyph.
       for (const marking of markings) {
-        const paths = marking.label && marking.points[0]
-          ? labelLineSegments(marking.label, marking.points[0], 0, 0, marking.labelRotationRad, marking.textStyle).map(({ start, end }) => [start, end])
-          : [marking.points];
+        const text = marking.label && marking.points[0]
+          ? labelGeometry(marking.label, marking.points[0], 0, 0, marking.labelRotationRad, marking.textStyle)
+          : undefined;
+        const paths = text ? text.strokes : [marking.points];
+        // Typeface letters are areas: each piece belongs to the sheet it is exposed on.
+        text?.fills.forEach((fill, fillIndex) => markerLayerPolygons(fill.outer, clips.map(({ material }) => material), fill.holes).forEach(({ layerIndex, polygon }, pieceIndex) => clips[layerIndex]!.layer.markings.push({
+          id: `${marking.id}-${layerIndex}-fill-${fillIndex}-${pieceIndex}`,
+          operation: marking.operation,
+          kind: marking.kind,
+          points: polygon.outer,
+          ...(polygon.holes.length ? { holes: polygon.holes } : {}),
+          filled: true,
+        })));
         for (const { layer, material, covering } of clips) {
           paths.forEach((path, pathIndex) => {
             clipPolyline(path, material, covering).forEach((points, clipIndex) => layer.markings.push({

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { base } from "$app/paths";
   import Article from "$lib/site/Article.svelte";
+  import { FONT_CATALOG } from "@topostack/core";
   import { REPOSITORY_URL } from "$lib/site/seo";
   import { MAP_DATA_ATTRIBUTION } from "$lib/domain/map-attribution";
   import { sources as terrainCatalogSources } from "../../../../../scripts/data/terrain-sources.json";
@@ -124,13 +125,18 @@
   </section>
 
   <section id="artwork" aria-labelledby="artwork-title">
-    <h2 id="artwork-title">Compass artwork and interface design</h2>
+    <h2 id="artwork-title">Compass artwork, fonts and interface design</h2>
     <p>TopoStack’s north-arrow presets are redrawn as single-line engraving geometry, informed by these Wikimedia Commons references:</p>
     <ul>
       <li><a href="https://commons.wikimedia.org/wiki/File:Compass_rose_simple_plain.svg">Compass rose simple plain</a> — Henrik and Thryduulf; public domain as marked on the source page.</li>
       <li><a href="https://commons.wikimedia.org/wiki/File:CC0_Compass_Rose.svg">CC0 Compass Rose</a> — Kertase; <a href="https://creativecommons.org/publicdomain/zero/1.0/">CC0 1.0</a>.</li>
     </ul>
     <p>The interface uses <a href="https://github.com/indestructible-type/Jost">Jost</a> (Copyright 2020 The Jost Project Authors) and <a href="https://github.com/Omnibus-Type/Archivo">Archivo</a> (Copyright 2020 The Archivo Project Authors), bundled with Loidolt Theme. Both fonts use the <a href="https://openfontlicense.org/">SIL Open Font License 1.1</a>.</p>
+    <p id="fonts">The engraving fonts other than the built-in styles are converted into TopoStack’s glyph format and engraved as paths. Each font’s licence and source file are kept in the <a href={`${REPOSITORY_URL}/tree/main/assets/fonts`}>repository</a>.</p>
+    <ul>
+      {#each FONT_CATALOG.filter((entry) => entry.kind !== "bitmap") as entry (entry.id)}<li><a href={`${REPOSITORY_URL}/tree/main/assets/fonts/${entry.id}`}>{entry.name}</a> — {entry.credit}.</li>{/each}
+    </ul>
+    <p>The Hershey Fonts were originally created by Dr. A. V. Hershey while working at the U. S. National Bureau of Standards. The format of the font data in this distribution was originally created by James Hurt, Cognition, Inc.</p>
     <p>Terrain illustrations are TopoStack’s own vector artwork. Studio screenshots show the bundled terrain preview. The Atomm interface adapts the <a href="https://dev.atomm.com/templates/layout-3-generate.skeleton.html">Atomm generator layout</a> and <a href="https://dev.atomm.com/design.md">design guidance</a>; its platform SDK provides the host integration.</p>
   </section>
 

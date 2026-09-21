@@ -41,9 +41,36 @@
   stroke-width: 1.15;
 }
 
-.swatch-options[aria-label="Engraving font"] svg {
+.font-options svg {
   height: 24px;
   stroke-width: 0.18;
+}
+
+/* Typeface samples fill like the letters they engrave. */
+.font-options svg.font-sample--filled {
+  fill: currentColor;
+  stroke: none;
+}
+
+.font-picker {
+  display: grid;
+  gap: 6px;
+}
+
+.font-group-heading {
+  display: grid;
+  gap: 1px;
+  margin: 4px 0 0;
+  font: var(--panel-font-micro) var(--loidolt-font-utility);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--loidolt-text-muted);
+}
+
+.font-group-heading small {
+  font: inherit;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 .swatch-options button > span {

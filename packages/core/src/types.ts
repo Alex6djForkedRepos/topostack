@@ -6,7 +6,14 @@ export type RoadStyle = "centerline" | "outlined";
 export type RoadCap = "round" | "square";
 export type Operation = "cut" | "score" | "engrave";
 export type UnitSystem = "metric" | "imperial";
-export type TextFont = "technical" | "rounded" | "stencil";
+/**
+ * Every engraving font a project can name. The first three draw the built-in
+ * bitmap table; the rest are curated typefaces whose glyph data the host loads
+ * and registers (see annotate/font-data.ts). Ids are stored in projects and
+ * never change meaning.
+ */
+export const TEXT_FONTS = ["technical", "rounded", "stencil", "hershey-sans", "hershey-serif", "hershey-script", "relief", "jost", "oswald", "lora", "roboto-slab"] as const;
+export type TextFont = typeof TEXT_FONTS[number];
 export type TransportationClass = "major-road" | "local-road" | "trail";
 export type NorthArrowStyle = "minimal" | "classic" | "mariner";
 export type MarkerSymbol = "pin" | "circle" | "triangle" | "star" | "cross";
@@ -64,11 +71,13 @@ export const NORTH_ARROW_MAX_MAP_FRACTION = 0.45;
 export interface PlaqueV1 {
   /** Kept when switched off so the text survives toggling. */
   enabled: boolean;
-  /** Up to PLAQUE_MAX_LINES lines separated by newlines; engraved in capitals. */
+  /** Up to PLAQUE_MAX_LINES lines separated by newlines; the built-in fonts engrave them in capitals. */
   text: string;
-  /** Cap height in millimeters; uses the project's text font. */
+  /** Cap height in millimeters. */
   sizeMm: number;
   placement: NorthArrowPlacementV1;
+  /** The title's own font. Absent means it follows `textStyle.font`, which keeps older projects' fingerprints. */
+  font?: TextFont;
 }
 
 export const PLAQUE_MAX_LINES = 3;

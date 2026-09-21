@@ -33,7 +33,7 @@ Every generated result records a deterministic project fingerprint and source qu
 | --- | --- |
 | `primitives/` | Pure 2D geometry: polygon prep and clipping (`geometry2d`), ring offsetting, grid sampling, crop shapes, units, number formatting |
 | `water/` | Lake and ocean depth: shore distance, survey and terrain-basin fitting, shoreline smoothing, water fill patterns |
-| `annotate/` | Text and symbols: label metrics and placement, markers, the north arrow |
+| `annotate/` | Text and symbols: the font catalog and glyph registry (`font-data`), label metrics, drawing and placement, markers, the north arrow, the title |
 | `pipeline/` | Geometry generation: `generate.ts` orchestrates contour tracing, stack planning, material nesting, transportation styling, coordinate grids, validation, and the work-area split; `synthetic-source.ts` builds the deterministic preview source |
 | `export/` | Fabrication output: SVG primitives, panel layout, per-layer/master SVGs, the printable assembly booklet (`assembly-guide.ts`), the flat-engraving SVG, package builders, and the export block policy |
 | `test-support/` | Fixtures shared by tests only; excluded from the build |
@@ -43,6 +43,10 @@ Every generated result records a deterministic project fingerprint and source qu
 ## Generator layout
 
 `apps/generator/src/lib` is split into `domain/`, `storage/`, `workers/`, `site/`, `studio/`, and `atomm/`; routes hold only pages. Modules are imported as `$lib/<layer>/<module>` and relative imports are for siblings only, so a file's dependencies name their layer. See the [generator README](../apps/generator/README.md) for what each layer may import.
+
+## Engraving fonts
+
+Text stays text in the geometry IR (`label` and `textStyle` on a marking) and becomes paths when a preview or export draws it, except for surface-following annotations in layered output, which are drawn and clipped during generation. The three built-in fonts are a bitmap table in `annotate/labels.ts`. The curated typefaces are glyph files that the host fetches and passes to `registerFont` in each JavaScript realm before it generates or renders; the studio does this in `PreviewPipeline.generate` for the page and in the geometry worker for itself. Drawing a typeface that is not registered throws `FontNotLoadedError` rather than substituting another font. The fingerprint covers the chosen font id, not its glyphs, so a released glyph file never changes; see [fonts.md](fonts.md).
 
 ## Coordinate conventions
 
