@@ -81,6 +81,7 @@ export interface StudioContext {
   searchOpen: boolean;
   resetOpen: boolean;
   mapAspectLocked: boolean;
+  placingMarker: boolean;
   lineworkOpen: boolean;
   locationTrigger: HTMLButtonElement | undefined;
 
