@@ -88,6 +88,31 @@ describe("TopoStack Svelte shell", () => {
     await vi.waitFor(() => expect(saveProject).toHaveBeenLastCalledWith(DEFAULT_PROJECT));
   });
 
+  it("undoes and redoes project edits from the keyboard outside text fields", async () => {
+    const { saveProject } = await import("$lib/storage/storage");
+    vi.mocked(saveProject).mockClear();
+    const target = document.createElement("div");
+    document.body.append(target);
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    const name = () => target.querySelector<HTMLInputElement>('[aria-label="Project name"]')!;
+    await vi.waitFor(() => expect(target.querySelector<HTMLButtonElement>('button[aria-label="Reset project"]')?.disabled).toBe(false));
+    name().value = "Keyboard peak";
+    name().dispatchEvent(new Event("input", { bubbles: true }));
+    await vi.waitFor(() => expect(target.querySelector<HTMLButtonElement>('button[aria-label="Undo"]')?.disabled).toBe(false));
+    // Inside a text field the browser's own undo wins.
+    const fromField = new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true, cancelable: true });
+    name().dispatchEvent(fromField);
+    expect(fromField.defaultPrevented).toBe(false);
+    expect(name().value).toBe("Keyboard peak");
+    const undoKey = new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true, cancelable: true });
+    document.body.dispatchEvent(undoKey);
+    expect(undoKey.defaultPrevented).toBe(true);
+    await vi.waitFor(() => expect(name().value).toBe("Crater Lake"));
+    document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Z", metaKey: true, shiftKey: true, bubbles: true, cancelable: true }));
+    await vi.waitFor(() => expect(name().value).toBe("Keyboard peak"));
+    target.remove();
+  });
+
   it("discards terrain generation that finishes after resetting the project", async () => {
     const { saveProject } = await import("$lib/storage/storage");
     let finish: ((value: unknown) => void) | undefined;
@@ -103,8 +128,11 @@ describe("TopoStack Svelte shell", () => {
     [...target.querySelectorAll<HTMLButtonElement>(".reset-dialog button")].find((button) => button.textContent?.trim() === "Reset project")!.click();
     await tick();
     finish!({ source: createSyntheticSource(DEFAULT_PROJECT, 32), fallback: true });
-    await vi.waitFor(() => expect(saveProject).toHaveBeenLastCalledWith(DEFAULT_PROJECT));
-    expect(target.querySelector(".status-line")?.textContent).toContain("Project reset to Crater Lake defaults");
+    await vi.waitFor(() => expect(target.querySelector(".status-line")?.textContent).toContain("Project reset to Crater Lake defaults"));
+    // Flush the pending snapshot rather than relying on an earlier test's last save.
+    vi.mocked(saveProject).mockClear();
+    window.dispatchEvent(new Event("pagehide"));
+    expect(saveProject).toHaveBeenLastCalledWith(DEFAULT_PROJECT);
     expect(target.textContent).not.toContain("Sample terrain generated");
   });
 
@@ -311,6 +339,39 @@ describe("TopoStack Svelte shell", () => {
       expect(vi.mocked(saveProject).mock.lastCall![0].location.lat).toBeCloseTo(39.1);
       expect(loadTerrainMock).not.toHaveBeenCalled();
       expect(target.querySelector(".context-export-status")?.textContent).toContain("Generate before export");
+    } finally { window.history.replaceState(null, "", "/"); }
+  });
+
+  it("copies a share link and opens a shared design on top of the saved project", async () => {
+    const { loadProject, saveProject } = await import("$lib/storage/storage");
+    const { projectFromShareLink } = await import("$lib/studio/share-link");
+    const saved = { ...DEFAULT_PROJECT, name: "Saved mountain", materialThicknessMm: 5 };
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    vi.mocked(loadProject).mockResolvedValueOnce(saved);
+    const first = document.createElement("div");
+    component = mount(App, { target: first, props: { initialPreview: structuredClone(initialPreview) } });
+    await vi.waitFor(() => expect(first.querySelector<HTMLInputElement>('[aria-label="Project name"]')?.value).toBe("Saved mountain"));
+    first.querySelector<HTMLButtonElement>('button[aria-label="Copy share link"]')!.click();
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+    const link = new URL((writeText.mock.calls[0] as unknown as [string])[0]);
+    expect(link.pathname).toBe("/studio");
+    expect(projectFromShareLink(link.hash)).toMatchObject({ name: "Saved mountain", materialThicknessMm: 5 });
+    await vi.waitFor(() => expect(first.textContent).toContain("Share link copied"));
+    await unmount(component);
+
+    vi.mocked(saveProject).mockClear();
+    vi.mocked(loadProject).mockResolvedValueOnce({ ...DEFAULT_PROJECT, name: "Recipient project" });
+    window.history.replaceState(null, "", `/studio${link.hash}`);
+    try {
+      const target = document.createElement("div");
+      component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+      const name = () => target.querySelector<HTMLInputElement>('[aria-label="Project name"]')!;
+      await vi.waitFor(() => expect(target.textContent).toContain("Shared design opened"));
+      expect(name().value).toBe("Saved mountain");
+      expect(window.location.hash).toBe("");
+      target.querySelector<HTMLButtonElement>('button[aria-label="Undo"]')!.click();
+      await vi.waitFor(() => expect(name().value).toBe("Recipient project"));
     } finally { window.history.replaceState(null, "", "/"); }
   });
 
@@ -934,7 +995,7 @@ describe("TopoStack Svelte shell", () => {
     const generate = target.querySelector<HTMLButtonElement>(".generate-button")!;
     generate.click();
     await vi.waitFor(() => expect(loadTerrainMock).toHaveBeenCalledOnce());
-    const input = target.querySelector<HTMLInputElement>('input[type="file"]')!;
+    const input = target.querySelector<HTMLInputElement>('input[type="file"][accept^="application/json"]')!;
     Object.defineProperty(input, "files", { configurable: true, value: [new File(["not json"], "broken.json", { type: "application/json" })] });
     input.dispatchEvent(new Event("change", { bubbles: true }));
     await vi.waitFor(() => expect(target.querySelector(".status-line")?.textContent).not.toContain("Fetching elevation and map details"));
@@ -986,6 +1047,31 @@ describe("TopoStack Svelte shell", () => {
     transportationLabels.click();
     await vi.waitFor(() => expect(transportationLabels.getAttribute("aria-checked")).toBe("true"));
     expect(loadTerrainMock).not.toHaveBeenCalled();
+  });
+
+  it("engraves a title from the project name, edits it, and keeps it when switched off", async () => {
+    const { saveProject } = await import("$lib/storage/storage");
+    vi.mocked(saveProject).mockClear();
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await vi.waitFor(() => expect(saveProject).toHaveBeenCalled(), { timeout: 2_000 });
+    const stage = target.querySelector<HTMLElement>(".preview-stage")!;
+    expect(stage.dataset.plaqueMarkings).toBe("0");
+    const title = target.querySelector<HTMLButtonElement>('button[role="switch"][aria-label="Title"]')!;
+    title.click();
+    const text = () => target.querySelector<HTMLTextAreaElement>('textarea[aria-label="Title text"]');
+    await vi.waitFor(() => expect(text()?.value).toBe("Crater Lake"));
+    await vi.waitFor(() => expect(Number(stage.dataset.plaqueMarkings)).toBeGreaterThan(0));
+    text()!.value = "Crater Lake\nOregon, 2026\nthird\nfourth line dropped";
+    text()!.dispatchEvent(new Event("input", { bubbles: true }));
+    await vi.waitFor(() => expect(text()!.value).toBe("Crater Lake\nOregon, 2026\nthird"));
+    text()!.value = "Café";
+    text()!.dispatchEvent(new Event("input", { bubbles: true }));
+    await vi.waitFor(() => expect(target.querySelector(".plaque-warning")?.textContent).toContain("é"));
+    title.click();
+    await vi.waitFor(() => expect(stage.dataset.plaqueMarkings).toBe("0"));
+    window.dispatchEvent(new Event("pagehide"));
+    expect(vi.mocked(saveProject).mock.lastCall![0].plaque).toMatchObject({ enabled: false, text: "Café", placement: { anchor: "bottom-left" } });
   });
 
   it("keeps the current preview visible and interactive during an expensive detail refresh", async () => {
@@ -1147,6 +1233,49 @@ describe("TopoStack Svelte shell", () => {
     [...target.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes("Cut layers"))!.click();
     await vi.waitFor(() => expect(target.querySelector('[data-marking-kind="grid"]')).not.toBeNull());
     expect(loadVectorMarkingsMock).not.toHaveBeenCalled();
+  });
+
+  it("imports a GPX file as markers and trails in one undo step", async () => {
+    const { saveProject } = await import("$lib/storage/storage");
+    vi.mocked(saveProject).mockClear();
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await vi.waitFor(() => expect(saveProject).toHaveBeenCalled(), { timeout: 2_000 });
+    const { lat, lon } = DEFAULT_PROJECT.location;
+    const gpx = `<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1"><wpt lat="${lat}" lon="${lon}"/><trk><trkseg><trkpt lat="${lat}" lon="${lon}"/><trkpt lat="${lat + 0.01}" lon="${lon + 0.01}"/><trkpt lat="${lat + 0.02}" lon="${lon}"/></trkseg></trk></gpx>`;
+    const input = target.querySelector<HTMLInputElement>("input[data-custom-import]")!;
+    Object.defineProperty(input, "files", { configurable: true, value: [new File([gpx], "hike.gpx", { type: "application/gpx+xml" })] });
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    await vi.waitFor(() => expect(target.textContent).toContain("Imported 1 path and 1 marker"));
+    expect(target.querySelectorAll(".marker-card:not(.custom-line-card)")).toHaveLength(1);
+    expect(target.querySelectorAll(".custom-line-card")).toHaveLength(1);
+    window.dispatchEvent(new Event("pagehide"));
+    const saved = vi.mocked(saveProject).mock.lastCall![0];
+    expect(saved.markers).toEqual([expect.objectContaining({ lat, lon, symbol: "pin" })]);
+    expect(saved.customLines).toEqual([expect.objectContaining({ kind: "trail", points: [{ lat, lon }, { lat: lat + 0.01, lon: lon + 0.01 }, { lat: lat + 0.02, lon }] })]);
+    target.querySelector<HTMLButtonElement>('button[aria-label="Undo"]')!.click();
+    await vi.waitFor(() => expect(target.querySelectorAll(".marker-card")).toHaveLength(0));
+
+    Object.defineProperty(input, "files", { configurable: true, value: [new File(["<gpx><trk>"], "broken.gpx")] });
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    await vi.waitFor(() => expect(target.textContent).toContain("This GPX file is not valid XML."));
+  });
+
+  it("opens the map to place markers and ends placement when the map cannot be shown", async () => {
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    const place = () => [...target.querySelectorAll<HTMLButtonElement>(".marker-add-button")].find((button) => button.title === "Click the map to place markers")!;
+    await vi.waitFor(() => expect(place()).toBeDefined());
+    expect(place().getAttribute("aria-pressed")).toBe("false");
+    place().click();
+    await tick();
+    expect(place().getAttribute("aria-pressed")).toBe("true");
+    expect(place().textContent).toContain("Done placing");
+    expect(target.querySelector('.mode-switch [aria-checked="true"]')?.textContent).toContain("Map");
+    // jsdom has no WebGL, so the map falls back to another preview, and a
+    // placement mode with no map to click must not stay on.
+    await vi.waitFor(() => expect(target.querySelector('.mode-switch [aria-checked="true"]')?.textContent).not.toContain("Map"));
+    await vi.waitFor(() => expect(place().getAttribute("aria-pressed")).toBe("false"));
   });
 
   it("adds, edits, symbolizes, and removes an arbitrary marker list", async () => {

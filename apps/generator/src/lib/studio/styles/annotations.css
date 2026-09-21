@@ -92,3 +92,32 @@
 .north-arrow-anchor-grid button[data-state="on"] span {
   background: var(--loidolt-accent);
 }
+
+/* Title plaque text: a plain multi-line field in the number-input chrome. */
+.plaque-text {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 4.8em;
+  padding: var(--panel-space-1);
+  border: var(--loidolt-border-width) solid var(--loidolt-border-control);
+  background: var(--loidolt-surface-input);
+  color: var(--loidolt-text);
+  font: inherit;
+  line-height: 1.4;
+  text-transform: uppercase;
+  resize: vertical;
+}
+
+.plaque-text:focus-visible {
+  border-color: var(--loidolt-accent);
+  outline: none;
+}
+
+.plaque-settings small {
+  color: var(--loidolt-text-muted);
+  line-height: 1.45;
+}
+
+.plaque-settings .plaque-warning {
+  color: var(--loidolt-warning);
+}

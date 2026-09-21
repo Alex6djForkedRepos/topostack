@@ -30,19 +30,20 @@ export function layerForEnabledDetail(result: GeometryIRV1, patch: Partial<Proje
     patch.showAlignmentGuides ? (id: string) => id.startsWith("alignment-") :
     patch.showElevationLabels ? (id: string) => id.startsWith("elevation-") :
     patch.showNorthArrow ? (id: string) => id.startsWith("north-") :
-    patch.showScaleBar ? (id: string) => id.startsWith("scale-") : undefined;
+    patch.showScaleBar ? (id: string) => id.startsWith("scale-") :
+    patch.plaque?.enabled ? (id: string) => id.startsWith("plaque-") : undefined;
   if (!matcher) return undefined;
   return result.layers.find((layer) => layer.markings.some((marking) => matcher(marking.id, marking.kind)))?.index;
 }
 
 export interface DetailCounts {
   road: number; trail: number; transportationLabel: number; water: number; contour: number; alignment: number;
-  elevation: number; north: number; scale: number; marker: number; customLine: number; piece: number;
+  elevation: number; north: number; scale: number; plaque: number; marker: number; customLine: number; piece: number;
 }
 
 /** Marking counts per detail, exposed on the preview stage for tests and diagnostics. */
 export function countDetailMarkings(layers: readonly LayerIR[], outputMode: ProjectConfigV1["outputMode"]): DetailCounts {
-  const counts: DetailCounts = { road: 0, trail: 0, transportationLabel: 0, water: 0, contour: outputMode === "engraving" ? Math.max(0, layers.length - 1) : 0, alignment: 0, elevation: 0, north: 0, scale: 0, marker: 0, customLine: 0, piece: 0 };
+  const counts: DetailCounts = { road: 0, trail: 0, transportationLabel: 0, water: 0, contour: outputMode === "engraving" ? Math.max(0, layers.length - 1) : 0, alignment: 0, elevation: 0, north: 0, scale: 0, plaque: 0, marker: 0, customLine: 0, piece: 0 };
   for (const layer of layers) {
     for (const marking of layer.markings) {
       if (marking.kind === "road") counts.road += 1;
@@ -56,6 +57,7 @@ export function countDetailMarkings(layers: readonly LayerIR[], outputMode: Proj
       else if (marking.id.startsWith("elevation-")) counts.elevation += 1;
       else if (marking.id.startsWith("north-")) counts.north += 1;
       else if (marking.id.startsWith("scale-")) counts.scale += 1;
+      else if (marking.id.startsWith("plaque-")) counts.plaque += 1;
       else if (marking.id.startsWith("map-marker-")) counts.marker += 1;
     }
   }
@@ -115,6 +117,7 @@ export function activeDetailCount(project: ProjectConfigV1): number {
     project.showElevationLabels,
     project.showNorthArrow,
     project.showScaleBar,
+    project.plaque?.enabled === true,
     project.outputMode === "stack" && project.showWaterDepth,
     project.outputMode === "stack" && project.showAlignmentGuides,
     project.outputMode === "engraving" && project.showEngravingBorder,

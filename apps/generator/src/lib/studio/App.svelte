@@ -21,6 +21,7 @@
   import ResetProjectDialog from "$lib/studio/ResetProjectDialog.svelte";
   import { readAtommLocale } from "$lib/atomm/atomm-locale";
   import { ProjectHistory } from "$lib/studio/history";
+  import { historyShortcut } from "$lib/studio/history-keys";
   import { ENGRAVING_MODE_OPTIONS, PRESETS, STACK_MODE_OPTIONS } from "$lib/studio/options";
   import * as edits from "$lib/studio/project-edits";
   import { isAbortError, PreviewPipeline } from "$lib/studio/preview-pipeline";
@@ -83,6 +84,9 @@
   let explodedDrag = $state.raw<number | undefined>(undefined);
   let searchOpen = $state(false);
   let mapAspectLocked = $state(false);
+  /** Map clicks place markers while on; any other preview mode ends it. */
+  let placingMarker = $state(false);
+  $effect(() => { if (mode !== "map") placingMarker = false; });
   let locationTrigger: HTMLButtonElement;
   let lineworkOpen = $state(false);
   let menuStateReady = $state(false);
@@ -325,6 +329,14 @@
         url.searchParams.delete("lake"); url.searchParams.delete("bounds");
         replaceState(url, {});
       },
+      hash: window.location.hash,
+      loadShareLink: () => import("$lib/studio/share-link"),
+      consumeShareLink: async () => {
+        const { replaceState } = await import("$app/navigation");
+        const url = new URL(window.location.href);
+        url.hash = "";
+        replaceState(url, {});
+      },
       isCancelled: () => cancelled,
       currentProject: () => project,
       restoreSaved: (saved) => {
@@ -338,6 +350,13 @@
         invalidatePendingPreview();
         projectHistory.push(previous);
         replaceSourceProject(next, createProjectPreviewSource(next));
+      },
+      openSharedProject: (next, previous) => {
+        invalidatePendingPreview();
+        projectHistory.push(previous);
+        dismissedWarnings = [];
+        replaceSourceProject(next, createProjectPreviewSource(next));
+        trackUsage("share_link_opened", next.outputMode);
       },
       setStatus: (message) => { status = message; },
     }).then(({ autosave }) => {
@@ -507,6 +526,13 @@
   function undo(): void { const previous = projectHistory.undo(project); if (previous) restoreProject(previous, "Undo"); }
   function redo(): void { const next = projectHistory.redo(project); if (next) restoreProject(next, "Redo"); }
 
+  function handleHistoryKey(event: KeyboardEvent): void {
+    const shortcut = historyShortcut(event);
+    if (!shortcut) return;
+    event.preventDefault();
+    if (shortcut === "undo") undo(); else redo();
+  }
+
   function invalidatePendingPreview(): void {
     const wasGenerating = generationState === "loading";
     generationAbort?.abort();
@@ -655,6 +681,34 @@
     catch (error) { reportImportError(error instanceof Error ? error.message : "Could not import this project."); }
   }
 
+  async function copyShareLink(): Promise<void> {
+    try {
+      const { shareLinkFor } = await import("$lib/studio/share-link");
+      await navigator.clipboard.writeText(shareLinkFor(project, new URL("/studio", window.location.href).toString()));
+      status = "Share link copied · anyone with it can open this design";
+      trackUsage("share_link_copied", project.outputMode);
+    } catch (error) {
+      status = error instanceof Error && error.name !== "NotAllowedError" ? error.message : "Could not copy the share link. Check clipboard permissions and try again.";
+    }
+  }
+
+  async function importCustomData(file: File | undefined): Promise<void> {
+    if (!file) return;
+    try {
+      const { importGeoFile } = await import("$lib/domain/geo-import");
+      const { patch, message } = await importGeoFile(file, edits.customDataCapacity(project), boundsForProject(project));
+      status = message;
+      if (!patch) return;
+      if (!keepsPendingWork(Object.keys(patch))) invalidatePendingPreview();
+      // One import is one undo step, however many features it adds.
+      projectHistory.push(project);
+      project = { ...project, ...edits.appendCustomData(project, patch, () => crypto.randomUUID()) };
+      if (generationState !== "loading") void refreshPreview("customData", 0, { quiet: true });
+    } catch (error) {
+      status = error instanceof Error ? error.message : "Could not import this map data file.";
+    }
+  }
+
   // The sidebar panels and preview read App state through this object; see StudioContext.
   provideStudio({
     get project() { return project; },
@@ -717,13 +771,17 @@
     set resetOpen(value) { resetOpen = value; },
     get mapAspectLocked() { return mapAspectLocked; },
     set mapAspectLocked(value) { mapAspectLocked = value; },
+    get placingMarker() { return placingMarker; },
+    set placingMarker(value) { placingMarker = value; },
     get lineworkOpen() { return lineworkOpen; },
     set lineworkOpen(value) { lineworkOpen = value; },
     get locationTrigger() { return locationTrigger; },
     set locationTrigger(value) { locationTrigger = value; },
-    shownLength, shownDepth, shownLineWidth, shownTextSize, storedLength, workAreaLength, updateProject, updateFabrication, updateMapDetails, updateLocation, updateVerticalExaggeration, updateDepthLayerLimit, setLakeDepth, setLineWidth, applyCustomDataEdit, choosePlace, undo, redo, importProject, generate, cancelGeneration, toggleSection, setAllSections, sectionSummary, navigateChoice, dismissPreviewWarning, previewMarkingPath, trailPatternDash, getFeedbackContext,
+    shownLength, shownDepth, shownLineWidth, shownTextSize, storedLength, workAreaLength, updateProject, updateFabrication, updateMapDetails, updateLocation, updateVerticalExaggeration, updateDepthLayerLimit, setLakeDepth, setLineWidth, applyCustomDataEdit, choosePlace, undo, redo, importProject, copyShareLink, importCustomData, generate, cancelGeneration, toggleSection, setAllSections, sectionSummary, navigateChoice, dismissPreviewWarning, previewMarkingPath, trailPatternDash, getFeedbackContext,
   });
 </script>
+
+<svelte:window onkeydown={handleHistoryKey} />
 
 <svelte:head>
   <meta name="theme-color" content={themeColor} />

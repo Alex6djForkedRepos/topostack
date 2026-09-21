@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ChevronDown, Map as MapIcon, MapPin, Plus, Route, Trash2 } from "@lucide/svelte";
+  import { ChevronDown, Crosshair, FileUp, Map as MapIcon, MapPin, Plus, Route, Trash2 } from "@lucide/svelte";
   import { Field, Section } from "@loidolt/theme-svelte";
   import { displayLength, MAP_MARKER_SIZE_MM, MAP_MARKER_MIN_SIZE_MM, MAP_MARKER_MAX_SIZE_MM } from "@topostack/core";
   import NumberField from "$lib/studio/StudioNumberField.svelte";
@@ -11,7 +11,12 @@
   import { getStudio } from "$lib/studio/studio-context";
 
   const studio = getStudio();
-  const { applyCustomDataEdit, navigateChoice, sectionSummary, shownLength, storedLength, toggleSection } = studio;
+  const { applyCustomDataEdit, importCustomData, navigateChoice, sectionSummary, shownLength, storedLength, toggleSection } = studio;
+  let geoInput: HTMLInputElement;
+  let importing = $state(false);
+  // Imported tracks can hold thousands of points; their editors open on request.
+  const LONG_PATH_POINTS = 12;
+  let expandedPaths = $state<Record<string, boolean>>({});
 </script>
 
 <Section class="config-section custom-data-section" aria-labelledby="atomm-customData-title">
@@ -23,13 +28,22 @@
   <div id="section-custom-data" class="section-content" hidden={!studio.openSections.customData}>
     <p class="custom-data-intro">Add your own geographic annotations. Coordinates stay attached to the project and are clipped to the selected map area during engraving.</p>
 
+    <div class="custom-data-import">
+      <button type="button" class="custom-data-import__button" onclick={() => geoInput.click()} disabled={importing || (!edits.canAddMarker(studio.project) && !edits.canAddCustomLine(studio.project))}><FileUp size={13} />{importing ? "Importing…" : "Import GPX, KML or GeoJSON"}</button>
+      <input bind:this={geoInput} data-custom-import class="ldt-visually-hidden" type="file" tabindex="-1" aria-hidden="true" accept=".gpx,.kml,.geojson,.json,application/gpx+xml,application/vnd.google-earth.kml+xml,application/geo+json" onchange={(event) => { const input = event.currentTarget; importing = true; void importCustomData(input.files?.[0]).finally(() => { input.value = ""; importing = false; }); }} />
+      <small>Tracks and routes become trails, polygon outlines become boundaries, and waypoints become markers. Long tracks are simplified to fit.</small>
+    </div>
+
     <div class="marker-editor">
       <div class="subgroup-heading subgroup-heading--action">
         <p><MapPin size={14} />Markers <span>{studio.project.markers.length}</span></p>
-        <button type="button" class="marker-add-button" onclick={() => applyCustomDataEdit(edits.addMarker(studio.project, crypto.randomUUID()))} disabled={!edits.canAddMarker(studio.project)}><Plus size={13} />Add marker</button>
+        <span class="marker-add-actions">
+          <button type="button" class="marker-add-button" aria-pressed={studio.placingMarker} title="Click the map to place markers" onclick={() => { studio.placingMarker = !studio.placingMarker; if (studio.placingMarker) studio.mode = "map"; }} disabled={!studio.placingMarker && !edits.canAddMarker(studio.project)}><Crosshair size={13} />{studio.placingMarker ? "Done placing" : "Place on map"}</button>
+          <button type="button" class="marker-add-button" onclick={() => applyCustomDataEdit(edits.addMarker(studio.project, crypto.randomUUID()))} disabled={!edits.canAddMarker(studio.project)}><Plus size={13} />Add marker</button>
+        </span>
       </div>
       {#if studio.project.markers.length === 0}
-        <small class="marker-empty">Add a marker, enter its latitude and longitude, then choose the symbol to engrave.</small>
+        <small class="marker-empty">Place markers by clicking the map, or add one and enter its latitude and longitude, then choose the symbol to engrave.</small>
       {:else}
         <div class="marker-list">
           {#each studio.project.markers as marker, index (marker.id)}
@@ -79,6 +93,9 @@
                   </button>
                 {/each}
               </div>
+              {#if line.points.length > LONG_PATH_POINTS && !expandedPaths[line.id]}
+                <button type="button" class="custom-point-expand" aria-expanded="false" onclick={() => { expandedPaths[line.id] = true; }}><ChevronDown size={13} />Edit {line.points.length.toLocaleString()} points</button>
+              {:else}
               <div class="custom-point-list">
                 {#each line.points as point, pointIndex}
                   <div class="custom-point-row">
@@ -93,6 +110,7 @@
                   </div>
                 {/each}
               </div>
+              {/if}
               <button type="button" class="custom-point-add" onclick={() => applyCustomDataEdit(edits.addCustomLinePoint(studio.project, line.id))} disabled={!edits.canAddCustomLinePoint(studio.project, line)}><Plus size={13} />Add point</button>
             </div>
           {/each}

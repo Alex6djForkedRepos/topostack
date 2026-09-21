@@ -66,6 +66,9 @@
       <tr><td>Placement</td><td>Nine positions from top left to bottom right</td><td>Bottom right</td><td></td></tr>
       <tr><td>Offset X, Offset Y</td><td>−100 to 100%</td><td>0%</td><td>Reset offset returns to 0.</td></tr>
       <tr><td>Scale bar</td><td>On, off</td><td>On</td><td></td></tr>
+      <tr><td>Title</td><td>On, off</td><td>Off</td><td>Up to 3 lines of 40 characters, engraved in capitals. Starts from the project name.</td></tr>
+      <tr><td>Title letter height</td><td>3–30 mm</td><td>6 mm</td><td>Uses the Text engraving font.</td></tr>
+      <tr><td>Title placement</td><td>Nine positions from top left to bottom right</td><td>Bottom left</td><td></td></tr>
       <tr><td>Font</td><td>Technical, Rounded, Stencil</td><td>Technical</td><td>Under Text engraving.</td></tr>
       <tr><td>Text size</td><td>2–10 mm</td><td>3.1 mm</td><td>Capital-letter height.</td></tr>
     </tbody>

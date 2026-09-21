@@ -8,12 +8,19 @@ export interface StartupRestoreHost {
   loadLakeLocation: () => Promise<typeof import("$lib/site/lake-location")>;
   /** Consumes the `lake` and `bounds` parameters so a refresh restores later edits instead. */
   consumeLakeLink: () => Promise<void>;
+  /** `window.location.hash` at startup. */
+  hash: string;
+  loadShareLink: () => Promise<typeof import("$lib/studio/share-link")>;
+  /** Clears the share fragment so a refresh restores later edits instead. */
+  consumeShareLink: () => Promise<void>;
   isCancelled: () => boolean;
   currentProject: () => ProjectConfigV1;
   /** Swap in the saved project as the new baseline (no undo into the default project). */
   restoreSaved: (saved: ProjectConfigV1) => void;
   /** Open a directory lake as an undoable change of `previous`. */
   openLinkedLake: (next: ProjectConfigV1, previous: ProjectConfigV1) => void;
+  /** Open a shared design as an undoable change of `previous`, so Undo returns to the saved project. */
+  openSharedProject: (next: ProjectConfigV1, previous: ProjectConfigV1) => void;
   setStatus: (message: string) => void;
 }
 
@@ -23,8 +30,9 @@ export interface StartupRestoreResult {
 }
 
 /**
- * Restore the autosaved project, then apply a `?lake=` directory link on top of
- * it. A saved project that cannot be read still lets the link open.
+ * Restore the autosaved project, then apply a shared design (`#p=`) or a
+ * `?lake=` directory link on top of it. A saved project that cannot be read
+ * still lets the link open.
  */
 export async function restoreStartupProject(host: StartupRestoreHost): Promise<StartupRestoreResult> {
   let autosave = true;
@@ -43,6 +51,19 @@ export async function restoreStartupProject(host: StartupRestoreHost): Promise<S
     if (saved) {
       host.restoreSaved(saved);
       host.setStatus("Local project restored · generate to refresh terrain");
+    }
+    // Checked without the share module so ordinary visits never load it.
+    if (/^#?p=/.test(host.hash)) {
+      const { projectFromShareLink } = await host.loadShareLink();
+      if (host.isCancelled()) return { autosave };
+      let shared: ProjectConfigV1 | undefined;
+      try { shared = projectFromShareLink(host.hash); }
+      catch (error) { host.setStatus(`${error instanceof Error ? error.message : "Share link could not be opened."} · your saved project is unchanged`); }
+      await host.consumeShareLink();
+      if (host.isCancelled() || !shared) return { autosave };
+      host.openSharedProject(shared, host.currentProject());
+      host.setStatus("Shared design opened · generate terrain to preview it · Undo returns to your previous project");
+      return { autosave };
     }
     if (!new URLSearchParams(host.search).has("lake")) return { autosave };
     const current = host.currentProject();
