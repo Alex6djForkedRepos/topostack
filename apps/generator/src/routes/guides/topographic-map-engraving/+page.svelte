@@ -18,7 +18,7 @@
   <ol>
     <li>Select <strong>Generate terrain</strong> (<strong>Regenerate terrain</strong> after the first generation) to fetch real elevation and the requested map details.</li>
     <li>Inspect the flat engraving preview. If data is unavailable or settings are stale, resolve the message before exporting.</li>
-    <li>Open <strong>Export</strong> and choose the engraving artwork or the complete project.</li>
+    <li>Open <strong>Export</strong> and download the recommended <strong>Complete project</strong>, or the artwork alone as <strong>Engraving SVG</strong> under <strong>Individual files</strong>.</li>
     <li>Import the SVG into your laser software and confirm its physical dimensions and engraving operation.</li>
   </ol>
   <p>The primary file ends in <strong>-engraving.svg</strong>. It contains one blue (<code>#2366FF</code>) <strong>ENGRAVE</strong> group with named detail groups, and no CUT or SCORE groups. The complete project adds a project file with your settings, a README and <strong>ATTRIBUTION.txt</strong>.</p>

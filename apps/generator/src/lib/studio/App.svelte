@@ -191,7 +191,6 @@
   const terrainDataAction = $derived(geometry.sourceKind === "real" ? "regenerate" : "generate");
   const exportBlockedBy = $derived(exportBlockReason(geometry, project));
   const exportReady = $derived(!exportBlockedBy);
-  const platformExportAvailable = $derived(atommReady && embeddedInPlatform);
   const lakeDepthFittingOn = $derived(project.outputMode === "stack" && project.showWaterDepth && project.fitLakeDepth
     && geometry.waterSurfaces.some((surface) => surface.kind === "lake" && surface.depthFitScale !== undefined && surface.depthFitScale < 1));
   const visibleWarnings = $derived(summarizeWarnings(geometry.warnings, dismissedWarnings));
@@ -208,6 +207,10 @@
 
   const layerTicks = $derived(geometry.layers.map((layer) => Math.round(displayElevation(layer.elevationM, project.units))));
   const shownLengthUnit = $derived(lengthUnit(project.units));
+  // Shown in the top bar and repeated in the export dialog.
+  const outputFacts = $derived(project.outputMode === "engraving"
+    ? [`${project.engravingContourCount} contours`, "1 engrave SVG", "No cut paths"]
+    : [`${geometry.layers.length} layers`, `${fabricationPanelCount} cut panels`, `${shownLength(totalHeight)} ${shownLengthUnit} tall`]);
   const seamGrid = $derived(planSeamGrid(project));
   const seamSummary = $derived(seamGrid
     ? `${seamGrid.columns} × ${seamGrid.rows} sheets per layer · ${shownLength(seamGrid.pitchXMm)} × ${shownLength(seamGrid.pitchYMm)} ${shownLengthUnit} tiles`
@@ -818,7 +821,7 @@
           <ProjectControls />
         {/snippet}
         {#snippet actions()}
-          <div class="bar-meta">{#if project.outputMode === "engraving"}<span>{project.engravingContourCount} contours</span><span>1 engrave SVG</span><span>No cut paths</span>{:else}<span>{geometry.layers.length} layers</span><span>{fabricationPanelCount} cut panels</span><span>{shownLength(totalHeight)} {shownLengthUnit} tall</span>{/if}</div>
+          <div class="bar-meta">{#each outputFacts as fact (fact)}<span>{fact}</span>{/each}</div>
           <Button class="export-trigger" aria-label="Export" title="Export" aria-haspopup="dialog" onclick={(event: MouseEvent) => { if (event.currentTarget instanceof HTMLElement) event.currentTarget.focus(); exportOpen = true; }}><Download size={18} aria-hidden="true" /><span class="export-trigger-label">Export</span></Button>
           <ThemeToggle {theme} class="theme-toggle" />
           {#if import.meta.env.VITE_SITE_ENV !== "atomm"}<WhatsNewLink />{/if}
@@ -856,7 +859,7 @@
 
     <PreviewPanel />
   </Workspace>
-  <ExportDialog open={exportOpen} {project} blockedReason={exportBlockedBy} preparing={exportPhase === "preparing"} platformAvailable={platformExportAvailable} phase={exportPhase} title={exportTitle} detail={exportDetail} onDownload={(option) => void downloadProject(option)} onClose={() => exportOpen = false} />
+  <ExportDialog open={exportOpen} {project} summary={outputFacts.join(" · ")} panelCount={fabricationPanelCount} blockedReason={exportBlockedBy} preparing={exportPhase === "preparing"} phase={exportPhase} title={exportTitle} detail={exportDetail} onDownload={(option) => void downloadProject(option)} onClose={() => exportOpen = false} />
   {@render locationSearch()}
 </AppShell>
 

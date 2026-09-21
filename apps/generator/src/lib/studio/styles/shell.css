@@ -131,14 +131,6 @@ body:has(.app-shell) {
   font: 10px/1.4 var(--loidolt-font-utility);
 }
 
-[data-atomm-export-button] {
-  --atomm-export-bg: var(--loidolt-accent);
-  --atomm-export-bg-hover: var(--loidolt-accent-hover);
-  --atomm-export-radius: var(--loidolt-border-radius);
-  --atomm-export-height: var(--loidolt-size-control);
-  --atomm-export-font-size: var(--loidolt-font-size-xs);
-}
-
 .export-trigger {
   height: var(--loidolt-size-control);
 }
