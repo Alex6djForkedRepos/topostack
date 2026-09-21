@@ -185,6 +185,9 @@ test("export dialog supports keyboard dismissal, project backups, and compact la
   await trigger.click();
   const dialog = page.getByRole("dialog", { name: "Export your project" });
   await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("button", { name: /Complete project/ })).toBeDisabled();
+  await expect(dialog.getByRole("button", { name: /Master SVG/ })).toBeHidden();
+  await dialog.getByText("Individual files").click();
   await expect(dialog.getByRole("button", { name: /Master SVG/ })).toBeDisabled();
   await expect(dialog.getByText("Donations are optional.", { exact: false })).toBeVisible();
   const downloadReady = page.waitForEvent("download");

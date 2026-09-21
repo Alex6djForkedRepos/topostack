@@ -3,13 +3,16 @@
   import { IconButton } from "@loidolt/theme-svelte";
   import type { ProjectConfigV1 } from "@topostack/core";
   import type { DownloadOption } from "$lib/studio/native-export";
+  import { donationUrl } from "$lib/site/support";
 
-  let { open, project, blockedReason, preparing, platformAvailable, phase, title, detail, onDownload, onClose }: {
+  let { open, project, summary, panelCount, blockedReason, preparing, phase, title, detail, onDownload, onClose }: {
     open: boolean;
     project: ProjectConfigV1;
+    /** The same counts the top bar shows, e.g. "12 layers · 9 cut panels". */
+    summary: string;
+    panelCount: number;
     blockedReason: string | undefined;
     preparing: boolean;
-    platformAvailable: boolean;
     phase: string;
     title: string;
     detail: string;
@@ -17,18 +20,26 @@
     onClose: () => void;
   } = $props();
   let dialog: HTMLDialogElement;
-  import { donationUrl } from "$lib/site/support";
-  const cards = $derived([
-    { id: "all", label: "Complete project", format: "ZIP", icon: Archive, description: "All artwork, project data, instructions, and source credits in one download.", featured: true },
-    { id: "master", label: project.outputMode === "engraving" ? "Engraving SVG" : "Master SVG", format: "SVG", icon: FileType, description: project.outputMode === "engraving" ? "One editable map with engraving paths only." : "The full layout with separate cut, score, and engrave operations." },
-    ...(project.outputMode === "stack" ? [
-      { id: "panels", label: "Cut panels", format: "ZIP", icon: Layers3, description: "Individual fabrication panels with their cut, score, and engrave paths." },
-      { id: "engravings", label: "Engraving panels", format: "ZIP", icon: PenTool, description: "Registered engraving-only companions for each fabrication panel." },
-      { id: "paint", label: "Paint templates", format: "ZIP", icon: SprayCan, unavailable: !project.paintTemplates.length, description: project.paintTemplates.length ? "Paper stencils registered to each panel, windowed to the water that stays visible after assembly." : "Turn on Water paint templates in Fabrication settings to add paper stencils for each panel." },
-      { id: "assembly", label: "Assembly guide", format: "SVG", icon: ListOrdered, description: "A visual reference for layer order and elevations as you build." },
+
+  const layered = $derived(project.outputMode === "stack");
+  const panels = $derived(`${panelCount} ${panelCount === 1 ? "panel" : "panels"}`);
+  const heroDescription = $derived(layered
+    ? `Everything to cut and build: ${panels}, assembly guide, README, settings, and source credits.`
+    : "The engraving SVG with README, settings, and source credits.");
+  // Specialist files, each with the situation it is for.
+  const files = $derived([
+    layered
+      ? { id: "master", label: "Master SVG", format: "SVG", icon: FileType, hint: "Every panel on one sheet, as a single file." }
+      : { id: "master", label: "Engraving SVG", format: "SVG", icon: FileType, hint: "Just the artwork, for your laser software." },
+    ...(layered ? [
+      { id: "panels", label: "Cut panels", format: "ZIP", icon: Layers3, hint: "One SVG per sheet: cut and engrave together." },
+      { id: "engravings", label: "Engraving panels", format: "ZIP", icon: PenTool, hint: "Engraving-only copies, to engrave as a separate job." },
+      { id: "paint", label: "Paint templates", format: "ZIP", icon: SprayCan, unavailable: !project.paintTemplates.length, hint: project.paintTemplates.length ? "Paper stencils for painting water." : "Turn on Water paint templates in Fabrication settings to add these." },
+      { id: "assembly", label: "Assembly guide", format: "SVG", icon: ListOrdered, hint: "Printable layer order for stacking." },
     ] : []),
-    { id: "project", label: "Project settings", format: "JSON", icon: FileJson, description: "Save your settings to import and continue later. Regenerate terrain after importing." },
-  ]);
+  ] as { id: DownloadOption; label: string; format: string; icon: typeof Archive; hint: string; unavailable?: boolean }[]);
+  const artworkDisabled = $derived(preparing || Boolean(blockedReason));
+  const blockedBy = $derived(blockedReason ? "export-blocked-reason" : undefined);
 
   $effect(() => {
     if (open && !dialog.open) dialog.showModal();
@@ -44,34 +55,47 @@
 
 <dialog bind:this={dialog} class="ldt-dialog export-dialog" aria-labelledby="export-dialog-title" aria-describedby="export-dialog-description" onclose={onClose} onmousedown={closeFromBackdrop}>
   <header class="ldt-dialog__header">
-    <div><span class="section-kicker">From terrain to something tangible</span><h2 id="export-dialog-title" class="ldt-dialog__title">Export your project</h2><p id="export-dialog-description" class="ldt-dialog__description">Choose the files you need for {project.name}.</p></div>
+    <div><h2 id="export-dialog-title" class="ldt-dialog__title">Export your project</h2><p id="export-dialog-description" class="ldt-dialog__description">{project.name} · {summary}</p></div>
     <IconButton label="Close export dialog" onclick={() => dialog.close()}><X size={19} /></IconButton>
   </header>
-  <div class="ldt-dialog__body export-dialog-body">
+  <div class="ldt-dialog__body export-dialog-body" aria-busy={preparing}>
     {#if blockedReason}<p id="export-blocked-reason" class="export-blocked" role="status">{blockedReason} You can still save your project settings.</p>{/if}
-    <div class="export-cards" aria-busy={preparing}>
-      {#each cards as card (card.id)}
-        <button type="button" class="export-card" class:export-card--featured={card.featured} disabled={preparing || card.unavailable || (card.id !== "project" && Boolean(blockedReason))} aria-describedby={card.id !== "project" && blockedReason ? "export-blocked-reason" : undefined} onclick={() => onDownload(card.id as DownloadOption)}>
-          <span class="export-card-top"><span class="export-card-icon"><card.icon size={22} strokeWidth={1.6} /></span><span class="export-card-format">{card.format}</span></span>
-          <strong>{card.label}</strong><span class="export-card-description">{card.description}</span>
-          <span class="export-card-action"><Download size={14} /> Download {card.format}</span>
-        </button>
-      {/each}
-    </div>
-    <section class="export-platform" hidden={!platformAvailable} aria-label="Atomm export">
-      <div><strong>Continue in xTool Studio</strong><p>Use Atomm to open your master artwork in Studio or download your files.</p></div>
-      <fieldset disabled={preparing || Boolean(blockedReason)} inert={preparing || Boolean(blockedReason)} aria-label="Atomm export actions"><div data-atomm-export-button></div></fieldset>
-    </section>
+    <button type="button" class="export-hero" disabled={artworkDisabled} aria-describedby={blockedBy} onclick={() => onDownload("all")}>
+      <span class="export-hero-icon"><Archive size={26} strokeWidth={1.6} /></span>
+      <span class="export-hero-copy">
+        <span class="export-hero-kicker">Recommended</span>
+        <strong>Complete project</strong>
+        <span class="export-hero-description">{heroDescription}</span>
+      </span>
+      <span class="export-hero-action"><Download size={16} aria-hidden="true" /> Download ZIP</span>
+    </button>
     {#if phase !== "idle"}
       <div class={`export-feedback export-feedback--${phase}`} role="status" aria-live="polite">
         <span class="export-feedback-indicator" aria-hidden="true"></span>
         <span class="export-feedback-copy"><strong>{title}</strong><small>{detail}</small></span>
       </div>
     {/if}
+    <details class="export-more">
+      <summary>Individual files <small>({files.length})</small></summary>
+      <div class="export-rows">
+        {#each files as file (file.id)}
+          <button type="button" class="export-row" disabled={artworkDisabled || file.unavailable} aria-describedby={blockedBy} onclick={() => onDownload(file.id)}>
+            <span class="export-row-icon"><file.icon size={20} strokeWidth={1.6} /></span>
+            <span class="export-row-copy"><strong>{file.label}</strong><span>{file.hint}</span></span>
+            <span class="export-row-format">{file.format} <Download size={14} aria-hidden="true" /></span>
+          </button>
+        {/each}
+      </div>
+    </details>
+    <button type="button" class="export-row export-row--settings" disabled={preparing} onclick={() => onDownload("project")}>
+      <span class="export-row-icon"><FileJson size={20} strokeWidth={1.6} /></span>
+      <span class="export-row-copy"><strong>Project settings</strong><span>Continue later; works before generating. Regenerate terrain after importing.</span></span>
+      <span class="export-row-format">JSON <Download size={14} aria-hidden="true" /></span>
+    </button>
     <section class="export-support" aria-labelledby="export-support-title">
       <span class="export-support-icon"><Heart size={22} strokeWidth={1.6} /></span>
       <div class="export-support-copy"><h3 id="export-support-title">Help keep TopoStack growing</h3><p>If TopoStack has been useful to you, or you use it for commercial projects, consider a donation to support its development.</p><small>Donations are optional. Every export is available without donating.</small></div>
-      {#if donationUrl}<a class="export-donate" href={donationUrl} target="_blank" rel="noopener noreferrer"><Heart size={16} strokeWidth={2} fill="currentColor" aria-hidden="true" /> Donate <ArrowUpRight size={16} aria-hidden="true" /><span class="ldt-visually-hidden"> (opens in a new tab)</span></a>{/if}
+      {#if donationUrl}<a class="export-donate" href={donationUrl} target="_blank" rel="noopener noreferrer"><Heart size={16} strokeWidth={2} aria-hidden="true" /> Donate <ArrowUpRight size={16} aria-hidden="true" /><span class="ldt-visually-hidden"> (opens in a new tab)</span></a>{/if}
     </section>
   </div>
 </dialog>
