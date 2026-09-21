@@ -24,7 +24,10 @@ const budgets = {
   // carries each page's publication and modification dates and its sharing
   // card, which the layout's Seo component reads on client navigation.
   // Measured at 58,098 with Node 22.22.2.
-  landingJavaScriptGzip: 58_600,
+  // Lowered 2026-09-21: head metadata now comes from the root layout's server
+  // load, so the page registry left the homepage bundle and new pages no
+  // longer cost homepage JavaScript. 57,942 -> 56,171 with Node 22.22.2 (production build).
+  landingJavaScriptGzip: 57_200,
   landingHtmlGzip: 10_000,
   initialJavaScriptGzip: 180_000,
   // Includes the editor, default 3D preview, and geometry worker. Lake modeling

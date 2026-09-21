@@ -29,7 +29,14 @@ node scripts/verify/verify-seo-http.mjs https://topostack.app production
 The HTTP check is also called by the deployment verifier. Use the development
 origin and `development` argument when checking that environment. Recheck both
 after any indexing or hosting change. Keep new public pages in `PUBLIC_PAGES`
-and the fixed usage landing list; update verification expectations too.
+and the fixed usage landing list (`seo.test.ts` fails if a registered page is
+missing from `USAGE_LANDINGS`); update verification expectations too.
+
+Head metadata is resolved by `pageSeo()` in the root `+layout.server.ts` at
+prerender time and read by `Seo.svelte` from page data. The registry therefore
+does not ship in the homepage bundle; adding a page no longer costs homepage
+JavaScript. Client components that need site constants import `$lib/site/site`,
+not `$lib/site/seo`.
 
 ## Page dates and sharing cards
 
@@ -151,7 +158,9 @@ search traffic and Cloudflare Web Analytics for visit/device context.
    browser session on the deployed site.
 6. Update the published Atomm listing from `atomm/listing.md`. The immutable slug
    stays `topographic-map-generator`.
-7. The GitHub description, website and topics were updated during implementation.
+7. The GitHub description and topics were updated during implementation. As of
+   September 21, 2026 the repository website field still pointed at the legacy
+   `topostack.echofoxtrot.works`; set it to `https://topostack.app`.
    Its custom social preview can be uploaded through repository settings using
    the existing studio screenshot. The site itself already references that image.
 
