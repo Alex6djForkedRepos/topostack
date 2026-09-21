@@ -40,6 +40,23 @@
   background: var(--loidolt-surface-alt);
 }
 
+.marker-add-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--panel-space-2);
+}
+
+.marker-add-button[aria-pressed="true"] {
+  background: var(--loidolt-accent);
+  color: var(--loidolt-on-accent);
+}
+
+.marker-add-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .marker-editor .subgroup-heading > p,
 .custom-line-editor .subgroup-heading > p,
 .marker-add-button {

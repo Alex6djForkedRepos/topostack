@@ -84,6 +84,9 @@
   let explodedDrag = $state.raw<number | undefined>(undefined);
   let searchOpen = $state(false);
   let mapAspectLocked = $state(false);
+  /** Map clicks place markers while on; any other preview mode ends it. */
+  let placingMarker = $state(false);
+  $effect(() => { if (mode !== "map") placingMarker = false; });
   let locationTrigger: HTMLButtonElement;
   let lineworkOpen = $state(false);
   let menuStateReady = $state(false);
@@ -768,6 +771,8 @@
     set resetOpen(value) { resetOpen = value; },
     get mapAspectLocked() { return mapAspectLocked; },
     set mapAspectLocked(value) { mapAspectLocked = value; },
+    get placingMarker() { return placingMarker; },
+    set placingMarker(value) { placingMarker = value; },
     get lineworkOpen() { return lineworkOpen; },
     set lineworkOpen(value) { lineworkOpen = value; },
     get locationTrigger() { return locationTrigger; },
