@@ -109,6 +109,12 @@ try {
   await page.screenshot({ path: new URL("studio-crater-lake.png", output).pathname, animations: "disabled" });
   const staticOutput = new URL("../../apps/generator/static/images/", import.meta.url);
   await copyFile(new URL("studio-crater-lake.png", output), new URL("studio-crater-lake.png", staticOutput));
+  // The site serves WebP copies of this capture; re-encode them after a new capture:
+  //   cwebp -q 82 studio-crater-lake.png -o studio-crater-lake.webp
+  //   cwebp -q 80 -resize 640 450 studio-crater-lake.png -o studio-crater-lake-640.webp
+  // and the gallery thumbnail, cropped to the 3D model:
+  //   sips -c 430 740 --cropOffset 295 420 studio-crater-lake.png --out crater.png
+  //   cwebp -q 80 crater.png -o examples/crater-lake-800.webp
   // Compose the sharing card around an unaltered capture of the app's WebGL canvas.
   const canvas = await page.locator(".three-stage canvas").boundingBox();
   if (!canvas) throw new Error("3D canvas is unavailable");

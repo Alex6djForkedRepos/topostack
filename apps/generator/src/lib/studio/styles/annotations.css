@@ -41,11 +41,6 @@
   stroke-width: 1.15;
 }
 
-.swatch-options[aria-label="Engraving font"] svg {
-  height: 24px;
-  stroke-width: 0.18;
-}
-
 .swatch-options button > span {
   display: block;
   margin-top: 3px;
@@ -91,4 +86,82 @@
 
 .north-arrow-anchor-grid button[data-state="on"] span {
   background: var(--loidolt-accent);
+}
+
+/* Title plaque text: a plain multi-line field in the number-input chrome. */
+.plaque-text {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 4.8em;
+  padding: var(--panel-space-1);
+  border: var(--loidolt-border-width) solid var(--loidolt-border-control);
+  background: var(--loidolt-surface-input);
+  color: var(--loidolt-text);
+  font: inherit;
+  line-height: 1.4;
+  text-transform: uppercase;
+  resize: vertical;
+}
+
+.plaque-text:focus-visible {
+  border-color: var(--loidolt-accent);
+  outline: none;
+}
+
+.plaque-settings small {
+  color: var(--loidolt-text-muted);
+  line-height: 1.45;
+}
+
+.plaque-settings .plaque-warning {
+  color: var(--loidolt-warning);
+}
+
+/* Engraving font picker: one row that opens a grouped list over the sidebar.
+   Options reuse the theme's menu items. */
+.font-picker {
+  position: relative;
+  display: grid;
+  gap: 4px;
+}
+
+.font-picker__trigger,
+.font-option {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  font-size: var(--panel-font-body);
+  text-align: left;
+  cursor: pointer;
+}
+
+.font-picker__trigger {
+  border: 1px solid var(--loidolt-border);
+  background: var(--loidolt-surface);
+  color: var(--loidolt-text);
+}
+
+.font-picker small {
+  color: var(--loidolt-text-muted);
+  font: var(--panel-font-caption) var(--loidolt-font-utility);
+}
+
+.font-picker__list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  max-height: min(360px, 60vh);
+  overflow-y: auto;
+}
+
+.font-picker__list .subgroup-heading {
+  padding: 8px 8px 2px;
+}
+
+.font-option[aria-selected="true"]::after {
+  content: "✓";
 }

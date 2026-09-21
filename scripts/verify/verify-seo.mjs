@@ -1,13 +1,16 @@
 import assert from "node:assert/strict";
 import { readFile, readdir, stat } from "node:fs/promises";
 import { JSDOM } from "jsdom";
-import { PUBLIC_PAGES, headline, isArticlePage, socialImage } from "../../apps/generator/src/lib/site/seo.ts";
+import { socialImage } from "../../apps/generator/src/lib/site/seo.ts";
+import { expectedPages } from "./seo-pages.mjs";
 
 const environment = process.argv[process.argv.indexOf("--environment") + 1];
 assert.ok(["production", "development", "atomm"].includes(environment), "Pass --environment production, development, or atomm");
 const production = environment === "production";
 const origin = "https://topostack.app";
 const dist = new URL("../../apps/generator/dist/", import.meta.url);
+const pages = expectedPages();
+const recordedDate = (path) => pages.get(path)?.updated;
 const builtPaths = await readdir(dist, { recursive: true });
 const files = builtPaths.filter((path) => path.endsWith(".html"));
 const indexable = [];
@@ -31,7 +34,7 @@ for (const file of files) {
   assert.equal(document.querySelectorAll("h1").length, 1, file + ": useful initial HTML");
   // Declared card dimensions must match the page's own image, or consumers that
   // trust the tags without fetching the file lay the preview out wrongly.
-  const image = socialImage(path);
+  const image = pages.get(path)?.image ?? socialImage(path);
   assert.equal(document.querySelector('meta[property="og:image"]').content, origin + image.url, file + ": og:image");
   assert.equal(document.querySelector('meta[name="twitter:image"]').content, origin + image.url, file + ": twitter:image");
   assert.equal(document.querySelector('meta[property="og:image:width"]').content, String(image.width), file + ": og:image:width");
@@ -48,10 +51,10 @@ for (const file of files) {
   // Guides and examples carry dated article metadata; hubs and policy pages
   // must not claim a publication date they do not have.
   const articleNode = graph.find((node) => node["@type"] === "TechArticle");
-  const meta = PUBLIC_PAGES[path];
-  assert.equal(Boolean(articleNode), Boolean(meta) && isArticlePage(path), file + ": article metadata policy");
+  const meta = pages.get(path)?.article;
+  assert.equal(Boolean(articleNode), Boolean(meta), file + ": article metadata policy");
   if (articleNode) {
-    assert.equal(articleNode.headline, headline(meta.title), file + ": article headline matches the page title");
+    assert.equal(articleNode.headline, meta.headline, file + ": article headline matches the page title");
     assert.equal(articleNode.datePublished, meta.published, file + ": datePublished");
     assert.equal(articleNode.dateModified, meta.updated, file + ": dateModified");
     assert.equal(articleNode.mainEntityOfPage, origin + path, file + ": article canonical");
@@ -80,7 +83,7 @@ for (const entry of sitemap.querySelectorAll("url")) {
   const path = entry.querySelector("loc").textContent.slice(origin.length);
   const lastmod = entry.querySelector("lastmod")?.textContent;
   assert.ok(lastmod, path + ": sitemap lastmod");
-  assert.equal(lastmod, PUBLIC_PAGES[path].updated, path + ": lastmod must match the recorded page date");
+  assert.equal(lastmod, recordedDate(path), path + ": lastmod must match the recorded page date");
   assert.ok(lastmod <= today, path + ": lastmod is in the future");
 }
 // The assistant index must describe exactly the pages that are indexable, so

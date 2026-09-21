@@ -39,11 +39,13 @@ export async function verifyArchiveResponse(response, expectedBytes, expectedDig
 export async function stageArchive({ logicalKey, dataset, bytes, sha256, upload, request, promote = false, id = randomUUID(), checkpoint = async () => {} }) {
   const objectKey = `archives/${sha256}/${id}.pmtiles`;
   const pointerKey = `releases/${logicalKey}.json`;
-  const previous = await request(pointerKey, { method: "GET" });
+  // R2 gzips JSON pointers for clients that accept it and then returns a weak
+  // etag, which never satisfies the strong If-Match comparison on promotion.
+  const previous = await request(pointerKey, { method: "GET", headers: { "accept-encoding": "identity" } });
   let previousEtag, previousRelease = null;
   if (previous.status === 200) {
     previousEtag = previous.headers.get("etag");
-    if (!previousEtag || Number(previous.headers.get("content-length")) > 16_384) { await previous.body?.cancel(); throw new Error("Invalid existing release pointer."); }
+    if (!previousEtag || previousEtag.startsWith("W/") || Number(previous.headers.get("content-length")) > 16_384) { await previous.body?.cancel(); throw new Error("Invalid existing release pointer."); }
     previousRelease = parseArchiveRelease(await previous.json(), logicalKey);
   } else if (previous.status !== 404) {
     await previous.body?.cancel(); throw new Error(`Release lookup failed (${previous.status}).`);

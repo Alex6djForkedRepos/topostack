@@ -31,9 +31,9 @@
     },
     {
       "dataset": "usgs-lake-tahoe-v1",
-      "sha256": "7aaca0d2c6fb33fb4edef9aeda87ef17674f6e05022bae7866d548689b10857e",
-      "bytes": 18395798,
-      "tiles": 293,
+      "sha256": "ec6db099b7754d73d554510b21b544dc8486a1e3d67590f8019b8ada621640dd",
+      "bytes": 16372418,
+      "tiles": 242,
       "processedGrids": 1
     },
     {

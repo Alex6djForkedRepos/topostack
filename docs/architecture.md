@@ -33,9 +33,9 @@ Every generated result records a deterministic project fingerprint and source qu
 | --- | --- |
 | `primitives/` | Pure 2D geometry: polygon prep and clipping (`geometry2d`), ring offsetting, grid sampling, crop shapes, units, number formatting |
 | `water/` | Lake and ocean depth: shore distance, survey and terrain-basin fitting, shoreline smoothing, water fill patterns |
-| `annotate/` | Text and symbols: label metrics and placement, markers, the north arrow |
+| `annotate/` | Text and symbols: the font catalog and glyph registry (`font-data`), label metrics, drawing and placement, markers, the north arrow, the title |
 | `pipeline/` | Geometry generation: `generate.ts` orchestrates contour tracing, stack planning, material nesting, transportation styling, coordinate grids, validation, and the work-area split; `synthetic-source.ts` builds the deterministic preview source |
-| `export/` | Fabrication output: SVG primitives, panel layout, per-layer/master/assembly SVGs, the flat-engraving SVG, package builders, and the export block policy |
+| `export/` | Fabrication output: SVG primitives, panel layout, per-layer/master SVGs, the printable assembly booklet (`assembly-guide.ts`), the flat-engraving SVG, package builders, and the export block policy |
 | `test-support/` | Fixtures shared by tests only; excluded from the build |
 
 `index.ts` names every public entry point explicitly. Consumers import `@topostack/core`; nothing outside the package may reach into these folders.
@@ -43,6 +43,10 @@ Every generated result records a deterministic project fingerprint and source qu
 ## Generator layout
 
 `apps/generator/src/lib` is split into `domain/`, `storage/`, `workers/`, `site/`, `studio/`, and `atomm/`; routes hold only pages. Modules are imported as `$lib/<layer>/<module>` and relative imports are for siblings only, so a file's dependencies name their layer. See the [generator README](../apps/generator/README.md) for what each layer may import.
+
+## Engraving fonts
+
+Text stays text in the geometry IR (`label` and `textStyle` on a marking) and becomes paths when a preview or export draws it, except for surface-following annotations in layered output, which are drawn and clipped during generation. The three built-in fonts are a bitmap table in `annotate/labels.ts`. The curated typefaces are glyph files that the host fetches and passes to `registerFont` in each JavaScript realm before it generates or renders; the studio does this in `PreviewPipeline.generate` for the page and in the geometry worker for itself. Drawing a typeface that is not registered throws `FontNotLoadedError` rather than substituting another font. The fingerprint covers the chosen font id, not its glyphs, so a released glyph file never changes; see [fonts.md](fonts.md).
 
 ## Coordinate conventions
 
@@ -57,12 +61,12 @@ The first release supports land terrain between ±85.0511° latitude. Mapzen Ter
 
 ## Versioning
 
-`ProjectConfigV1`, `SourceBundleV1`, `GeometryIRV1`, and the exported manifest are explicitly versioned. Any incompatible change must introduce a migration rather than silently reinterpret an IndexedDB or exported project. Replacing the stored `layerCount` with `verticalExaggeration` originally moved the fingerprint prefix to `v3-`; projects saved before that load at the default exaggeration and must be regenerated once before export. The current prefix is `v7-`, invalidating geometry generated with the former total-layer or hidden depth-layer caps. The preceding `v6-` removed the total-layer ceiling. The preceding `v5-` invalidated geometry generated before the launch-readiness crop, clipping, and water-scaling fixes.
+`ProjectConfigV1`, `SourceBundleV1`, `GeometryIRV1`, and the exported manifest are explicitly versioned. Any incompatible change must introduce a migration rather than silently reinterpret an IndexedDB or exported project. Replacing the stored `layerCount` with `verticalExaggeration` originally moved the fingerprint prefix to `v3-`; projects saved before that load at the default exaggeration and must be regenerated once before export. The current prefix is `v9-`. The earlier `v7-` invalidated geometry generated with the former total-layer or hidden depth-layer caps. The preceding `v6-` removed the total-layer ceiling. The preceding `v5-` invalidated geometry generated before the launch-readiness crop, clipping, and water-scaling fixes.
 
 ## Launch-readiness invariants
 
 `sourceRequirements()` is shared by the provider, UI refresh logic, and core export policy. `exportBlockReason()` is shared by browser actions and both package builders. Transportation names are retained even when their labels are hidden. PMTiles caches live for one source operation; its header, directory, and body requests share cancellation and a 20-second request deadline. Source geometry is bounded to 200,000 points and 4,000 polygon rings before projection/union, with cancellation opportunities between decode batches.
 
-The first browser preview is computed in a Web Worker. WebGL startup failure selects the cut preview, and the asynchronously loaded Atomm SDK can register after its initial polling window. The build budget reports both entry preloads and the full default-preview startup graph, including Three.js and the geometry worker.
+The first browser preview is computed in a Web Worker. WebGL startup failure selects the cut preview, and the asynchronously loaded Atomm SDK can register after its initial polling window. The build budget enforces both the studio's entry preloads and its default-preview startup graph (the studio route, App, Three.js and the geometry worker, but no other route).
 
 The map camera fits stored geographic bounds to the actual responsive guide; resize events cannot overwrite the selection. Circular guides use the same physical-to-geographic transform as the crop. `crop.ts` derives relief from retained material and interpolated edge samples. Empty circular caps below the minimum feature size are omitted with a warning; interior empty sheets still block fabrication. Lake depth uses geographic grid spacing, independent of physical stretching. Boundaries, grids, roads, and waterways are clipped across exposed layer faces. Fixed annotations are omitted with a warning when their complete footprint cannot fit the material.

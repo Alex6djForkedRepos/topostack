@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_SOCIAL_IMAGE, PUBLIC_PAGES, headline, isArticlePage, socialImage } from "$lib/site/seo";
+import { USAGE_LANDINGS } from "@topostack/data-contracts/usage";
+import { DEFAULT_SOCIAL_IMAGE, PUBLIC_PAGES, headline, isArticlePage, pageSeo, socialImage } from "$lib/site/seo";
 
 const entries = Object.entries(PUBLIC_PAGES);
 
@@ -45,5 +46,18 @@ describe("public page metadata", () => {
       expect(headline(meta.title).length, path).toBeGreaterThan(0);
       expect(headline(meta.title), path).not.toContain("| TopoStack");
     }
+  });
+
+  it("attributes a visit landing on any public page to that page", () => {
+    for (const [path] of entries) expect(USAGE_LANDINGS as readonly string[], path).toContain(path);
+  });
+
+  it("resolves head metadata for registered pages and the studio only", () => {
+    expect(pageSeo("/guides/troubleshooting")).toMatchObject({ registered: true, canonical: "https://topostack.app/guides/troubleshooting", article: { headline: "Troubleshooting Topographic Map Exports" } });
+    expect(pageSeo("/guides/troubleshooting")!.breadcrumbs.map((crumb) => crumb.name)).toEqual(["TopoStack", "Guides", "Troubleshooting"]);
+    expect(pageSeo("/")).toMatchObject({ registered: true, breadcrumbs: [] });
+    expect(pageSeo("/")!.article).toBeUndefined();
+    expect(pageSeo("/studio")).toMatchObject({ registered: false, breadcrumbs: [] });
+    expect(pageSeo("/missing")).toBeUndefined();
   });
 });

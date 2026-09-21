@@ -33,7 +33,7 @@ test("homepage stays lightweight and opens the studio under the built CSP", asyn
   });
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/");
-  await page.getByRole("button", { name: /Colour scheme/ }).click();
+  await page.getByRole("button", { name: /Color scheme/ }).click();
   await expect.poll(() => page.evaluate(() => localStorage.getItem("topostack-theme"))).not.toBeNull();
   await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 375);
   expect(workers).toEqual([]);
@@ -44,7 +44,8 @@ test("homepage stays lightweight and opens the studio under the built CSP", asyn
   await page.getByRole("link", { name: "Try the terrain studio" }).click();
   await expect(page).toHaveURL(`${baseURL}/studio`);
   await expect(page.getByRole("button", { name: "Export", exact: true })).toBeVisible();
-  const home = page.getByRole("link", { name: "TopoStack home and getting started" });
+  await page.getByRole("button", { name: /^Studio menu/ }).click();
+  const home = page.getByRole("menuitem", { name: /TopoStack home/ });
   await expect(home).toHaveAttribute("target", "_blank");
   await expect(home).toHaveJSProperty("href", `${baseURL}/`);
   // A return visit must restore page scrolling after editor CSS was loaded.
@@ -124,6 +125,50 @@ test("a guide explains the workflow with JavaScript disabled", async ({ browser,
   await expect(page.getByText("The primary file ends in", { exact: false })).toBeVisible();
   await expect(page.getByRole("link", { name: "Open the studio", exact: true })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Guides", exact: true }).getByRole("link", { name: "Engraving guide" })).toHaveAttribute("aria-current", "page");
+  await context.close();
+});
+
+test("lake depth pages list surveyed lakes without JavaScript and link into the studio", async ({ browser, baseURL }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
+  const page = await context.newPage();
+  await page.goto("/lakes/minnesota");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Minnesota lake depth maps");
+  await page.getByRole("link", { name: "Crow Wing County", exact: true }).click();
+  await expect(page).toHaveTitle("Crow Wing County, Minnesota Lake Depth Maps | TopoStack");
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://topostack.app/lakes/minnesota/crow-wing-county");
+  await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toContainText(/Lake depth maps\s*\/\s*Minnesota\s*\/\s*Crow Wing County/);
+  await expect(page.getByRole("link", { name: "Pelican", exact: true }).first()).toHaveAttribute("href", /studio\?lake=Pelican&bounds=/);
+  await context.close();
+});
+
+test("the example gallery leads to an example with its render, sharing card and importable project", async ({ page, request }) => {
+  await page.goto("/examples");
+  await expect(page).toHaveTitle("Topographic Map Examples: Laser-Cut Terrain Projects | TopoStack");
+  await page.getByRole("link", { name: /Mount Fuji/ }).first().click();
+  await expect(page).toHaveTitle("Mount Fuji Topographic Map: A Laser-Cut Project | TopoStack");
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute("content", "https://topostack.app/images/examples/mount-fuji-card.jpg");
+  await expect(page.locator('meta[property="og:type"]')).toHaveAttribute("content", "article");
+  await expect(page.locator("article picture img")).toBeVisible();
+  const download = page.getByRole("link", { name: "Download the project file" });
+  const file = await (await request.get(new URL(await download.getAttribute("href") ?? "", page.url()).href)).json();
+  expect(file.project).toMatchObject({ schemaVersion: 1, cropShape: "circle", outputMode: "stack" });
+  expect(file.capture.layers).toBeGreaterThan(3);
+});
+
+test("the changelog lists releases newest first with a feed, without JavaScript", async ({ browser, baseURL }) => {
+  const { releases } = JSON.parse(readFileSync(new URL("../changelog/releases.json", import.meta.url), "utf8"));
+  const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
+  const page = await context.newPage();
+  await page.goto("/changelog");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Changelog");
+  await expect(page.getByRole("heading", { level: 2 }).first()).toHaveText(`Version ${releases[0].version}`);
+  // Production builds never show pending fragments.
+  await expect(page.getByRole("heading", { name: "Unreleased" })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Guides", exact: true }).getByRole("link", { name: "Changelog" })).toHaveAttribute("aria-current", "page");
+  await expect(page.locator('link[rel="alternate"][type="application/atom+xml"]')).toHaveCount(1);
+  const feed = await context.request.get("/changelog.xml");
+  expect(feed.ok()).toBe(true);
+  expect(await feed.text()).toContain(`<title>TopoStack ${releases[0].version}</title>`);
   await context.close();
 });
 

@@ -90,7 +90,12 @@ export async function downloadProject({ option, geometry, project, notice, track
   try {
     const download = option === "project"
       ? prepareProjectSettings(project)
-      : await prepareSelectedDownload((await import("$lib/studio/export-policy")).buildProjectPackage(geometry, project), option);
+      : await (async () => {
+        const { buildProjectPackage, loadGuideFonts } = await import("$lib/studio/export-policy");
+        // Only the booklet uses the fonts; skip fetching them for files without it.
+        const guideFonts = option === "all" || option === "assembly" ? await loadGuideFonts() : [];
+        return prepareSelectedDownload(buildProjectPackage(geometry, project, { guideFonts }), option);
+      })();
     startBrowserDownload(download);
     if (tracked) track("export_prepared");
     notice.apply({ phase: "ready", intent: "download", fileCount: download.fileCount });

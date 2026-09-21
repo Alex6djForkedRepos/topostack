@@ -1,6 +1,6 @@
 import { formatNumber as format } from "../primitives/format.js";
 import { clipPolyline, preparePolygons, type PreparedPolygons } from "../primitives/geometry2d.js";
-import { labelPathData } from "../annotate/labels.js";
+import { labelSvgPaths, roundText } from "../annotate/labels.js";
 import { offsetClosedRing } from "../primitives/offset.js";
 import type { LayerIR, LineStyleV1, Point2D } from "../types.js";
 
@@ -102,10 +102,17 @@ export function clearLineData(data: string, clearance?: MarkerClearance): string
   }).join(" ");
 }
 
-export function markingPath(mark: LayerIR["markings"][number], clearance?: MarkerClearance, stroke?: string): string {
+export function markingPath(mark: LayerIR["markings"][number], sharedClearance?: MarkerClearance, stroke?: string): string {
   if (mark.knockout) return "";
+  // The title's own backing is a knockout; it must clear what lies beneath, not the title.
+  const clearance = mark.id.startsWith("plaque-") ? undefined : sharedClearance;
   const color = stroke ?? (mark.operation === "score" ? SCORE : ENGRAVE);
-  if (mark.label && mark.points[0]) return `<path id="${escapeXml(mark.id)}" d="${clearLineData(labelPathData(mark.label, mark.points[0], 0, 0, mark.labelRotationRad, mark.textStyle), clearance)}" fill="none" stroke="${color}"${mark.textStyle?.font === "rounded" ? ' stroke-linecap="round" stroke-linejoin="round"' : ""}/>`;
+  if (mark.label && mark.points[0]) {
+    const { stroke: strokeData, fill } = labelSvgPaths(mark.label, mark.points[0], 0, 0, mark.labelRotationRad, mark.textStyle);
+    // Typeface letters are areas to fill; like marker artwork they are not cut back by clearance.
+    if (fill) return `<path id="${escapeXml(mark.id)}" d="${fill}" fill="${color}" stroke="none" fill-rule="evenodd"/>`;
+    return `<path id="${escapeXml(mark.id)}" d="${clearLineData(strokeData, clearance)}" fill="none" stroke="${color}"${roundText(mark.textStyle) ? ' stroke-linecap="round" stroke-linejoin="round"' : ""}/>`;
+  }
   const paint = mark.filled ? `fill="${color}" stroke="none"` : `fill="none" stroke="${color}"`;
   const data = [pathData(mark.points, 0, 0, mark.filled), ...(mark.holes ?? []).map(hole => pathData(hole, 0, 0, true))].join(" ");
   return mark.points.length > 1 ? `<path id="${escapeXml(mark.id)}" d="${mark.filled ? data : clearLineData(data, clearance)}" ${paint}${mark.holes?.length ? ' fill-rule="evenodd"' : ""}/>` : "";

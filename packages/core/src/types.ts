@@ -6,7 +6,14 @@ export type RoadStyle = "centerline" | "outlined";
 export type RoadCap = "round" | "square";
 export type Operation = "cut" | "score" | "engrave";
 export type UnitSystem = "metric" | "imperial";
-export type TextFont = "technical" | "rounded" | "stencil";
+/**
+ * Every engraving font a project can name. The first three draw the built-in
+ * bitmap table; the rest are curated typefaces whose glyph data the host loads
+ * and registers (see annotate/font-data.ts). Ids are stored in projects and
+ * never change meaning.
+ */
+export const TEXT_FONTS = ["technical", "rounded", "stencil", "hershey-sans", "hershey-serif", "hershey-script", "relief", "jost", "oswald", "lora", "roboto-slab"] as const;
+export type TextFont = typeof TEXT_FONTS[number];
 export type TransportationClass = "major-road" | "local-road" | "trail";
 export type NorthArrowStyle = "minimal" | "classic" | "mariner";
 export type MarkerSymbol = "pin" | "circle" | "triangle" | "star" | "cross";
@@ -59,6 +66,25 @@ export const NORTH_ARROW_ANCHORS: readonly NorthArrowAnchor[] = ["top-left", "to
 export const NORTH_ARROW_MIN_SIZE_MM = 12;
 export const NORTH_ARROW_MAX_SIZE_MM = 200;
 export const NORTH_ARROW_MAX_MAP_FRACTION = 0.45;
+
+/** Engraved title text, such as a place name and date, anchored like the north arrow. */
+export interface PlaqueV1 {
+  /** Kept when switched off so the text survives toggling. */
+  enabled: boolean;
+  /** Up to PLAQUE_MAX_LINES lines separated by newlines; the built-in fonts engrave them in capitals. */
+  text: string;
+  /** Cap height in millimeters. */
+  sizeMm: number;
+  placement: NorthArrowPlacementV1;
+  /** The title's own font. Absent means it follows `textStyle.font`, which keeps older projects' fingerprints. */
+  font?: TextFont;
+}
+
+export const PLAQUE_MAX_LINES = 3;
+export const PLAQUE_MAX_LINE_LENGTH = 40;
+export const PLAQUE_MIN_SIZE_MM = 3;
+export const PLAQUE_MAX_SIZE_MM = 30;
+export const DEFAULT_PLAQUE_SIZE_MM = 6;
 
 export interface TextStyleV1 {
   font: TextFont;
@@ -245,6 +271,8 @@ export interface ProjectConfigV1 {
   northArrowSizeMm: number;
   northArrowPlacement: NorthArrowPlacementV1;
   showScaleBar: boolean;
+  /** Optional engraved title. Absent in projects saved before titles existed, which keeps their fingerprints. */
+  plaque?: PlaqueV1;
   /** User-placed symbols, projected from geographic coordinates onto the artwork. */
   markers: MapMarkerV1[];
   /** User-authored geographic paths, independent of fetched map-detail toggles. */

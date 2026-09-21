@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_PROJECT, type ProjectConfigV1 } from "@topostack/core";
 import { UnreadableSavedProjectError } from "$lib/storage/storage";
 import { restoreStartupProject, type StartupRestoreHost } from "$lib/studio/startup-restore";
+import { shareLinkFor } from "$lib/studio/share-link";
 
 function host(overrides: Partial<StartupRestoreHost> = {}) {
   let project: ProjectConfigV1 = DEFAULT_PROJECT;
@@ -12,10 +13,15 @@ function host(overrides: Partial<StartupRestoreHost> = {}) {
     search: "",
     loadLakeLocation: () => import("$lib/site/lake-location"),
     consumeLakeLink: vi.fn(async () => undefined),
+    hash: "",
+    loadShareLink: () => import("$lib/studio/share-link"),
+    consumeShareLink: vi.fn(async () => undefined),
     isCancelled: () => false,
     currentProject: () => project,
     restoreSaved: vi.fn((saved: ProjectConfigV1) => { project = saved; }),
     openLinkedLake: vi.fn((next: ProjectConfigV1) => { project = next; }),
+    generate: vi.fn(() => undefined),
+    openSharedProject: vi.fn((next: ProjectConfigV1) => { project = next; }),
     setStatus: (message: string) => { statuses.push(message); },
     ...overrides,
   };
@@ -23,6 +29,34 @@ function host(overrides: Partial<StartupRestoreHost> = {}) {
 }
 
 describe("startup restore", () => {
+  it("opens a shared design on top of the saved project and clears the fragment", async () => {
+    const shared = { ...DEFAULT_PROJECT, name: "Shared ridge", widthMm: 420 };
+    const hash = `#${new URL(shareLinkFor(shared, "https://topostack.app/studio")).hash.slice(1)}`;
+    const saved = { ...DEFAULT_PROJECT, materialThicknessMm: 5 };
+    const { value, loadProject, statuses, project } = host({ hash, search: "?lake=Crater%20Lake&bounds=-122.2,42.9,-122.0,43.0" });
+    loadProject.mockResolvedValueOnce(saved);
+    await restoreStartupProject(value);
+    expect(value.openSharedProject).toHaveBeenCalledWith(expect.objectContaining({ name: "Shared ridge", widthMm: 420 }), saved);
+    expect(value.generate).not.toHaveBeenCalled();
+    expect(project()).toMatchObject({ name: "Shared ridge", widthMm: 420 });
+    expect(value.consumeShareLink).toHaveBeenCalledOnce();
+    // A share link takes precedence over a directory link in the same URL.
+    expect(value.openLinkedLake).not.toHaveBeenCalled();
+    expect(statuses.at(-1)).toContain("Shared design opened");
+  });
+
+  it("keeps the saved project when a share link is damaged", async () => {
+    const saved = { ...DEFAULT_PROJECT, materialThicknessMm: 5 };
+    const { value, loadProject, statuses, project } = host({ hash: "#p=1.not-a-real-payload" });
+    loadProject.mockResolvedValueOnce(saved);
+    await restoreStartupProject(value);
+    expect(value.openSharedProject).not.toHaveBeenCalled();
+    expect(value.consumeShareLink).toHaveBeenCalledOnce();
+    expect(project()).toBe(saved);
+    expect(statuses.at(-1)).toMatch(/damaged.*saved project is unchanged/);
+  });
+
+
   it("restores the saved project, then opens a directory lake on top of it", async () => {
     const { value, loadProject, statuses, project } = host({ search: "?lake=Crater%20Lake&bounds=-122.2,42.9,-122.0,43.0" });
     loadProject.mockResolvedValueOnce({ ...DEFAULT_PROJECT, materialThicknessMm: 5 });
@@ -32,6 +66,9 @@ describe("startup restore", () => {
     expect(project()).toMatchObject({ name: "Crater Lake", materialThicknessMm: 5, outputMode: "stack", showWaterDepth: true });
     expect(value.openLinkedLake).toHaveBeenCalledWith(project(), expect.objectContaining({ name: DEFAULT_PROJECT.name }));
     expect(statuses.at(-1)).toContain("Lake selected");
+    // Generation starts only after the lake is open, so it builds the lake rather than the saved project.
+    expect(value.generate).toHaveBeenCalledOnce();
+    expect(vi.mocked(value.openLinkedLake).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(value.generate).mock.invocationCallOrder[0]!);
   });
 
   it("keeps autosave running when an unreadable project was backed up, and still opens the link", async () => {

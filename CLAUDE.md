@@ -10,7 +10,7 @@ npm run typecheck    # every workspace (svelte-check for the generator)
 npm run lint         # eslint, zero warnings allowed; enforces the import rules below
 npm test             # unit tests for every workspace plus the script tests
 npm run test:coverage
-npm run build && npm run budget:web   # the bundle budgets in scripts/build/check-web-budget.mjs must pass
+npm run build && npm run budget:web   # the enforced bundle budgets in scripts/build/check-web-budget.mjs must pass
 npm run test:e2e     # Playwright against the built app (CI runs three browsers)
 ```
 
@@ -33,16 +33,18 @@ Run generator tests from `apps/generator` or via `npm run test -w @topostack/gen
 | Serving, caching, geocoding | `workers/map-api/src/routes/` |
 | An operational script | `scripts/<purpose>/` and a row in `scripts/README.md` saying how it runs |
 | A design decision or runbook | `docs/`, then a line in `docs/README.md` |
+| What users will notice about a change | a fragment in `changelog/unreleased/` (`npm run changelog:new`); see [docs/changelog.md](docs/changelog.md) |
 
 ## Rules the linter and CI enforce
 
 - Import workspace packages by name (`@topostack/core`, `@topostack/data-contracts/<module>`). Paths into another package's `src/` are rejected.
 - Inside the generator, cross-layer imports are `$lib/<layer>/<module>`; relative imports are for siblings only.
 - `@topostack/core` has no Svelte, Atomm, Cloudflare, DOM, or storage imports. The Worker never generates contours.
-- Bundle budgets are the contract for startup cost. Raise one only with a dated note and a measured before/after (see the existing notes in `scripts/build/check-web-budget.mjs`).
+- Bundle budgets guard what a visitor waits for (homepage, studio first paint, default preview) with about 10% headroom; totals across every route are reported, not enforced. If a budget fails, first check the change did not pull something onto a critical path; if the growth is real, raise the budget in the same PR and give the measured number in the description.
 - `ProjectConfigV1`, `SourceBundleV1`, `GeometryIRV1`, and the export manifest are versioned; an incompatible change needs a migration, never a silent reinterpretation.
 - Tests sit beside the code they cover. Coverage thresholds live in each workspace's `vitest.config.ts`, not in npm scripts.
 - Pull requests target `dev`; releases are promoted to `main`.
+- A pull request users will notice adds a `changelog/unreleased/` fragment written for makers; others are labelled `no-changelog`. Versions change only through `changelog:prepare`, which the promotion workflow runs.
 
 ## Verifying a change
 

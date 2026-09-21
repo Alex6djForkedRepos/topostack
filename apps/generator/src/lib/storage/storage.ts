@@ -1,5 +1,5 @@
 import { get, set } from "idb-keyval";
-import { PAINT_REGION_KINDS, DEFAULT_PROJECT, MAP_MARKER_SIZE_MM, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, validateProject, type CustomLineFeatureV1, type CustomLineKind, type MapMarkerV1, type MarkerSymbol, type NorthArrowAnchor, type NorthArrowStyle, type ProjectConfigV1 } from "@topostack/core";
+import { PAINT_REGION_KINDS, DEFAULT_PROJECT, MAP_MARKER_SIZE_MM, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, NORTH_ARROW_ANCHORS, isTextFont, validateProject, type CustomLineFeatureV1, type CustomLineKind, type MapMarkerV1, type MarkerSymbol, type NorthArrowAnchor, type NorthArrowStyle, type PlaqueV1, type ProjectConfigV1 } from "@topostack/core";
 
 const PROJECT_KEY = "topostack:project:v1";
 /** Where an unreadable saved project is copied before autosave replaces it. */
@@ -48,8 +48,8 @@ function outputModeValue(value: unknown): ProjectConfigV1["outputMode"] {
   throw new Error("Project output mode must be stack or engraving.");
 }
 function textFontValue(value: unknown): ProjectConfigV1["textStyle"]["font"] {
-  if (value === "technical" || value === "rounded" || value === "stencil") return value;
-  throw new Error("Text font must be technical, rounded, or stencil.");
+  if (isTextFont(value)) return value;
+  throw new Error("Text font must be one of the listed engraving fonts.");
 }
 function trailPatternValue(value: unknown): ProjectConfigV1["lineStyle"]["trailPattern"] {
   if (value === "solid" || value === "dashed" || value === "dotted") return value;
@@ -72,6 +72,26 @@ function northArrowStyleValue(value: unknown): NorthArrowStyle {
 function northArrowAnchorValue(value: unknown): NorthArrowAnchor {
   if (value === "top-left" || value === "top" || value === "top-right" || value === "left" || value === "center" || value === "right" || value === "bottom-left" || value === "bottom" || value === "bottom-right") return value;
   throw new Error("North arrow anchor is invalid.");
+}
+function plaqueAnchorValue(value: unknown): NorthArrowAnchor {
+  if (NORTH_ARROW_ANCHORS.includes(value as NorthArrowAnchor)) return value as NorthArrowAnchor;
+  throw new Error("Title anchor is invalid.");
+}
+function plaqueValue(value: unknown): PlaqueV1 | undefined {
+  if (value === undefined) return undefined;
+  if (!value || typeof value !== "object") throw new Error("Title settings are invalid.");
+  const record = value as Record<string, unknown>;
+  const placement = record.placement && typeof record.placement === "object" ? record.placement as Record<string, unknown> : undefined;
+  const offset = placement?.offset && typeof placement.offset === "object" ? placement.offset as Record<string, unknown> : undefined;
+  if (typeof record.text !== "string") throw new Error("Title text is invalid.");
+  return {
+    enabled: booleanValue(record.enabled, "plaque.enabled"),
+    text: record.text,
+    sizeMm: numberValue(record.sizeMm),
+    placement: { anchor: plaqueAnchorValue(placement?.anchor), offset: offset ? { x: numberValue(offset.x), y: numberValue(offset.y) } : { x: 0, y: 0 } },
+    // Absent means the title follows the label font; keeping it absent keeps the fingerprint.
+    ...(record.font === undefined ? {} : { font: textFontValue(record.font) }),
+  };
 }
 
 function markerSymbolValue(value: unknown): MarkerSymbol {
@@ -248,6 +268,7 @@ export function parseProject(value: unknown): ProjectConfigV1 {
       anchor: northArrowAnchorValue(northArrowPlacementRecord.anchor),
       offset: northArrowOffsetRecord ? { x: numberValue(northArrowOffsetRecord.x), y: numberValue(northArrowOffsetRecord.y) } : { ...DEFAULT_PROJECT.northArrowPlacement.offset },
     } : { anchor: DEFAULT_PROJECT.northArrowPlacement.anchor, offset: { ...DEFAULT_PROJECT.northArrowPlacement.offset } },
+    ...(record.plaque === undefined ? {} : { plaque: plaqueValue(record.plaque) }),
     markers: markersValue(record.markers),
     customLines: customLinesValue(record.customLines),
     explodedPreview: record.explodedPreview === undefined ? DEFAULT_PROJECT.explodedPreview : numberValue(record.explodedPreview),

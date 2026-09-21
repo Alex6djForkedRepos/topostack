@@ -8,5 +8,6 @@ Small, dependency-light modules that the browser app, the `map-api` Worker, and 
 | `@topostack/data-contracts/archive-release` | The `release.json` shape that names the current PMTiles archive |
 | `@topostack/data-contracts/terrain-png` | Decoding of the numeric terrain PNG served by the Worker |
 | `@topostack/data-contracts/usage` | Usage-event names and validation shared by the studio and the Worker |
+| `@topostack/data-contracts/changelog` | Changelog fragments and `changelog/releases.json`: parsing, validation, version ordering and bumps, and the inline markup the page, feed and release notes render |
 
 The package is source-only. Each subpath resolves straight to a `.ts` file, so Vite, Wrangler, Vitest, and Node's native type stripping all consume it without a build step. Keep every module free of `.js` import specifiers and of TypeScript-only syntax that Node cannot strip (enums, namespaces, parameter properties).

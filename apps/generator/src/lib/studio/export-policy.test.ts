@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createSyntheticSource, DEFAULT_PROJECT, generateGeometry, type SourceBundleV1 } from "@topostack/core";
 import { createAtommExport, exportBlockReason } from "$lib/studio/export-policy";
 
@@ -86,4 +86,36 @@ describe("Atomm export policy", () => {
     }
   });
 
+});
+
+describe("assembly guide fonts", () => {
+  afterEach(() => { vi.unstubAllGlobals(); vi.resetModules(); });
+
+  it("loads the site faces once and encodes them for embedding", async () => {
+    const fetch = vi.fn(async () => new Response(new Uint8Array([0x77, 0x4f, 0x46, 0x32])));
+    vi.stubGlobal("fetch", fetch);
+    const { loadGuideFonts } = await import("$lib/studio/export-policy");
+    const fonts = await loadGuideFonts();
+    expect(fonts).toEqual([
+      { family: "Jost", weight: 500, woff2Base64: "d09GMg==" },
+      { family: "Archivo", weight: 400, woff2Base64: "d09GMg==" },
+    ]);
+    await loadGuideFonts();
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("leaves out a face that fails to load", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => String(url).includes("Jost") ? new Response(null, { status: 404 }) : new Response(new Uint8Array([1]))));
+    const { loadGuideFonts } = await import("$lib/studio/export-policy");
+    expect((await loadGuideFonts()).map((font) => font.family)).toEqual(["Archivo"]);
+  });
+
+  it("embeds the loaded fonts in the downloaded guide", async () => {
+    const { createAtommExport } = await import("$lib/studio/export-policy");
+    const result = generateGeometry(DEFAULT_PROJECT, { ...createSyntheticSource(DEFAULT_PROJECT, 32), sourceKind: "real" });
+    const files = createAtommExport(result, DEFAULT_PROJECT, "download", [{ family: "Jost", weight: 500, woff2Base64: "d09GMg==" }]);
+    if (!Array.isArray(files)) throw new Error("Download must receive the project files");
+    const guide = await files.find((file) => file.filename.endsWith("-assembly-guide.html"))!.blob.text();
+    expect(guide).toContain('font-family:"Jost";src:url(data:font/woff2;base64,d09GMg==)');
+  });
 });

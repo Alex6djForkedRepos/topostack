@@ -11,12 +11,15 @@ export { coordinateGridInterval } from "./pipeline/coordinate-grid.js";
 // placement), so the prepared form is public even though the primitives stay internal.
 export type { PreparedPolygons } from "./primitives/geometry2d.js";
 export * from "./annotate/labels.js";
+export { FONT_CATALOG, FontNotLoadedError, clearRegisteredFonts, decodeFontGlyphs, fontEntry, isBitmapFont, isFontLoaded, isTextFont, missingGlyphs, projectFonts, registerFont, type FontCatalogEntry, type FontGlyphsV1, type FontKind } from "./annotate/font-data.js";
 export * from "./annotate/markers.js";
 export * from "./annotate/north-arrow.js";
+export * from "./annotate/plaque.js";
 export * from "./primitives/offset.js";
-export { assemblyGuideToSvg, layerToSvg, masterToSvg } from "./export/svg.js";
+export { layerToSvg, masterToSvg } from "./export/svg.js";
+export { assemblyGuideToHtml, type GuideFont, type GuideSheet } from "./export/assembly-guide.js";
 export { engravingToSvg } from "./export/engraving-svg.js";
-export { buildEngravingPackage, buildFabricationPackage, buildProjectPackage } from "./export/packages.js";
+export { buildEngravingPackage, buildFabricationPackage, buildProjectPackage, type PackageOptions } from "./export/packages.js";
 export { PAINT_BLEED_MM, PAINT_LOOSE_SHEET_MIN_MM, PAINT_PAPER_MIN_MM, paintRegions, paintStencil } from "./pipeline/paint-regions.js";
 export type { FlatWaterArea, PaintLayerClip, PaintRegionSources } from "./pipeline/paint-regions.js";
 export * from "./primitives/units.js";

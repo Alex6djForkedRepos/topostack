@@ -60,6 +60,27 @@ def depth_from_elevation(values, surface, scale=1):
     return np.where(np.isfinite(values) & (result >= 0) & (result <= 1500), result, np.nan).astype(np.float32)
 
 
+def read_e00_rows(lines, width, height):
+    """Decode E00 GRD cell values. Every grid row starts on a new line of up to
+    five 14-character values, so a row whose width is not a multiple of five
+    either ends on a short line or is padded to a full line. Reading the values
+    as one continuous stream shifts each row by the padding and shears the grid."""
+    values = np.empty((height, width), dtype=np.float32)
+    for row in range(height):
+        col = 0
+        while col < width:
+            line = next(lines, '').rstrip('\n')
+            if not line or line.startswith('EOG'):
+                raise ValueError('Truncated Tahoe grid')
+            for start in range(0, len(line), 14):
+                if col == width:
+                    break  # Row padding up to the full line.
+                values[row, col] = float(line[start:start+14])
+                col += 1
+    values[values < -1e30] = np.nan
+    return values
+
+
 def read_e00(path):
     """Read the uncompressed floating-point Arc/Info GRD export used by DDS-55."""
     with gzip.open(path, 'rt') as f:
@@ -74,19 +95,10 @@ def read_e00(path):
         right, top = [float(v) for v in f.readline().split()]
         if res != [10, 10] or not math.isclose(right-left, width*10) or not math.isclose(top-bottom, height*10):
             raise ValueError('Unexpected Tahoe grid georeferencing')
-        values = np.empty(width * height, dtype=np.float32)
-        offset = 0
-        while offset < values.size:
-            line = f.readline().rstrip('\n')
-            if not line or line.startswith('EOG'):
-                raise ValueError('Truncated Tahoe grid')
-            for start in range(0, len(line), 14):
-                if offset == values.size:
-                    break
-                values[offset] = float(line[start:start+14])
-                offset += 1
-        values[values < -1e30] = np.nan
-        return values.reshape(height, width), from_bounds(left, bottom, right, top, width, height)
+        values = read_e00_rows(f, width, height)
+        if not f.readline().startswith('EOG'):
+            raise ValueError('Tahoe grid has more rows than its header')
+        return values, from_bounds(left, bottom, right, top, width, height)
 
 
 def usgs(source, pin, cache, writer):

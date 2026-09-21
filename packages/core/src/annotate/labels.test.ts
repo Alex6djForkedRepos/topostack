@@ -19,7 +19,7 @@ describe("labels and fonts", () => {
     expect(imperial.layers[0]?.markings.find((marking) => marking.id === "scale-label")?.label).toMatch(/\d (ft|mi)$/);
     const fabrication = buildFabricationPackage(imperial, imperialProject);
     expect(await fabrication.files.find((file) => file.filename === "README.txt")?.blob.text()).toContain(" in each");
-    expect(await fabrication.files.find((file) => file.filename.endsWith("assembly-guide.svg"))?.blob.text()).toContain(" ft</text>");
+    expect(await fabrication.files.find((file) => file.filename.endsWith("assembly-guide.html"))?.blob.text()).toMatch(/\d ft – [\d,]+ ft/);
   });
 
   it("renders distinct scalable fabrication fonts and propagates the selected style", () => {

@@ -1,5 +1,6 @@
 import { clipPolyline, type PreparedPolygons } from "../primitives/geometry2d.js";
-import type { MarkingFeature, Point2D, ProjectConfigV1, TransportationClass } from "../types.js";
+import { isBitmapFont, missingGlyphs } from "../annotate/font-data.js";
+import type { MarkingFeature, Point2D, ProjectConfigV1, TextFont, TransportationClass } from "../types.js";
 
 
 function offsetPolyline(points: Point2D[], distanceMm: number): Point2D[] {
@@ -50,10 +51,20 @@ export function styledTransportationPaths(outlines: Point2D[][] | undefined, cen
   return outlines ? outlines.flatMap((outline) => clipPolyline(outline, polygons, excludedPolygons)) : centerline;
 }
 
-export function fabricationLabel(value: string): string | undefined {
-  const normalized = value.normalize("NFKD").replace(/\p{M}/gu, "").toUpperCase()
-    .replace(/[^A-Z0-9 .:/_+·-]/g, " ").replace(/\s+/g, " ").trim().slice(0, 48);
-  return normalized || undefined;
+/**
+ * A road name as it engraves. The built-in fonts get plain capitals; a
+ * typeface keeps the name's case and accents and drops only what it cannot draw.
+ */
+export function fabricationLabel(value: string, font: TextFont = "technical"): string | undefined {
+  const normalized = isBitmapFont(font)
+    ? value.normalize("NFKD").replace(/\p{M}/gu, "").toUpperCase().replace(/[^A-Z0-9 .:/_+·-]/g, " ")
+    : withoutMissingGlyphs(value.normalize("NFC"), font);
+  return normalized.replace(/\s+/g, " ").trim().slice(0, 48) || undefined;
+}
+
+function withoutMissingGlyphs(value: string, font: TextFont): string {
+  const missing = new Set(missingGlyphs(value, font));
+  return [...value].map((character) => (missing.has(character) ? " " : character)).join("");
 }
 
 export function polylineLength(points: Point2D[]): number {

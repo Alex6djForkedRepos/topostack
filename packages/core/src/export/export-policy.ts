@@ -9,6 +9,6 @@ export function exportBlockReason(geometry: GeometryIRV1, project: ProjectConfig
   if (geometry.vectorStatus === "partial" && needsVectors) return "Map detail data exceeded the safe feature limit. Narrow the map area or disable some map details, then regenerate.";
   if (geometry.vectorStatus !== "available" && needsVectors) return "Map detail data is unavailable. Disable those map details or regenerate after the service is restored.";
   if (needsLakes && geometry.lakeDataStatus !== "available") return "Lake depth data is unavailable. Disable water depth or regenerate after the service is restored.";
-  if (project.outputMode === "stack" && geometry.layers.some((layer) => layer.polygons.length === 0)) return "One or more layers are empty. Reduce the layer count or minimum feature size before exporting.";
+  if (project.outputMode === "stack" && geometry.layers.some((layer) => layer.polygons.length === 0)) return "One or more layers are empty. Lower the vertical exaggeration, use thicker material, or reduce the minimum feature size, then regenerate.";
   return undefined;
 }

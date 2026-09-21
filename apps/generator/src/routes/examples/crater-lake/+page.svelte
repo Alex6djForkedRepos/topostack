@@ -5,7 +5,7 @@
 
 <Article title="Explore a Crater Lake topographic map" intro="Start with the landscape already waiting in TopoStack. The Crater Lake preview shows how real elevation and map details become a layered terrain project.">
   <figure>
-    <img src={`${base}/images/studio-crater-lake.png`} width="1280" height="900" alt="Freshly generated Crater Lake relief in TopoStack with USGS surveyed lake-floor bathymetry." />
+    <picture><source type="image/webp" srcset={`${base}/images/studio-crater-lake-640.webp 640w, ${base}/images/studio-crater-lake.webp 1280w`} sizes="(max-width: 720px) 100vw, 1280px" /><img src={`${base}/images/studio-crater-lake.png`} width="1280" height="900" alt="Freshly generated Crater Lake relief in TopoStack with USGS surveyed lake-floor bathymetry." /></picture>
     <figcaption>Freshly generated Crater Lake relief with USGS surveyed lake-floor data where available. Gaps use existing terrain or modeled depths; depth is exaggerated.</figcaption>
   </figure>
   <h2>What you need</h2>

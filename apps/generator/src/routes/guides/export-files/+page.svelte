@@ -5,7 +5,7 @@
 
 <Article title="Export files and SVG structure" intro="What each TopoStack download contains, how the SVG files are organized, and which files to use in your laser software.">
   <h2>Download options</h2>
-  <p>Open <strong>Export</strong> in the studio and choose a download. Everything except project settings needs freshly generated real terrain with no export-blocking messages.</p>
+  <p>Open <strong>Export</strong> in the studio. The recommended <strong>Complete project</strong> download contains everything below; the other files are listed under <strong>Individual files</strong>, and <strong>Project settings</strong> sits beneath them. Everything except project settings needs freshly generated real terrain with no export-blocking messages.</p>
   <dl class="options">
     <div><dt>Complete project <span>ZIP</span></dt><dd>Every file listed below for your output type. Recommended when you are unsure.</dd></div>
     <div><dt>Master SVG / Engraving SVG <span>SVG</span></dt><dd>The single main artwork file on its own: every layered panel on one sheet, or the flat engraving.</dd></div>
@@ -27,7 +27,7 @@
       <tr><td><code>my-map-layer-03-b2.svg</code></td><td>With a work area set, one panel per tile of a split layer: column B, row 2. A piece that needs its own sheet adds a number, as in <code>-b2-2</code>.</td></tr>
       <tr><td><code>…-engrave.svg</code></td><td>The engraving-only companion of the panel with the same name, in the same position. It has no cut or score paths.</td></tr>
       <tr><td><code>…-paint-water.svg</code></td><td>A paper stencil registered to the panel with the same name. It is the cut piece at nominal size (cut it with kerf compensation off) with the water that stays visible once the stack is glued cut away, reaching 1.5 mm under the layer above so a slightly misplaced stencil leaves no bare edge. Where water meets the piece edge the stencil stops short of it, so register on the edges and tabs it keeps. Lay it flush to the piece, spray, and remove it before gluing. Only written when <strong>Water paint templates</strong> is on and the panel has visible water.</td></tr>
-      <tr><td><code>my-map-assembly-guide.svg</code></td><td>An A4 reference showing the stack outline, layer count, material thickness and elevation range. Stack from layer 01 upward.</td></tr>
+      <tr><td><code>my-map-assembly-guide.html</code></td><td>A step-by-step assembly booklet that opens in any browser and prints on US Letter: finished size and materials, a checklist of sheets to cut, what the engraved marks mean, and one illustrated step per layer from layer 01 upward, showing the stack so far with the new layer highlighted, which sheet its pieces come from, and where split pieces go.</td></tr>
       <tr><td><code>README.txt</code></td><td>Layer count, finished stack height, applied vertical exaggeration and horizontal scale, any lake depth fitting, line widths, panel count, colors, kerf and nesting notes.</td></tr>
       <tr><td><code>my-map-project.json</code></td><td>Your settings plus generation details (see below).</td></tr>
       <tr><td><code>ATTRIBUTION.txt</code></td><td>Credits for the data used (see below).</td></tr>
@@ -84,9 +84,15 @@
   dt { font-weight: 600; }
   dt span { margin-left: 8px; font: 12px var(--loidolt-font-utility); color: var(--loidolt-text-muted); }
   dd { margin: 6px 0 0; line-height: 1.7; }
-  td code { overflow-wrap: anywhere; }
+  td:first-child code { white-space: nowrap; }
   .swatch { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 2px; }
   .swatch.cut { background: #fe0002; }
   .swatch.line { background: #2366ff; }
-  @media (max-width: 600px) { table { font-size: 14px; } }
+  @media (max-width: 700px) {
+    table, tbody, tr, td { display: block; }
+    thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+    tr { padding-block: 10px; border-bottom: 1px solid var(--loidolt-border); }
+    td { padding: 2px 0; border: 0; font-size: 14px; }
+    td:first-child code { white-space: normal; overflow-wrap: anywhere; }
+  }
 </style>

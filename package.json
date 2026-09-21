@@ -1,7 +1,7 @@
 {
   "name": "topostack",
   "private": true,
-  "version": "0.1.2",
+  "version": "0.3.0",
   "type": "module",
   "workspaces": [
     "apps/*",
@@ -33,7 +33,13 @@
     "package:atomm-listing": "node scripts/release/package-atomm-listing.mjs",
     "version:check": "node scripts/release/versions.mjs check",
     "version:main": "node scripts/release/versions.mjs main",
-    "version:atomm": "node scripts/release/versions.mjs atomm"
+    "changelog:new": "node scripts/release/changelog.mjs new",
+    "changelog:check": "node scripts/release/changelog.mjs check",
+    "changelog:pending": "node scripts/release/changelog.mjs pending",
+    "changelog:verify": "node scripts/release/changelog.mjs verify",
+    "changelog:prepare": "node scripts/release/changelog.mjs prepare",
+    "changelog:render": "node scripts/release/changelog.mjs render",
+    "changelog:notes": "node scripts/release/changelog.mjs notes"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -45,6 +51,7 @@
     "eslint": "^10.10.0",
     "eslint-plugin-svelte": "^3.23.0",
     "globals": "^17.12.0",
+    "opentype.js": "^2.0.0",
     "shapefile": "^0.6.6",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.70.0",

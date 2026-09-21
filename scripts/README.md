@@ -11,6 +11,7 @@ Run by `npm run build` in the generator or by CI after a build.
 | Script | Purpose | Run by |
 | --- | --- | --- |
 | `check-node.mjs` | Fail fast when the local Node.js release cannot run the script tests (needs native type stripping) | `npm run test:scripts` |
+| `build-font-glyphs.mjs` | Convert the curated typefaces in `assets/fonts/` into the studio's glyph files and picker samples ([fonts.md](../docs/fonts.md)); `font-glyphs.test.mjs` fails when the committed output is stale | manual |
 | `check-web-budget.mjs` | Measure the built site against the JavaScript, CSS, and HTML budgets | `npm run budget:web` |
 | `configure-redirects.mjs` | Apply the Cloudflare redirect rules (www and legacy paths) to the zone | manual: [seo-operations.md](../docs/seo-operations.md), [README](../README.md) |
 | `finalize-static-headers.mjs` | Rewrite `_headers` for the selected site environment after a build | generator `build`; generator `build:e2e` |
@@ -26,6 +27,7 @@ Local helpers; nothing in CI depends on them.
 | `capture-feature-update.mjs` | Screenshot a feature for a release note or docs image | manual |
 | `capture-preview-fixture.mjs` | Regenerate the bundled Crater Lake preview source (`sample-preview.generated.ts`) | manual |
 | `capture-readme-assets.mjs` | Screenshot the studio and workflows for the README images | manual |
+| `capture-examples.mjs` | Generate each example project in the studio and save its render, sharing card and project file (`node scripts/dev/capture-examples.mjs [slug ...]` against `npm run dev`; needs `cwebp`) | manual |
 | `dev.mjs` | Start the generator and the map-api Worker together, picking free ports | `npm run dev` |
 
 ## Data builders (Python) (`data-build/`)
@@ -80,13 +82,14 @@ Check deployed services, SEO output, and data quality. CI and the production mon
 
 ## Release and Atomm packaging (`release/`)
 
-Version consistency and the Atomm marketplace bundle.
+The changelog, version consistency, and the Atomm marketplace bundle. See [changelog.md](../docs/changelog.md).
 
 | Script | Purpose | Run by |
 | --- | --- | --- |
+| `changelog.mjs` | Scaffold, check, and verify changelog fragments; fold them into a release with its version bump; print release notes | `npm run changelog:new`; `npm run changelog:check`; `npm run changelog:pending`; `npm run changelog:verify`; `npm run changelog:prepare`; `npm run changelog:render`; `npm run changelog:notes`; CI/workflows |
 | `checksum-atomm.mjs` | Write and verify the SHA-256 of the packaged Atomm ZIP | `npm run release:atomm` |
 | `package-atomm-listing.mjs` | Package the Atomm marketplace listing (copy and cover assets) | `npm run package:atomm-listing` |
 | `package-atomm.mjs` | Build and package the Atomm static artifact as a versioned ZIP | `npm run package:atomm` |
-| `publish-atomm-release.mjs` | Tag, draft, upload, and publish an Atomm GitHub release | CI/workflows |
+| `publish-atomm-release.mjs` | Tag, draft, upload, and publish the Atomm GitHub release for a version, with the changelog since the previous one | CI/workflows (automatically after production CI) |
 | `validate-submission-env.mjs` | Fail-closed gate for Atomm packaging: the embedded map API URL must be production | manual |
-| `versions.mjs` | Check or bump the release version across workspaces and the Atomm manifest | `npm run version:check`; `npm run version:main`; `npm run version:atomm`; CI/workflows |
+| `versions.mjs` | Check or bump the one release version across workspaces, the lockfile, and the Atomm manifest | `npm run version:check`; `npm run version:main`; CI/workflows |

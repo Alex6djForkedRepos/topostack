@@ -174,6 +174,7 @@ describe("project import validation", () => {
   });
   it("validates and restores fabrication typography", () => {
     expect(parseProject({ ...DEFAULT_PROJECT, textStyle: { font: "stencil", sizeMm: 5 } }).textStyle).toEqual({ font: "stencil", sizeMm: 5 });
+    expect(parseProject({ ...DEFAULT_PROJECT, textStyle: { font: "relief", sizeMm: 5 } }).textStyle).toEqual({ font: "relief", sizeMm: 5 });
     expect(() => parseProject({ ...DEFAULT_PROJECT, textStyle: { font: "serif", sizeMm: 5 } })).toThrow(/text font/i);
     expect(() => parseProject({ ...DEFAULT_PROJECT, textStyle: { font: "technical", sizeMm: 1 } })).toThrow(/text size/i);
   });
@@ -184,6 +185,18 @@ describe("project import validation", () => {
     expect(() => parseProject({ ...DEFAULT_PROJECT, northArrowSizeMm: 4 })).toThrow(/north arrow size/i);
     expect(() => parseProject({ ...DEFAULT_PROJECT, northArrowPlacement: { anchor: "outside", offset: { x: 0, y: 0 } } })).toThrow(/north arrow anchor/i);
     expect(() => parseProject({ ...DEFAULT_PROJECT, northArrowPlacement: { anchor: "center", offset: { x: 1.1, y: 0 } } })).toThrow(/north arrow offsets/i);
+  });
+  it("restores a title plaque and leaves projects without one untouched", () => {
+    const plaque = { enabled: false, text: "Mount Rainier\n2026", sizeMm: 8, placement: { anchor: "top" as const, offset: { x: 0.1, y: 0 } } };
+    expect(parseProject({ ...DEFAULT_PROJECT, plaque }).plaque).toEqual(plaque);
+    expect("plaque" in parseProject(DEFAULT_PROJECT)).toBe(false);
+    expect(() => parseProject({ ...DEFAULT_PROJECT, plaque: { ...plaque, text: 5 } })).toThrow(/title text/i);
+    expect(() => parseProject({ ...DEFAULT_PROJECT, plaque: { ...plaque, placement: { anchor: "outside", offset: { x: 0, y: 0 } } } })).toThrow(/title anchor/i);
+    expect(() => parseProject({ ...DEFAULT_PROJECT, plaque: { ...plaque, sizeMm: 50 } })).toThrow(/title size/i);
+    // A title font is kept; without one the title follows the label font and stays keyless.
+    expect(parseProject({ ...DEFAULT_PROJECT, plaque: { ...plaque, font: "lora" } }).plaque).toEqual({ ...plaque, font: "lora" });
+    expect("font" in parseProject({ ...DEFAULT_PROJECT, plaque }).plaque!).toBe(false);
+    expect(() => parseProject({ ...DEFAULT_PROJECT, plaque: { ...plaque, font: "comic" } })).toThrow(/text font/i);
   });
   it("defaults smoothing, minimum feature, and exploded preview for legacy projects", () => {
     const {

@@ -39,7 +39,7 @@ export function searchLakes(lakes: IndexedLake[], query: string, region = "", ki
   const terms = normalized(query).split(" ").filter(Boolean);
   return lakes.filter((lake) => (!region || lake.source.group === region) && (!kind || lake.source.kind === kind) && terms.every((term) => lake.searchText.includes(term)));
 }
-export function lakeStudioLink(base: string, lake: LakeDirectoryEntry): string {
+export function lakeStudioLink(base: string, lake: Pick<LakeDirectoryEntry, "name" | "bounds">): string {
   const [west, south, east, north] = lake.bounds;
   const padX = (east - west) * 0.08;
   const padY = (north - south) * 0.08;

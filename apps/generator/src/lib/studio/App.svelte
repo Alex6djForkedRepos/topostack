@@ -1,9 +1,7 @@
 <script lang="ts">
   import { onMount, untrack, setContext } from "svelte";
-  import { base } from "$app/paths";
-  import { House } from "@lucide/svelte";
   import { Download } from "@lucide/svelte";
-  import { AppShell, Brand, Button, ContextBar, Sidebar, ThemeToggle, Topbar, Workspace } from "@loidolt/theme-svelte";
+  import { AppShell, Brand, Button, ContextBar, Sidebar, Topbar, Workspace } from "@loidolt/theme-svelte";
   import { sourceRequirements, DEFAULT_PROJECT, planSeamGrid, displayElevation, displayLength, elevationUnit, generateGeometry, labelPathData, lengthUnit, MAX_PROJECT_NAME_LENGTH, millimetersFromDisplay, planTerrainStack, projectFingerprint, validateProject, type GeometryIRV1, type LineStyleV1, type OperationPath, type ProjectConfigV1, type SourceBundleV1 } from "@topostack/core";
   import { assembleWater, boundsForProject, loadLakeAreas, loadSurveyedLakeDepths, loadTerrain, loadVectorMarkings, type PlaceResult } from "$lib/domain/data-provider";
   import { applySurveyProvenance } from "$lib/domain/bathymetry";
@@ -21,6 +19,7 @@
   import ResetProjectDialog from "$lib/studio/ResetProjectDialog.svelte";
   import { readAtommLocale } from "$lib/atomm/atomm-locale";
   import { ProjectHistory } from "$lib/studio/history";
+  import { historyShortcut } from "$lib/studio/history-keys";
   import { ENGRAVING_MODE_OPTIONS, PRESETS, STACK_MODE_OPTIONS } from "$lib/studio/options";
   import * as edits from "$lib/studio/project-edits";
   import { isAbortError, PreviewPipeline } from "$lib/studio/preview-pipeline";
@@ -36,6 +35,7 @@
   import { generationStatus, generationToast, previewPendingStatus, previewUpdatedStatus, type PreviewUpdateKind } from "$lib/studio/status-messages";
   import { provideStudio, type GenerateState, type LineWidthKey, type PreviewMode } from "$lib/studio/studio-context";
   import ProjectControls from "$lib/studio/panels/ProjectControls.svelte";
+  import StudioMenu from "$lib/studio/panels/StudioMenu.svelte";
   import OutputSwitch from "$lib/studio/panels/OutputSwitch.svelte";
   import SetupSection from "$lib/studio/panels/SetupSection.svelte";
   import CustomDataSection from "$lib/studio/panels/CustomDataSection.svelte";
@@ -83,6 +83,9 @@
   let explodedDrag = $state.raw<number | undefined>(undefined);
   let searchOpen = $state(false);
   let mapAspectLocked = $state(false);
+  /** Map clicks place markers while on; any other preview mode ends it. */
+  let placingMarker = $state(false);
+  $effect(() => { if (mode !== "map") placingMarker = false; });
   let locationTrigger: HTMLButtonElement;
   let lineworkOpen = $state(false);
   let menuStateReady = $state(false);
@@ -186,7 +189,8 @@
   const terrainDataAction = $derived(geometry.sourceKind === "real" ? "regenerate" : "generate");
   const exportBlockedBy = $derived(exportBlockReason(geometry, project));
   const exportReady = $derived(!exportBlockedBy);
-  const platformExportAvailable = $derived(atommReady && embeddedInPlatform);
+  const exportStatusLabel = $derived(exportPhase === "preparing" ? "Preparing files" : exportPhase === "ready" ? "Export ready" : exportPhase === "error" ? "Export failed" : exportReady ? "Ready to export" : "Generate before export");
+  const exportStatusTone = $derived(exportPhase === "error" ? "error" : exportPhase === "preparing" ? "busy" : exportReady ? "ready" : "blocked");
   const lakeDepthFittingOn = $derived(project.outputMode === "stack" && project.showWaterDepth && project.fitLakeDepth
     && geometry.waterSurfaces.some((surface) => surface.kind === "lake" && surface.depthFitScale !== undefined && surface.depthFitScale < 1));
   const visibleWarnings = $derived(summarizeWarnings(geometry.warnings, dismissedWarnings));
@@ -203,6 +207,9 @@
 
   const layerTicks = $derived(geometry.layers.map((layer) => Math.round(displayElevation(layer.elevationM, project.units))));
   const shownLengthUnit = $derived(lengthUnit(project.units));
+  const outputSummary = $derived(project.outputMode === "engraving"
+    ? [`${project.engravingContourCount} contours`, "No cut paths"]
+    : [`${geometry.layers.length} layers`, `${fabricationPanelCount} cut panels`, `${shownLength(totalHeight)} ${shownLengthUnit} tall`]);
   const seamGrid = $derived(planSeamGrid(project));
   const seamSummary = $derived(seamGrid
     ? `${seamGrid.columns} × ${seamGrid.rows} sheets per layer · ${shownLength(seamGrid.pitchXMm)} × ${shownLength(seamGrid.pitchYMm)} ${shownLengthUnit} tiles`
@@ -325,6 +332,14 @@
         url.searchParams.delete("lake"); url.searchParams.delete("bounds");
         replaceState(url, {});
       },
+      hash: window.location.hash,
+      loadShareLink: () => import("$lib/studio/share-link"),
+      consumeShareLink: async () => {
+        const { replaceState } = await import("$app/navigation");
+        const url = new URL(window.location.href);
+        url.hash = "";
+        replaceState(url, {});
+      },
       isCancelled: () => cancelled,
       currentProject: () => project,
       restoreSaved: (saved) => {
@@ -338,6 +353,14 @@
         invalidatePendingPreview();
         projectHistory.push(previous);
         replaceSourceProject(next, createProjectPreviewSource(next));
+      },
+      generate: () => { void generate(); },
+      openSharedProject: (next, previous) => {
+        invalidatePendingPreview();
+        projectHistory.push(previous);
+        dismissedWarnings = [];
+        replaceSourceProject(next, createProjectPreviewSource(next));
+        trackUsage("share_link_opened", next.outputMode);
       },
       setStatus: (message) => { status = message; },
     }).then(({ autosave }) => {
@@ -507,6 +530,13 @@
   function undo(): void { const previous = projectHistory.undo(project); if (previous) restoreProject(previous, "Undo"); }
   function redo(): void { const next = projectHistory.redo(project); if (next) restoreProject(next, "Redo"); }
 
+  function handleHistoryKey(event: KeyboardEvent): void {
+    const shortcut = historyShortcut(event);
+    if (!shortcut) return;
+    event.preventDefault();
+    if (shortcut === "undo") undo(); else redo();
+  }
+
   function invalidatePendingPreview(): void {
     const wasGenerating = generationState === "loading";
     generationAbort?.abort();
@@ -655,6 +685,34 @@
     catch (error) { reportImportError(error instanceof Error ? error.message : "Could not import this project."); }
   }
 
+  async function copyShareLink(): Promise<void> {
+    try {
+      const { shareLinkFor } = await import("$lib/studio/share-link");
+      await navigator.clipboard.writeText(shareLinkFor(project, new URL("/studio", window.location.href).toString()));
+      status = "Share link copied · anyone with it can open this design";
+      trackUsage("share_link_copied", project.outputMode);
+    } catch (error) {
+      status = error instanceof Error && error.name !== "NotAllowedError" ? error.message : "Could not copy the share link. Check clipboard permissions and try again.";
+    }
+  }
+
+  async function importCustomData(file: File | undefined): Promise<void> {
+    if (!file) return;
+    try {
+      const { importGeoFile } = await import("$lib/domain/geo-import");
+      const { patch, message } = await importGeoFile(file, edits.customDataCapacity(project), boundsForProject(project));
+      status = message;
+      if (!patch) return;
+      if (!keepsPendingWork(Object.keys(patch))) invalidatePendingPreview();
+      // One import is one undo step, however many features it adds.
+      projectHistory.push(project);
+      project = { ...project, ...edits.appendCustomData(project, patch, () => crypto.randomUUID()) };
+      if (generationState !== "loading") void refreshPreview("customData", 0, { quiet: true });
+    } catch (error) {
+      status = error instanceof Error ? error.message : "Could not import this map data file.";
+    }
+  }
+
   // The sidebar panels and preview read App state through this object; see StudioContext.
   provideStudio({
     get project() { return project; },
@@ -687,6 +745,7 @@
     get exportPhase() { return exportPhase; },
     get exportBlockedBy() { return exportBlockedBy; },
     get exportReady() { return exportReady; },
+    get outputSummary() { return outputSummary; },
     get booted() { return booted; },
     get historyAvailability() { return historyAvailability; },
     get embeddedInPlatform() { return embeddedInPlatform; },
@@ -717,13 +776,17 @@
     set resetOpen(value) { resetOpen = value; },
     get mapAspectLocked() { return mapAspectLocked; },
     set mapAspectLocked(value) { mapAspectLocked = value; },
+    get placingMarker() { return placingMarker; },
+    set placingMarker(value) { placingMarker = value; },
     get lineworkOpen() { return lineworkOpen; },
     set lineworkOpen(value) { lineworkOpen = value; },
     get locationTrigger() { return locationTrigger; },
     set locationTrigger(value) { locationTrigger = value; },
-    shownLength, shownDepth, shownLineWidth, shownTextSize, storedLength, workAreaLength, updateProject, updateFabrication, updateMapDetails, updateLocation, updateVerticalExaggeration, updateDepthLayerLimit, setLakeDepth, setLineWidth, applyCustomDataEdit, choosePlace, undo, redo, importProject, generate, cancelGeneration, toggleSection, setAllSections, sectionSummary, navigateChoice, dismissPreviewWarning, previewMarkingPath, trailPatternDash, getFeedbackContext,
+    shownLength, shownDepth, shownLineWidth, shownTextSize, storedLength, workAreaLength, updateProject, updateFabrication, updateMapDetails, updateLocation, updateVerticalExaggeration, updateDepthLayerLimit, setLakeDepth, setLineWidth, applyCustomDataEdit, choosePlace, undo, redo, importProject, copyShareLink, importCustomData, generate, cancelGeneration, toggleSection, setAllSections, sectionSummary, navigateChoice, dismissPreviewWarning, previewMarkingPath, trailPatternDash, getFeedbackContext,
   });
 </script>
+
+<svelte:window onkeydown={handleHistoryKey} />
 
 <svelte:head>
   <meta name="theme-color" content={themeColor} />
@@ -758,10 +821,9 @@
           <ProjectControls />
         {/snippet}
         {#snippet actions()}
-          <div class="bar-meta">{#if project.outputMode === "engraving"}<span>{project.engravingContourCount} contours</span><span>1 engrave SVG</span><span>No cut paths</span>{:else}<span>{geometry.layers.length} layers</span><span>{fabricationPanelCount} cut panels</span><span>{shownLength(totalHeight)} {shownLengthUnit} tall</span>{/if}</div>
-          <Button class="export-trigger" aria-label="Export" title="Export" aria-haspopup="dialog" onclick={(event: MouseEvent) => { if (event.currentTarget instanceof HTMLElement) event.currentTarget.focus(); exportOpen = true; }}><Download size={18} aria-hidden="true" /><span class="export-trigger-label">Export</span></Button>
-          <ThemeToggle {theme} class="theme-toggle" />
-          <a class="about-link" href={`${base}/`} target="_blank" rel="noopener noreferrer" aria-label="TopoStack home and getting started (opens in a new tab)" title="TopoStack home and getting started (opens in a new tab)"><House size={18} aria-hidden="true" /></a>
+          <Button class="export-trigger" aria-label="Export" aria-describedby="export-status" title={exportStatusLabel} aria-haspopup="dialog" onclick={(event: MouseEvent) => { if (event.currentTarget instanceof HTMLElement) event.currentTarget.focus(); exportOpen = true; }}><Download size={18} aria-hidden="true" /><span class="export-trigger-label">Export</span><span class="export-status-dot" data-status={exportStatusTone} aria-hidden="true"></span></Button>
+          <span id="export-status" class="context-export-status ldt-visually-hidden">{exportStatusLabel}</span>
+          <StudioMenu />
         {/snippet}
       </Topbar>
       <ContextBar class="terrain-contextbar" section="Terrain" title={project.location.label.split(",")[0]} detail={project.location.label.split(",").slice(1).join(",") || "Selected coordinates"}>
@@ -795,7 +857,7 @@
 
     <PreviewPanel />
   </Workspace>
-  <ExportDialog open={exportOpen} {project} blockedReason={exportBlockedBy} preparing={exportPhase === "preparing"} platformAvailable={platformExportAvailable} phase={exportPhase} title={exportTitle} detail={exportDetail} onDownload={(option) => void downloadProject(option)} onClose={() => exportOpen = false} />
+  <ExportDialog open={exportOpen} {project} summary={outputSummary.join(" · ")} panelCount={fabricationPanelCount} blockedReason={exportBlockedBy} preparing={exportPhase === "preparing"} phase={exportPhase} title={exportTitle} detail={exportDetail} onDownload={(option) => void downloadProject(option)} onClose={() => exportOpen = false} />
   {@render locationSearch()}
 </AppShell>
 

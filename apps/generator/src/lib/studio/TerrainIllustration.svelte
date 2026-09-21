@@ -1,5 +1,5 @@
 <script lang="ts">
-  let { variant }: { variant: "hero" | "relief" | "engraving" | "location" | "data" } = $props();
+  let { variant }: { variant: "hero" | "relief" | "engraving" | "location" | "data" | "guide" } = $props();
 
   const contour = "M-152 36 C-190 4-146-25-131-53 C-113-89-63-71-38-104 C-10-140 38-114 59-86 C80-58 128-71 148-32 C172 12 133 34 105 58 C76 84 40 65 9 86 C-29 111-58 82-91 75 C-120 69-130 55-152 36Z";
 </script>
@@ -48,6 +48,27 @@
     <path class="sheet" d="M230 139C221 126 207 113 207 98A23 23 0 0 1 253 98C253 113 239 126 230 139Z" />
     <circle class="contour" cx="230" cy="98" r="8" />
     <text x="230" y="270" text-anchor="middle">FIND YOUR PLACE / FRAME YOUR VIEW</text>
+  {:else if variant === "guide"}
+    <!-- One assembly-guide step: the stack so far from above, the new layer highlighted, the next one still to come. -->
+    <rect class="guide" x="24" y="22" width="252" height="216" />
+    <g transform="translate(150 134)">
+      {#each [0, 1, 2] as layer}
+        <path class="below" d={contour} transform={`scale(${0.62 - layer * 0.12} ${(0.62 - layer * 0.12) * 0.74})`} />
+      {/each}
+      <path class="current" d={contour} transform="scale(0.26 0.19)" />
+      <path class="next" d={contour} transform="scale(0.12 0.09)" />
+    </g>
+    <rect class="badge" x="302" y="30" width="34" height="34" />
+    <text class="badge-number" x="319" y="53" text-anchor="middle">4</text>
+    <text class="step-label" x="348" y="44">STEP 4 OF 9</text>
+    <path class="step-title" d="M348 57H414" />
+    <path class="guide" d="M302 96H430M302 112H410M302 128H422" />
+    <path class="note" d="M303 152V184" />
+    <path class="guide" d="M314 160H424M314 176H396" />
+    <rect class="done" x="302" y="208" width="14" height="14" />
+    <path class="tick" d="M305.5 215 308.5 218 313 211.5" />
+    <text class="step-label" x="324" y="219">DONE</text>
+    <text x="230" y="270" text-anchor="middle">STEP BY STEP / LAYER BY LAYER</text>
   {:else}
     <path class="guide" stroke-dasharray="3 6" d="M59 110V213M401 110V213M230 24V251" />
     <path class="sheet" d="M59 193 230 132 401 193 230 254Z" />
@@ -73,4 +94,13 @@
   .accent { stroke: var(--loidolt-accent); stroke-width: 1.5; }
   .guide { stroke: var(--loidolt-border); stroke-width: 1; }
   text { fill: var(--loidolt-text-muted); font: 9px var(--loidolt-font-utility); letter-spacing: 2px; }
+  .below { fill: var(--loidolt-surface); stroke: var(--loidolt-border-control); stroke-width: 1; }
+  .current, .badge { fill: var(--loidolt-accent); stroke: var(--loidolt-accent); stroke-width: 1.5; }
+  .badge-number { fill: var(--loidolt-on-accent); font: 500 18px var(--loidolt-font-display); letter-spacing: 0; }
+  .step-label { font-size: 8px; letter-spacing: 1.5px; }
+  .step-title { stroke: var(--loidolt-text); stroke-width: 6; }
+  .note { stroke: var(--loidolt-accent); stroke-width: 3; }
+  .next { stroke: var(--loidolt-on-accent); stroke-width: 1.2; stroke-dasharray: 3 3; }
+  .done { fill: var(--loidolt-accent); }
+  .tick { stroke: var(--loidolt-on-accent); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 </style>

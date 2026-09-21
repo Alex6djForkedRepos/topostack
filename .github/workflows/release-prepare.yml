@@ -1,0 +1,75 @@
+name: Prepare release
+
+# When dev is proposed for main, fold the pending changelog fragments into a
+# release: bump every workspace version, write changelog/releases.json and
+# CHANGELOG.md, delete the fragments, and push a "Release vX.Y.Z" commit to
+# dev so the promotion pull request carries it. With nothing pending this is a
+# no-op, so later pushes to the same pull request are safe.
+#
+# The push uses the built-in GITHUB_TOKEN, so no personal token is stored.
+# GitHub does not start workflows for pushes made with that token, so this job
+# dispatches CI (which also redeploys development) and the Changelog check on
+# dev itself; their results attach to the release commit, which is the
+# promotion pull request's new head. See docs/changelog.md.
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-prepare
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Fold changelog into a release
+    if: github.head_ref == 'dev' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - name: Check out dev
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.22.2"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund --ignore-scripts
+
+      - name: Prepare the release
+        id: prepare
+        run: npm run changelog:prepare
+
+      - name: Commit the release to dev
+        if: steps.prepare.outputs.version
+        env:
+          VERSION: ${{ steps.prepare.outputs.version }}
+        run: |
+          npm run changelog:verify
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add changelog CHANGELOG.md package.json package-lock.json apps/generator/package.json packages/core/package.json packages/data-contracts/package.json workers/map-api/package.json atomm/version.json
+          git commit -m "Release v$VERSION"
+          git push origin HEAD:dev
+          echo "### Prepared v$VERSION" >> "$GITHUB_STEP_SUMMARY"
+          npm run --silent changelog:notes -- "$VERSION" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run checks on the release commit
+        if: steps.prepare.outputs.version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run ci.yml --ref dev
+          gh workflow run changelog.yml --ref dev

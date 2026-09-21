@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import noaaFixture from "$lib/domain/fixtures/noaa-erie-z11.json";
 import { mount, tick, unmount } from "svelte";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -13,11 +14,28 @@ const loadVectorMarkingsMock = vi.hoisted(() => vi.fn());
 const loadLakeAreasMock = vi.hoisted(() => vi.fn());
 vi.mock("$lib/domain/data-provider", async (importOriginal) => ({ ...await importOriginal<typeof import("$lib/domain/data-provider")>(), loadTerrain: loadTerrainMock, loadVectorMarkings: loadVectorMarkingsMock, loadLakeAreas: loadLakeAreasMock }));
 vi.mock("$lib/storage/storage", async (importOriginal) => ({ ...await importOriginal<typeof import("$lib/storage/storage")>(), loadProject: vi.fn(async () => undefined), saveProject: vi.fn(async () => undefined) }));
+// Glyph files are fetched in the browser; here they are read from the source tree.
+vi.mock("$lib/domain/fonts", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("$lib/domain/fonts")>();
+  // The URL is the dev server path of the glyph file, rooted at this app.
+  const read = async (url: string) => JSON.parse(readFileSync(join(import.meta.dirname, "../../..", url.split("?")[0]!), "utf8"));
+  return { ...actual, ensureFonts: (fonts: Parameters<typeof actual.ensureFonts>[0]) => actual.ensureFonts(fonts, read) };
+});
 vi.mock("$lib/atomm/atomm-bridge", () => ({ connectAtomm: vi.fn(() => () => undefined) }));
 vi.mock("$app/navigation", () => ({ replaceState: (url: URL) => window.history.replaceState(window.history.state, "", url) }));
 vi.mock("$lib/studio/ThreePreview.svelte", async () => ({ default: (await import("$lib/studio/TestPreview.svelte")).default }));
 
 import App from "$lib/studio/App.svelte";
+
+/** Opens a header menu if it is closed and returns the item whose text starts with `name`. */
+async function menuItem(target: HTMLElement, menu: string, name: string) {
+  const trigger = target.querySelector<HTMLButtonElement>(`button[aria-label^="${menu}"]`)!;
+  if (trigger.getAttribute("aria-expanded") !== "true") {
+    trigger.click();
+    await tick();
+  }
+  return [...target.querySelectorAll<HTMLElement>('[role="menu"] [role^="menuitem"]')].find((item) => item.textContent?.trim().startsWith(name))! as HTMLButtonElement;
+}
 
 describe("TopoStack Svelte shell", () => {
   let component: ReturnType<typeof mount> | undefined;
@@ -59,9 +77,9 @@ describe("TopoStack Svelte shell", () => {
     vi.mocked(saveProject).mockClear();
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
-    const reset = () => target.querySelector<HTMLButtonElement>('button[aria-label="Reset project"]')!;
-    await vi.waitFor(() => expect(reset().disabled).toBe(false));
-    reset().click();
+    const reset = () => menuItem(target, "Project actions", "Reset project");
+    await vi.waitFor(async () => expect((await reset()).disabled).toBe(false));
+    (await reset()).click();
     await tick();
     const dialog = target.querySelector<HTMLDialogElement>(".reset-dialog")!;
     expect(dialog.open).toBe(true);
@@ -70,7 +88,7 @@ describe("TopoStack Svelte shell", () => {
     await tick();
     expect(target.querySelector(".reset-dialog")).toBeNull();
     expect(target.querySelector<HTMLInputElement>('[aria-label="Project name"]')?.value).toBe(saved.name);
-    reset().click();
+    (await reset()).click();
     await tick();
     [...target.querySelectorAll<HTMLButtonElement>(".reset-dialog button")].find((button) => button.textContent?.trim() === "Reset project")!.click();
     await tick();
@@ -88,23 +106,52 @@ describe("TopoStack Svelte shell", () => {
     await vi.waitFor(() => expect(saveProject).toHaveBeenLastCalledWith(DEFAULT_PROJECT));
   });
 
+  it("undoes and redoes project edits from the keyboard outside text fields", async () => {
+    const { saveProject } = await import("$lib/storage/storage");
+    vi.mocked(saveProject).mockClear();
+    const target = document.createElement("div");
+    document.body.append(target);
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    const name = () => target.querySelector<HTMLInputElement>('[aria-label="Project name"]')!;
+    await vi.waitFor(async () => expect((await menuItem(target, "Project actions", "Reset project")).disabled).toBe(false));
+    target.querySelector<HTMLButtonElement>('button[aria-label="Project actions"]')!.click();
+    name().value = "Keyboard peak";
+    name().dispatchEvent(new Event("input", { bubbles: true }));
+    await vi.waitFor(() => expect(target.querySelector<HTMLButtonElement>('button[aria-label="Undo"]')?.disabled).toBe(false));
+    // Inside a text field the browser's own undo wins.
+    const fromField = new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true, cancelable: true });
+    name().dispatchEvent(fromField);
+    expect(fromField.defaultPrevented).toBe(false);
+    expect(name().value).toBe("Keyboard peak");
+    const undoKey = new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true, cancelable: true });
+    document.body.dispatchEvent(undoKey);
+    expect(undoKey.defaultPrevented).toBe(true);
+    await vi.waitFor(() => expect(name().value).toBe("Crater Lake"));
+    document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Z", metaKey: true, shiftKey: true, bubbles: true, cancelable: true }));
+    await vi.waitFor(() => expect(name().value).toBe("Keyboard peak"));
+    target.remove();
+  });
+
   it("discards terrain generation that finishes after resetting the project", async () => {
     const { saveProject } = await import("$lib/storage/storage");
     let finish: ((value: unknown) => void) | undefined;
     loadTerrainMock.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
-    const reset = () => target.querySelector<HTMLButtonElement>('button[aria-label="Reset project"]')!;
-    await vi.waitFor(() => expect(reset().disabled).toBe(false));
+    const reset = () => menuItem(target, "Project actions", "Reset project");
+    await vi.waitFor(async () => expect((await reset()).disabled).toBe(false));
     target.querySelector<HTMLButtonElement>(".generate-button")!.click();
     await vi.waitFor(() => expect(finish).toBeDefined());
-    reset().click();
+    (await reset()).click();
     await tick();
     [...target.querySelectorAll<HTMLButtonElement>(".reset-dialog button")].find((button) => button.textContent?.trim() === "Reset project")!.click();
     await tick();
     finish!({ source: createSyntheticSource(DEFAULT_PROJECT, 32), fallback: true });
-    await vi.waitFor(() => expect(saveProject).toHaveBeenLastCalledWith(DEFAULT_PROJECT));
-    expect(target.querySelector(".status-line")?.textContent).toContain("Project reset to Crater Lake defaults");
+    await vi.waitFor(() => expect(target.querySelector(".status-line")?.textContent).toContain("Project reset to Crater Lake defaults"));
+    // Flush the pending snapshot rather than relying on an earlier test's last save.
+    vi.mocked(saveProject).mockClear();
+    window.dispatchEvent(new Event("pagehide"));
+    expect(saveProject).toHaveBeenLastCalledWith(DEFAULT_PROJECT);
     expect(target.textContent).not.toContain("Sample terrain generated");
   });
 
@@ -292,15 +339,18 @@ describe("TopoStack Svelte shell", () => {
     expect(target.querySelector(".preview-warning .warning-action")?.textContent?.trim()).toBe("Fit depth");
   });
 
-  it("opens a directory lake after restoring settings and consumes the place link once", async () => {
+  it("opens a directory lake after restoring settings, consumes the place link once and generates it", async () => {
     const { loadProject, saveProject } = await import("$lib/storage/storage");
     vi.mocked(saveProject).mockClear();
+    loadTerrainMock.mockImplementationOnce(() => new Promise(() => undefined));
     vi.mocked(loadProject).mockResolvedValueOnce({ ...DEFAULT_PROJECT, name: "Saved mountain", materialThicknessMm: 5, outputMode: "engraving", showWaterDepth: false });
     window.history.replaceState(null, "", "/studio?lake=Lake%20Tahoe&bounds=-120.2,38.9,-119.8,39.3");
     try {
       const target = document.createElement("div");
       component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
-      await vi.waitFor(() => expect(target.textContent).toContain("Lake selected from the depth directory"));
+      await vi.waitFor(() => expect(loadTerrainMock).toHaveBeenCalledOnce());
+      expect(loadTerrainMock.mock.calls[0]![0]).toMatchObject({ name: "Lake Tahoe", outputMode: "stack", showWaterDepth: true, location: { label: "Lake Tahoe" } });
+      expect(target.textContent).toContain("Fetching elevation and map details");
       expect(target.querySelector<HTMLInputElement>('[aria-label="Project name"]')?.value).toBe("Lake Tahoe");
       expect(target.querySelector('[aria-label="Water depth"]')?.getAttribute("aria-checked")).toBe("true");
       expect(window.location.search).toBe("");
@@ -309,8 +359,39 @@ describe("TopoStack Svelte shell", () => {
         location: expect.objectContaining({ label: "Lake Tahoe", lon: -120 }),
       })));
       expect(vi.mocked(saveProject).mock.lastCall![0].location.lat).toBeCloseTo(39.1);
-      expect(loadTerrainMock).not.toHaveBeenCalled();
-      expect(target.querySelector(".context-export-status")?.textContent).toContain("Generate before export");
+    } finally { window.history.replaceState(null, "", "/"); }
+  });
+
+  it("copies a share link and opens a shared design on top of the saved project", async () => {
+    const { loadProject, saveProject } = await import("$lib/storage/storage");
+    const { projectFromShareLink } = await import("$lib/studio/share-link");
+    const saved = { ...DEFAULT_PROJECT, name: "Saved mountain", materialThicknessMm: 5 };
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    vi.mocked(loadProject).mockResolvedValueOnce(saved);
+    const first = document.createElement("div");
+    component = mount(App, { target: first, props: { initialPreview: structuredClone(initialPreview) } });
+    await vi.waitFor(() => expect(first.querySelector<HTMLInputElement>('[aria-label="Project name"]')?.value).toBe("Saved mountain"));
+    (await menuItem(first, "Project actions", "Copy share link")).click();
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+    const link = new URL((writeText.mock.calls[0] as unknown as [string])[0]);
+    expect(link.pathname).toBe("/studio");
+    expect(projectFromShareLink(link.hash)).toMatchObject({ name: "Saved mountain", materialThicknessMm: 5 });
+    await vi.waitFor(() => expect(first.textContent).toContain("Share link copied"));
+    await unmount(component);
+
+    vi.mocked(saveProject).mockClear();
+    vi.mocked(loadProject).mockResolvedValueOnce({ ...DEFAULT_PROJECT, name: "Recipient project" });
+    window.history.replaceState(null, "", `/studio${link.hash}`);
+    try {
+      const target = document.createElement("div");
+      component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+      const name = () => target.querySelector<HTMLInputElement>('[aria-label="Project name"]')!;
+      await vi.waitFor(() => expect(target.textContent).toContain("Shared design opened"));
+      expect(name().value).toBe("Saved mountain");
+      expect(window.location.hash).toBe("");
+      target.querySelector<HTMLButtonElement>('button[aria-label="Undo"]')!.click();
+      await vi.waitFor(() => expect(name().value).toBe("Recipient project"));
     } finally { window.history.replaceState(null, "", "/"); }
   });
 
@@ -342,7 +423,7 @@ describe("TopoStack Svelte shell", () => {
     await vi.waitFor(() => expect(target.querySelector(".status-line")?.textContent).toContain("Real terrain ready"));
     const exportStatus = () => target.querySelector(".context-export-status")?.textContent;
     expect(exportStatus()).toContain("Ready to export");
-    const stackSummary = () => target.querySelector(".bar-meta")?.textContent;
+    const stackSummary = () => target.querySelector(".output-summary")?.textContent;
     const initialStack = stackSummary();
 
     const material = target.querySelector<HTMLInputElement>('input[aria-label="Material"]')!;
@@ -474,7 +555,7 @@ describe("TopoStack Svelte shell", () => {
     await vi.waitFor(() => expect(rippleFill.getAttribute("aria-checked")).toBe("true"));
     await vi.waitFor(() => expect(target.querySelector('[data-water-pattern="ripples"]')).not.toBeNull());
     expect(target.querySelector(".layer-dock")).toBeNull();
-    expect(target.querySelector(".bar-meta")?.textContent).toContain("No cut paths");
+    expect(target.querySelector(".output-summary")?.textContent).toContain("No cut paths");
     const viewport = target.querySelector<HTMLElement>("[data-svg-viewport]")!;
     const artwork = target.querySelector<SVGSVGElement>('svg[aria-label="Flat engraving preview"]')!;
     const initialViewBox = artwork.getAttribute("viewBox");
@@ -564,7 +645,14 @@ describe("TopoStack Svelte shell", () => {
     // Text engraving and the elevation label position now sit beside what they
     // affect in Map details rather than in the fabrication panel.
     expect(fields.querySelector(".swatch-options")).toBeNull();
-    expect(target.querySelectorAll('.swatch-options[aria-label="Engraving font"] button[role="radio"]')).toHaveLength(3);
+    // One compact picker row; its list holds three built-in styles, four
+    // single-line fonts and four filled typefaces.
+    const fontPicker = target.querySelector<HTMLButtonElement>('button[role="combobox"][aria-label="Engraving font"]')!;
+    expect(fontPicker.textContent).toContain("Technical");
+    expect(target.querySelector('[role="listbox"][aria-label="Engraving font"]')).toBeNull();
+    fontPicker.click();
+    await vi.waitFor(() => expect(target.querySelectorAll('[role="listbox"][aria-label="Engraving font"] [role="option"]')).toHaveLength(11));
+    expect(target.querySelectorAll('[role="listbox"][aria-label="Engraving font"] [role="group"]')).toHaveLength(3);
     expect(target.querySelectorAll('input[aria-label="Label X"]')).toHaveLength(1);
   });
 
@@ -618,9 +706,18 @@ describe("TopoStack Svelte shell", () => {
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
     await tick();
-    const stencil = [...target.querySelectorAll<HTMLButtonElement>('.swatch-options[aria-label="Engraving font"] button[role="radio"]')].find((button) => button.textContent?.includes("Stencil"))!;
-    stencil.click();
-    await vi.waitFor(() => expect(stencil.getAttribute("aria-checked")).toBe("true"));
+    const picker = target.querySelector<HTMLButtonElement>('button[role="combobox"][aria-label="Engraving font"]')!;
+    picker.click();
+    await tick();
+    // Keyboard: typeahead lands on Stencil and Enter picks it and closes the list.
+    const list = target.querySelector<HTMLElement>('[role="listbox"][aria-label="Engraving font"]')!;
+    list.dispatchEvent(new KeyboardEvent("keydown", { key: "s", bubbles: true }));
+    list.dispatchEvent(new KeyboardEvent("keydown", { key: "t", bubbles: true }));
+    await tick();
+    expect(list.querySelector(`#${CSS.escape(list.getAttribute("aria-activedescendant")!)}`)?.textContent).toContain("Stencil");
+    list.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    await vi.waitFor(() => expect(picker.textContent).toContain("Stencil"));
+    expect(target.querySelector('[role="listbox"][aria-label="Engraving font"]')).toBeNull();
     const size = target.querySelector<HTMLInputElement>('input[aria-label="Text size"]')!;
     size.value = "5";
     size.dispatchEvent(new Event("input", { bubbles: true }));
@@ -716,18 +813,43 @@ describe("TopoStack Svelte shell", () => {
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
     await tick();
-    const toggle = target.querySelector<HTMLButtonElement>('button[data-theme-preference="system"]')!;
-    expect(toggle.getAttribute("aria-label")).toBe("Colour scheme: System");
-    toggle.click();
+    const scheme = (name: string) => menuItem(target, "Studio menu", name);
+    expect((await scheme("System")).getAttribute("aria-checked")).toBe("true");
+    (await scheme("Light")).click();
     await tick();
-    expect(toggle.dataset.themePreference).toBe("light");
-    toggle.click();
+    expect(theme.preference).toBe("light");
+    expect(target.querySelector('[role="menu"]')).toBeNull();
+    (await scheme("Dark")).click();
     await tick();
-    expect(toggle.dataset.themePreference).toBe("dark");
-    expect(toggle.getAttribute("aria-label")).toBe("Colour scheme: Dark");
+    expect((await scheme("Dark")).getAttribute("aria-checked")).toBe("true");
+    expect((await scheme("Light")).getAttribute("aria-checked")).toBe("false");
     expect(document.documentElement.dataset.theme).toBe("dark");
     expect(localStorage.getItem("topostack-theme")).toBe("dark");
     expect(document.head.querySelector<HTMLMetaElement>('meta[name="theme-color"]')).not.toBeNull();
+  });
+
+  it("moves through header menus from the keyboard and returns focus on Escape", async () => {
+    const target = document.createElement("div");
+    document.body.append(target);
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await tick();
+    const trigger = target.querySelector<HTMLButtonElement>('button[aria-label^="Studio menu"]')!;
+    trigger.focus();
+    trigger.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    await vi.waitFor(() => expect(document.activeElement?.textContent).toContain("Light"));
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+    const menu = target.querySelector<HTMLElement>('[role="menu"]')!;
+    menu.dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true }));
+    expect(document.activeElement?.textContent).toContain("TopoStack home");
+    expect(document.activeElement?.getAttribute("href")).toBe("/");
+    menu.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    expect(document.activeElement?.textContent).toContain("Light");
+    expect(menu.querySelector(".studio-menu__version")?.textContent).toMatch(/^TopoStack v\d+\.\d+\.\d+$/);
+    menu.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await tick();
+    expect(target.querySelector('[role="menu"]')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    target.remove();
   });
 
   it("automatically fetches the new map area after debounced cut aspect-ratio edits", async () => {
@@ -934,7 +1056,7 @@ describe("TopoStack Svelte shell", () => {
     const generate = target.querySelector<HTMLButtonElement>(".generate-button")!;
     generate.click();
     await vi.waitFor(() => expect(loadTerrainMock).toHaveBeenCalledOnce());
-    const input = target.querySelector<HTMLInputElement>('input[type="file"]')!;
+    const input = target.querySelector<HTMLInputElement>('input[type="file"][accept^="application/json"]')!;
     Object.defineProperty(input, "files", { configurable: true, value: [new File(["not json"], "broken.json", { type: "application/json" })] });
     input.dispatchEvent(new Event("change", { bubbles: true }));
     await vi.waitFor(() => expect(target.querySelector(".status-line")?.textContent).not.toContain("Fetching elevation and map details"));
@@ -986,6 +1108,70 @@ describe("TopoStack Svelte shell", () => {
     transportationLabels.click();
     await vi.waitFor(() => expect(transportationLabels.getAttribute("aria-checked")).toBe("true"));
     expect(loadTerrainMock).not.toHaveBeenCalled();
+  });
+
+  it("engraves a title from the project name, edits it, and keeps it when switched off", async () => {
+    const { saveProject } = await import("$lib/storage/storage");
+    vi.mocked(saveProject).mockClear();
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await vi.waitFor(() => expect(saveProject).toHaveBeenCalled(), { timeout: 2_000 });
+    const stage = target.querySelector<HTMLElement>(".preview-stage")!;
+    expect(stage.dataset.plaqueMarkings).toBe("0");
+    const title = target.querySelector<HTMLButtonElement>('button[role="switch"][aria-label="Title"]')!;
+    title.click();
+    const text = () => target.querySelector<HTMLTextAreaElement>('textarea[aria-label="Title text"]');
+    await vi.waitFor(() => expect(text()?.value).toBe("Crater Lake"));
+    await vi.waitFor(() => expect(Number(stage.dataset.plaqueMarkings)).toBeGreaterThan(0));
+    text()!.value = "Crater Lake\nOregon, 2026\nthird\nfourth line dropped";
+    text()!.dispatchEvent(new Event("input", { bubbles: true }));
+    await vi.waitFor(() => expect(text()!.value).toBe("Crater Lake\nOregon, 2026\nthird"));
+    text()!.value = "Café";
+    text()!.dispatchEvent(new Event("input", { bubbles: true }));
+    await vi.waitFor(() => expect(target.querySelector(".plaque-warning")?.textContent).toContain("é"));
+    title.click();
+    await vi.waitFor(() => expect(stage.dataset.plaqueMarkings).toBe("0"));
+    window.dispatchEvent(new Event("pagehide"));
+    expect(vi.mocked(saveProject).mock.lastCall![0].plaque).toMatchObject({ enabled: false, text: "Café", placement: { anchor: "bottom-left" } });
+  });
+
+  it("gives the title its own typeface, loaded on demand, keeping its case", async () => {
+    const { saveProject } = await import("$lib/storage/storage");
+    vi.mocked(saveProject).mockClear();
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await vi.waitFor(() => expect(saveProject).toHaveBeenCalled(), { timeout: 2_000 });
+    const stage = target.querySelector<HTMLElement>(".preview-stage")!;
+    target.querySelector<HTMLButtonElement>('button[role="switch"][aria-label="Title"]')!.click();
+    const picker = () => target.querySelector<HTMLButtonElement>('button[role="combobox"][aria-label="Title font"]')!;
+    const options = () => [...target.querySelectorAll<HTMLElement>('[role="listbox"][aria-label="Title font"] [role="option"]')];
+    await vi.waitFor(() => expect(picker()).not.toBeNull());
+    expect(picker().textContent).toContain("Same as labels");
+    picker().click();
+    await vi.waitFor(() => expect(options()).toHaveLength(12));
+    expect(options()[0]!.textContent).toContain("Same as labels");
+    expect(options()[0]!.getAttribute("aria-selected")).toBe("true");
+    options().find((option) => option.textContent?.includes("Jost"))!.click();
+    await vi.waitFor(() => expect(picker().textContent).toContain("Jost"));
+    await vi.waitFor(() => expect(Number(stage.dataset.plaqueMarkings)).toBeGreaterThan(0));
+    expect(target.querySelector("#plaque-text-hint")?.textContent).toContain("engraved as typed in Jost");
+    const text = target.querySelector<HTMLTextAreaElement>('textarea[aria-label="Title text"]')!;
+    text.value = "Café Ωmega";
+    text.dispatchEvent(new Event("input", { bubbles: true }));
+    // Jost draws é; Greek is outside the shipped subset.
+    await vi.waitFor(() => expect(target.querySelector(".plaque-warning")?.textContent).toMatch(/Not in Jost.*Ω/));
+    expect(target.querySelector(".plaque-warning")?.textContent).not.toContain("é");
+    picker().click();
+    await vi.waitFor(() => expect(options().find((option) => option.textContent?.includes("Jost"))?.getAttribute("aria-selected")).toBe("true"));
+    // A click outside closes the list without choosing.
+    document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    await vi.waitFor(() => expect(options()).toHaveLength(0));
+    picker().click();
+    await vi.waitFor(() => expect(options()).toHaveLength(12));
+    options()[0]!.click();
+    await vi.waitFor(() => expect(picker().textContent).toContain("Same as labels"));
+    window.dispatchEvent(new Event("pagehide"));
+    expect(vi.mocked(saveProject).mock.lastCall![0].plaque).not.toHaveProperty("font");
   });
 
   it("keeps the current preview visible and interactive during an expensive detail refresh", async () => {
@@ -1147,6 +1333,49 @@ describe("TopoStack Svelte shell", () => {
     [...target.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes("Cut layers"))!.click();
     await vi.waitFor(() => expect(target.querySelector('[data-marking-kind="grid"]')).not.toBeNull());
     expect(loadVectorMarkingsMock).not.toHaveBeenCalled();
+  });
+
+  it("imports a GPX file as markers and trails in one undo step", async () => {
+    const { saveProject } = await import("$lib/storage/storage");
+    vi.mocked(saveProject).mockClear();
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await vi.waitFor(() => expect(saveProject).toHaveBeenCalled(), { timeout: 2_000 });
+    const { lat, lon } = DEFAULT_PROJECT.location;
+    const gpx = `<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1"><wpt lat="${lat}" lon="${lon}"/><trk><trkseg><trkpt lat="${lat}" lon="${lon}"/><trkpt lat="${lat + 0.01}" lon="${lon + 0.01}"/><trkpt lat="${lat + 0.02}" lon="${lon}"/></trkseg></trk></gpx>`;
+    const input = target.querySelector<HTMLInputElement>("input[data-custom-import]")!;
+    Object.defineProperty(input, "files", { configurable: true, value: [new File([gpx], "hike.gpx", { type: "application/gpx+xml" })] });
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    await vi.waitFor(() => expect(target.textContent).toContain("Imported 1 path and 1 marker"));
+    expect(target.querySelectorAll(".marker-card:not(.custom-line-card)")).toHaveLength(1);
+    expect(target.querySelectorAll(".custom-line-card")).toHaveLength(1);
+    window.dispatchEvent(new Event("pagehide"));
+    const saved = vi.mocked(saveProject).mock.lastCall![0];
+    expect(saved.markers).toEqual([expect.objectContaining({ lat, lon, symbol: "pin" })]);
+    expect(saved.customLines).toEqual([expect.objectContaining({ kind: "trail", points: [{ lat, lon }, { lat: lat + 0.01, lon: lon + 0.01 }, { lat: lat + 0.02, lon }] })]);
+    target.querySelector<HTMLButtonElement>('button[aria-label="Undo"]')!.click();
+    await vi.waitFor(() => expect(target.querySelectorAll(".marker-card")).toHaveLength(0));
+
+    Object.defineProperty(input, "files", { configurable: true, value: [new File(["<gpx><trk>"], "broken.gpx")] });
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    await vi.waitFor(() => expect(target.textContent).toContain("This GPX file is not valid XML."));
+  });
+
+  it("opens the map to place markers and ends placement when the map cannot be shown", async () => {
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    const place = () => [...target.querySelectorAll<HTMLButtonElement>(".marker-add-button")].find((button) => button.title === "Click the map to place markers")!;
+    await vi.waitFor(() => expect(place()).toBeDefined());
+    expect(place().getAttribute("aria-pressed")).toBe("false");
+    place().click();
+    await tick();
+    expect(place().getAttribute("aria-pressed")).toBe("true");
+    expect(place().textContent).toContain("Done placing");
+    expect(target.querySelector('.mode-switch [aria-checked="true"]')?.textContent).toContain("Map");
+    // jsdom has no WebGL, so the map falls back to another preview, and a
+    // placement mode with no map to click must not stay on.
+    await vi.waitFor(() => expect(target.querySelector('.mode-switch [aria-checked="true"]')?.textContent).not.toContain("Map"));
+    await vi.waitFor(() => expect(place().getAttribute("aria-pressed")).toBe("false"));
   });
 
   it("adds, edits, symbolizes, and removes an arbitrary marker list", async () => {

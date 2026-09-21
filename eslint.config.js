@@ -75,9 +75,10 @@ export default tseslint.config(
         patterns: [
           { group: ["**/packages/*/src/**", "**/packages/*/src"], message: "Import workspace packages by name (@topostack/core, @topostack/data-contracts/<module>), not by path." },
           {
-            // Only static data, shared catalogs, and the terrain test fixture
-            // may cross a parent directory; all app modules use $lib aliases.
-            regex: String.raw`^(?!(?:\.\./){3,4}static/|(?:\.\./){5}scripts/data/|(?:\.\./){5}workers/map-api/test/terrain-fixture$)(?:\./)*\.\.(?:/|$)`,
+            // Only static data, shared catalogs, the release changelog, and the
+            // terrain test fixture may cross a parent directory; all app
+            // modules use $lib aliases.
+            regex: String.raw`^(?!(?:\.\./){3,4}static/|(?:\.\./){5}scripts/data/|(?:\.\./){5}changelog/|(?:\.\./){5}workers/map-api/test/terrain-fixture$)(?:\./)*\.\.(?:/|$)`,
             message: "Import other generator modules as $lib/<layer>/<module>; relative imports are for siblings only.",
           },
         ],

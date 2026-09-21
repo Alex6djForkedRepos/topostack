@@ -1,5 +1,8 @@
 import { DOCS_SECTIONS } from "$lib/site/docs";
 import { PUBLIC_PAGES, REPOSITORY_URL, SITE_ORIGIN, headline } from "$lib/site/seo";
+import { LAKE_PAGES } from "$lib/site/lake-pages.server";
+import { exampleMeta, examplePath } from "$lib/site/examples";
+import { PUBLISHED_EXAMPLES } from "$lib/site/examples.server";
 export const prerender = true;
 
 // An index of the same pages the sitemap lists, in reading order, for
@@ -26,6 +29,16 @@ export function GET(): Response {
     entry("/guides"),
     `- [Studio](${SITE_ORIGIN}/studio): the editor itself. It is a browser application rather than a document, and is intentionally excluded from search indexes.`,
     ...DOCS_SECTIONS.flatMap((section) => ["", `## ${section.title}`, "", ...section.paths.map(entry)]),
+    "",
+    "## Example projects",
+    "",
+    ...PUBLISHED_EXAMPLES.map((example) => `- [${headline(exampleMeta(example).title)}](${SITE_ORIGIN}${examplePath(example.slug)}): ${exampleMeta(example).description}`),
+    "",
+    "## Lake depth maps",
+    "",
+    "Generated from the surveyed lake directory: one page per region, split by county or initial letter where a region is large.",
+    "",
+    ...[...LAKE_PAGES.values()].map((page) => `- [${headline(page.title)}](${SITE_ORIGIN}${page.path}): ${page.description}`),
     "",
     "## Optional",
     "",

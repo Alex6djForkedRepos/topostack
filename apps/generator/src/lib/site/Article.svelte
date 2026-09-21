@@ -8,7 +8,9 @@
   import { theme } from "$lib/site/theme";
   import { PUBLIC_PAGES, REPOSITORY_URL } from "$lib/site/seo";
   import { DOCS_HOME, DOCS_NAV, docsNeighbours, docsSection, headingId } from "$lib/site/docs";
-  let { title, intro, children }: { title: string; intro: string; children: Snippet } = $props();
+  // Pages outside the guides (the generated lake pages) pass their own breadcrumb trail.
+  // Pages that never hydrate (static) leave out controls that only work with JavaScript.
+  let { title, intro, trail, static: plain = false, children }: { title: string; intro: string; trail?: { path: string; label: string }[]; static?: boolean; children: Snippet } = $props();
 
   const path = $derived(page.url.pathname.replace(/\/$/, "") || "/");
   const section = $derived(docsSection(path));
@@ -64,7 +66,7 @@
   <a class="skip" href="#article">Skip to content</a>
   <Topbar>
     {#snippet brand()}<Brand name="TopoStack" meta="Guides" href={`${base}/`} />{/snippet}
-    {#snippet actions()}<a class="top-link" href={`${base}${DOCS_HOME}`}>Guides</a><a class="start" href={`${base}/studio`}>Open studio</a><ThemeToggle {theme} />{/snippet}
+    {#snippet actions()}<a class="top-link" href={`${base}${DOCS_HOME}`}>Guides</a><a class="start" href={`${base}/studio`}>Open studio</a>{#if !plain}<ThemeToggle {theme} label="Color scheme" />{/if}{/snippet}
   </Topbar>
   <div class="docs-layout">
     <nav class="docs-sidebar docs-links" aria-label="Guides">{@render guideLinks()}</nav>
@@ -75,9 +77,16 @@
       </details>
       <nav class="breadcrumb" aria-label="Breadcrumb">
         <a href={`${base}/`}>TopoStack</a>
-        {#if path !== DOCS_HOME}<span aria-hidden="true">/</span><a href={`${base}${DOCS_HOME}`}>Guides</a>{/if}
-        {#if section}<span aria-hidden="true">/</span><span>{section.title}</span>{/if}
-        <span aria-hidden="true">/</span><span aria-current="page">{PUBLIC_PAGES[path]?.label ?? "Page"}</span>
+        {#if trail}
+          {#each trail as step, index (step.path)}
+            <span aria-hidden="true">/</span>
+            {#if index === trail.length - 1}<span aria-current="page">{step.label}</span>{:else}<a href={`${base}${step.path}`}>{step.label}</a>{/if}
+          {/each}
+        {:else}
+          {#if path !== DOCS_HOME}<span aria-hidden="true">/</span><a href={`${base}${DOCS_HOME}`}>Guides</a>{/if}
+          {#if section}<span aria-hidden="true">/</span><span>{section.title}</span>{/if}
+          <span aria-hidden="true">/</span><span aria-current="page">{PUBLIC_PAGES[path]?.label ?? "Page"}</span>
+        {/if}
       </nav>
       <header><h1>{title}</h1><p class="intro">{intro}</p></header>
       <article bind:this={article}>{@render children()}</article>
@@ -100,7 +109,7 @@
       </nav>
     {/if}
   </div>
-  <footer>TopoStack · Free, browser-based terrain tools · <a href={`${base}${DOCS_HOME}`}>Guides</a> · <a href={REPOSITORY_URL}>GitHub</a> · <a href={`${base}/attribution`}>Sources and attribution</a> · <FeedbackButton /></footer>
+  <footer>TopoStack · Free, browser-based terrain tools · <a href={`${base}${DOCS_HOME}`}>Guides</a> · <a href={REPOSITORY_URL}>GitHub</a> · <a href={`${base}/attribution`}>Sources and attribution</a> · <a href={`${base}/changelog`}>Changelog</a>{#if !plain} · <FeedbackButton />{/if}</footer>
 </div>
 
 <style>

@@ -29,7 +29,14 @@ node scripts/verify/verify-seo-http.mjs https://topostack.app production
 The HTTP check is also called by the deployment verifier. Use the development
 origin and `development` argument when checking that environment. Recheck both
 after any indexing or hosting change. Keep new public pages in `PUBLIC_PAGES`
-and the fixed usage landing list; update verification expectations too.
+and the fixed usage landing list (`seo.test.ts` fails if a registered page is
+missing from `USAGE_LANDINGS`); update verification expectations too.
+
+Head metadata is resolved by `pageSeo()` in the root `+layout.server.ts` at
+prerender time and read by `Seo.svelte` from page data. The registry therefore
+does not ship in the homepage bundle; adding a page no longer costs homepage
+JavaScript. Client components that need site constants import `$lib/site/site`,
+not `$lib/site/seo`.
 
 ## Page dates and sharing cards
 
@@ -54,6 +61,44 @@ URL, real pixel dimensions and alt text. The dimensions are asserted against the
 tags and the file is fetched over HTTP by the deployment verifier, so a card
 that 404s or is mislabelled fails the deploy rather than rendering as a blank
 preview wherever the page is shared.
+
+## Generated lake depth pages
+
+`/lakes` (registered in `PUBLIC_PAGES`) indexes one page per lake region,
+generated at build time from `static/data/lake-depth-directory.json` by
+`buildLakePages()` in `apps/generator/src/lib/site/lake-pages.ts`:
+
+- Minnesota is split into county pages (counties with at least 8 lakes; the
+  rest are listed on the Minnesota page). Ontario, Finland and Norway are split
+  into consecutive initial-letter ranges of at most 400 lakes.
+- Every lake appears on exactly one page (`lake-pages.test.ts`). A new directory
+  source must be assigned to a region in `REGIONS`, or the build fails.
+- Letter-range slugs follow the data, so a large directory change can move a
+  lake to a different range URL. Check the sitemap diff after data releases.
+- Lake pages set `csr = false`: they are plain HTML with no hydration script,
+  so they share the site CSP instead of adding `_headers` rules (Cloudflare
+  allows 100). `finalizeStaticHeaders` skips pages whose scripts the fallback
+  policy already covers, and JSON-LD is not hashed.
+- Metadata comes from `lakePageSeo()`; the sitemap, `llms.txt` and both SEO
+  verifiers include the generated pages. Usage events from any `/lakes/*` page
+  report the `/lakes` landing.
+
+## Example projects
+
+`/examples` lists worked projects; each page under `/examples/<slug>` comes from
+`ALL_EXAMPLES` in `apps/generator/src/lib/site/examples.ts` (Crater Lake keeps
+its own route). Pages never state numbers by hand: layer count, elevation range
+and model height come from `static/examples/<slug>.json`, which
+`scripts/dev/capture-examples.mjs` writes after generating the project in the
+real studio. The same file is the download; the studio imports it directly.
+
+- To add or change an example, edit its entry and re-run the capture for that
+  slug. `examples.test.ts` fails when the committed project file no longer
+  matches the entry, or when a render, card or capture is missing.
+- An entry with `draft` set is captured on request but gets no page. Lake Tahoe
+  is a draft until its survey stops rendering with east–west bands.
+- Sharing cards are 1200×630 JPEGs; renders are WebP at capture size plus an
+  800 px variant.
 
 ## Non-goals
 
@@ -103,6 +148,8 @@ Events:
 | generation_cancelled | Generation was aborted or superseded |
 | export_prepared | Fabrication files handed to the browser download action or Atomm SDK |
 | export_failed | Fabrication export was blocked or preparation failed |
+| share_link_copied | A design share link was copied to the clipboard |
+| share_link_opened | A valid share link opened a design in the studio |
 
 Settings-only and assembly-only downloads are excluded from successful
 fabrication counts. Sample previews and automatically updated geometry do not
@@ -149,7 +196,9 @@ search traffic and Cloudflare Web Analytics for visit/device context.
    browser session on the deployed site.
 6. Update the published Atomm listing from `atomm/listing.md`. The immutable slug
    stays `topographic-map-generator`.
-7. The GitHub description, website and topics were updated during implementation.
+7. The GitHub description and topics were updated during implementation. As of
+   September 21, 2026 the repository website field still pointed at the legacy
+   `topostack.echofoxtrot.works`; set it to `https://topostack.app`.
    Its custom social preview can be uploaded through repository settings using
    the existing studio screenshot. The site itself already references that image.
 

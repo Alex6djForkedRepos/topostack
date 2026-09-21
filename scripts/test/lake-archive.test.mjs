@@ -49,10 +49,12 @@ test("a failed run keeps the previous archive instead of a partial one", () => w
   await writeFile(outputPath, "previous good archive");
   // Writes a partial archive, then fails the way a full disk or a bad feature would.
   const command = await fakeTippecanoe(directory, 'head -c 5 > "$2"\nexit 1');
+  // Which error wins depends on timing: the exit status, or the write that hit
+  // the closed pipe (EPIPE, or ECONNRESET on Linux runners).
   await assert.rejects(writeTilesetArchive({
     outputPath, command,
     emit: async (write) => { for (let id = 0; id < 200; id += 1) await write(feature(id)); },
-  }), /exited with code 1|EPIPE/);
+  }), /exited with code 1|exited before the archive was complete|EPIPE|ECONNRESET/);
   assert.equal(await readFile(outputPath, "utf8"), "previous good archive");
   await missing(`${outputPath}.part`);
 }));

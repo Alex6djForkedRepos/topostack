@@ -26,7 +26,7 @@
   </ul>
 
   <h2>Export and use the stencils</h2>
-  <p>Choose <strong>Paint templates</strong> in Export for the stencils alone, or <strong>Complete project</strong> for everything. Each stencil is named after its panel with <code>-paint-water</code> added, such as <code>my-map-layer-03-b2-paint-water.svg</code>, and shares the panel's canvas, so the two line up when imported together.</p>
+  <p>Open <strong>Individual files</strong> in Export and choose <strong>Paint templates</strong> for the stencils alone, or <strong>Complete project</strong> for everything. Each stencil is named after its panel with <code>-paint-water</code> added, such as <code>my-map-layer-03-b2-paint-water.svg</code>, and shares the panel's canvas, so the two line up when imported together.</p>
   <ol>
     <li>Cut the stencils from paper or stencil film. Every stencil path is a red cut. <strong>Turn off kerf compensation</strong> in your laser software for these files: the stencil must match the piece at its nominal size.</li>
     <li>Lay each stencil flush on its cut piece, registering on the outer edges and tabs.</li>

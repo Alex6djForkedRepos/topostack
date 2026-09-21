@@ -16,4 +16,3 @@
     <span>Flat</span>
   </button>
 </div>
-<span class="context-export-status" class:ready={studio.exportReady && studio.exportPhase !== "error"} class:error={!studio.exportReady || studio.exportPhase === "error"}>{studio.exportPhase === "preparing" ? "Preparing files" : studio.exportPhase === "ready" ? "Export ready" : studio.exportPhase === "error" ? "Export failed" : studio.exportReady ? "Ready to export" : "Generate before export"}</span>

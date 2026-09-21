@@ -34,6 +34,10 @@ function acquisition(): UsageEvent["source"] {
   } catch { /* Unknown referrers use the fixed fallback category. */ }
   return "other";
 }
+/** The fixed landing category for a path; generated lake and example pages share "/lakes" and "/examples". */
+function landingOf(path: string): UsageEvent["landing"] | undefined {
+  return USAGE_LANDINGS.find((landing) => landing === path) ?? (path.startsWith("/lakes/") ? "/lakes" : path.startsWith("/examples/") ? "/examples" : undefined);
+}
 function session(): Session {
   try {
     const saved: Session = JSON.parse(sessionStorage.getItem(STORAGE_KEY) ?? "null");
@@ -41,7 +45,7 @@ function session(): Session {
       && Number.isFinite(saved.updatedAt) && Date.now() - saved.updatedAt < SESSION_MS && saved.updatedAt <= Date.now()
       && typeof saved.landingSeen === "boolean" && typeof saved.studioSeen === "boolean") return saved;
   } catch { /* Storage restrictions must not affect the studio. */ }
-  return { landing: USAGE_LANDINGS.find((path) => path === location.pathname) ?? "/", source: acquisition(), updatedAt: Date.now(), landingSeen: false, studioSeen: false };
+  return { landing: landingOf(location.pathname) ?? "/", source: acquisition(), updatedAt: Date.now(), landingSeen: false, studioSeen: false };
 }
 function send(event: UsageEventName, current: Session, output: UsageEvent["output"], delivery: UsageEvent["delivery"]): void {
   current.updatedAt = Date.now();
@@ -55,7 +59,7 @@ export function trackUsage(event: UsageEventName, output: UsageEvent["output"] =
   send(event, session(), output, delivery);
 }
 export function trackPageView(path: string): void {
-  if (!enabled() || !USAGE_LANDINGS.some((landing) => landing === path)) return;
+  if (!enabled() || !landingOf(path)) return;
   const current = session();
   if (path === "/studio") {
     if (current.studioSeen) return;

@@ -7,20 +7,24 @@ export function finalizeStaticHeaders(template, pages, siteEnvironment) {
   const placeholder = "__TOPOSTACK_SCRIPT_HASHES__";
   const policyLine = template.split("\n").find(line => line.includes(placeholder));
   if (!policyLine) throw new Error("The static headers file is missing its script-hash placeholder.");
-  const policy = html => {
-    const hashes = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)]
-      .map(match => match[1]).filter(script => script.trim())
-      .map(script => "'sha256-" + createHash("sha256").update(script).digest("base64") + "'");
-    return policyLine.replace(placeholder, [...new Set(hashes)].join(" "));
-  };
+  // JSON-LD is data, not script, so CSP never evaluates it and it needs no hash.
+  const scriptHashes = html => [...new Set([...html.matchAll(/<script(?![^>]*\bsrc=)(?![^>]*\btype="application\/ld\+json")[^>]*>([\s\S]*?)<\/script>/gi)]
+    .map(match => match[1]).filter(script => script.trim())
+    .map(script => "'sha256-" + createHash("sha256").update(script).digest("base64") + "'"))];
+  const policy = html => policyLine.replace(placeholder, scriptHashes(html).join(" "));
   // Cloudflare does not detach the fallback CSP from the root response, so `/`
   // is served both policies and browsers enforce each one. The fallback must
   // authorize the home page scripts or the landing page never hydrates.
   const fallback = [pages.get("404.html"), pages.get("index.html")].filter(Boolean);
   if (!fallback.length) throw new Error("Missing HTML entry page.");
   let headers = template.replace(policyLine, policy(fallback.join("\n")));
+  const fallbackHashes = new Set(scriptHashes(fallback.join("\n")));
   if (siteEnvironment !== "production") headers = headers.replace("/*\n", "/*\n  X-Robots-Tag: noindex, follow\n");
   for (const [filename, html] of [...pages].sort(([a], [b]) => a.localeCompare(b))) {
+    // Pages that do not hydrate (the generated lake pages) carry only scripts the
+    // fallback already allows. They need no rule of their own, which keeps the
+    // file under Cloudflare's 100-rule limit however many of them there are.
+    if (filename !== "studio.html" && scriptHashes(html).every(hash => fallbackHashes.has(hash))) continue;
     const route = filename === "index.html" ? "/" : `/${filename.replace(/\.html$/, "")}`;
     for (const path of [route, `/${filename}`]) {
       headers += `\n${path}\n  ! Content-Security-Policy\n${policy(html)}\n`;

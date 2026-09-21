@@ -1,17 +1,9 @@
-export const SITE_ORIGIN = "https://topostack.app";
-export const REPOSITORY_URL = "https://github.com/Echo-Foxtrot-Works/topostack";
-export const DOCS_HOME = "/guides";
-export const SITE_LOCALE = "en_US";
+// Constants live in site.ts so client components can import them without the
+// registry. The explicit extension lets the Node verification scripts load this file.
+import { DEFAULT_SOCIAL_IMAGE, DOCS_HOME, SITE_ORIGIN, type SocialImage } from "./site.ts";
+import latestRelease from "../../../../../changelog/latest.json" with { type: "json" };
 
-/** Sharing card. Dimensions are declared so consumers that refuse to fetch the file still lay it out. */
-export interface SocialImage { url: string; width: number; height: number; alt: string }
-
-export const DEFAULT_SOCIAL_IMAGE: SocialImage = {
-  url: "/images/social-crater-lake.png",
-  width: 1200,
-  height: 630,
-  alt: "TopoStack Crater Lake relief with USGS surveyed lake-floor bathymetry and exaggerated depth.",
-};
+export { DEFAULT_SOCIAL_IMAGE, DOCS_HOME, REPOSITORY_URL, SITE_LOCALE, SITE_ORIGIN, type SocialImage } from "./site.ts";
 
 export interface PageMeta {
   title: string;
@@ -42,6 +34,8 @@ const PAINT_IMAGE: SocialImage = {
   height: 1100,
   alt: "Cut layers view of a Crater Lake layer with the paint template on: land is covered by a stencil and only the lake is open.",
 };
+
+const CHANGELOG_PUBLISHED = "2026-09-21";
 
 export const PUBLIC_PAGES: Record<string, PageMeta> = {
   "/": {
@@ -95,6 +89,20 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     published: "2026-09-15",
     updated: "2026-09-17",
   },
+  "/guides/custom-lake-depth-map": {
+    title: "How to Make a Custom Lake Depth Map from Wood | TopoStack",
+    description: "Make a layered wooden lake map from surveyed depth data. Find your lake, frame the shoreline, set depth layers, paint the water and export SVG files.",
+    label: "Custom lake depth map",
+    published: "2026-09-21",
+    updated: "2026-09-21",
+  },
+  "/lakes": {
+    title: "Lake Depth Maps for Laser Cutting: Surveyed Lakes by Region | TopoStack",
+    description: "Browse thousands of lakes with surveyed depth data in Minnesota, Ontario, Finland, Norway, Switzerland and the Great Lakes, and turn one into a layered wood lake map.",
+    label: "Lake depth maps by region",
+    published: "2026-09-21",
+    updated: "2026-09-21",
+  },
   "/guides/how-lake-depths-work": {
     title: "How Lake Depths Work: Surveys, Predictions and Layers | TopoStack",
     description: "Learn how TopoStack combines lake surveys, shoreline terrain and depth estimates, handles missing data, and turns lake floors into cut layers.",
@@ -114,21 +122,21 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     description: "Choose roads, trails, water fills and boundaries, place elevation labels and the north arrow, and set line widths for laser engraving.",
     label: "Map details and linework",
     published: "2026-09-17",
-    updated: "2026-09-17",
+    updated: "2026-09-20",
   },
   "/guides/custom-markers-and-paths": {
     title: "Add Custom Markers and Trails to a Topographic Map | TopoStack",
-    description: "Engrave your own summit markers, hiking routes and boundaries on a topographic map from latitude and longitude coordinates.",
+    description: "Engrave your own summit markers, hiking routes and boundaries on a topographic map. Import a GPX, KML or GeoJSON file, or enter coordinates.",
     label: "Custom markers and paths",
     published: "2026-09-17",
-    updated: "2026-09-17",
+    updated: "2026-09-20",
   },
   "/guides/settings-reference": {
     title: "Studio Settings Reference | TopoStack",
     description: "Every TopoStack studio control with its range, default and output type, from vertical exaggeration and kerf to linework widths.",
     label: "Settings reference",
     published: "2026-09-17",
-    updated: "2026-09-18",
+    updated: "2026-09-20",
   },
   "/guides/export-files": {
     title: "Laser Export Files and SVG Structure | TopoStack",
@@ -144,6 +152,13 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     published: "2026-09-17",
     updated: "2026-09-18",
   },
+  "/examples": {
+    title: "Topographic Map Examples: Laser-Cut Terrain Projects | TopoStack",
+    description: "Layered topographic map projects of the Grand Canyon, Yosemite, Mount Rainier, Mount Fuji and more, with renders, settings and project files to import.",
+    label: "Examples",
+    published: "2026-09-21",
+    updated: "2026-09-21",
+  },
   "/examples/crater-lake": {
     title: "Crater Lake Topographic Map: A Terrain Project | TopoStack",
     description: "Explore the Crater Lake terrain preview in TopoStack, follow the project setup, and learn how to generate fresh terrain for layered or engraved SVG exports.",
@@ -157,6 +172,14 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     label: "Sources and attribution",
     published: "2026-09-16",
     updated: "2026-09-17",
+  },
+  "/changelog": {
+    title: "Changelog: New Features and Fixes | TopoStack",
+    description: "What changed in each TopoStack release: new studio features, improvements to terrain and lake data, and fixes, newest first, with a feed you can subscribe to.",
+    label: "Changelog",
+    published: CHANGELOG_PUBLISHED,
+    // The release script writes the newest release date, so the sitemap moves with each release.
+    updated: latestRelease.date > CHANGELOG_PUBLISHED ? latestRelease.date : CHANGELOG_PUBLISHED,
   },
   "/privacy": {
     title: "Privacy and Browser Storage | TopoStack",
@@ -188,4 +211,43 @@ export function headline(title: string): string {
 
 export function socialImage(path: string): SocialImage {
   return PUBLIC_PAGES[path]?.image ?? DEFAULT_SOCIAL_IMAGE;
+}
+
+/**
+ * Everything the document head needs for one page, resolved on the server.
+ * The layout's server load hands this to `Seo.svelte`, so the registry above
+ * stays out of the homepage's JavaScript however many pages it gains.
+ */
+export interface PageSeo {
+  title: string;
+  description: string;
+  canonical: string;
+  /** Registered in PUBLIC_PAGES, so eligible for indexing, the sitemap and breadcrumbs. */
+  registered: boolean;
+  image: SocialImage;
+  article?: { headline: string; published: string; updated: string };
+  breadcrumbs: { name: string; item: string }[];
+}
+
+export function pageSeo(path: string): PageSeo | undefined {
+  const registered = PUBLIC_PAGES[path];
+  const meta = registered ?? (path === "/studio" ? STUDIO_META : undefined);
+  if (!meta) return undefined;
+  const canonical = SITE_ORIGIN + path;
+  const breadcrumbs = registered && path !== "/" ? [
+    { name: "TopoStack", item: SITE_ORIGIN + "/" },
+    ...(path === DOCS_HOME ? [] : [{ name: PUBLIC_PAGES[DOCS_HOME]!.label, item: SITE_ORIGIN + DOCS_HOME }]),
+    { name: registered.label, item: canonical },
+  ] : [];
+  return {
+    title: meta.title,
+    description: meta.description,
+    canonical,
+    registered: Boolean(registered),
+    image: socialImage(path),
+    // Only pages with recorded dates claim article metadata, so a new page cannot
+    // advertise a publication date before one is written down for it.
+    ...(registered && isArticlePage(path) ? { article: { headline: headline(registered.title), published: registered.published, updated: registered.updated } } : {}),
+    breadcrumbs,
+  };
 }

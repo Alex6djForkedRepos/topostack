@@ -19,8 +19,7 @@
 }
 
 @media (max-width: 1100px) {
-  .ldt-brand__meta,
-  .bar-meta {
+  .ldt-brand__meta {
     display: none;
   }
 
@@ -135,6 +134,7 @@
   #section-size > .field-stack,
   #section-terrain > .relief-summary,
   .custom-data-intro,
+  .custom-data-import,
   .linework-group--fields,
   .linework-note {
     grid-column: 1 / -1;
@@ -235,10 +235,6 @@
     flex: none;
   }
 
-  .context-export-status {
-    display: none;
-  }
-
   .output-mode-switch .ldt-toggle-group__item {
     min-height: 44px;
   }
@@ -279,6 +275,8 @@
   .custom-line-kind-options button,
   .custom-point-heading button,
   .custom-point-add,
+  .custom-point-expand,
+  .custom-data-import__button,
   .linework-customize,
   .toggle-stack .ldt-switch,
   .generate-button,
@@ -335,6 +333,12 @@
 
   .export-trigger-label {
     display: none;
+  }
+
+  .export-status-dot {
+    position: absolute;
+    top: 8px;
+    right: 8px;
   }
 
   .terrain-contextbar {

@@ -9,14 +9,18 @@
 
   <h2>1. The top bar</h2>
   <ul>
-    <li><strong>Project name</strong> names your project and its exported files.</li>
-    <li><strong>Reset project</strong> restores the Crater Lake preview and all default settings, clearing custom markers and lines. The reset saves automatically; use Undo to recover your previous settings.</li>
+    <li><strong>Project name</strong> names your project and its exported files. The arrow beside it opens the project menu:
+      <ul>
+        <li><strong>Import project JSON</strong> opens a project settings file (up to 2 MB) you exported earlier.</li>
+        <li><strong>Copy share link</strong> copies a link that opens this design.</li>
+        <li><strong>Reset project</strong> restores the Crater Lake preview and all default settings, clearing custom markers and lines. The reset saves automatically; use Undo to recover your previous settings.</li>
+      </ul>
+    </li>
     <li><strong>Undo</strong> and <strong>Redo</strong> step through your edits.</li>
-    <li><strong>Import project JSON</strong> opens a project settings file (up to 2 MB) you exported earlier.</li>
-    <li>A summary shows the layer count, cut panels and stack height for layered output, or the contour count for flat output.</li>
-    <li><strong>Export</strong> opens the download options. See <a href={`${base}/guides/export-files`}>export files</a>.</li>
+    <li><strong>Export</strong> opens the download options. The dot on the button turns green when the project is ready to export. See <a href={`${base}/guides/export-files`}>export files</a>.</li>
+    <li>The ⋯ menu at the far right holds the color scheme, what's new, the guides and the TopoStack home page.</li>
   </ul>
-  <p>Below it, choose the output type: <strong>Layered</strong> for a stack of cut sheets, or <strong>Flat</strong> for one engraved surface. The label beside it tells you whether the project is ready to export.</p>
+  <p>Below it, choose the output type: <strong>Layered</strong> for a stack of cut sheets, or <strong>Flat</strong> for one engraved surface. Above the preview, a readout shows the finished size, the layer count, cut panels and stack height for layered output (or the contour count for flat output), and the elevation range.</p>
 
   <h2>2. Choose a place</h2>
   <p>In <strong>Project setup</strong>, select the location card to open the place picker. You can:</p>

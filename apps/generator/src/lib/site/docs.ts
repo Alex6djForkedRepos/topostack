@@ -12,7 +12,7 @@ export const DOCS_SECTIONS: readonly { id: string; title: string; summary: strin
     id: "start",
     title: "Get started",
     summary: "Find your way around the studio and follow a complete first project.",
-    paths: ["/guides/studio-tour", "/examples/crater-lake"],
+    paths: ["/guides/studio-tour", "/examples", "/examples/crater-lake"],
   },
   {
     id: "make",
@@ -29,8 +29,8 @@ export const DOCS_SECTIONS: readonly { id: string; title: string; summary: strin
   {
     id: "lakes",
     title: "Lakes and depth",
-    summary: "How TopoStack builds lake floors from surveys and terrain, and which lakes have surveyed data.",
-    paths: ["/guides/how-lake-depths-work", "/guides/lake-depth-data"],
+    summary: "Make a layered lake map, browse lakes with surveyed depth data, and learn how TopoStack builds lake floors.",
+    paths: ["/guides/custom-lake-depth-map", "/lakes", "/guides/lake-depth-data", "/guides/how-lake-depths-work"],
   },
   {
     id: "help",
@@ -41,8 +41,8 @@ export const DOCS_SECTIONS: readonly { id: string; title: string; summary: strin
   {
     id: "reference",
     title: "Reference",
-    summary: "Every studio setting, what each export contains, data sources and credits, and how the site handles your projects.",
-    paths: ["/guides/settings-reference", "/guides/export-files", "/attribution", "/privacy"],
+    summary: "Every studio setting, what each export contains, data sources and credits, how the site handles your projects, and what changed in each release.",
+    paths: ["/guides/settings-reference", "/guides/export-files", "/attribution", "/privacy", "/changelog"],
   },
 ];
 

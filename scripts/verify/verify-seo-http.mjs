@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 import { JSDOM } from "jsdom";
-import { PUBLIC_PAGES, SITE_ORIGIN, socialImage } from "../../apps/generator/src/lib/site/seo.ts";
+import { SITE_ORIGIN } from "../../apps/generator/src/lib/site/seo.ts";
+import { expectedPages } from "./seo-pages.mjs";
+
+const pages = expectedPages();
 
 // Deployment assets can become available shortly after the Worker itself.
 // Only callers verifying a fresh deployment opt into a shared retry window.
@@ -20,7 +23,8 @@ export async function fetchSeoResponse(url, { expectedStatus = 200, deadline = 0
 /**
  * The sitemap is a prerendered asset the edge cache may still serve from the
  * previous deployment for a short while after the Worker itself is live, so a
- * fresh deployment keeps re-reading it until it lists the expected pages or
+ * fresh deployment keeps re-reading it until it lists the expected pages and
+ * content dates, or
  * the propagation window closes. Returns the last URL list read, sorted.
  *
  * `lastmod` maps each expected URL to the content date the build recorded for
@@ -35,15 +39,24 @@ export async function fetchSitemapUrls(url, expected, { deadline = 0, retryDelay
     assert.match(sitemap.headers.get("content-type"), /xml/);
     const sitemapDocument = new JSDOM(await sitemap.text(), { contentType: "application/xml" }).window.document;
     const urls = [...sitemapDocument.querySelectorAll("loc")].map((node) => node.textContent).sort();
-    if (urls.length === wanted.length && urls.every((entry, index) => entry === wanted[index])) {
-      for (const entry of lastmod ? sitemapDocument.querySelectorAll("url") : []) {
-        const loc = entry.querySelector("loc").textContent;
-        assert.equal(entry.querySelector("lastmod")?.textContent, lastmod[loc], loc + ": deployed lastmod");
+    const pagesMatch = urls.length === wanted.length && urls.every((entry, index) => entry === wanted[index]);
+    const staleDates = pagesMatch && lastmod ? [...sitemapDocument.querySelectorAll("url")].filter((entry) => {
+      const loc = entry.querySelector("loc").textContent;
+      return entry.querySelector("lastmod")?.textContent !== lastmod[loc];
+    }) : [];
+    if (pagesMatch && !staleDates.length) return urls;
+    if (Date.now() + retryDelayMs >= deadline) {
+      // Monitors fail immediately; deployments fail after their retry window.
+      // Preserve the specific date diagnostic when the URL list is correct.
+      if (pagesMatch) {
+        for (const entry of staleDates) {
+          const loc = entry.querySelector("loc").textContent;
+          assert.equal(entry.querySelector("lastmod")?.textContent, lastmod[loc], loc + ": deployed lastmod");
+        }
       }
       return urls;
     }
-    if (Date.now() + retryDelayMs >= deadline) return urls;
-    console.warn(`Sitemap at ${url} does not list the expected pages yet; waiting for deployment assets.`);
+    console.warn(`Sitemap at ${url} does not list the expected pages and content dates yet; waiting for deployment assets.`);
     await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
   }
 }
@@ -57,12 +70,14 @@ export async function verifyHttpSeo(origin, environment, { propagationTimeoutMs 
   assert.equal(robots.status, 200);
   assert.match(robots.headers.get("content-type"), /^text\/plain/);
   assert.match(await robots.text(), /^User-agent: \*\nAllow: \//);
-  const publicPaths = Object.keys(PUBLIC_PAGES);
-  const expectedUrls = production ? publicPaths.map((path) => SITE_ORIGIN + path).sort() : [];
-  const recordedDates = Object.fromEntries(publicPaths.map((path) => [SITE_ORIGIN + path, PUBLIC_PAGES[path].updated]));
+  const recorded = [...pages].map(([path, page]) => [path, page.updated]);
+  const expectedUrls = production ? recorded.map(([path]) => SITE_ORIGIN + path).sort() : [];
+  const recordedDates = Object.fromEntries(recorded.map(([path, updated]) => [SITE_ORIGIN + path, updated]));
   const urls = await fetchSitemapUrls(new URL("/sitemap.xml", origin), expectedUrls, { deadline, lastmod: production ? recordedDates : undefined });
   assert.deepEqual(urls, expectedUrls, "Sitemap must list exactly the public pages");
-  for (const path of [...publicPaths, "/studio"]) {
+  // Every page except the generated lake sub-pages, which the region pages sample.
+  const checked = [...pages].filter(([path, page]) => !page.lake || path.split("/").length === 3).map(([path]) => path);
+  for (const path of [...checked, "/studio"]) {
     const response = await get(path);
     assert.equal(response.status, 200, path);
     const document = new JSDOM(await response.text()).window.document;
@@ -88,7 +103,7 @@ export async function verifyHttpSeo(origin, environment, { propagationTimeoutMs 
   assert.match(image.headers.get("content-type"), /image\/png/);
   // Every declared sharing card must actually be fetchable: a 404 here means
   // link previews render without an image wherever the page is shared.
-  for (const url of new Set(publicPaths.map((path) => socialImage(path).url))) {
+  for (const url of new Set([...pages.values()].map((page) => page.image.url))) {
     const card = await get(url);
     assert.equal(card.status, 200, url + " sharing card");
     assert.match(card.headers.get("content-type"), /^image\//, url + " content type");
