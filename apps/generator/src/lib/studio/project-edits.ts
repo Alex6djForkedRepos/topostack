@@ -93,3 +93,24 @@ export function removeCustomLinePoint(project: Project, id: string, pointIndex: 
 export function removeCustomLine(project: Project, id: string): CustomLinesPatch {
   return { customLines: project.customLines.filter((line) => line.id !== id) };
 }
+
+/** Room left for imported markers, paths and path vertices. */
+export function customDataCapacity(project: Pick<ProjectConfigV1, "markers" | "customLines">): { markers: number; lines: number; points: number } {
+  return {
+    markers: MAX_MAP_MARKERS - project.markers.length,
+    lines: MAX_CUSTOM_LINES - project.customLines.length,
+    points: MAX_CUSTOM_DATA_POINTS - customDataPointCount(project),
+  };
+}
+
+/** Appends already-fitted imported data (see `fitToCapacity`) as pin markers and paths. */
+export function appendCustomData(
+  project: Project,
+  data: { markers: GeoPoint[]; lines: Array<Pick<CustomLineFeatureV1, "kind" | "points">> },
+  makeId: () => string,
+): MarkersPatch & CustomLinesPatch {
+  return {
+    markers: [...project.markers, ...data.markers.map((point): MapMarkerV1 => ({ id: makeId(), lat: point.lat, lon: point.lon, symbol: "pin", sizeMm: MAP_MARKER_SIZE_MM }))],
+    customLines: [...project.customLines, ...data.lines.map((line): CustomLineFeatureV1 => ({ id: makeId(), kind: line.kind, points: line.points }))],
+  };
+}

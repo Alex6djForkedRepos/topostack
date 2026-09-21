@@ -109,6 +109,9 @@ export interface StudioContext {
   undo(): void;
   redo(): void;
   importProject(file: File | undefined): Promise<void>;
+  copyShareLink(): Promise<void>;
+  /** Adds markers and paths from a GPX, KML or GeoJSON file as one undo step. */
+  importCustomData(file: File | undefined): Promise<void>;
 
   // Generation
   generate(): Promise<void>;

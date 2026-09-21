@@ -9,7 +9,7 @@ for (const [widthMm, heightMm] of [[100, 200], [400, 100]] as const) {
     await page.goto("/studio");
     // Include legacy bounds with an aspect ratio different from this cut.
     const project = { ...DEFAULT_PROJECT, outputMode, widthMm, heightMm, location: { ...DEFAULT_PROJECT.location, bounds: { west: -122.3, east: -122, north: 43.05, south: 42.85 } } };
-    await page.locator('input[type="file"]').setInputFiles({ name: "viewport.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(project)) });
+    await page.locator('input[type="file"][accept^="application/json"]').setInputFiles({ name: "viewport.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(project)) });
     await page.getByRole("radio", { name: "Map", exact: true }).click();
     const guide = page.locator(".crop-guide");
     async function expectAspect(): Promise<void> {
