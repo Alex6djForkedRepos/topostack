@@ -20,7 +20,8 @@ export async function fetchSeoResponse(url, { expectedStatus = 200, deadline = 0
 /**
  * The sitemap is a prerendered asset the edge cache may still serve from the
  * previous deployment for a short while after the Worker itself is live, so a
- * fresh deployment keeps re-reading it until it lists the expected pages or
+ * fresh deployment keeps re-reading it until it lists the expected pages and
+ * content dates, or
  * the propagation window closes. Returns the last URL list read, sorted.
  *
  * `lastmod` maps each expected URL to the content date the build recorded for
@@ -35,15 +36,24 @@ export async function fetchSitemapUrls(url, expected, { deadline = 0, retryDelay
     assert.match(sitemap.headers.get("content-type"), /xml/);
     const sitemapDocument = new JSDOM(await sitemap.text(), { contentType: "application/xml" }).window.document;
     const urls = [...sitemapDocument.querySelectorAll("loc")].map((node) => node.textContent).sort();
-    if (urls.length === wanted.length && urls.every((entry, index) => entry === wanted[index])) {
-      for (const entry of lastmod ? sitemapDocument.querySelectorAll("url") : []) {
-        const loc = entry.querySelector("loc").textContent;
-        assert.equal(entry.querySelector("lastmod")?.textContent, lastmod[loc], loc + ": deployed lastmod");
+    const pagesMatch = urls.length === wanted.length && urls.every((entry, index) => entry === wanted[index]);
+    const staleDates = pagesMatch && lastmod ? [...sitemapDocument.querySelectorAll("url")].filter((entry) => {
+      const loc = entry.querySelector("loc").textContent;
+      return entry.querySelector("lastmod")?.textContent !== lastmod[loc];
+    }) : [];
+    if (pagesMatch && !staleDates.length) return urls;
+    if (Date.now() + retryDelayMs >= deadline) {
+      // Monitors fail immediately; deployments fail after their retry window.
+      // Preserve the specific date diagnostic when the URL list is correct.
+      if (pagesMatch) {
+        for (const entry of staleDates) {
+          const loc = entry.querySelector("loc").textContent;
+          assert.equal(entry.querySelector("lastmod")?.textContent, lastmod[loc], loc + ": deployed lastmod");
+        }
       }
       return urls;
     }
-    if (Date.now() + retryDelayMs >= deadline) return urls;
-    console.warn(`Sitemap at ${url} does not list the expected pages yet; waiting for deployment assets.`);
+    console.warn(`Sitemap at ${url} does not list the expected pages and content dates yet; waiting for deployment assets.`);
     await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
   }
 }
