@@ -65,7 +65,7 @@ jobs:
       # Runs here rather than in the hourly canary: it needs jsdom and the
       # generator sources, which is the only reason that job would install.
       - name: Verify production search metadata over HTTP
-        run: node scripts/verify-seo-http.mjs https://topostack.app production
+        run: node scripts/verify/verify-seo-http.mjs https://topostack.app production
 
       - name: Retain data benchmark
         if: always()

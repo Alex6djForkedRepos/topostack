@@ -23,7 +23,7 @@
 - [Search and discovery operations](seo-operations.md)
 - [Feedback workflow and triage](feedback.md)
 
-Python data builders under `scripts/` use one pinned environment: `scripts/requirements.txt`.
+Python data builders under `scripts/` use one pinned environment: `scripts/data-build/requirements.txt`.
 
 ## Reports (point-in-time, not maintained)
 

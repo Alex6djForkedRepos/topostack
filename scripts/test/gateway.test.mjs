@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { fetchGatewayJson, gatewayOrigin } from "../lib/gateway.mjs";
-import { verifyUpstreamHealth } from "../verify-upstream-health.mjs";
+import { verifyUpstreamHealth } from "../verify/verify-upstream-health.mjs";
 
 const healthy = { status: "healthy", fresh: true, ok: true, probes: [] };
 

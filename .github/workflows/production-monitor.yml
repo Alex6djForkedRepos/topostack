@@ -30,13 +30,13 @@ jobs:
       # `npm ci` (Playwright, wrangler, Svelte). The jsdom-based SEO checks run
       # in the daily browser monitor and after every deploy.
       - name: Verify production frontend, API, and data providers
-        run: node scripts/verify-worker-deployment.mjs
+        run: node scripts/verify/verify-worker-deployment.mjs
         env:
           WORKER_URL: https://topostack.app
           PUBLIC_APP_URL: https://topostack.app
           EXPECTED_WORKER_ENVIRONMENT: production
 
       - name: Verify uncached upstream probe freshness
-        run: node scripts/verify-upstream-health.mjs
+        run: node scripts/verify/verify-upstream-health.mjs
         env:
           WORKER_URL: https://topostack.app

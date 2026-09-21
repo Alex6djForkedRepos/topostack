@@ -50,17 +50,17 @@ step and fixtures before being accepted by the catalog validator.
 
 ## Discover and prepare an area
 
-`scripts/discover-terrain.py` queries the official NRCan STAC catalog for the 1 m
+`scripts/data-build/discover-terrain.py` queries the official NRCan STAC catalog for the 1 m
 and 2 m HRDEM **DTM mosaics** and the MRDEM-30 DTM. Mosaic discovery avoids relying
 on incomplete individual-project search footprints. A catalog hit is only a
 candidate; actual raster NoData decides coverage during the build and at runtime.
 
 ```sh
-python scripts/discover-terrain.py \
+python scripts/data-build/discover-terrain.py \
   --bounds=-82.57,46.56,-82.51,46.61 \
   --out-dir=/tmp/terrain-review
 
-python scripts/discover-terrain.py \
+python scripts/data-build/discover-terrain.py \
   --bounds=-82.57,46.56,-82.51,46.61 \
   --out-dir=/tmp/terrain-build --build --register
 ```

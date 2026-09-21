@@ -27,11 +27,11 @@ The script refuses to upload unless the computed SHA-256 matches a pinned digest
 ```bash
 # Development only (default):
 PMTILES_BIN=/path/to/pmtiles EXPECTED_ARCHIVE_SHA256=<pinned-hex> \
-  node --env-file=.env scripts/provision-vector-data.mjs ./current.pmtiles --provision
+  node --env-file=.env scripts/provision/provision-vector-data.mjs ./current.pmtiles --provision
 
 # Development and production:
 PMTILES_BIN=/path/to/pmtiles EXPECTED_ARCHIVE_SHA256=<pinned-hex> \
-  node --env-file=.env scripts/provision-vector-data.mjs ./current.pmtiles --provision --prod
+  node --env-file=.env scripts/provision/provision-vector-data.mjs ./current.pmtiles --provision --prod
 ```
 
 The API token must allow R2 object writes and temporary-credential creation. Do not commit the token, temporary credentials, or generated archive. Keep the pinned source, maximum zoom, extracted-archive SHA-256, `DATASET_VERSION`, manifest response, and attribution synchronized when updating the data. The Protomaps archive is an ODbL Produced Work based on OpenStreetMap data.
@@ -83,8 +83,8 @@ The former hosts, `topostack.echofoxtrot.works` and `dev-topostack.echofoxtrot.w
 The rules live in code; preview them, then apply them with a token that has Zone Read and Single Redirect Edit on `echofoxtrot.works` and `topostack.app`, plus DNS Edit on `topostack.app` for the `www` record:
 
 ```sh
-CLOUDFLARE_API_TOKEN=... node scripts/configure-redirects.mjs
-CLOUDFLARE_API_TOKEN=... node scripts/configure-redirects.mjs --apply
+CLOUDFLARE_API_TOKEN=... node scripts/build/configure-redirects.mjs
+CLOUDFLARE_API_TOKEN=... node scripts/build/configure-redirects.mjs --apply
 ```
 
 The script replaces only its own `topostack_*` rules, leaves any other redirect rule in either zone untouched, and never edits an existing `www` record.
@@ -110,7 +110,7 @@ Both provisioning scripts save `<archive>.provisioning.json` after remote verifi
 The optional `/v1/bathymetry/noaa-great-lakes-v1.pmtiles` endpoint serves the
 versioned NOAA raster archive from the existing `VECTOR_DATA` binding, with the
 same bounded byte ranges, etags, and CORS as the global lake archive. Provision it
-with `scripts/provision-lake-data.mjs --source=noaa`; see
+with `scripts/provision/provision-lake-data.mjs --source=noaa`; see
 [build, provenance, and rollout instructions](../../docs/noaa-bathymetry.md).
 Missing NOAA data produces a modeled-depth fallback warning in the generator
 and does not change the existing required dependencies for `/ready`.

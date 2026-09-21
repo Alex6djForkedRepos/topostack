@@ -49,9 +49,9 @@ The Python dependencies are build-time only; no new browser dependency is needed
 
 ```sh
 python3 -m venv /tmp/topostack-noaa-venv
-/tmp/topostack-noaa-venv/bin/pip install -r scripts/requirements.txt
-/tmp/topostack-noaa-venv/bin/python scripts/test_noaa_bathymetry.py
-/tmp/topostack-noaa-venv/bin/python scripts/build-noaa-bathymetry.py \
+/tmp/topostack-noaa-venv/bin/pip install -r scripts/data-build/requirements.txt
+/tmp/topostack-noaa-venv/bin/python scripts/data-build/test_noaa_bathymetry.py
+/tmp/topostack-noaa-venv/bin/python scripts/data-build/build-noaa-bathymetry.py \
   --cache /tmp/topostack-noaa-inputs \
   --out /tmp/topostack-noaa-great-lakes-v1.pmtiles
 ```
@@ -74,7 +74,7 @@ encoding, zooms, dataset identity, and SHA-256, then uploads to the existing
 in `.env`. Development is the default:
 
 ```sh
-node --env-file=.env scripts/provision-lake-data.mjs \
+node --env-file=.env scripts/provision/provision-lake-data.mjs \
   /tmp/topostack-noaa-great-lakes-v1.pmtiles --source=noaa --provision \
   --expected-sha256=2ed7b833b8ea3129cf3dceab9e74feabd4bf7761e4d947bf889a930096c66744
 ```
@@ -101,7 +101,7 @@ VITE_MAP_API_PORT=8893 TOPOSTACK_WEB_PORT=5293 npm run dev
 Then, in another terminal:
 
 ```sh
-node scripts/verify-noaa-live.mjs
+node scripts/verify/verify-noaa-live.mjs
 ```
 
 This Chromium check downloads real depth tiles for all six covered lakes,

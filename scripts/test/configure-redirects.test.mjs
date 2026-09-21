@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { CANONICAL_ZONE, LEGACY_ZONE, WWW_DNS_RECORD, WWW_HOST, mergeRedirectRules, redirectRulesByZone } from "../configure-redirects.mjs";
+import { CANONICAL_ZONE, LEGACY_ZONE, WWW_DNS_RECORD, WWW_HOST, mergeRedirectRules, redirectRulesByZone } from "../build/configure-redirects.mjs";
 
 test("redirects each legacy host to its canonical origin but serves the API in place", () => {
   const [production, development] = redirectRulesByZone()[LEGACY_ZONE];

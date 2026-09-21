@@ -10,10 +10,10 @@ Keep operator-controlled acquisition and publication, numeric elevation PMTiles,
 
 | Stage | Implementation | What works today |
 | --- | --- | --- |
-| Discovery | `scripts/discover-terrain.py` | Manual NRCan STAC search for HRDEM 1 m / 2 m DTM mosaics and MRDEM-30 DTM; upstream URL, ETag and byte-size pins |
-| Preparation | `scripts/build-hrdem-terrain.py`, `scripts/tile_writer.py` | Bounded remote COG reads; Web Mercator reprojection; numeric RGBA PNGs with transparent NoData; PMTiles verification and SHA-256 receipts |
+| Discovery | `scripts/data-build/discover-terrain.py` | Manual NRCan STAC search for HRDEM 1 m / 2 m DTM mosaics and MRDEM-30 DTM; upstream URL, ETag and byte-size pins |
+| Preparation | `scripts/data-build/build-hrdem-terrain.py`, `scripts/data-build/tile_writer.py` | Bounded remote COG reads; Web Mercator reprojection; numeric RGBA PNGs with transparent NoData; PMTiles verification and SHA-256 receipts |
 | Catalog | `scripts/data/terrain-sources.json`, `packages/data-contracts/src/source-catalog.ts` | Three Ontario HRDEM registrations; priority, native resolution, acquisition year and stable-ID ranking; CGVD2013-only validation |
-| Publication | `scripts/provision-lake-data.mjs`, `scripts/lib/archive-provisioning.mjs` | Immutable staged objects, full remote hash verification, conditional per-archive promotion, previous-release receipts; development default |
+| Publication | `scripts/provision/provision-lake-data.mjs`, `scripts/lib/archive-provisioning.mjs` | Immutable staged objects, full remote hash verification, conditional per-archive promotion, previous-release receipts; development default |
 | Serving | `workers/map-api/src/routes/archive.ts`, `workers/map-api/src/archive-head.ts` | Registered archive routes, bounded range reads and release resolution |
 | Selection | `apps/generator/src/lib/domain/terrain-sources.ts`, `apps/generator/src/lib/domain/data-provider.ts` | Valid samples win by rank; gaps fall through; malformed archives are discarded atomically; contribution metadata reaches exports |
 

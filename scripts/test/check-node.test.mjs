@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { satisfiesEngines } from "../check-node.mjs";
+import { satisfiesEngines } from "../build/check-node.mjs";
 
 const engines = "^22.22.2 || ^24.15.0 || >=26.0.0";
 

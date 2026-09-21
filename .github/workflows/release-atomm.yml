@@ -35,7 +35,7 @@ jobs:
         with:
           node-version: '22.22.2'
       - name: Verify production artifact and publish versioned release
-        run: node scripts/publish-atomm-release.mjs
+        run: node scripts/release/publish-atomm-release.mjs
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}

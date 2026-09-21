@@ -22,7 +22,7 @@ VITE_MAP_API_URL=https://topostack.app npm run dev -w @topostack/generator -- --
 Then, from the repository root:
 
 ```sh
-node scripts/capture-feature-update.mjs
+node scripts/dev/capture-feature-update.mjs
 ```
 
 Optional environment variables: `TOPOSTACK_CAPTURE_URL` sets the frontend origin; `TOPOSTACK_CAPTURE_LAYER` chooses the one-based layer for the off/on comparison. The browser uses an isolated session and does not modify your saved project. The capture script relays genuine public API responses without localhost Origin/Referer headers, matching the existing README asset workflow.
