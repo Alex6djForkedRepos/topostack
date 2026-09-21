@@ -1,7 +1,8 @@
 import { ASSEMBLY, CUT, ENGRAVE, MAX_EXPORT_PACKAGE_BYTES, SCORE, safeName } from "./svg-primitives.js";
-import { ENGRAVE_ONLY, OPERATIONS, assemblyGuideToSvg, masterToSvg, paintTemplateSvg, panelBodies, panelToSvg } from "./svg.js";
+import { ENGRAVE_ONLY, OPERATIONS, masterToSvg, paintTemplateSvg, panelBodies, panelToSvg } from "./svg.js";
 import { fabricationPanels } from "./panel-layout.js";
 import { engravingToSvg } from "./engraving-svg.js";
+import { assemblyGuideToHtml } from "./assembly-guide.js";
 import { exportBlockReason } from "./export-policy.js";
 import { formatNumber as format } from "../primitives/format.js";
 import { horizontalScaleFor } from "../pipeline/stack-plan.js";
@@ -42,15 +43,17 @@ export function buildFabricationPackage(generated: GeometryIRV1, config: Project
     const cell = panel.cellName ? `-${panel.cellName.toLowerCase()}` : "";
     const filename = panel.layerIndexes.length === 1 ? `${base}-${ir.layers[panel.rootLayerIndex]?.id}${cell}.svg` : `${base}-panel-${String(index + 1).padStart(2, "0")}-layers-${layers}${cell}.svg`;
     const engravingFilename = filename.replace(/\.svg$/, "-engrave.svg");
-    const paintFiles: ExportFile[] = config.paintTemplates.flatMap((kind) => {
+    const paintTemplates = config.paintTemplates.flatMap((kind) => {
       const svg = paintTemplateSvg(ir, config, panel, kind);
-      return svg ? [{ filename: filename.replace(/\.svg$/, `-paint-${kind}.svg`), blob: new Blob([svg], { type: "image/svg+xml" }) }] : [];
+      return svg ? [{ kind, file: { filename: filename.replace(/\.svg$/, `-paint-${kind}.svg`), blob: new Blob([svg], { type: "image/svg+xml" }) } satisfies ExportFile }] : [];
     });
+    const paintFiles = paintTemplates.map((template) => template.file);
     return {
       panel,
       file: { filename, blob: new Blob([panelToSvg(ir, panel, bodies[index]!, OPERATIONS, "fabrication")], { type: "image/svg+xml" }) } satisfies ExportFile,
       engravingFile: { filename: engravingFilename, blob: new Blob([panelToSvg(ir, panel, bodies[index]!, ENGRAVE_ONLY, "engraving")], { type: "image/svg+xml" }) } satisfies ExportFile,
       paintFiles,
+      paintTemplates,
     };
   });
   // A split layer is cut across several sheets, so a layer maps to a list.
@@ -156,7 +159,14 @@ export function buildFabricationPackage(generated: GeometryIRV1, config: Project
   const files: ExportFile[] = [
     ...panelFiles.flatMap(({ file, engravingFile, paintFiles }) => [file, engravingFile, ...paintFiles]),
     master,
-    { filename: `${base}-assembly-guide.svg`, blob: new Blob([assemblyGuideToSvg(ir)], { type: "image/svg+xml" }) },
+    { filename: `${base}-assembly-guide.html`, blob: new Blob([assemblyGuideToHtml(ir, config, panelFiles.map(({ panel, file, paintTemplates }) => ({
+      filename: file.filename,
+      // A split sheet may hold only some of its nest family's layers.
+      layerIndexes: panel.layerIndexes.filter((index) => !panel.included || panel.included.get(index)?.size),
+      cellName: panel.cellName,
+      included: panel.included,
+      paintTemplates: paintTemplates.map((template) => ({ kind: template.kind, filename: template.file.filename })),
+    })))], { type: "text/html" }) },
     { filename: `${base}-project.json`, blob: new Blob([JSON.stringify(manifest, null, 2)], { type: "application/json" }) },
     { filename: "README.txt", blob: new Blob([readme], { type: "text/plain" }) },
     { filename: "ATTRIBUTION.txt", blob: new Blob([attribution], { type: "text/plain" }) },

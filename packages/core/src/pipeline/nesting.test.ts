@@ -22,7 +22,7 @@ describe("material nesting", () => {
       }
     }
     const fabrication = buildFabricationPackage(result, DEFAULT_PROJECT);
-    const panelFiles = fabrication.files.filter((file) => file.filename.endsWith(".svg") && !file.filename.endsWith("-engrave.svg") && !file.filename.endsWith("master.svg") && !file.filename.endsWith("assembly-guide.svg"));
+    const panelFiles = fabrication.files.filter((file) => file.filename.endsWith(".svg") && !file.filename.endsWith("-engrave.svg") && !file.filename.endsWith("master.svg"));
     const engravingFiles = fabrication.files.filter((file) => file.filename.endsWith("-engrave.svg"));
     expect(panelFiles).toHaveLength(result.layers.length - result.fabricationNests.length);
     expect(engravingFiles).toHaveLength(panelFiles.length);

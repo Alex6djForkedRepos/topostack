@@ -65,7 +65,7 @@ export async function prepareSelectedDownload(output: FabricationPackageV1, opti
   if (option === "all") return prepareProjectDownload(output);
   if (option === "master") return { ...output.master, fileCount: 1 };
   const files = output.files.filter((file) => {
-    if (option === "assembly") return file.filename.endsWith("-assembly-guide.svg");
+    if (option === "assembly") return file.filename.endsWith("-assembly-guide.html");
     // Match only the generated suffix so project names cannot affect selection.
     // A work-area split appends the seam cell ("-a1", or "-a1-2" for a piece
     // shipped on its own sheet).
