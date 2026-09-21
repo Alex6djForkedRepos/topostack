@@ -934,7 +934,7 @@ describe("TopoStack Svelte shell", () => {
     const generate = target.querySelector<HTMLButtonElement>(".generate-button")!;
     generate.click();
     await vi.waitFor(() => expect(loadTerrainMock).toHaveBeenCalledOnce());
-    const input = target.querySelector<HTMLInputElement>('input[type="file"]')!;
+    const input = target.querySelector<HTMLInputElement>('input[type="file"][accept^="application/json"]')!;
     Object.defineProperty(input, "files", { configurable: true, value: [new File(["not json"], "broken.json", { type: "application/json" })] });
     input.dispatchEvent(new Event("change", { bubbles: true }));
     await vi.waitFor(() => expect(target.querySelector(".status-line")?.textContent).not.toContain("Fetching elevation and map details"));
@@ -1147,6 +1147,32 @@ describe("TopoStack Svelte shell", () => {
     [...target.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes("Cut layers"))!.click();
     await vi.waitFor(() => expect(target.querySelector('[data-marking-kind="grid"]')).not.toBeNull());
     expect(loadVectorMarkingsMock).not.toHaveBeenCalled();
+  });
+
+  it("imports a GPX file as markers and trails in one undo step", async () => {
+    const { saveProject } = await import("$lib/storage/storage");
+    vi.mocked(saveProject).mockClear();
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await vi.waitFor(() => expect(saveProject).toHaveBeenCalled(), { timeout: 2_000 });
+    const { lat, lon } = DEFAULT_PROJECT.location;
+    const gpx = `<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1"><wpt lat="${lat}" lon="${lon}"/><trk><trkseg><trkpt lat="${lat}" lon="${lon}"/><trkpt lat="${lat + 0.01}" lon="${lon + 0.01}"/><trkpt lat="${lat + 0.02}" lon="${lon}"/></trkseg></trk></gpx>`;
+    const input = target.querySelector<HTMLInputElement>("input[data-custom-import]")!;
+    Object.defineProperty(input, "files", { configurable: true, value: [new File([gpx], "hike.gpx", { type: "application/gpx+xml" })] });
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    await vi.waitFor(() => expect(target.textContent).toContain("Imported 1 path and 1 marker"));
+    expect(target.querySelectorAll(".marker-card:not(.custom-line-card)")).toHaveLength(1);
+    expect(target.querySelectorAll(".custom-line-card")).toHaveLength(1);
+    window.dispatchEvent(new Event("pagehide"));
+    const saved = vi.mocked(saveProject).mock.lastCall![0];
+    expect(saved.markers).toEqual([expect.objectContaining({ lat, lon, symbol: "pin" })]);
+    expect(saved.customLines).toEqual([expect.objectContaining({ kind: "trail", points: [{ lat, lon }, { lat: lat + 0.01, lon: lon + 0.01 }, { lat: lat + 0.02, lon }] })]);
+    target.querySelector<HTMLButtonElement>('button[aria-label="Undo"]')!.click();
+    await vi.waitFor(() => expect(target.querySelectorAll(".marker-card")).toHaveLength(0));
+
+    Object.defineProperty(input, "files", { configurable: true, value: [new File(["<gpx><trk>"], "broken.gpx")] });
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    await vi.waitFor(() => expect(target.textContent).toContain("This GPX file is not valid XML."));
   });
 
   it("adds, edits, symbolizes, and removes an arbitrary marker list", async () => {

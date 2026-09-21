@@ -655,6 +655,23 @@
     catch (error) { reportImportError(error instanceof Error ? error.message : "Could not import this project."); }
   }
 
+  async function importCustomData(file: File | undefined): Promise<void> {
+    if (!file) return;
+    try {
+      const { importGeoFile } = await import("$lib/domain/geo-import");
+      const { patch, message } = await importGeoFile(file, edits.customDataCapacity(project), boundsForProject(project));
+      status = message;
+      if (!patch) return;
+      if (!keepsPendingWork(Object.keys(patch))) invalidatePendingPreview();
+      // One import is one undo step, however many features it adds.
+      projectHistory.push(project);
+      project = { ...project, ...edits.appendCustomData(project, patch, () => crypto.randomUUID()) };
+      if (generationState !== "loading") void refreshPreview("customData", 0, { quiet: true });
+    } catch (error) {
+      status = error instanceof Error ? error.message : "Could not import this map data file.";
+    }
+  }
+
   // The sidebar panels and preview read App state through this object; see StudioContext.
   provideStudio({
     get project() { return project; },
@@ -721,7 +738,7 @@
     set lineworkOpen(value) { lineworkOpen = value; },
     get locationTrigger() { return locationTrigger; },
     set locationTrigger(value) { locationTrigger = value; },
-    shownLength, shownDepth, shownLineWidth, shownTextSize, storedLength, workAreaLength, updateProject, updateFabrication, updateMapDetails, updateLocation, updateVerticalExaggeration, updateDepthLayerLimit, setLakeDepth, setLineWidth, applyCustomDataEdit, choosePlace, undo, redo, importProject, generate, cancelGeneration, toggleSection, setAllSections, sectionSummary, navigateChoice, dismissPreviewWarning, previewMarkingPath, trailPatternDash, getFeedbackContext,
+    shownLength, shownDepth, shownLineWidth, shownTextSize, storedLength, workAreaLength, updateProject, updateFabrication, updateMapDetails, updateLocation, updateVerticalExaggeration, updateDepthLayerLimit, setLakeDepth, setLineWidth, applyCustomDataEdit, choosePlace, undo, redo, importProject, importCustomData, generate, cancelGeneration, toggleSection, setAllSections, sectionSummary, navigateChoice, dismissPreviewWarning, previewMarkingPath, trailPatternDash, getFeedbackContext,
   });
 </script>
 

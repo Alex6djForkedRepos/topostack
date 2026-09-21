@@ -118,10 +118,10 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
   },
   "/guides/custom-markers-and-paths": {
     title: "Add Custom Markers and Trails to a Topographic Map | TopoStack",
-    description: "Engrave your own summit markers, hiking routes and boundaries on a topographic map from latitude and longitude coordinates.",
+    description: "Engrave your own summit markers, hiking routes and boundaries on a topographic map. Import a GPX, KML or GeoJSON file, or enter coordinates.",
     label: "Custom markers and paths",
     published: "2026-09-17",
-    updated: "2026-09-17",
+    updated: "2026-09-20",
   },
   "/guides/settings-reference": {
     title: "Studio Settings Reference | TopoStack",
