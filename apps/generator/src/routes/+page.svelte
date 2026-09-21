@@ -39,7 +39,7 @@
           <a class="primary-link" href={studioUrl}>Start creating <ArrowRight size={18} aria-hidden="true" /></a>
           <a class="secondary-link" href="#how-it-works">See how it works</a>
         </div>
-        <p class="cta-note">Free to use · No account required · SVG exports</p>
+        <p class="cta-note">Free to use · No account required · SVG exports · Step-by-step assembly guide</p>
       </div>
       <figure class="terrain-art">
         <TerrainIllustration variant="hero" />
@@ -54,7 +54,7 @@
           <div class="workflow-art"><TerrainIllustration variant="relief" /></div>
           <h3>Layered relief</h3>
           <p>Build terrain one sheet at a time. Elevation becomes a stack of contours, sized for your material thickness and the relief you want to show.</p>
-          <p class="card-detail">Cut panels, engraving companions, and an assembly guide help take your project from preview to finished piece.</p>
+          <p class="card-detail">Cut panels, engraving companions, and an illustrated, step-by-step assembly guide take your project from preview to finished piece.</p>
           <span class="format">Cut · Score · Engrave</span>
           <a class="secondary-link" href={`${base}/guides/laser-cut-topographic-map`}>How to make a layered topographic map</a>
         </article>
@@ -75,9 +75,27 @@
       <ol class="steps">
         <li><span class="step-number">01</span><div><h3>Choose a place</h3><p>Search for a location or enter coordinates, then frame the area you want to capture.</p></div></li>
         <li><span class="step-number">02</span><div><h3>Make it yours</h3><p>Choose layered relief or flat engraving. Set your output size, adjust the terrain, and add the map details that matter to you.</p></div></li>
-        <li><span class="step-number">03</span><div><h3>Generate and export</h3><p>Generate fresh terrain, review the preview, and download your files for your laser software. You can also use TopoStack through Atomm.</p></div></li>
+        <li><span class="step-number">03</span><div><h3>Generate and export</h3><p>Generate fresh terrain, review the preview, and download your files for your laser software, with an illustrated assembly guide for layered reliefs. You can also use TopoStack through Atomm.</p></div></li>
       </ol>
       <a class="primary-link process-cta" href={studioUrl}>Try the terrain studio <ArrowRight size={18} aria-hidden="true" /></a>
+      </div>
+    </section>
+
+    <section id="assembly-guide" class="section guide-feature" aria-labelledby="guide-title">
+      <div class="section-heading">
+        <p class="eyebrow">First build? You've got this</p>
+        <h2 id="guide-title">Every layered relief comes with a step-by-step assembly guide.</h2>
+        <p>Cutting the layers is only half the job. Your export includes an illustrated booklet that takes you from the first sheet off the laser to the last layer glued down.</p>
+        <div class="section-art"><TerrainIllustration variant="guide" /></div>
+      </div>
+      <div>
+        <ul class="steps">
+          <li><span class="step-number">01</span><div><h3>A checklist for every sheet</h3><p>Tick off each file as it comes off the laser, with the layers each sheet holds.</p></div></li>
+          <li><span class="step-number">02</span><div><h3>One picture per layer</h3><p>See the stack so far with the new layer highlighted, so you always know where it goes. Small pieces are circled.</p></div></li>
+          <li><span class="step-number">03</span><div><h3>Only what is new at each step</h3><p>The gluing routine is explained once. Each step adds what is particular to its layer: which sheet the pieces come from, ids for pieces cut in parts, cutouts nested in other sheets, and what to paint first.</p></div></li>
+          <li><span class="step-number">04</span><div><h3>Print it or keep it open</h3><p>Three steps to a Letter page, or follow along on a tablet at the bench. It works offline.</p></div></li>
+        </ul>
+        <a class="secondary-link process-cta" href={`${base}/guides/export-files`}>See everything in the export <ArrowRight size={16} aria-hidden="true" /></a>
       </div>
     </section>
 
@@ -131,7 +149,7 @@
     <section class="section" aria-labelledby="questions-title">
       <div class="section-heading"><h2 id="questions-title">Before your first map</h2></div>
       <details><summary>Is TopoStack free, and do I need an account?</summary><p>TopoStack is free to use with no account required. Donations are optional, and every export is available without donating.</p></details>
-      <details><summary>What files can I export?</summary><p>Layered projects include SVG cut panels, engraving companions and an assembly guide. Flat engraving produces one SVG at your chosen physical size. Both workflows support a project-settings JSON backup.</p></details>
+      <details><summary>What files can I export?</summary><p>Layered projects include SVG cut panels, engraving companions and a printable, step-by-step assembly guide. Flat engraving produces one SVG at your chosen physical size. Both workflows support a project-settings JSON backup.</p></details>
       <details><summary>Can I cut the initial Crater Lake preview?</summary><p>Generate fresh terrain first. The bundled preview lets you explore the controls; fabrication export requires current real terrain and all requested map data.</p></details>
       <details><summary>Where is my project saved?</summary><p>Settings are saved in this browser. Export a settings backup before clearing browser storage or moving devices. Imported and restored settings need fresh generation before fabrication export.</p></details>
     </section>
@@ -154,7 +172,7 @@
   .secondary-link, .primary-link, .support-link, footer a { display: inline-flex; align-items: center; justify-content: center; gap: 10px; text-decoration: none; }
   .header-guide { color: var(--loidolt-text-muted); font: 12px var(--loidolt-font-utility); text-decoration: none; }
   .landing-page :global(.landing-topbar) { position: sticky; top: 0; z-index: 20; border-bottom: 1px solid var(--loidolt-border); }
-  #how-it-works, #open-source { scroll-margin-top: 100px; }
+  #how-it-works, #assembly-guide, #open-source { scroll-margin-top: 100px; }
   .hero-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 16px 24px; }
   .secondary-link { min-height: 48px; color: var(--loidolt-text); font-size: 13px; text-decoration: underline; text-underline-offset: 4px; }
   .cta-note { margin: 16px 0 0; font-size: 12px; }
@@ -195,7 +213,7 @@
   .workflow-card h3 { font-size: 23px; }
   .card-detail { margin-bottom: 26px; }
   .format { display: block; padding-top: 20px; border-top: 1px solid var(--loidolt-border); font-size: 10px; }
-  .process, .details-section, .open-source { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 80px; }
+  .process, .guide-feature, .details-section, .open-source { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 80px; }
   .source-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; margin-top: 24px; }
   .source-actions .support-link { flex-shrink: 1; }
   .steps { list-style: none; padding: 0; margin: 0; }
@@ -222,7 +240,7 @@
     .hero { grid-template-columns: 1fr; gap: 24px; padding: 48px 0 40px; }
     .hero-copy { max-width: 560px; }
     .terrain-art { width: min(360px, 100%); margin-inline: auto; }
-    .workflow-grid, .process, .details-section, .open-source { grid-template-columns: 1fr; gap: 24px; }
+    .workflow-grid, .process, .guide-feature, .details-section, .open-source { grid-template-columns: 1fr; gap: 24px; }
     .section { padding: 36px 0; }
     .workflow-card { padding: 24px; }
     .section-art { max-width: 340px; margin-top: 24px; }

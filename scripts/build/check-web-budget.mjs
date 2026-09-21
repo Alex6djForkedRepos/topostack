@@ -27,7 +27,11 @@ const budgets = {
   // Lowered 2026-09-21: head metadata now comes from the root layout's server
   // load, so the page registry left the homepage bundle and new pages no
   // longer cost homepage JavaScript. 57,942 -> 56,171 with Node 22.22.2 (production build).
-  landingJavaScriptGzip: 57_200,
+  // Raised 2026-09-21 for the homepage assembly-guide section (copy and its
+  // illustration; no new icons or components): 57,019 -> 57,997 with Node
+  // 22.22.2 (production build). 57,200 left 181 bytes, so no section fit;
+  // set to 59,000 to restore roughly 1.7%.
+  landingJavaScriptGzip: 59_000,
   landingHtmlGzip: 10_000,
   initialJavaScriptGzip: 180_000,
   // Includes the editor, default 3D preview, and geometry worker. Lake modeling
@@ -102,7 +106,9 @@ const budgets = {
   // head-metadata change) -> 46,724, Node 22.22.2, production build.
   // The example gallery and example pages add 46,724 -> 47,027, still
   // inside 47,500.
-  totalCssGzip: 47_500,
+  // Raised 2026-09-21 for the homepage assembly-guide section and its
+  // illustration styles: 47,483 -> 47,661 with Node 22.22.2 (production build).
+  totalCssGzip: 48_200,
   // 7,775 records across 11 sources (~306 kB); fetched only when browsing/searching.
   lakeDirectoryGzip: 320_000,
   studioHtmlBytes: 10_000,
