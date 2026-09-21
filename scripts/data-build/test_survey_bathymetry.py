@@ -25,6 +25,21 @@ class SurveyTests(unittest.TestCase):
         elevated=surveys.encode(np.array([[-200,1757.125,9001]],dtype=np.float32),elevation=True)
         np.testing.assert_array_equal(elevated[0,:,3],[255,255,0])
 
+    def test_e00_grid_rows_restart_on_new_lines(self):
+        # Seven-wide rows occupy two five-value lines; DDS-55 pads the second line
+        # with filler instead of ending it early. Both layouts must keep columns aligned.
+        grid=np.arange(21,dtype=np.float32).reshape(3,7)*10+1800
+        cell=lambda v:f'{v:14.7E}'
+        padded=[''.join(cell(v) for v in (*row,-3.402823e38,1888,-3.402823e38))
+                for row in grid]
+        padded=[line for row in padded for line in (row[:70],row[70:])]
+        short=[line for row in grid for line in (''.join(cell(v) for v in row[:5]),''.join(cell(v) for v in row[5:]))]
+        for lines in (padded,short):
+            np.testing.assert_array_equal(surveys.read_e00_rows(iter(lines+['EOG']),7,3),grid)
+        with self.assertRaises(ValueError):surveys.read_e00_rows(iter(padded[:-1]+['EOG']),7,3)
+        nodata=surveys.read_e00_rows(iter([cell(-3.402823e38)*2]),2,1)
+        self.assertTrue(np.isnan(nodata).all())
+
     def test_zip_extraction_rejects_escape(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);archive=root/'input.zip'
