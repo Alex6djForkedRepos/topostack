@@ -342,6 +342,39 @@ describe("TopoStack Svelte shell", () => {
     } finally { window.history.replaceState(null, "", "/"); }
   });
 
+  it("copies a share link and opens a shared design on top of the saved project", async () => {
+    const { loadProject, saveProject } = await import("$lib/storage/storage");
+    const { projectFromShareLink } = await import("$lib/studio/share-link");
+    const saved = { ...DEFAULT_PROJECT, name: "Saved mountain", materialThicknessMm: 5 };
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    vi.mocked(loadProject).mockResolvedValueOnce(saved);
+    const first = document.createElement("div");
+    component = mount(App, { target: first, props: { initialPreview: structuredClone(initialPreview) } });
+    await vi.waitFor(() => expect(first.querySelector<HTMLInputElement>('[aria-label="Project name"]')?.value).toBe("Saved mountain"));
+    first.querySelector<HTMLButtonElement>('button[aria-label="Copy share link"]')!.click();
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+    const link = new URL((writeText.mock.calls[0] as unknown as [string])[0]);
+    expect(link.pathname).toBe("/studio");
+    expect(projectFromShareLink(link.hash)).toMatchObject({ name: "Saved mountain", materialThicknessMm: 5 });
+    await vi.waitFor(() => expect(first.textContent).toContain("Share link copied"));
+    await unmount(component);
+
+    vi.mocked(saveProject).mockClear();
+    vi.mocked(loadProject).mockResolvedValueOnce({ ...DEFAULT_PROJECT, name: "Recipient project" });
+    window.history.replaceState(null, "", `/studio${link.hash}`);
+    try {
+      const target = document.createElement("div");
+      component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+      const name = () => target.querySelector<HTMLInputElement>('[aria-label="Project name"]')!;
+      await vi.waitFor(() => expect(target.textContent).toContain("Shared design opened"));
+      expect(name().value).toBe("Saved mountain");
+      expect(window.location.hash).toBe("");
+      target.querySelector<HTMLButtonElement>('button[aria-label="Undo"]')!.click();
+      await vi.waitFor(() => expect(name().value).toBe("Recipient project"));
+    } finally { window.history.replaceState(null, "", "/"); }
+  });
+
   it("edits and undoes the project name and switches preview modes", async () => {
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });

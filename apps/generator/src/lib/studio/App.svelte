@@ -326,6 +326,14 @@
         url.searchParams.delete("lake"); url.searchParams.delete("bounds");
         replaceState(url, {});
       },
+      hash: window.location.hash,
+      loadShareLink: () => import("$lib/studio/share-link"),
+      consumeShareLink: async () => {
+        const { replaceState } = await import("$app/navigation");
+        const url = new URL(window.location.href);
+        url.hash = "";
+        replaceState(url, {});
+      },
       isCancelled: () => cancelled,
       currentProject: () => project,
       restoreSaved: (saved) => {
@@ -339,6 +347,13 @@
         invalidatePendingPreview();
         projectHistory.push(previous);
         replaceSourceProject(next, createProjectPreviewSource(next));
+      },
+      openSharedProject: (next, previous) => {
+        invalidatePendingPreview();
+        projectHistory.push(previous);
+        dismissedWarnings = [];
+        replaceSourceProject(next, createProjectPreviewSource(next));
+        trackUsage("share_link_opened", next.outputMode);
       },
       setStatus: (message) => { status = message; },
     }).then(({ autosave }) => {
@@ -663,6 +678,17 @@
     catch (error) { reportImportError(error instanceof Error ? error.message : "Could not import this project."); }
   }
 
+  async function copyShareLink(): Promise<void> {
+    try {
+      const { shareLinkFor } = await import("$lib/studio/share-link");
+      await navigator.clipboard.writeText(shareLinkFor(project, new URL("/studio", window.location.href).toString()));
+      status = "Share link copied · anyone with it can open this design";
+      trackUsage("share_link_copied", project.outputMode);
+    } catch (error) {
+      status = error instanceof Error && error.name !== "NotAllowedError" ? error.message : "Could not copy the share link. Check clipboard permissions and try again.";
+    }
+  }
+
   // The sidebar panels and preview read App state through this object; see StudioContext.
   provideStudio({
     get project() { return project; },
@@ -729,7 +755,7 @@
     set lineworkOpen(value) { lineworkOpen = value; },
     get locationTrigger() { return locationTrigger; },
     set locationTrigger(value) { locationTrigger = value; },
-    shownLength, shownDepth, shownLineWidth, shownTextSize, storedLength, workAreaLength, updateProject, updateFabrication, updateMapDetails, updateLocation, updateVerticalExaggeration, updateDepthLayerLimit, setLakeDepth, setLineWidth, applyCustomDataEdit, choosePlace, undo, redo, importProject, generate, cancelGeneration, toggleSection, setAllSections, sectionSummary, navigateChoice, dismissPreviewWarning, previewMarkingPath, trailPatternDash, getFeedbackContext,
+    shownLength, shownDepth, shownLineWidth, shownTextSize, storedLength, workAreaLength, updateProject, updateFabrication, updateMapDetails, updateLocation, updateVerticalExaggeration, updateDepthLayerLimit, setLakeDepth, setLineWidth, applyCustomDataEdit, choosePlace, undo, redo, importProject, copyShareLink, generate, cancelGeneration, toggleSection, setAllSections, sectionSummary, navigateChoice, dismissPreviewWarning, previewMarkingPath, trailPatternDash, getFeedbackContext,
   });
 </script>
 
