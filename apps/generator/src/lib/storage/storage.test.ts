@@ -185,6 +185,14 @@ describe("project import validation", () => {
     expect(() => parseProject({ ...DEFAULT_PROJECT, northArrowPlacement: { anchor: "outside", offset: { x: 0, y: 0 } } })).toThrow(/north arrow anchor/i);
     expect(() => parseProject({ ...DEFAULT_PROJECT, northArrowPlacement: { anchor: "center", offset: { x: 1.1, y: 0 } } })).toThrow(/north arrow offsets/i);
   });
+  it("restores a title plaque and leaves projects without one untouched", () => {
+    const plaque = { enabled: false, text: "Mount Rainier\n2026", sizeMm: 8, placement: { anchor: "top" as const, offset: { x: 0.1, y: 0 } } };
+    expect(parseProject({ ...DEFAULT_PROJECT, plaque }).plaque).toEqual(plaque);
+    expect("plaque" in parseProject(DEFAULT_PROJECT)).toBe(false);
+    expect(() => parseProject({ ...DEFAULT_PROJECT, plaque: { ...plaque, text: 5 } })).toThrow(/title text/i);
+    expect(() => parseProject({ ...DEFAULT_PROJECT, plaque: { ...plaque, placement: { anchor: "outside", offset: { x: 0, y: 0 } } } })).toThrow(/title anchor/i);
+    expect(() => parseProject({ ...DEFAULT_PROJECT, plaque: { ...plaque, sizeMm: 50 } })).toThrow(/title size/i);
+  });
   it("defaults smoothing, minimum feature, and exploded preview for legacy projects", () => {
     const {
       smoothing: _legacySmoothing,

@@ -26,6 +26,7 @@
     <li><strong>Elevation labels</strong> (on by default) engrave elevations on the terrain. <strong>Label X</strong> and <strong>Label Y</strong> set a preferred position as a percentage from the center (−90 to 90); TopoStack moves labels where needed to avoid other lines, and leaves out any that cannot fit.</li>
     <li><strong>North arrow</strong> (on by default) offers three designs, <strong>Minimal</strong>, <strong>Classic</strong> and <strong>Mariner</strong>, and a <strong>Diameter</strong> from 12 mm up to a limit set by your artwork size. Choose one of nine <strong>Placement</strong> positions, then nudge it with <strong>Offset X</strong> and <strong>Offset Y</strong> (−100 to 100%). <strong>Reset offset</strong> recenters it.</li>
     <li><strong>Scale bar</strong> (on by default).</li>
+    <li><strong>Title</strong> (off by default) engraves up to three lines of text, such as a place name, a date and a route, in capitals. It starts from the project name; <strong>Use project name</strong> restores it. Set the <strong>Letter height</strong> (3–30 mm) and one of nine <strong>Placement</strong> positions; lines align toward the chosen edge. Contours and map details under the text are cleared so it stays readable. The stroke font covers letters, digits and common punctuation (<code>, . ' - / : &amp; # ( ) ! °</code>); a note lists any other character, which would engrave as “?”. A title that does not fit the material is left out with a warning.</li>
   </ul>
 
   <h2>3. Set the text style</h2>

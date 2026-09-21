@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_PROJECT, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_MAP_MARKERS, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, type CustomLineFeatureV1, type ProjectConfigV1 } from "@topostack/core";
-import { addCustomLine, addCustomLinePoint, addMarker, addMarkerAt, appendCustomData, canAddCustomLine, customDataCapacity, northArrowMaximumMm, removeCustomLine, removeCustomLinePoint, removeMarker, updateCustomLine, updateCustomLinePoint, updateMarker } from "$lib/studio/project-edits";
+import { addCustomLine, addCustomLinePoint, addMarker, addMarkerAt, appendCustomData, canAddCustomLine, clampPlaqueSize, customDataCapacity, plaqueSettings, plaqueText, northArrowMaximumMm, removeCustomLine, removeCustomLinePoint, removeMarker, updateCustomLine, updateCustomLinePoint, updateMarker } from "$lib/studio/project-edits";
 
 const line = (id: string, count = 2): CustomLineFeatureV1 => ({ id, kind: "trail", points: Array.from({ length: count }, (_, index) => ({ lat: 40, lon: -105 + index * 0.01 })) });
 const withData = (patch: Partial<ProjectConfigV1>): ProjectConfigV1 => ({ ...DEFAULT_PROJECT, ...patch });
@@ -66,6 +66,17 @@ describe("custom line edits", () => {
     expect(removeCustomLinePoint(project, "a", 0)?.customLines[0]?.points).toHaveLength(2);
     expect(removeCustomLinePoint(project, "b", 0)).toBeUndefined();
     expect(removeCustomLine(project, "a").customLines.map((item) => item.id)).toEqual(["b"]);
+  });
+});
+
+describe("title plaque edits", () => {
+  it("limits text to the accepted lines and length and starts from the project name", () => {
+    expect(plaqueText(`${"A".repeat(50)}\nB\nC\nD`)).toBe(`${"A".repeat(40)}\nB\nC`);
+    expect(clampPlaqueSize(1)).toBe(3);
+    expect(clampPlaqueSize(99)).toBe(30);
+    const first = plaqueSettings({ name: "Crater Lake", plaque: undefined }, { enabled: true });
+    expect(first).toEqual({ enabled: true, text: "Crater Lake", sizeMm: 6, placement: { anchor: "bottom-left", offset: { x: 0, y: 0 } } });
+    expect(plaqueSettings({ name: "Other", plaque: first }, { enabled: false })).toEqual({ ...first, enabled: false });
   });
 });
 

@@ -18,12 +18,16 @@ import {
   MAX_VERTICAL_EXAGGERATION,
   MIN_VERTICAL_EXAGGERATION,
   NORTH_ARROW_ANCHORS,
+  PLAQUE_MAX_LINE_LENGTH,
+  PLAQUE_MAX_LINES,
+  PLAQUE_MAX_SIZE_MM,
+  PLAQUE_MIN_SIZE_MM,
   NORTH_ARROW_MAX_MAP_FRACTION,
   NORTH_ARROW_MAX_SIZE_MM,
   NORTH_ARROW_MIN_SIZE_MM,
   NORTH_ARROW_STYLES,
 } from "../types.js";
-import type { GeoBounds, ProjectConfigV1 } from "../types.js";
+import type { GeoBounds, PlaqueV1, ProjectConfigV1 } from "../types.js";
 
 
 export function assertGeographicBounds(bounds: GeoBounds, label: "Project" | "Source"): void {
@@ -121,6 +125,7 @@ export function validateProject(config: ProjectConfigV1): void {
   const northArrowMaximum = Math.min(NORTH_ARROW_MAX_SIZE_MM, Math.max(NORTH_ARROW_MIN_SIZE_MM, Math.min(config.widthMm, config.heightMm) * NORTH_ARROW_MAX_MAP_FRACTION));
   if (config.northArrowSizeMm < NORTH_ARROW_MIN_SIZE_MM || config.northArrowSizeMm > northArrowMaximum) throw new Error(`North arrow size must be between ${NORTH_ARROW_MIN_SIZE_MM} and ${northArrowMaximum} mm.`);
   if (Math.abs(config.northArrowPlacement.offset.x) > 1 || Math.abs(config.northArrowPlacement.offset.y) > 1) throw new Error("North arrow offsets must be between -100% and 100%.");
+  if (config.plaque !== undefined) validatePlaque(config.plaque);
   if (!config.waterDepthOverrides || typeof config.waterDepthOverrides !== "object") throw new Error("Water depth overrides are required.");
   for (const [lake, depth] of Object.entries(config.waterDepthOverrides)) {
     if (!/^[1-9]\d*$/.test(lake)) throw new Error(`Water depth override key ${lake} must be a HydroLAKES id.`);
@@ -128,4 +133,15 @@ export function validateProject(config: ProjectConfigV1): void {
   }
   const bounds = config.location.bounds;
   if (bounds) assertGeographicBounds(bounds, "Project");
+}
+
+function validatePlaque(plaque: PlaqueV1): void {
+  if (!plaque || typeof plaque !== "object" || typeof plaque.enabled !== "boolean" || typeof plaque.text !== "string") throw new Error("Title settings are invalid.");
+  const lines = plaque.text.split(/\r?\n/);
+  if (lines.length > PLAQUE_MAX_LINES) throw new Error(`Title text must be ${PLAQUE_MAX_LINES} lines or fewer.`);
+  if (lines.some((line) => line.length > PLAQUE_MAX_LINE_LENGTH)) throw new Error(`Each title line must be ${PLAQUE_MAX_LINE_LENGTH} characters or fewer.`);
+  if (!Number.isFinite(plaque.sizeMm) || plaque.sizeMm < PLAQUE_MIN_SIZE_MM || plaque.sizeMm > PLAQUE_MAX_SIZE_MM) throw new Error(`Title size must be between ${PLAQUE_MIN_SIZE_MM} and ${PLAQUE_MAX_SIZE_MM} mm.`);
+  const placement = plaque.placement;
+  if (!placement || typeof placement !== "object" || !NORTH_ARROW_ANCHORS.includes(placement.anchor)) throw new Error("Title anchor is invalid.");
+  if (!placement.offset || ![placement.offset.x, placement.offset.y].every(Number.isFinite) || Math.abs(placement.offset.x) > 1 || Math.abs(placement.offset.y) > 1) throw new Error("Title offsets must be between -100% and 100%.");
 }

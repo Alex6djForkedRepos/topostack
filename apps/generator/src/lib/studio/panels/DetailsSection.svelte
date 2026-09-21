@@ -1,16 +1,19 @@
 <script lang="ts">
-  import { ChevronDown, Compass, Grid3X3, Layers3, Map as MapIcon, Minus, Mountain, Square, Waves } from "@lucide/svelte";
+  import { ChevronDown, Compass, Grid3X3, Layers3, Map as MapIcon, Minus, Mountain, Square, Type, Waves } from "@lucide/svelte";
   import { Field, Section } from "@loidolt/theme-svelte";
-  import { displayElevation, displayLength, labelDimensions, labelPathData, MAX_WATER_DEPTH_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, NORTH_ARROW_MIN_SIZE_MM } from "@topostack/core";
+  import { displayElevation, displayLength, labelDimensions, labelPathData, MAX_WATER_DEPTH_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, NORTH_ARROW_MIN_SIZE_MM, PLAQUE_MAX_LINE_LENGTH, PLAQUE_MAX_LINES, PLAQUE_MAX_SIZE_MM, PLAQUE_MIN_SIZE_MM, unsupportedLabelCharacters } from "@topostack/core";
   import FeedbackButton from "$lib/site/FeedbackButton.svelte";
   import NumberField from "$lib/studio/StudioNumberField.svelte";
   import { FONT_OPTIONS, NORTH_ARROW_ANCHOR_OPTIONS, NORTH_ARROW_OPTIONS, WATER_FILL_PATTERNS } from "$lib/studio/options";
   import Switch from "$lib/studio/StudioSwitch.svelte";
   import LakeDepthHelp from "$lib/studio/panels/LakeDepthHelp.svelte";
   import { getStudio } from "$lib/studio/studio-context";
+  import { clampPlaqueSize, plaqueSettings, plaqueText } from "$lib/studio/project-edits";
 
   let { openLakeDepthHelp }: { openLakeDepthHelp?: (trigger: HTMLButtonElement) => void } = $props();
   const studio = getStudio();
+  const plaque = $derived(studio.project.plaque);
+  const unsupportedTitleCharacters = $derived(plaque ? unsupportedLabelCharacters(plaque.text) : []);
   const { getFeedbackContext, navigateChoice, previewMarkingPath, sectionSummary, setLakeDepth, shownDepth, shownLength, shownTextSize, storedLength, toggleSection, updateDepthLayerLimit, updateFabrication, updateMapDetails } = studio;
 </script>
 
@@ -162,6 +165,28 @@
       </div>
 
       <Switch checked={studio.project.showScaleBar} onCheckedChange={(showScaleBar) => void updateMapDetails({ showScaleBar })} aria-label="Scale bar"><span class="toggle-label"><Minus size={16} />Scale bar</span></Switch>
+
+      <div class="toggle-control">
+        <Switch checked={plaque?.enabled ?? false} onCheckedChange={(enabled) => void updateMapDetails({ plaque: plaqueSettings(studio.project, { enabled }) })} aria-label="Title"><span class="toggle-label"><Type size={16} />Title</span></Switch>
+        {#if plaque?.enabled}
+          <div class="toggle-settings plaque-settings">
+            <div class="subgroup-heading subgroup-heading--action">
+              <p>Text</p>
+              <button type="button" onclick={() => void updateFabrication({ plaque: plaqueSettings(studio.project, { text: plaqueText(studio.project.name) }) })}>Use project name</button>
+            </div>
+            <textarea class="plaque-text" aria-label="Title text" aria-describedby="plaque-text-hint" rows={PLAQUE_MAX_LINES} spellcheck="false" value={plaque.text} oninput={(event) => { const text = plaqueText(event.currentTarget.value); if (text !== event.currentTarget.value) event.currentTarget.value = text; void updateFabrication({ plaque: plaqueSettings(studio.project, { text }) }); }}></textarea>
+            <small id="plaque-text-hint">Up to {PLAQUE_MAX_LINES} lines of {PLAQUE_MAX_LINE_LENGTH} characters, engraved in capitals in the {studio.project.textStyle.font} font.</small>
+            {#if unsupportedTitleCharacters.length}<small class="plaque-warning" role="status">Not in the engraving font, shown as “?”: {unsupportedTitleCharacters.join(" ")}</small>{/if}
+            <Field label="Letter height" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label="Title size" value={shownTextSize(plaque.sizeMm)} min={displayLength(PLAQUE_MIN_SIZE_MM, studio.project.units)} max={displayLength(PLAQUE_MAX_SIZE_MM, studio.project.units)} step={studio.project.units === "imperial" ? 0.01 : 0.5} onValueChange={(value) => { const sizeMm = clampPlaqueSize(storedLength(value)); if (sizeMm !== plaque.sizeMm) void updateFabrication({ plaque: plaqueSettings(studio.project, { sizeMm }) }); }} /><em>{studio.shownLengthUnit}</em></span>{/snippet}</Field>
+            <p class="subgroup-heading">Placement</p>
+            <div class="north-arrow-anchor-grid" role="radiogroup" aria-label="Title anchor">
+              {#each NORTH_ARROW_ANCHOR_OPTIONS as option}
+                <button type="button" role="radio" aria-label={option.label} title={option.label} aria-checked={plaque.placement.anchor === option.value} data-state={plaque.placement.anchor === option.value ? "on" : "off"} tabindex={plaque.placement.anchor === option.value ? 0 : -1} onclick={() => void updateFabrication({ plaque: plaqueSettings(studio.project, { placement: { anchor: option.value, offset: { x: 0, y: 0 } } }) })} onkeydown={navigateChoice}><span></span></button>
+              {/each}
+            </div>
+          </div>
+        {/if}
+      </div>
     </div>
   </div>
 

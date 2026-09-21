@@ -1,5 +1,6 @@
 import { boundsOverlap, pointInRing, ringBounds, ringFitsInsidePolygon, segmentIntersectionT, signedArea } from "../primitives/geometry2d.js";
 import { northArrowFootprint } from "../annotate/north-arrow.js";
+import { plaqueFootprint } from "../annotate/plaque.js";
 import type { FabricationNest, LayerIR, Point2D, Polygon2D, ProjectConfigV1 } from "../types.js";
 
 
@@ -54,7 +55,10 @@ export function addMaterialNests(config: ProjectConfigV1, layers: LayerIR[]): Fa
   const nestedLayersWithParents = new Set<number>();
   const requiredClearanceMm = config.glueMarginMm + config.laserKerfMm;
   for (let donorLayerIndex = 0; donorLayerIndex < layers.length - 2; donorLayerIndex += 1) {
-    const protectedNorthArrow = donorLayerIndex === 0 && config.showNorthArrow ? northArrowFootprint(config) : undefined;
+    // The compass and title are engraved across the surface; nests must not cut through them.
+    const protectedAnnotations = donorLayerIndex === 0
+      ? [config.showNorthArrow ? northArrowFootprint(config) : undefined, plaqueFootprint(config)].filter((ring): ring is Point2D[] => ring !== undefined)
+      : [];
     for (let nestedLayerIndex = donorLayerIndex + 2; nestedLayerIndex < layers.length; nestedLayerIndex += 1) {
       if (nestedLayersWithParents.has(nestedLayerIndex)) continue;
       const nestedLayer = layers[nestedLayerIndex];
@@ -62,7 +66,7 @@ export function addMaterialNests(config: ProjectConfigV1, layers: LayerIR[]): Fa
       const donorLayer = layers[donorLayerIndex];
       const coveringLayer = layers[donorLayerIndex + 1];
       if (!donorLayer || !coveringLayer || coveringLayer.polygons.length === 0) continue;
-      if (protectedNorthArrow && nestedLayer.polygons.some((polygon) => ringsOverlap(protectedNorthArrow, polygon.outer))) continue;
+      if (protectedAnnotations.some((ring) => nestedLayer.polygons.some((polygon) => ringsOverlap(ring, polygon.outer)))) continue;
       // The covering layer must not have terrain holes inside the nested ring:
       // nothing above covers a terrain hole, so the cavity carved into the
       // donor would be visible through it in the assembled model. At creation
