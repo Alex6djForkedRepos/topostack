@@ -66,7 +66,7 @@ export function releaseMarkdown(release, heading = "##") {
 
 export function changelogMarkdown(changelog) {
   return "# Changelog\n\n" +
-    `User-facing changes to TopoStack, newest first. Also at ${SITE}/changelog with an [Atom feed](${SITE}/changelog.xml).\n\n` +
+    `User-facing changes to TopoStack, newest first. Also at ${SITE}/changelog with a [feed](${SITE}/changelog.xml) for feed readers.\n\n` +
     "Generated from `changelog/releases.json` by `npm run changelog:prepare`; do not edit by hand. See [docs/changelog.md](docs/changelog.md).\n\n" +
     changelog.releases.map((release) => releaseMarkdown(release)).join("\n");
 }

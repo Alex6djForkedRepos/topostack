@@ -175,7 +175,7 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
   },
   "/changelog": {
     title: "Changelog: New Features and Fixes | TopoStack",
-    description: "What changed in each TopoStack release: new studio features, improvements to terrain and lake data, and fixes, newest first, with an Atom feed.",
+    description: "What changed in each TopoStack release: new studio features, improvements to terrain and lake data, and fixes, newest first, with a feed you can subscribe to.",
     label: "Changelog",
     published: CHANGELOG_PUBLISHED,
     // The release script writes the newest release date, so the sitemap moves with each release.

@@ -1,6 +1,6 @@
 # Changelog and releases
 
-TopoStack's changelog is written once, in the pull request that makes a change, and everything after that is automated: the version bump, the release commit, the tag, the GitHub release, the [/changelog](https://topostack.app/changelog) page, its [Atom feed](https://topostack.app/changelog.xml), the studio's what's-new marker, and the Atomm release notes.
+TopoStack's changelog is written once, in the pull request that makes a change, and everything after that is automated: the version bump, the release commit, the tag, the GitHub release, the [/changelog](https://topostack.app/changelog) page, its [feed](https://topostack.app/changelog.xml) (Atom format, readable by any feed reader), the studio's what's-new marker, and the Atomm release notes.
 
 ## Flow
 
