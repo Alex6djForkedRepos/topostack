@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   buildFabricationPackage,
   cellEdges,
+  clearRegisteredFonts,
   createSyntheticSource,
   DEFAULT_PROJECT,
   generateGeometry,
+  labelDimensions,
   MAX_SEAM_DIVISIONS,
   masterToSvg,
   planSeamGrid,
@@ -19,6 +21,7 @@ import {
   type ProjectConfigV1,
   type SourceBundleV1,
 } from "../index.js";
+import { registerFixtureFonts } from "../test-support/fonts.js";
 
 const EARTH_RADIUS_M = 6_371_008.8;
 
@@ -622,6 +625,30 @@ describe("split fabrication package", () => {
     const { pkg } = splitPackage({ showAssemblyLabels: false });
     for (const file of pkg.files.filter((entry) => entry.filename.endsWith(".svg"))) {
       expect(await file.blob.text()).not.toContain('id="ASSEMBLY"');
+    }
+  });
+
+  it("splits typeface letters at a seam into closed fills on both sheets", async () => {
+    registerFixtureFonts();
+    try {
+      const [config, source] = conicalProject(workArea);
+      const ir = generateGeometry(config, source);
+      const [seamX] = seamsX(config, 0);
+      const style = { font: "jost" as const, sizeMm: 8 };
+      const width = labelDimensions("HOH", style).width;
+      ir.layers[0]!.markings.push({ id: "seam-title", operation: "engrave", kind: "label", points: [{ x: seamX! - width / 2, y: config.heightMm * 0.42 }], label: "HOH", textStyle: style });
+      const pkg = buildFabricationPackage(ir, config);
+      const sheets = await Promise.all(pkg.files.filter((file) => /layer-01-[ab][12]\.svg$/.test(file.filename)).map((file) => file.blob.text()));
+      const withTitle = sheets.filter((svg) => svg.includes('id="seam-title-fill-'));
+      expect(withTitle).toHaveLength(2);
+      for (const svg of withTitle) {
+        for (const [, d] of svg.matchAll(/<path id="seam-title-fill-[^"]+" d="([^"]+)" fill="[^"]+" stroke="none"/g)) {
+          const points = [...d!.matchAll(/[ML](-?[\d.]+) (-?[\d.]+)/g)].map((match) => `${match[1]} ${match[2]}`);
+          expect(points[0]).toBe(points.at(-1));
+        }
+      }
+    } finally {
+      clearRegisteredFonts();
     }
   });
 

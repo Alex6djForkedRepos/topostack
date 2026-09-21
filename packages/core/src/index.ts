@@ -11,6 +11,7 @@ export { coordinateGridInterval } from "./pipeline/coordinate-grid.js";
 // placement), so the prepared form is public even though the primitives stay internal.
 export type { PreparedPolygons } from "./primitives/geometry2d.js";
 export * from "./annotate/labels.js";
+export { FONT_CATALOG, FontNotLoadedError, clearRegisteredFonts, decodeFontGlyphs, fontEntry, isBitmapFont, isFontLoaded, isTextFont, missingGlyphs, projectFonts, registerFont, type FontCatalogEntry, type FontGlyphsV1, type FontKind } from "./annotate/font-data.js";
 export * from "./annotate/markers.js";
 export * from "./annotate/north-arrow.js";
 export * from "./annotate/plaque.js";

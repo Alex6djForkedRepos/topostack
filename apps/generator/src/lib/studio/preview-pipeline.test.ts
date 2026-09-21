@@ -320,3 +320,25 @@ describe("preview pipeline", () => {
     syncPipeline.dispose();
   });
 });
+
+describe("preview pipeline fonts", () => {
+  it("loads a project's fonts on the page before generating, and not when a newer edit won", async () => {
+    const run = vi.fn(async () => geometry("typeset"));
+    const client = { run, cancel: vi.fn(), dispose: vi.fn() } as unknown as GeometryWorkerClient;
+    let finishFonts!: () => void;
+    const loadFonts = vi.fn(() => new Promise<void>((resolve) => { finishFonts = resolve; }));
+    const pipeline = new PreviewPipeline(async () => client, loadFonts);
+    const project = { ...DEFAULT_PROJECT, textStyle: { font: "relief" as const, sizeMm: 4 }, plaque: { enabled: true, text: "T", sizeMm: 6, font: "lora" as const, placement: { anchor: "top" as const, offset: { x: 0, y: 0 } } } };
+    const pending = pipeline.generate(project, source());
+    await vi.waitFor(() => expect(loadFonts).toHaveBeenCalledWith(["relief", "lora"]));
+    expect(run).not.toHaveBeenCalled();
+    finishFonts();
+    await expect(pending).resolves.toMatchObject({ projectName: "typeset" });
+
+    const superseded = pipeline.generate(project, source());
+    pipeline.invalidate();
+    finishFonts();
+    await expect(superseded).rejects.toMatchObject({ name: "AbortError" });
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+});

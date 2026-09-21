@@ -71,6 +71,21 @@ export function clipPolygons(subject: Polygon2D[], clip: Polygon2D[], operation:
 }
 
 /**
+ * The region that closed rings enclose under the non-zero rule, as outers with
+ * holes. Winding is taken as drawn, so a font glyph's counter-wound contours
+ * become holes and its overlapping strokes merge.
+ */
+export function nonZeroPolygons(rings: Point2D[][]): Polygon2D[] {
+  const paths = rings.map(toPath).filter((path) => path.length >= 3);
+  if (!paths.length) return [];
+  const clipper = new ClipperLib.Clipper();
+  clipper.AddPaths(paths, ClipperLib.PolyType.ptSubject, true);
+  const tree = new ClipperLib.PolyTree();
+  clipper.Execute(ClipperLib.ClipType.ctUnion, tree, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
+  return fromTree(tree);
+}
+
+/**
  * Offset a polygon set as one region: positive grows, negative shrinks. Holes
  * travel with their outer, so an island inside a hole is offset on its own
  * and never carved away by the hole around it.

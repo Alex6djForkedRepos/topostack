@@ -1,4 +1,4 @@
-import type { OperationPath } from "@topostack/core";
+import { labelSvgPaths, roundText, type OperationPath } from "@topostack/core";
 
 /**
  * One polyline as an SVG path. Every preview, the sidebar's marker symbols and
@@ -23,4 +23,14 @@ export function symbolPath(rings: readonly (readonly { x: number; y: number }[])
 export function markingPath(marking: OperationPath): string {
   if (!marking.filled) return pointsToPath(marking.points);
   return [marking.points, ...(marking.holes ?? [])].map(ring => `${pointsToPath(ring)} Z`).join(" ");
+}
+
+/**
+ * A text marking as the previews draw it, from the same geometry the export
+ * writes: `fill` for typeface letters (even-odd), otherwise `stroke`, with
+ * round pen ends for the rounded style and single-line fonts.
+ */
+export function labelPaths(marking: OperationPath): { stroke: string; fill: string; round: boolean } {
+  if (!marking.label || !marking.points[0]) return { stroke: "", fill: "", round: false };
+  return { ...labelSvgPaths(marking.label, marking.points[0], 0, 0, marking.labelRotationRad, marking.textStyle), round: roundText(marking.textStyle) };
 }

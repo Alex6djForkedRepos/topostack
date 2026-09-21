@@ -1,4 +1,5 @@
-import type { GeometryIRV1, ProjectConfigV1, SourceBundleV1 } from "@topostack/core";
+import { projectFonts, type GeometryIRV1, type ProjectConfigV1, type SourceBundleV1, type TextFont } from "@topostack/core";
+import { ensureFonts } from "$lib/domain/fonts";
 import type { GeometryWorkerClient } from "$lib/workers/geometry-worker-client";
 import { ModuleLoadError } from "$lib/studio/lazy-load";
 
@@ -31,10 +32,13 @@ export class PreviewPipeline {
   private disposed = false;
 
   /** The worker client loads on first use, keeping it out of the startup bundle. */
-  constructor(private readonly loadClient: () => Promise<GeometryWorkerClient> = async () => {
-    const module = await import("$lib/workers/geometry-worker-client").catch((error: unknown) => { throw new ModuleLoadError("The geometry engine", error); });
-    return new module.GeometryWorkerClient();
-  }) {}
+  constructor(
+    private readonly loadClient: () => Promise<GeometryWorkerClient> = async () => {
+      const module = await import("$lib/workers/geometry-worker-client").catch((error: unknown) => { throw new ModuleLoadError("The geometry engine", error); });
+      return new module.GeometryWorkerClient();
+    },
+    private readonly loadFonts: (fonts: TextFont[]) => Promise<void> = ensureFonts,
+  ) {}
 
   invalidate(reason?: unknown): void {
     this.revision += 1;
@@ -60,7 +64,8 @@ export class PreviewPipeline {
       // not stick: forget it so the next generation retries the import.
       load.catch(() => { if (this.clientLoad === load) this.clientLoad = undefined; });
     }
-    const client = this.client ?? await this.clientLoad;
+    // The page draws the result's text too (previews, exports), so its fonts must load here as well as in the worker.
+    const [client] = await Promise.all([this.client ?? this.clientLoad, this.loadFonts(projectFonts(config))]);
     if (revision !== this.revision || this.disposed) throw new DOMException("Preview superseded", "AbortError");
     return client.run(config, source);
   }

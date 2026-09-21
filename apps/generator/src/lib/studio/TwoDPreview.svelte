@@ -1,9 +1,9 @@
 <script lang="ts">
   import SvgViewport from "$lib/studio/SvgViewport.svelte";
-  import { displayElevation, elevationUnit, labelPathData, paintStencil, type GeometryIRV1 } from "@topostack/core";
+  import { displayElevation, elevationUnit, paintStencil, type GeometryIRV1 } from "@topostack/core";
   import { Switch } from "@loidolt/theme-svelte";
   import { markingColor, markingDash, markingWidth } from "$lib/studio/marking-style";
-  import { markingPath, pointsToPath } from "$lib/studio/svg-path";
+  import { labelPaths, markingPath, pointsToPath } from "$lib/studio/svg-path";
   let { geometry, selectedLayer }: { geometry: GeometryIRV1; selectedLayer: number } = $props();
   const layer = $derived(geometry.layers[selectedLayer] ?? geometry.layers[0]);
   // Every sheet at or below the waterline sits under water, so the tint marks
@@ -53,7 +53,7 @@
         {/each}
       {/each}
       {#each layer.markings as marking (marking.id)}
-        <g data-marking-id={marking.id} data-marking-kind={marking.kind} data-transportation-class={marking.transportationClass}><path d={markingPath(marking)} fill-rule="evenodd" fill={marking.knockout ? "#e7c391" : marking.filled ? markingColor(marking) : "none"} stroke={marking.filled ? "none" : markingColor(marking)} stroke-width={markingWidth(marking, geometry.lineStyle)} stroke-dasharray={markingDash(marking, geometry.lineStyle)} stroke-linecap={marking.kind === "road" ? geometry.lineStyle.roadCap : marking.kind === "grid" ? "round" : undefined} stroke-linejoin={marking.kind === "road" ? "round" : undefined} />{#if marking.label && marking.points[0]}<path d={labelPathData(marking.label, marking.points[0], 0, 0, marking.labelRotationRad, marking.textStyle)} fill="none" stroke={markingColor(marking)} stroke-width={geometry.lineStyle.annotationMm} stroke-linecap={marking.textStyle?.font === "rounded" ? "round" : "butt"} stroke-linejoin={marking.textStyle?.font === "rounded" ? "round" : "miter"} />{/if}</g>
+        <g data-marking-id={marking.id} data-marking-kind={marking.kind} data-transportation-class={marking.transportationClass}><path d={markingPath(marking)} fill-rule="evenodd" fill={marking.knockout ? "#e7c391" : marking.filled ? markingColor(marking) : "none"} stroke={marking.filled ? "none" : markingColor(marking)} stroke-width={markingWidth(marking, geometry.lineStyle)} stroke-dasharray={markingDash(marking, geometry.lineStyle)} stroke-linecap={marking.kind === "road" ? geometry.lineStyle.roadCap : marking.kind === "grid" ? "round" : undefined} stroke-linejoin={marking.kind === "road" ? "round" : undefined} />{#if marking.label && marking.points[0]}{@const text = labelPaths(marking)}{#if text.fill}<path d={text.fill} fill-rule="evenodd" fill={markingColor(marking)} stroke="none" />{:else}<path d={text.stroke} fill="none" stroke={markingColor(marking)} stroke-width={geometry.lineStyle.annotationMm} stroke-linecap={text.round ? "round" : "butt"} stroke-linejoin={text.round ? "round" : "miter"} />{/if}{/if}</g>
       {/each}
       {#if showTemplate}
         {#each templates as template (template.key)}

@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { FONT_CATALOG } from "@topostack/core";
 
 const src = join(import.meta.dirname, "..", "..");
 
@@ -31,6 +32,8 @@ function studioStrings(): Set<string> {
       }
     }
   }
+  // The font pickers list the catalog's names.
+  for (const entry of FONT_CATALOG) strings.add(entry.name);
   return strings;
 }
 

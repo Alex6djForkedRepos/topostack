@@ -3,7 +3,7 @@ import { type FabricationPanel, fabricationPanels } from "./panel-layout.js";
 import { formatNumber as format } from "../primitives/format.js";
 import polygonClipping, { type MultiPolygon } from "polygon-clipping";
 import { clipPolyline, normalizeMultiPolygon, pointInPreparedPolygons, preparePolygons, toRing } from "../primitives/geometry2d.js";
-import { labelLineSegments } from "../annotate/labels.js";
+import { labelGeometry } from "../annotate/labels.js";
 import { omittedNestHoles, paintStencil } from "../pipeline/paint-regions.js";
 import type { GeometryIRV1, LayerIR, LineStyleV1, PaintRegionKind, Point2D, ProjectConfigV1 } from "../types.js";
 
@@ -31,8 +31,8 @@ type PanelBodies = Record<Operation, string>;
  * own pieces, so narrow the geometry here instead. A label whose every stroke
  * lies on this sheet ships whole; one a seam cuts through is exploded into its
  * strokes and each stroke clipped, so both sheets carry their share of the
- * glyph. Closed marker artwork is intersected as a polygon so a fill stays a
- * closed region rather than an open arc.
+ * glyph. Closed marker artwork and typeface letters are intersected as
+ * polygons so a fill stays a closed region rather than an open arc.
  */
 function panelMarkings(layer: LayerIR, included?: Set<number>): LayerIR["markings"] {
   if (!included) return layer.markings;
@@ -44,33 +44,38 @@ function panelMarkings(layer: LayerIR, included?: Set<number>): LayerIR["marking
     if (whole && parts.length === 1) return [{ ...mark, points: parts[0]! }];
     return parts.map((points, index) => ({ ...mark, id: `${mark.id}-part-${index + 1}`, points }));
   };
+  const clippedFill = (mark: LayerIR["markings"][number]): LayerIR["markings"] => {
+    const first = mark.points[0]!;
+    if (mark.points.every(inside) && (mark.holes ?? []).every((hole) => hole.every(inside))) return [mark];
+    try {
+      const clipped = normalizeMultiPolygon(polygonClipping.intersection(
+        [[toRing(mark.points), ...(mark.holes ?? []).map(toRing)]] as MultiPolygon,
+        polygons.map((polygon) => [toRing(polygon.outer), ...polygon.holes.map(toRing)]) as MultiPolygon,
+      ) as MultiPolygon);
+      if (clipped.length === 1) return [{ ...mark, points: clipped[0]!.outer, holes: clipped[0]!.holes }];
+      return clipped.map((polygon, index) => ({ ...mark, id: `${mark.id}-part-${index + 1}`, points: polygon.outer, holes: polygon.holes }));
+    } catch {
+      // A degenerate ring the clipper refuses is not worth losing the sheet over.
+      return inside(first) ? [mark] : [];
+    }
+  };
   return layer.markings.flatMap((mark) => {
     const first = mark.points[0];
     if (!first) return [];
     if (mark.label) {
-      const segments = labelLineSegments(mark.label, first, 0, 0, mark.labelRotationRad, mark.textStyle);
-      if (segments.every(({ start, end }) => inside(start) && inside(end))) return [mark];
-      const { label: _label, labelRotationRad: _rotation, textStyle: _style, ...stroke } = mark;
-      return parted(stroke, segments.flatMap(({ start, end }) => clipPolyline([start, end], prepared)), false);
+      const { strokes, fills } = labelGeometry(mark.label, first, 0, 0, mark.labelRotationRad, mark.textStyle);
+      if ([...strokes, ...fills.flatMap((fill) => [fill.outer, ...fill.holes])].every((line) => line.every(inside))) return [mark];
+      const { label: _label, labelRotationRad: _rotation, textStyle: _style, ...plain } = mark;
+      return [
+        ...parted(plain, strokes.flatMap((stroke) => clipPolyline(stroke, prepared)), false),
+        ...fills.flatMap((fill, index) => clippedFill({ ...plain, id: `${mark.id}-fill-${index + 1}`, points: fill.outer, holes: fill.holes, filled: true })),
+      ];
     }
     // A halo is a clearance gap, resolved against the whole layer by
     // `markerClearance`; it never serializes, so no sheet needs a copy.
     if (mark.knockout) return [];
     if (mark.points.length < 2) return inside(first) ? [mark] : [];
-    if (mark.filled) {
-      if (mark.points.every(inside) && (mark.holes ?? []).every((hole) => hole.every(inside))) return [mark];
-      try {
-        const clipped = normalizeMultiPolygon(polygonClipping.intersection(
-          [[toRing(mark.points), ...(mark.holes ?? []).map(toRing)]] as MultiPolygon,
-          polygons.map((polygon) => [toRing(polygon.outer), ...polygon.holes.map(toRing)]) as MultiPolygon,
-        ) as MultiPolygon);
-        if (clipped.length === 1) return [{ ...mark, points: clipped[0]!.outer, holes: clipped[0]!.holes }];
-        return clipped.map((polygon, index) => ({ ...mark, id: `${mark.id}-part-${index + 1}`, points: polygon.outer, holes: polygon.holes }));
-      } catch {
-        // A degenerate ring the clipper refuses is not worth losing the sheet over.
-        return inside(first) ? [mark] : [];
-      }
-    }
+    if (mark.filled) return clippedFill(mark);
     return parted(mark, clipPolyline(mark.points, prepared), true);
   });
 }

@@ -1,5 +1,5 @@
 import { get, set } from "idb-keyval";
-import { PAINT_REGION_KINDS, DEFAULT_PROJECT, MAP_MARKER_SIZE_MM, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, NORTH_ARROW_ANCHORS, validateProject, type CustomLineFeatureV1, type CustomLineKind, type MapMarkerV1, type MarkerSymbol, type NorthArrowAnchor, type NorthArrowStyle, type PlaqueV1, type ProjectConfigV1 } from "@topostack/core";
+import { PAINT_REGION_KINDS, DEFAULT_PROJECT, MAP_MARKER_SIZE_MM, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, NORTH_ARROW_ANCHORS, isTextFont, validateProject, type CustomLineFeatureV1, type CustomLineKind, type MapMarkerV1, type MarkerSymbol, type NorthArrowAnchor, type NorthArrowStyle, type PlaqueV1, type ProjectConfigV1 } from "@topostack/core";
 
 const PROJECT_KEY = "topostack:project:v1";
 /** Where an unreadable saved project is copied before autosave replaces it. */
@@ -48,8 +48,8 @@ function outputModeValue(value: unknown): ProjectConfigV1["outputMode"] {
   throw new Error("Project output mode must be stack or engraving.");
 }
 function textFontValue(value: unknown): ProjectConfigV1["textStyle"]["font"] {
-  if (value === "technical" || value === "rounded" || value === "stencil") return value;
-  throw new Error("Text font must be technical, rounded, or stencil.");
+  if (isTextFont(value)) return value;
+  throw new Error("Text font must be one of the listed engraving fonts.");
 }
 function trailPatternValue(value: unknown): ProjectConfigV1["lineStyle"]["trailPattern"] {
   if (value === "solid" || value === "dashed" || value === "dotted") return value;
@@ -89,6 +89,8 @@ function plaqueValue(value: unknown): PlaqueV1 | undefined {
     text: record.text,
     sizeMm: numberValue(record.sizeMm),
     placement: { anchor: plaqueAnchorValue(placement?.anchor), offset: offset ? { x: numberValue(offset.x), y: numberValue(offset.y) } : { x: 0, y: 0 } },
+    // Absent means the title follows the label font; keeping it absent keeps the fingerprint.
+    ...(record.font === undefined ? {} : { font: textFontValue(record.font) }),
   };
 }
 
