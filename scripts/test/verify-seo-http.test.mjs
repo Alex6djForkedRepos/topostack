@@ -56,3 +56,31 @@ test("a deployed sitemap whose content dates do not match the build is rejected"
   // Callers that do not know the dates still get the URL list.
   assert.deepEqual(await read(undefined), ["https://ci.invalid/"]);
 });
+
+for (const previousDate of [undefined, "2026-09-17"]) {
+  test(`deployment SEO retries a sitemap with ${previousDate ?? "missing"} content dates`, async (t) => {
+    const stale = new Response(
+      `<urlset><url><loc>https://ci.invalid/</loc>${previousDate ? `<lastmod>${previousDate}</lastmod>` : ""}</url></urlset>`,
+      { headers: { "content-type": "application/xml" } },
+    );
+    const responses = [stale, sitemap("https://ci.invalid/")];
+    const fetch = t.mock.method(globalThis, "fetch", async () => responses.shift());
+    assert.deepEqual(await fetchSitemapUrls("https://ci.invalid/sitemap.xml", ["https://ci.invalid/"], {
+      deadline: Date.now() + 1_000, retryDelayMs: 0, lastmod: { "https://ci.invalid/": "2026-09-18" },
+    }), ["https://ci.invalid/"]);
+    assert.equal(fetch.mock.callCount(), 2);
+  });
+}
+
+test("stale sitemap dates fail when propagation expires instead of passing or retrying forever", async (t) => {
+  let now = 0;
+  t.mock.method(Date, "now", () => now);
+  const fetch = t.mock.method(globalThis, "fetch", async () => {
+    now += 10;
+    return sitemap("https://ci.invalid/");
+  });
+  await assert.rejects(fetchSitemapUrls("https://ci.invalid/sitemap.xml", ["https://ci.invalid/"], {
+    deadline: 20, retryDelayMs: 0, lastmod: { "https://ci.invalid/": "2026-09-19" },
+  }), /deployed lastmod/);
+  assert.equal(fetch.mock.callCount(), 2);
+});
