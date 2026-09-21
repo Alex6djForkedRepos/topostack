@@ -30,6 +30,7 @@ import { geoPointToMapPoint, longitudeInBounds, markerSymbolCenterForAnchor, mar
 import { markerLayerPolygons } from "../annotate/marker-placement.js";
 import { offsetClosedRing } from "../primitives/offset.js";
 import { northArrowMarkings } from "../annotate/north-arrow.js";
+import { plaqueFootprint, plaqueMarkings } from "../annotate/plaque.js";
 import { sourceRequirements } from "./source-requirements.js";
 import { splitLayersForWorkArea } from "./split.js";
 import { displayElevation, elevationUnit } from "../primitives/units.js";
@@ -701,47 +702,64 @@ function routeMarkings(context: GenerationContext, clips: LayerClip[], ladder: E
   return labels;
 }
 
-/** Annotations must fit the crop whole; the compass follows the exposed stack surface. */
-function placeAnnotations({ config, source, clip, warnings, flatEngraving }: GenerationContext, clips: LayerClip[]): void {
+interface AnnotationPlacer {
+  /** Whether every marking fits inside the crop; pushes a LABEL_OMITTED warning naming `name` when not. */
+  fits(markings: OperationPath[], name: string): boolean;
+  /** Adds markings to the base layer, or routes them onto the exposed surface of the stack. */
+  push(markings: OperationPath[], followSurface: boolean): void;
+}
+
+function annotationPlacer({ config, clip, warnings, flatEngraving }: GenerationContext, clips: LayerClip[]): AnnotationPlacer {
   const baseLayer = clips[0]!.layer;
-  // All crop boundaries are convex, so endpoint/label-box checks suffice.
+  return {
+    // All crop boundaries are convex, so endpoint/label-box checks suffice.
+    fits(markings, name) {
+      const fits = markings.every((marking) => {
+        const points = [...marking.points];
+        if (marking.label && marking.points[0]) {
+          const { x, y } = marking.points[0];
+          const { width, height } = labelDimensions(marking.label, marking.textStyle);
+          points.push({ x: x + width, y }, { x, y: y + height }, { x: x + width, y: y + height });
+        }
+        const inset = config.lineStyle.annotationMm / 2;
+        return points.every(({ x, y }) => [[-inset, -inset], [inset, -inset], [inset, inset], [-inset, inset]].every(([dx, dy]) => pointInRing({ x: x + dx!, y: y + dy! }, clip)));
+      });
+      if (!fits) warnings.push({ code: "LABEL_OMITTED", message: `${name} was omitted because it does not fit the material. Increase the output size or reduce the annotation size.` });
+      return fits;
+    },
+    push(markings, followSurface) {
+      if (!followSurface || flatEngraving) {
+        baseLayer.markings.push(...markings);
+        return;
+      }
+      // Route the complete design onto final material, excluding every sheet above.
+      // Letters use the same strokes as preview/SVG text so they remain complete
+      // even when a contour passes through a glyph.
+      for (const marking of markings) {
+        const paths = marking.label && marking.points[0]
+          ? labelLineSegments(marking.label, marking.points[0], 0, 0, marking.labelRotationRad, marking.textStyle).map(({ start, end }) => [start, end])
+          : [marking.points];
+        for (const { layer, material, covering } of clips) {
+          paths.forEach((path, pathIndex) => {
+            clipPolyline(path, material, covering).forEach((points, clipIndex) => layer.markings.push({
+              id: `${marking.id}-${layer.index}-${pathIndex}-${clipIndex}`,
+              operation: marking.operation,
+              kind: marking.kind,
+              points,
+            }));
+          });
+        }
+      }
+    },
+  };
+}
+
+/** Annotations must fit the crop whole; the compass follows the exposed stack surface. */
+function placeAnnotations(context: GenerationContext, clips: LayerClip[]): void {
+  const { config, source } = context;
+  const placer = annotationPlacer(context, clips);
   const addAnnotation = (markings: OperationPath[], name: string, followSurface = false): void => {
-    const fits = markings.every((marking) => {
-      const points = [...marking.points];
-      if (marking.label && marking.points[0]) {
-        const { x, y } = marking.points[0];
-        const { width, height } = labelDimensions(marking.label, marking.textStyle);
-        points.push({ x: x + width, y }, { x, y: y + height }, { x: x + width, y: y + height });
-      }
-      const inset = config.lineStyle.annotationMm / 2;
-      return points.every(({ x, y }) => [[-inset, -inset], [inset, -inset], [inset, inset], [-inset, inset]].every(([dx, dy]) => pointInRing({ x: x + dx!, y: y + dy! }, clip)));
-    });
-    if (!fits) {
-      warnings.push({ code: "LABEL_OMITTED", message: `${name} was omitted because it does not fit the material. Increase the output size or reduce the annotation size.` });
-      return;
-    }
-    if (!followSurface || flatEngraving) {
-      baseLayer.markings.push(...markings);
-      return;
-    }
-    // Route the complete design onto final material, excluding every sheet above.
-    // Letters use the same strokes as preview/SVG text so they remain complete
-    // even when a contour passes through a glyph.
-    for (const marking of markings) {
-      const paths = marking.label && marking.points[0]
-        ? labelLineSegments(marking.label, marking.points[0], 0, 0, marking.labelRotationRad, marking.textStyle).map(({ start, end }) => [start, end])
-        : [marking.points];
-      for (const { layer, material, covering } of clips) {
-        paths.forEach((path, pathIndex) => {
-          clipPolyline(path, material, covering).forEach((points, clipIndex) => layer.markings.push({
-            id: `${marking.id}-${layer.index}-${pathIndex}-${clipIndex}`,
-            operation: marking.operation,
-            kind: marking.kind,
-            points,
-          }));
-        });
-      }
-    }
+    if (placer.fits(markings, name)) placer.push(markings, followSurface);
   };
 
   if (config.showNorthArrow) {
@@ -827,6 +845,30 @@ function placeElevationLabels({ config, flatEngraving, warnings }: GenerationCon
     code: "LABEL_OMITTED",
     message: `Elevation labels were omitted from layer${omittedLayers.length === 1 ? "" : "s"} ${omittedLayers.join(", ")} because no collision-free position fit the exposed face.`,
   });
+}
+
+/**
+ * The title is placed after every map detail so its material-colored backing
+ * clears contours, roads and labels beneath the letters; only markers, which
+ * the user positioned deliberately, are drawn over it.
+ */
+function placePlaque(context: GenerationContext, clips: LayerClip[]): void {
+  const { config, flatEngraving } = context;
+  const markings = plaqueMarkings(config);
+  const footprint = plaqueFootprint(config);
+  const placer = annotationPlacer(context, clips);
+  if (!markings.length || !footprint || !placer.fits(markings, "Title")) return;
+  const materials = (flatEngraving ? clips.slice(0, 1) : clips).map(clip => clip.material);
+  markerLayerPolygons(footprint, materials).forEach(({ layerIndex, polygon }, pieceIndex) => clips[layerIndex]!.layer.markings.push({
+    id: `plaque-backing-${layerIndex}-${pieceIndex}`,
+    operation: "engrave",
+    kind: "label",
+    points: polygon.outer,
+    ...(polygon.holes.length ? { holes: polygon.holes } : {}),
+    filled: true,
+    knockout: true,
+  }));
+  placer.push(markings, true);
 }
 
 /**
@@ -927,6 +969,7 @@ export function generateGeometry(config: ProjectConfigV1, source: SourceBundleV1
     message: "Transportation labels do not fit the exposed material. Reduce Text size or Vertical exaggeration, or increase the artwork size.",
   });
   if (config.showElevationLabels) placeElevationLabels(context, layers);
+  placePlaque(context, clips);
   placeMarkers(context, clips);
   dedupeMarkingIds(layers);
 

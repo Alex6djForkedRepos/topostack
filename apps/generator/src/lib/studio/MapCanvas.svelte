@@ -1,14 +1,22 @@
 <script lang="ts">
   import { onMount, untrack, getContext } from "svelte";
   import { base } from "$app/paths";
-  import { LocateFixed } from "@lucide/svelte";
+  import { LocateFixed, MapPin } from "@lucide/svelte";
   import * as maplibregl from "maplibre-gl";
   import mapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
   import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
   import { MAX_PROJECT_DIMENSION_MM, markerSymbolCenterForAnchor, markerSymbolPaths, unwrapLongitude, type CustomLineFeatureV1, type GeoBounds, type MapMarkerV1, type MarkerSymbol, type ProjectConfigV1 } from "@topostack/core";
   import { boundsForProject } from "$lib/domain/data-provider";
   import { symbolPath } from "$lib/studio/svg-path";
-  let { project, aspectLocked = $bindable(false), onLocationChange, onSelectionResize, onUnavailable }: { aspectLocked?: boolean; project: ProjectConfigV1; onSelectionResize: (widthMm: number, heightMm: number, bounds: GeoBounds) => void; onUnavailable?: (reason?: "unsupported" | "load-failed") => void; onLocationChange: (lat: number, lon: number, zoom: number, bounds: GeoBounds) => void } = $props();
+  let { project, aspectLocked = $bindable(false), placingMarker = false, onLocationChange, onSelectionResize, onUnavailable, onPlaceMarker, onMoveMarker, onStopPlacing }: {
+    aspectLocked?: boolean; project: ProjectConfigV1; onSelectionResize: (widthMm: number, heightMm: number, bounds: GeoBounds) => void; onUnavailable?: (reason?: "unsupported" | "load-failed") => void; onLocationChange: (lat: number, lon: number, zoom: number, bounds: GeoBounds) => void;
+    /** While true, a click on the map places a marker there. */
+    placingMarker?: boolean;
+    onPlaceMarker?: (lat: number, lon: number) => void;
+    /** Returns false when the dropped position was rejected, so the marker returns to its saved place. */
+    onMoveMarker?: (id: string, lat: number, lon: number) => boolean;
+    onStopPlacing?: () => void;
+  } = $props();
   import AtommZoom from "$lib/atomm/AtommZoom.svelte";
   const isEmbedded = getContext<() => boolean>("atomm-embedded") ?? (() => false);
   let zoomScale = $state(1);
@@ -111,6 +119,24 @@
     return element;
   }
 
+  const wrapLongitude = (lng: number): number => ((lng + 180) % 360 + 360) % 360 - 180;
+  // Six decimals is about 0.1 m, far finer than a click or any engraving.
+  const roundDegrees = (value: number): number => Math.round(value * 1e6) / 1e6;
+
+  function addRenderedMarker(marker: MapMarkerV1, target: MapLibreMap): maplibregl.Marker {
+    const draggable = Boolean(onMoveMarker);
+    const rendered = new maplibregl.Marker({ element: markerElement(marker), anchor: "center", offset: markerPixelOffset(marker.symbol), draggable }).setLngLat([marker.lon, marker.lat]).addTo(target);
+    if (draggable) {
+      rendered.getElement().classList.add("topostack-map-marker--draggable");
+      rendered.on("dragend", () => {
+        const { lat, lng } = rendered.getLngLat();
+        const current = project.markers.find((item) => item.id === marker.id);
+        if (!onMoveMarker?.(marker.id, roundDegrees(lat), roundDegrees(wrapLongitude(lng))) && current) rendered.setLngLat([current.lon, current.lat]);
+      });
+    }
+    return rendered;
+  }
+
   function fitSelection(): void {
     if (!map || !guide || resizing) return;
     const bounds = boundsForProject(project);
@@ -179,6 +205,12 @@
     map.on("zoom", () => { if (map) zoomScale = 2 ** (map.getZoom() - initialZoom); });
     map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: `<a href="${base}/attribution${import.meta.env.VITE_SITE_ENV === "atomm" ? ".html" : ""}" target="_blank" rel="noopener noreferrer">All sources</a>` }), "bottom-left");
     map.on("load", () => syncCustomLines(project.customLines));
+    map.on("click", (event) => {
+      if (!placingMarker || !onPlaceMarker) return;
+      // Clicking an existing marker selects it for dragging, not a new placement.
+      if (event.originalEvent.target instanceof Element && event.originalEvent.target.closest(".topostack-map-marker")) return;
+      onPlaceMarker(roundDegrees(event.lngLat.lat), roundDegrees(wrapLongitude(event.lngLat.lng)));
+    });
     let reportedFailure = false;
     let styleReady = false;
     map.once("style.load", () => { styleReady = true; });
@@ -247,7 +279,7 @@
         rendered = undefined;
       }
       if (!rendered) {
-        rendered = new maplibregl.Marker({ element: markerElement(marker), anchor: "center", offset: markerPixelOffset(marker.symbol) }).setLngLat([marker.lon, marker.lat]).addTo(map);
+        rendered = addRenderedMarker(marker, map);
         mapMarkers.set(marker.id, rendered);
       } else {
         rendered.setLngLat([marker.lon, marker.lat]);
@@ -262,10 +294,10 @@
   });
 </script>
 
-<svelte:window onkeydown={(event) => { if (event.key === "Escape") finishResize(true); }} onblur={() => finishResize(true)} />
+<svelte:window onkeydown={(event) => { if (event.key !== "Escape") return; finishResize(true); if (placingMarker) onStopPlacing?.(); }} onblur={() => finishResize(true)} />
 
 <div class="map-wrap">
-  <div bind:this={container} class="map-canvas"></div>
+  <div bind:this={container} class="map-canvas" class:placing-marker={placingMarker}></div>
   {#if !isEmbedded()}
   <div class="selection-tools">
     <label><input type="checkbox" bind:checked={aspectLocked} disabled={isCircle} /> {isCircle ? "Circle proportions locked" : "Lock aspect ratio"}</label>
@@ -292,7 +324,11 @@
   </div>
   <div class="map-crosshair"><span></span><span></span></div>
   {#if isEmbedded()}<AtommZoom value={zoomScale} min={0.125} max={16} onZoom={setZoomScale} onFit={resetMapView} />{/if}
-  <div class="map-caption"><LocateFixed size={14} /> Drag the map to choose your terrain</div>
+  {#if placingMarker}
+    <div class="map-caption map-caption--placing" role="status"><MapPin size={14} /> Click to place · drag to move · Esc when done</div>
+  {:else}
+    <div class="map-caption"><LocateFixed size={14} /> Drag the map to choose your terrain</div>
+  {/if}
 </div>
 
 <style>
@@ -320,6 +356,24 @@
     color: #b84824;
     filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.55));
     pointer-events: none;
+  }
+
+  :global(.topostack-map-marker--draggable) {
+    pointer-events: auto;
+    cursor: grab;
+  }
+
+  :global(.topostack-map-marker--draggable:active) {
+    cursor: grabbing;
+  }
+
+  .placing-marker :global(.maplibregl-canvas-container.maplibregl-interactive) {
+    cursor: crosshair;
+  }
+
+  .map-caption--placing {
+    background: var(--loidolt-accent);
+    color: var(--loidolt-on-accent);
   }
 
   :global(.topostack-map-marker svg) {

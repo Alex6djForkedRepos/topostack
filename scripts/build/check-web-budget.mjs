@@ -45,11 +45,20 @@ const budgets = {
   // offset behind paintStencil ship in generateGeometry, and the cut-layer
   // overlay imports it for legacy IR. CI measured 474,123 with Node 22.22.2,
   // 123 bytes over the old line.
-  // Raised 2026-09-21 for the lake depth routes (/lakes, two generated lake
-  // page templates) and the custom lake map guide. Every route entry counts
-  // here even though the studio loads none of them: 476,968 -> 480,828 with
-  // Node 22.22.2 (production build).
-  startupJavaScriptGzip: 490_000,
+  // Raised 2026-09-20 for the Tier 1 studio features, measured with Node
+  // 22.22.2 on dev (476,667) against all five branches merged (482,651), a
+  // 5,984 byte delta: undo shortcuts +359, share links +1,162, GPX/KML/GeoJSON
+  // import +1,275 (the parser and wording load lazily; this is the panel
+  // control), map marker placement +649, and the title plaque +3,265 (layout,
+  // anchoring and validation ship in generateGeometry, counted on the main
+  // thread and in the worker). dev already sat under the 2% headroom note;
+  // set to 490,000 to restore roughly 1.5%.
+  // The lake depth routes (/lakes, two generated lake page templates) and the
+  // custom lake map guide add route entries the studio never loads but this
+  // total counts. Raised 2026-09-21: 482,942 on dev (with the head-metadata
+  // change) -> 489,247 with the lake pages, leaving 0.15%; set to 500,000 to
+  // restore roughly 2%. Node 22.22.2, production build.
+  startupJavaScriptGzip: 500_000,
   // All routes, lazy-loaded tools, and workers, including the interactive lake
   // guide and MapLibre's worker. The fetched lake catalog is budgeted below.
   // Raised 2026-09-17 for the same two guide routes: 888,934 -> 895,695.
@@ -63,7 +72,10 @@ const budgets = {
   // components behind a shared context: measured with Node 22.22.2 at
   // 927,025 before -> 929,316 after, a 2,291 byte delta, leaving 684 bytes
   // of headroom. Set to 940,000 so ordinary studio changes fit again.
-  totalJavaScriptGzip: 940_000,
+  // Raised 2026-09-20 for the same Tier 1 features: measured with Node 22.22.2
+  // at 929,291 on dev -> 939,067 with all five merged, a 9,776 byte delta that
+  // includes the lazy share-link and geo-import chunks, leaving 933 bytes.
+  totalJavaScriptGzip: 950_000,
   largestJavaScriptGzip: 300_000,
   // Public guides add styles outside the studio. Keep a separate allowance for
   // the Atomm template, which is loaded only inside the platform iframe.
@@ -75,13 +87,17 @@ const budgets = {
   // 35,389 -> 35,965 standalone and 44,837 -> 45,413 total with Node 22.14.0.
   // Raised again 2026-09-17 for guide tables: 35,965 -> 36,583 standalone and
   // 45,413 -> 46,031 total with Node 22.14.0.
-  standaloneCssGzip: 37_000,
+  // Raised 2026-09-21 for the example gallery and example pages: 36,731 ->
+  // 37,034 with Node 22.22.2 (production build), on top of the lake pages.
+  standaloneCssGzip: 37_800,
   // Raised 2026-09-20 after re-review: the same build measures 9,993 bytes
   // with Node 22.22.2 and 10,003 with supported Node 26.5.0. Leave roughly
   // 2% compression headroom; the total CSS ceiling remains unchanged.
   atommCssGzip: 10_200,
-  // Raised 2026-09-21 for the example gallery and example pages: 46,396 ->
-  // 46,699 total with Node 22.22.2 (production build).
+  // Raised 2026-09-21 for the lake depth pages: 46,218 on dev (with the
+  // head-metadata change) -> 46,724, Node 22.22.2, production build.
+  // The example gallery and example pages add 46,724 -> 47,027, still
+  // inside 47,500.
   totalCssGzip: 47_500,
   // 7,775 records across 11 sources (~306 kB); fetched only when browsing/searching.
   lakeDirectoryGzip: 320_000,
