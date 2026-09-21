@@ -1,6 +1,6 @@
-import { anchoredCenter } from "./anchor.js";
+import { anchoredCenter, placementAt } from "./anchor.js";
 import { labelDimensions } from "./labels.js";
-import type { OperationPath, Point2D, ProjectConfigV1, TextStyleV1 } from "../types.js";
+import type { NorthArrowPlacementV1, OperationPath, Point2D, ProjectConfigV1, TextStyleV1 } from "../types.js";
 
 function circle(radius: number, steps = 48): Point2D[] {
   const points = Array.from({ length: steps }, (_, index) => {
@@ -22,9 +22,16 @@ function star(pointRadii: number[], valleyRadius: number): Point2D[] {
   return [...points, { ...points[0]! }];
 }
 
-function centerFor(config: ProjectConfigV1): Point2D {
+/** Where the compass center sits, relative to the artwork center. */
+export function northArrowCenter(config: ProjectConfigV1): Point2D {
   const halfSymbol = config.northArrowSizeMm / 2;
   return anchoredCenter(config, config.northArrowPlacement, halfSymbol, halfSymbol);
+}
+
+/** The placement that puts the compass center at `center`, kept inside the crop. */
+export function northArrowPlacementAt(config: ProjectConfigV1, center: Point2D): NorthArrowPlacementV1 {
+  const halfSymbol = config.northArrowSizeMm / 2;
+  return placementAt(config, center, halfSymbol, halfSymbol);
 }
 
 function transform(points: Point2D[], center: Point2D, sizeMm: number): Point2D[] {
@@ -89,7 +96,7 @@ function marinerMarkings(center: Point2D, sizeMm: number): OperationPath[] {
 }
 
 export function northArrowMarkings(config: ProjectConfigV1): OperationPath[] {
-  const center = centerFor(config);
+  const center = northArrowCenter(config);
   if (config.northArrowStyle === "minimal") return minimalMarkings(center, config.northArrowSizeMm);
   if (config.northArrowStyle === "mariner") return marinerMarkings(center, config.northArrowSizeMm);
   return classicMarkings(center, config.northArrowSizeMm);
@@ -97,5 +104,5 @@ export function northArrowMarkings(config: ProjectConfigV1): OperationPath[] {
 
 /** Reserved material area for the selected compass, including its visual breathing room. */
 export function northArrowFootprint(config: ProjectConfigV1): Point2D[] {
-  return transform(circle(0.5, 64), centerFor(config), config.northArrowSizeMm);
+  return transform(circle(0.5, 64), northArrowCenter(config), config.northArrowSizeMm);
 }

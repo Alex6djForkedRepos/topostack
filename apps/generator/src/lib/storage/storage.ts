@@ -77,6 +77,14 @@ function plaqueAnchorValue(value: unknown): NorthArrowAnchor {
   if (NORTH_ARROW_ANCHORS.includes(value as NorthArrowAnchor)) return value as NorthArrowAnchor;
   throw new Error("Title anchor is invalid.");
 }
+function scaleBarPlacementValue(value: unknown): ProjectConfigV1["scaleBarPlacement"] {
+  if (value === undefined) return undefined;
+  if (!value || typeof value !== "object") throw new Error("Scale bar placement is invalid.");
+  const record = value as Record<string, unknown>;
+  if (!NORTH_ARROW_ANCHORS.includes(record.anchor as NorthArrowAnchor)) throw new Error("Scale bar anchor is invalid.");
+  const offset = record.offset && typeof record.offset === "object" ? record.offset as Record<string, unknown> : undefined;
+  return { anchor: record.anchor as NorthArrowAnchor, offset: offset ? { x: numberValue(offset.x), y: numberValue(offset.y) } : { x: 0, y: 0 } };
+}
 function plaqueValue(value: unknown): PlaqueV1 | undefined {
   if (value === undefined) return undefined;
   if (!value || typeof value !== "object") throw new Error("Title settings are invalid.");
@@ -268,6 +276,8 @@ export function parseProject(value: unknown): ProjectConfigV1 {
       anchor: northArrowAnchorValue(northArrowPlacementRecord.anchor),
       offset: northArrowOffsetRecord ? { x: numberValue(northArrowOffsetRecord.x), y: numberValue(northArrowOffsetRecord.y) } : { ...DEFAULT_PROJECT.northArrowPlacement.offset },
     } : { anchor: DEFAULT_PROJECT.northArrowPlacement.anchor, offset: { ...DEFAULT_PROJECT.northArrowPlacement.offset } },
+    // Absent keeps the bar's original spot and the project's fingerprint.
+    ...(record.scaleBarPlacement === undefined ? {} : { scaleBarPlacement: scaleBarPlacementValue(record.scaleBarPlacement) }),
     ...(record.plaque === undefined ? {} : { plaque: plaqueValue(record.plaque) }),
     markers: markersValue(record.markers),
     customLines: customLinesValue(record.customLines),

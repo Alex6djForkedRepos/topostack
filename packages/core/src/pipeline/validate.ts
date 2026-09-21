@@ -28,7 +28,7 @@ import {
   NORTH_ARROW_MIN_SIZE_MM,
   NORTH_ARROW_STYLES,
 } from "../types.js";
-import type { GeoBounds, PlaqueV1, ProjectConfigV1 } from "../types.js";
+import type { GeoBounds, NorthArrowPlacementV1, PlaqueV1, ProjectConfigV1 } from "../types.js";
 
 
 export function assertGeographicBounds(bounds: GeoBounds, label: "Project" | "Source"): void {
@@ -127,6 +127,7 @@ export function validateProject(config: ProjectConfigV1): void {
   if (config.northArrowSizeMm < NORTH_ARROW_MIN_SIZE_MM || config.northArrowSizeMm > northArrowMaximum) throw new Error(`North arrow size must be between ${NORTH_ARROW_MIN_SIZE_MM} and ${northArrowMaximum} mm.`);
   if (Math.abs(config.northArrowPlacement.offset.x) > 1 || Math.abs(config.northArrowPlacement.offset.y) > 1) throw new Error("North arrow offsets must be between -100% and 100%.");
   if (config.plaque !== undefined) validatePlaque(config.plaque);
+  if (config.scaleBarPlacement !== undefined) validatePlacement(config.scaleBarPlacement, "Scale bar");
   if (!config.waterDepthOverrides || typeof config.waterDepthOverrides !== "object") throw new Error("Water depth overrides are required.");
   for (const [lake, depth] of Object.entries(config.waterDepthOverrides)) {
     if (!/^[1-9]\d*$/.test(lake)) throw new Error(`Water depth override key ${lake} must be a HydroLAKES id.`);
@@ -134,6 +135,11 @@ export function validateProject(config: ProjectConfigV1): void {
   }
   const bounds = config.location.bounds;
   if (bounds) assertGeographicBounds(bounds, "Project");
+}
+
+function validatePlacement(placement: NorthArrowPlacementV1 | undefined, name: string): void {
+  if (!placement || typeof placement !== "object" || !NORTH_ARROW_ANCHORS.includes(placement.anchor)) throw new Error(`${name} anchor is invalid.`);
+  if (!placement.offset || ![placement.offset.x, placement.offset.y].every(Number.isFinite) || Math.abs(placement.offset.x) > 1 || Math.abs(placement.offset.y) > 1) throw new Error(`${name} offsets must be between -100% and 100%.`);
 }
 
 function validatePlaque(plaque: PlaqueV1): void {

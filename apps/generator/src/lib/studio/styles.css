@@ -15,5 +15,6 @@
 @import "./styles/generation.css";
 @import "./styles/preview.css";
 @import "./styles/overlays.css";
+@import "./styles/placement.css";
 @import "./styles/responsive.css";
 @import "./styles/export-dialog.css";

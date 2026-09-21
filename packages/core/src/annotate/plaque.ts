@@ -1,7 +1,7 @@
-import { ANCHOR_VECTORS, anchoredCenter } from "./anchor.js";
+import { ANCHOR_VECTORS, anchoredCenter, placementAt } from "./anchor.js";
 import { isBitmapFont } from "./font-data.js";
 import { labelDimensions } from "./labels.js";
-import { PLAQUE_MAX_LINES, type OperationPath, type PlaqueV1, type Point2D, type ProjectConfigV1, type TextFont, type TextStyleV1 } from "../types.js";
+import { PLAQUE_MAX_LINES, type NorthArrowPlacementV1, type OperationPath, type PlaqueV1, type Point2D, type ProjectConfigV1, type TextFont, type TextStyleV1 } from "../types.js";
 
 /** Space between plaque lines as a fraction of the cap height. */
 const LINE_GAP = 0.6;
@@ -40,6 +40,21 @@ function layout(config: ProjectConfigV1, plaque: PlaqueV1): PlaqueLayout {
   const height = (lines.length - 1) * plaque.sizeMm * (1 + LINE_GAP) + lastLineHeight;
   const center = anchoredCenter(config, plaque.placement, width / 2, height / 2, Math.hypot(width, height) / 2);
   return { lines, style, widths, width, height, center };
+}
+
+/** The text block of the active plaque, or undefined when none is engraved. */
+export function plaqueBox(config: ProjectConfigV1): { center: Point2D; width: number; height: number } | undefined {
+  const plaque = activePlaque(config);
+  if (!plaque) return undefined;
+  const { center, width, height } = layout(config, plaque);
+  return { center, width, height };
+}
+
+/** The placement that puts the plaque's text block center at `center`, kept inside the crop. */
+export function plaquePlacementAt(config: ProjectConfigV1, center: Point2D): NorthArrowPlacementV1 | undefined {
+  const box = plaqueBox(config);
+  if (!box) return undefined;
+  return placementAt(config, center, box.width / 2, box.height / 2, Math.hypot(box.width, box.height) / 2);
 }
 
 export function plaqueMarkings(config: ProjectConfigV1): OperationPath[] {

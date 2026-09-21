@@ -1,12 +1,12 @@
 import { addMaterialNests, polygonCenter } from "./nesting.js";
 import { CONTOUR_SIMPLIFICATION_FACTOR, clipContours, contourToMm, layerForElevation, roundContourRing, sampleElevation, simplify } from "./contours.js";
-import { groundWidthMFor, horizontalScaleFor, planTerrainStack, scaleMarking } from "./stack-plan.js";
+import { groundWidthMFor, horizontalScaleFor, planTerrainStack } from "./stack-plan.js";
 import { coordinateGridMarkings } from "./coordinate-grid.js";
 import { fabricationLabel, junctionRing, longestPath, polylineLength, styledTransportationPaths, transportationJunctions, transportationOutlines } from "./transportation.js";
 import { assertGeographicBounds, validateProject } from "./validate.js";
 import { projectFingerprint } from "./fingerprint.js";
 import { smoothLakeShorelines } from "../water/lake-shoreline.js";
-import { cropBoundary as boundary, cropElevationRange, cropRadiusMm } from "../primitives/crop.js";
+import { cropBoundary as boundary, cropElevationRange } from "../primitives/crop.js";
 import { contours } from "d3-contour";
 import polygonClipping, { type MultiPolygon, type Pair, type Ring } from "polygon-clipping";
 import {
@@ -30,6 +30,7 @@ import { geoPointToMapPoint, longitudeInBounds, markerSymbolCenterForAnchor, mar
 import { markerLayerPolygons } from "../annotate/marker-placement.js";
 import { offsetClosedRing } from "../primitives/offset.js";
 import { northArrowMarkings } from "../annotate/north-arrow.js";
+import { scaleBarMarkings } from "../annotate/scale-bar.js";
 import { plaqueFootprint, plaqueMarkings } from "../annotate/plaque.js";
 import { sourceRequirements } from "./source-requirements.js";
 import { splitLayersForWorkArea } from "./split.js";
@@ -776,22 +777,9 @@ function placeAnnotations(context: GenerationContext, clips: LayerClip[]): void 
     addAnnotation(northArrowMarkings(config), "North arrow", true);
   }
   if (config.showScaleBar) {
-    const radius = cropRadiusMm(config);
-    const x = config.cropShape === "circle" ? -radius * 0.58 : -config.widthMm / 2 + 9;
-    const y = config.cropShape === "circle" ? radius * 0.58 : -config.heightMm / 2 + 10;
-    const groundWidthM = groundWidthMFor(source.bounds);
-    // Pick the labeled distance from whatever fits the drawn cap, so the bar
-    // length and its engraved label always agree.
-    const maxLengthMm = config.cropShape === "circle" ? radius * 0.55 : config.widthMm * 0.35;
-    const maxDistanceM = groundWidthM > 0 ? (maxLengthMm / config.widthMm) * groundWidthM : 0;
-    const scale = scaleMarking(Math.min(groundWidthM * 0.2, maxDistanceM), config.units);
-    const length = groundWidthM > 0 ? (scale.distanceM / groundWidthM) * config.widthMm : 0;
-    addAnnotation([
-      { id: "scale-main", operation: "engrave", kind: "guide", points: [{ x, y }, { x: x + length, y }] },
-      { id: "scale-left", operation: "engrave", kind: "guide", points: [{ x, y: y - 1.7 }, { x, y: y + 1.7 }] },
-      { id: "scale-right", operation: "engrave", kind: "guide", points: [{ x: x + length, y: y - 1.7 }, { x: x + length, y: y + 1.7 }] },
-      { id: "scale-label", operation: "engrave", kind: "label", points: [{ x, y: y + 5 }], label: scale.label, textStyle: config.textStyle },
-    ], "Scale bar");
+    // Like the compass, the bar follows the exposed surface: on the bottom
+    // sheet alone, the sheets above covered most of it.
+    addAnnotation(scaleBarMarkings(config, groundWidthMFor(source.bounds)), "Scale bar", true);
   }
 }
 
