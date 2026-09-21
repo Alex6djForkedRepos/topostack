@@ -1,0 +1,19 @@
+/* Studio stylesheet. Loaded once by routes/studio/+page.svelte.
+ *
+ * The files import in cascade order: rules with equal specificity are
+ * resolved by position, so keep responsive.css (every breakpoint) after the
+ * area files it adjusts, and add new area files before it. Atomm renders the
+ * same markup inside its own design system; see lib/atomm/atomm-workbench.css. */
+@import "./styles/shell.css";
+@import "./styles/sidebar.css";
+@import "./styles/linework.css";
+@import "./styles/setup.css";
+@import "./styles/controls.css";
+@import "./styles/custom-data.css";
+@import "./styles/annotations.css";
+@import "./styles/advanced.css";
+@import "./styles/generation.css";
+@import "./styles/preview.css";
+@import "./styles/overlays.css";
+@import "./styles/responsive.css";
+@import "./styles/export-dialog.css";

@@ -28,10 +28,16 @@ export default defineConfig({
             { name: "three", test: /node_modules\/three/, priority: 40 },
             { name: "maplibre", test: /node_modules\/maplibre-gl/, priority: 40 },
             { name: "ui", test: /node_modules\/(?:@lucide\/svelte|svelte|bits-ui)/, priority: 30 },
+            // The geometry engine is many small modules that the studio, its worker,
+            // and the packaging code import in different subsets. Left to itself
+            // the bundler splits them per consumer, which costs more in chunk
+            // overhead and lost gzip context than it saves. Keep the generation
+            // path in one chunk; export/ is only needed once a project is packaged.
+            { name: "core", test: /\/packages\/core\/src\/(?!export\/)|node_modules\/(?:polygon-clipping|d3-contour|clipper-lib)/, priority: 25 },
             // Capture shared site dependencies before guides so the homepage
             // never needs the guide content chunk. Split shared JS by actual
             // consumers to avoid loading guide-only navigation on the homepage.
-            { name: "site", test: /node_modules\/(?:@loidolt\/|@sveltejs\/kit\/)|\/src\/lib\/(?:FeedbackButton\.svelte|theme\.ts|seo\.ts|support\.ts)$/, priority: 20, entriesAware: true },
+            { name: "site", test: /node_modules\/(?:@loidolt\/|@sveltejs\/kit\/)|\/src\/lib\/site\/(?:FeedbackButton\.svelte|theme\.ts|seo\.ts|support\.ts)$/, priority: 20, entriesAware: true },
             { name: "guides", test: /\/src\/routes\/(?:guides(?:\/.*)?|examples\/[^/]+|privacy)\/\+page\.svelte$/, priority: 10 },
           ],
         },

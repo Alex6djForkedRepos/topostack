@@ -117,10 +117,11 @@ Explicitly selected busy ports cause an error. The individual `dev:web` and `dev
 | --- | --- |
 | [`apps/generator`](apps/generator) | Svelte 5/SvelteKit homepage and studio, previews, browser storage, downloads, and Atomm integration |
 | [`packages/core`](packages/core) | Portable TypeScript geometry engine, fabrication planning, and SVG generation |
+| [`packages/data-contracts`](packages/data-contracts) | Source-only contracts shared by the studio, the Worker, and scripts: catalog validation, archive releases, terrain PNG decoding, usage events |
 | [`workers/map-api`](workers/map-api) | Cloudflare Worker for terrain, map archives, geocoding, caching, and readiness checks |
 | [`e2e`](e2e) | Deterministic Playwright tests for navigation, previews, generation, and exports |
 | [`e2e-live`](e2e-live) | Browser canary that generates and exports against a deployed API |
-| [`scripts`](scripts) | Development launcher, data provisioning, build budgets, and release verification |
+| [`scripts`](scripts/README.md) | Build steps, data builders, provisioning, verification, and release tooling, grouped by purpose; the README lists how each is run |
 | [`atomm`](atomm) | Platform listing and cover artwork |
 | [`docs`](docs) | Architecture, fabrication details, and operational runbooks |
 
@@ -142,7 +143,7 @@ The Python data builders under `scripts/` have their own tests, kept out of `npm
 
 ```sh
 python3.13 -m venv .venv-data && . .venv-data/bin/activate
-pip install -r scripts/survey-requirements.txt
+pip install -r scripts/data-build/requirements.txt
 npm run test:python
 ```
 
@@ -213,6 +214,8 @@ The [hourly production monitor](.github/workflows/production-monitor.yml) checks
 
 ### Atomm
 
+[Atomm](https://www.atomm.com) is xTool's marketplace of community generators. TopoStack is published there as a second distribution channel: the same studio, built with `VITE_SITE_ENV=atomm`, embedded in the platform's layout with its export lifecycle. The `atomm/` directory holds the listing copy and artwork, and `scripts/release/` packages the bundle.
+
 To preview the local studio in Atomm, use the running frontend URL as its `local` parameter. With the default port:
 
 ```text
@@ -245,26 +248,22 @@ The homepage, workflow guides, and Crater Lake example are prerendered for searc
 - **Place search:** Geoapify, proxied through the Worker.
 - **Reference map:** OpenFreeMap; reference-map imagery is not included in fabrication exports.
 
-Archive provisioning is separate from application deployment. Use [`provision-vector-data.mjs`](scripts/provision-vector-data.mjs) for the map archive, and [`build-lake-data.mjs`](scripts/build-lake-data.mjs) plus [`provision-lake-data.mjs`](scripts/provision-lake-data.mjs) for lake data. The lake build requires Tippecanoe; archive verification requires the PMTiles CLI. The provisioning scripts require an archive path, `--provision`, Cloudflare credentials, and a pinned SHA-256 digest. A development-only `--skip-digest-check` option supports establishing a new archive pin.
+Archive provisioning is separate from application deployment. Use [`provision-vector-data.mjs`](scripts/provision/provision-vector-data.mjs) for the map archive, and [`build-lake-data.mjs`](scripts/provision/build-lake-data.mjs) plus [`provision-lake-data.mjs`](scripts/provision/provision-lake-data.mjs) for lake data. The lake build requires Tippecanoe; archive verification requires the PMTiles CLI. The provisioning scripts require an archive path, `--provision`, Cloudflare credentials, and a pinned SHA-256 digest. A development-only `--skip-digest-check` option supports establishing a new archive pin.
 
 Provisioning writes development by default. **`--prod` stages verified archives in both development and production** and requires a pinned digest. Uploads use unique immutable keys and full remote SHA-256 verification; add `--promote` to activate them through conditional release-pointer updates after deploying the compatible gateway. Retain the original archives and emitted provisioning receipts for rollback. The [Worker guide](workers/map-api/README.md) documents the map archive and resource setup.
 
 `/ready` requires both archives and the geocoder configuration. Fabrication export requires current real terrain and any requested map/lake data; missing or truncated requested data blocks export. The bundled preview and synthetic fallback are for previewing and development.
 
-Terrain and map data are decorative source material, not survey, navigation, or engineering data. Exported projects include attribution; see [data and fabrication notes](docs/data-and-fabrication.md) and the maintained [source-credit list](apps/generator/src/map-attribution.ts).
+Terrain and map data are decorative source material, not survey, navigation, or engineering data. Exported projects include attribution; see [data and fabrication notes](docs/data-and-fabrication.md) and the maintained [source-credit list](apps/generator/src/lib/domain/map-attribution.ts).
 
 ## Further reading
 
-- [SEO and discoverability operations](docs/seo-operations.md)
-- [Flat engraving workflow and SVG contract](docs/flat-engraving.md)
-- [Data, attribution, and fabrication details](docs/data-and-fabrication.md)
-- [Feedback workflow and triage](docs/feedback.md)
+The [documentation index](docs/README.md) groups every doc into design references, operational runbooks, and dated reports.
+
 - [Architecture and geometry conventions](docs/architecture.md)
 - [Map API setup and operations](workers/map-api/README.md)
 - [Release acceptance and rollback](docs/release-acceptance.md)
-- [Terrain expansion plan](docs/terrain-expansion-plan.md)
 - [Roadmap](docs/roadmap.md)
-- [Launch-readiness remediation history](docs/launch-readiness-remediation-2026-09-12.md)
 
 ## License
 

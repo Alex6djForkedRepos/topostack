@@ -1,12 +1,12 @@
 <script lang="ts">
-  import FeedbackButton from "../lib/FeedbackButton.svelte";
+  import FeedbackButton from "$lib/site/FeedbackButton.svelte";
   import { base } from "$app/paths";
   import { ArrowRight, ArrowUpRight, Heart } from "@lucide/svelte";
   import { Brand, ThemeToggle, Topbar } from "@loidolt/theme-svelte";
-  import { theme } from "../lib/theme";
-  import { donationUrl } from "../lib/support";
-  import { MAP_DATA_ATTRIBUTION } from "../map-attribution";
-  import TerrainIllustration from "../app/TerrainIllustration.svelte";
+  import { theme } from "$lib/site/theme";
+  import { donationUrl } from "$lib/site/support";
+  import { MAP_DATA_ATTRIBUTION } from "$lib/domain/map-attribution";
+  import TerrainIllustration from "$lib/studio/TerrainIllustration.svelte";
 
   const atommBuild = import.meta.env.VITE_SITE_ENV === "atomm";
 

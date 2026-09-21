@@ -25,3 +25,6 @@ __pycache__/
 
 .terrain-venv/
 .terrain-receipts/
+
+# Claude Code worktrees (full checkouts; never commit).
+.claude/worktrees/

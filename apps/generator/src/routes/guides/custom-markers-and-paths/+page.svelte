@@ -1,6 +1,6 @@
 <script lang="ts">
   import { base } from "$app/paths";
-  import Article from "../../../lib/Article.svelte";
+  import Article from "$lib/site/Article.svelte";
 </script>
 
 <Article title="Add custom markers, trails and boundaries" intro="Mark a summit you climbed, a cabin, or the route you hiked. Custom Data engraves your own points and paths from latitude and longitude.">

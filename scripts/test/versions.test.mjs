@@ -4,15 +4,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import test from "node:test";
-import { bumpVersion, nextVersion, readVersions, validateVersion } from "../versions.mjs";
+import { bumpVersion, nextVersion, readVersions, validateVersion } from "../release/versions.mjs";
 import { DATASET_VERSION, assertDatasetVersionsAgree, datasetVersionDrift } from "../lib/dataset-version.mjs";
 
 async function fixture(t) {
   const directory = await mkdtemp(join(tmpdir(), "topostack-versions-"));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const base = pathToFileURL(directory + "/");
-  for (const path of ["apps/generator", "packages/core", "workers/map-api", "atomm"]) await mkdir(new URL(path, base), { recursive: true });
-  for (const path of ["package.json", "package-lock.json", "apps/generator/package.json", "packages/core/package.json", "workers/map-api/package.json", "atomm/version.json"]) {
+  for (const path of ["apps/generator", "packages/core", "packages/data-contracts", "workers/map-api", "atomm"]) await mkdir(new URL(path, base), { recursive: true });
+  for (const path of ["package.json", "package-lock.json", "apps/generator/package.json", "packages/core/package.json", "packages/data-contracts/package.json", "workers/map-api/package.json", "atomm/version.json"]) {
     await writeFile(new URL(path, base), await readFile(new URL(`../../${path}`, import.meta.url)));
   }
   return base;
@@ -35,8 +35,9 @@ test("main bumps synchronize every workspace and lock entry without changing Ato
   const version = await bumpVersion("main", "minor", base);
   assert.deepEqual(await readVersions(base), { version, atommVersion: before.atommVersion });
   const newLock = JSON.parse(await readFile(new URL("package-lock.json", base), "utf8"));
+  assert.equal(JSON.parse(await readFile(new URL("packages/data-contracts/package.json", base), "utf8")).version, version);
   oldLock.version = version;
-  for (const path of ["", "apps/generator", "packages/core", "workers/map-api"]) oldLock.packages[path].version = version;
+  for (const path of ["", "apps/generator", "packages/core", "packages/data-contracts", "workers/map-api"]) oldLock.packages[path].version = version;
   assert.deepEqual(newLock, oldLock);
 });
 
@@ -58,6 +59,19 @@ test("detects workspace and lock drift before attempting a bump", async (t) => {
   await assert.rejects(readVersions(base), /out of sync/);
   await assert.rejects(bumpVersion("main", "patch", base), /out of sync/);
 });
+
+for (const file of ["packages/data-contracts/package.json", "package-lock.json"]) {
+  test(`rejects data-contracts version drift in ${file}`, async (t) => {
+    const base = await fixture(t);
+    const url = new URL(file, base);
+    const value = JSON.parse(await readFile(url, "utf8"));
+    if (file === "package-lock.json") value.packages["packages/data-contracts"].version = "99.0.0";
+    else value.version = "99.0.0";
+    await writeFile(url, JSON.stringify(value));
+    await assert.rejects(readVersions(base), /packages\/data-contracts.*out of sync/);
+    await assert.rejects(bumpVersion("main", "patch", base), /packages\/data-contracts.*out of sync/);
+  });
+}
 
 test("the deployed dataset version is derived from one snapshot constant", async () => {
   // wrangler.jsonc cannot import the worker's constant, so every environment's

@@ -1,0 +1,375 @@
+/* Preview panel: toolbar, stages (map, cut layers, engraving, 3D), crop guides, legends, warnings, load failure. */
+
+.preview-panel {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  container: terrain-preview / inline-size;
+  background: var(--loidolt-surface-sunken);
+}
+
+.preview-panel.engraving-preview-panel {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.preview-toolbar {
+  min-height: 48px;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--loidolt-surface-alt);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  border-bottom: var(--loidolt-border-width) solid var(--loidolt-border);
+}
+
+.mode-switch {
+  width: max-content;
+}
+
+.preview-readout {
+  display: flex;
+  gap: 17px;
+  color: var(--loidolt-text-muted);
+  font: 9px var(--loidolt-font-utility);
+}
+
+.preview-stage {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.three-stage,
+.map-wrap,
+.two-d-stage {
+  position: absolute;
+  inset: 0;
+  user-select: none;
+}
+
+.three-stage canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.map-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.map-wrap:after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 90px #20231d38;
+}
+
+.crop-guide {
+  position: absolute;
+  width: min(54%, 630px);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 9999px #20231d61, 0 0 0 1px #20231d80;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.crop-circle {
+  border: 0;
+  box-shadow: none;
+}
+
+.crop-corner {
+  width: 9px;
+  height: 9px;
+  position: absolute;
+  background: #fff;
+  border: 2px solid var(--loidolt-accent);
+}
+
+.crop-corner-a {
+  left: -6px;
+  top: -6px;
+}
+
+.crop-corner-b {
+  right: -6px;
+  top: -6px;
+}
+
+.crop-corner-c {
+  left: -6px;
+  bottom: -6px;
+}
+
+.crop-corner-d {
+  right: -6px;
+  bottom: -6px;
+}
+
+.crop-circle .crop-corner {
+  display: none;
+}
+
+.map-crosshair {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  pointer-events: none;
+}
+
+.map-crosshair span {
+  position: absolute;
+  background: #fff;
+  box-shadow: 0 0 1px #000;
+}
+
+.map-crosshair span:first-child {
+  width: 22px;
+  height: 1px;
+  top: 10px;
+}
+
+.map-crosshair span:last-child {
+  height: 22px;
+  width: 1px;
+  left: 10px;
+}
+
+.map-caption {
+  position: absolute;
+  z-index: 3;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--loidolt-text-inverse);
+  background: color-mix(in srgb, var(--loidolt-surface-inverse) 94%, transparent);
+  padding: 7px 10px;
+  font: 9px var(--loidolt-font-utility);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.two-d-stage {
+  --svg-canvas-width: calc(100% - 64px);
+  --svg-canvas-height: calc(100% - 64px);
+  overflow: hidden;
+  background-color: #292d27;
+  background-image: linear-gradient(#ffffff08 1px, transparent 1px), linear-gradient(90deg, #ffffff08 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.engraving-stage {
+  position: absolute;
+  inset: 0;
+  padding: 24px 32px 34px;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+}
+
+.engraving-surface {
+  fill: #e8cfaa;
+  stroke: none;
+}
+
+.engraving-water-pattern,
+.engraving-contours,
+.engraving-details,
+.engraving-border {
+  fill: none;
+  stroke: #2b2119;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.engraving-legend {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  color: var(--loidolt-text-muted);
+  font: var(--panel-font-caption, 10px) var(--loidolt-font-utility);
+  text-transform: uppercase;
+  letter-spacing: var(--loidolt-font-tracking-utility);
+}
+
+.engraving-legend span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.engraving-legend i {
+  width: 24px;
+  border-top: var(--sample-width, 1px) solid currentColor;
+}
+
+.engraving-legend i.index {
+  border-top-width: var(--sample-width, 2px);
+}
+
+.axis {
+  position: absolute;
+  z-index: 2;
+  background: color-mix(in srgb, var(--loidolt-surface) 92%, transparent);
+  color: var(--loidolt-text);
+  padding: 6px 9px;
+  font: 9px var(--loidolt-font-utility);
+}
+
+.north-axis {
+  top: 18px;
+  right: 18px;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.layer-elevation {
+  left: 18px;
+  bottom: 18px;
+}
+
+.paint-template-toggle {
+  right: 18px;
+  bottom: 34px;
+  padding: 4px 9px;
+}
+
+.paint-template-toggle .ldt-switch {
+  font: 9px var(--loidolt-font-utility);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.preview-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--loidolt-text-muted);
+  font: 10px var(--loidolt-font-utility);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.preview-load-failed {
+  align-content: center;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+.preview-attribution {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  z-index: 3;
+  background: color-mix(in srgb, var(--loidolt-surface-inverse) 80%, transparent);
+  color: var(--loidolt-text-inverse);
+  padding: 3px 7px;
+  font: 8px var(--loidolt-font-utility);
+}
+
+.preview-attribution a {
+  color: inherit;
+}
+
+.warning-stack {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 2;
+  max-width: min(390px, calc(100% - 28px));
+}
+
+.preview-warning {
+  background: color-mix(in srgb, var(--loidolt-warning) 12%, var(--loidolt-surface));
+  color: var(--loidolt-text-warning);
+  border-left: 2px solid var(--loidolt-warning);
+  padding-left: 9px;
+  font: 9px/1.4 var(--loidolt-font-utility);
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+}
+
+.warning-icon {
+  width: 14px;
+  height: 14px;
+  background: var(--loidolt-warning);
+  color: var(--loidolt-on-warning);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+.preview-warning p {
+  min-width: 0;
+  margin: 0;
+  padding-block: 7px;
+  overflow-wrap: anywhere;
+}
+
+.preview-warning .warning-action {
+  margin-inline-start: 8px;
+  border: 1px solid var(--loidolt-border);
+  background: var(--loidolt-surface);
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.preview-warning .warning-action:hover:not(:disabled) {
+  background: var(--loidolt-surface-alt);
+}
+
+.warning-dismiss {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  min-height: 28px;
+  align-self: stretch;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.warning-dismiss:hover {
+  background: color-mix(in srgb, var(--loidolt-warning) 18%, transparent);
+}
+
+.warning-dismiss:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -3px;
+}
+
+@media (pointer: coarse), (max-width: 760px) {
+  .warning-action {
+    min-height: 44px;
+  }
+
+  .warning-dismiss {
+    width: 44px;
+    min-height: 44px;
+  }
+}

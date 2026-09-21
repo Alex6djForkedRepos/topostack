@@ -1,7 +1,7 @@
 <script lang="ts">
   import { base } from "$app/paths";
-  import Article from "../../../lib/Article.svelte";
-  import LakeDepthDemo from "../../../lib/LakeDepthDemo.svelte";
+  import Article from "$lib/site/Article.svelte";
+  import LakeDepthDemo from "$lib/site/LakeDepthDemo.svelte";
   import type { PageData } from "./$types";
   let { data }: { data: PageData } = $props();
 </script>

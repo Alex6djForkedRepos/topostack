@@ -9,13 +9,40 @@ ProjectConfigV1 (including authoritative geographic crop bounds) + SourceBundleV
   → 2D preview / three.js preview / SVG fabrication package
 ```
 
-The core package has no Svelte, Atomm, Cloudflare, DOM, or storage imports. The SvelteKit generator is prerendered as a static site, mosaics every elevation/vector tile intersecting the visible crop, and adapts the core to browser Web Workers, IndexedDB, MapLibre, three.js, and the Atomm lifecycle. The Cloudflare Worker streams and caches source data; it does not perform contour generation.
+The core package has no Svelte, Atomm, Cloudflare, DOM, or storage imports. Contracts that the browser, the Worker, and the provisioning scripts must share (source catalogs, archive releases, the terrain PNG codec, usage events) live in `@topostack/data-contracts`, which depends on neither the core nor any runtime. Workspace packages are imported by name only; ESLint rejects paths into another package's `src/`. The SvelteKit generator is prerendered as a static site, mosaics every elevation/vector tile intersecting the visible crop, and adapts the core to browser Web Workers, IndexedDB, MapLibre, three.js, and the Atomm lifecycle. The Cloudflare Worker streams and caches source data; it does not perform contour generation.
 
 The UI follows the same Svelte 5 runes, immutable domain-state, and static-adapter patterns as Label Studio. Atomm integration stays behind a small bridge that registers the platform lifecycle once and reads current project state through a getter, avoiding stale component closures.
 
 Layer count is derived, never configured. `planTerrainStack` turns the mapped ground width, the physical cut width, the terrain relief, and the requested vertical exaggeration into a stack height, then divides that by the material thickness. The count is rounded to whole sheets with a two-sheet minimum and no fixed upper limit; the reported exaggeration is refitted to the whole-sheet count, so adding material thickness makes a model coarser rather than shorter and widening the cut makes it taller.
 
 Every generated result records a deterministic project fingerprint and source quality. Before markings are clipped and labels are placed, the geometry flow plans same-coordinate material nests and adds their glue-safe cavities to donor layers. Vector-tile buffers are removed and unambiguous degree-two road pieces are stitched before transportation paths are styled as complete routes. Roads use a continuous centerline by default; the optional outlined major-road style offsets the complete route by the configured spacing and adds matching compact joins at forks. Styled routes are then clipped to the highest exposed material across the stack so bends and contour transitions stay continuous. Fabrication export groups each nest family onto one panel and emits shared donor/child cut lines once. Export is rejected when settings changed after generation, the source is synthetic, or any layer is empty.
+
+## Where things live
+
+- [Core package layout](#core-package-layout) below; [`packages/data-contracts/README.md`](../packages/data-contracts/README.md) for the shared contracts package.
+- [`apps/generator/README.md`](../apps/generator/README.md) for the generator's layers, what each may import, the studio panels and their context, and the stylesheet layout.
+- [`workers/map-api/README.md`](../workers/map-api/README.md) for the Worker's routes and operations.
+- [`scripts/README.md`](../scripts/README.md) for every operational script and how it runs.
+- [`CLAUDE.md`](../CLAUDE.md) for the one-page map of where a change goes and the rules the linter enforces.
+
+## Core package layout
+
+`packages/core/src` is grouped by concern; each folder only imports from the folders above it in this list, and `types.ts` at the root is shared by all of them.
+
+| Folder | Holds |
+| --- | --- |
+| `primitives/` | Pure 2D geometry: polygon prep and clipping (`geometry2d`), ring offsetting, grid sampling, crop shapes, units, number formatting |
+| `water/` | Lake and ocean depth: shore distance, survey and terrain-basin fitting, shoreline smoothing, water fill patterns |
+| `annotate/` | Text and symbols: label metrics and placement, markers, the north arrow |
+| `pipeline/` | Geometry generation: `generate.ts` orchestrates contour tracing, stack planning, material nesting, transportation styling, coordinate grids, validation, and the work-area split; `synthetic-source.ts` builds the deterministic preview source |
+| `export/` | Fabrication output: SVG primitives, panel layout, per-layer/master/assembly SVGs, the flat-engraving SVG, package builders, and the export block policy |
+| `test-support/` | Fixtures shared by tests only; excluded from the build |
+
+`index.ts` names every public entry point explicitly. Consumers import `@topostack/core`; nothing outside the package may reach into these folders.
+
+## Generator layout
+
+`apps/generator/src/lib` is split into `domain/`, `storage/`, `workers/`, `site/`, `studio/`, and `atomm/`; routes hold only pages. Modules are imported as `$lib/<layer>/<module>` and relative imports are for siblings only, so a file's dependencies name their layer. See the [generator README](../apps/generator/README.md) for what each layer may import.
 
 ## Coordinate conventions
 

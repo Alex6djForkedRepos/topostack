@@ -1,4 +1,4 @@
-import { decodeTerrainPng } from "../../../../packages/core/src/terrain-png";
+import { decodeTerrainPng } from "@topostack/data-contracts/terrain-png";
 import { BodyTooLargeError, readBounded } from "../body";
 import { headCache, readCache, writeCache } from "../cache";
 import { edgeCacheKey, matchEdge, putEdge, teeToEdge } from "../edge-cache";

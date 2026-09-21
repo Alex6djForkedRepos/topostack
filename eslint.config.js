@@ -23,7 +23,7 @@ export default tseslint.config(
     files: ["**/*.ts"],
     languageOptions: {
       parserOptions: {
-        projectService: { allowDefaultProject: ["apps/generator/vitest.client.config.ts"] },
+        projectService: { allowDefaultProject: ["apps/generator/vitest.config.ts", "apps/generator/vitest.client.config.ts", "packages/core/vitest.config.ts", "packages/data-contracts/vitest.config.ts"] },
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -53,6 +53,35 @@ export default tseslint.config(
     files: ["**/*.mjs", "**/*.config.js"],
     languageOptions: {
       globals: { ...globals.node, ...globals.browser },
+    },
+  },
+  {
+    // Workspace packages are consumed by name. Reaching into another
+    // package's src/ bypasses its exports map and hides the dependency graph.
+    files: ["**/*.ts", "**/*.mjs", "**/*.svelte"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        patterns: [{ group: ["**/packages/*/src/**", "**/packages/*/src"], message: "Import workspace packages by name (@topostack/core, @topostack/data-contracts/<module>), not by path." }],
+      }],
+    },
+  },
+  {
+    // Inside the generator, modules live in src/lib/<layer>/ and are imported
+    // as $lib/<layer>/<module>. Relative imports may only point at siblings so
+    // a file's layer is visible in every import that reaches it.
+    files: ["apps/generator/src/**/*.ts", "apps/generator/src/**/*.svelte"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        patterns: [
+          { group: ["**/packages/*/src/**", "**/packages/*/src"], message: "Import workspace packages by name (@topostack/core, @topostack/data-contracts/<module>), not by path." },
+          {
+            // Only static data, shared catalogs, and the terrain test fixture
+            // may cross a parent directory; all app modules use $lib aliases.
+            regex: String.raw`^(?!(?:\.\./){3,4}static/|(?:\.\./){5}scripts/data/|(?:\.\./){5}workers/map-api/test/terrain-fixture$)(?:\./)*\.\.(?:/|$)`,
+            message: "Import other generator modules as $lib/<layer>/<module>; relative imports are for siblings only.",
+          },
+        ],
+      }],
     },
   },
   {

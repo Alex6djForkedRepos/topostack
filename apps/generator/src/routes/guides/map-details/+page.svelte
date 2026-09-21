@@ -1,6 +1,6 @@
 <script lang="ts">
   import { base } from "$app/paths";
-  import Article from "../../../lib/Article.svelte";
+  import Article from "$lib/site/Article.svelte";
 </script>
 
 <Article title="Map details, labels and linework" intro="Choose which roads, water and annotations appear on your map, place the north arrow and labels, and set line widths that suit your laser and material.">

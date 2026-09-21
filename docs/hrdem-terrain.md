@@ -36,7 +36,7 @@ Outside the registered region or zoom range there is no extra archive request.
 
 ## Build and verify
 
-Use the existing isolated environment from `scripts/survey-requirements.txt`
+Use the existing isolated environment from `scripts/data-build/requirements.txt`
 and the PMTiles CLI. The builder reads a bounded crop of the remote COG using
 HTTP ranges, checks its pinned ETag and byte count before and after reading,
 and records SHA-256 hashes of the local snapshot and final archive. It refuses
@@ -44,8 +44,8 @@ to overwrite existing outputs. ETag identifies the upstream object; it is not
 represented as a SHA-256 checksum of the full remote multi-GB file.
 
 ```sh
-python scripts/build-hrdem-terrain.py --out-dir /tmp/topostack-hrdem
-python -m unittest discover -s scripts -p 'test_hrdem_terrain.py'
+python scripts/data-build/build-hrdem-terrain.py --out-dir /tmp/topostack-hrdem
+python -m unittest discover -s scripts/data-build -p 'test_hrdem_terrain.py'
 pmtiles verify /tmp/topostack-hrdem/nrcan-hrdem-alexander-v1.pmtiles
 ```
 
@@ -65,7 +65,7 @@ After deploying the updated gateway, use the existing verified provisioning
 script (now accepting terrain source IDs too):
 
 ```sh
-node --env-file=.env scripts/provision-lake-data.mjs \
+node --env-file=.env scripts/provision/provision-lake-data.mjs \
   /tmp/topostack-hrdem/nrcan-hrdem-alexander-v1.pmtiles \
   --source=nrcan-hrdem-alexander-v1 --provision \
   --expected-sha256=<verified-archive-sha256> --promote
@@ -118,7 +118,7 @@ PMTiles coordinate quantization is tolerated to 1e-6 degrees.
 Verify a prepared archive locally, without credentials or upload:
 
 ```sh
-node scripts/provision-lake-data.mjs /path/to/archive.pmtiles \
+node scripts/provision/provision-lake-data.mjs /path/to/archive.pmtiles \
   --source=<registered-source-id> --verify-only --expected-sha256=<receipt-sha256>
 ```
 
@@ -127,5 +127,5 @@ registry and its adjacent immutable manifests. `--verify-only` cannot be combine
 with publication flags. The existing `--provision` / `--promote` workflow remains
 explicit; local registry membership does not assert remote deployment.
 
-See the [Canadian packaging benchmark](terrain-benchmark-20260916.md) for measured
+See the [Canadian packaging benchmark](reports/terrain-benchmark-20260916.md) for measured
 zoom comparisons and the work still required before a national build.

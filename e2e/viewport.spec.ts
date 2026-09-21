@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { DEFAULT_PROJECT } from "../packages/core/src/types";
+import { DEFAULT_PROJECT } from "@topostack/core";
 
 for (const outputMode of ["stack", "engraving"] as const) {
 for (const [widthMm, heightMm] of [[100, 200], [400, 100]] as const) {

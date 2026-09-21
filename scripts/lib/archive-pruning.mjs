@@ -1,4 +1,4 @@
-import { parseArchiveRelease } from "../../packages/core/src/archive-release.ts";
+import { parseArchiveRelease } from "@topostack/data-contracts/archive-release";
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
 export const DEFAULT_GRACE_DAYS = 30;

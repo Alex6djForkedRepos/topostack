@@ -123,12 +123,12 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
-          cache-dependency-path: scripts/survey-requirements.txt
+          cache-dependency-path: scripts/data-build/requirements.txt
 
-      # survey-requirements.txt pins a superset of the NOAA and terrain builder
+      # requirements.txt pins a superset of the NOAA and terrain builder
       # dependencies (numpy, rasterio, Pillow, fiona, scipy, shapely).
       - name: Install pinned builder dependencies
-        run: python -m pip install -r scripts/survey-requirements.txt
+        run: python -m pip install -r scripts/data-build/requirements.txt
 
       - name: Test bathymetry, terrain, and lake outline builders
         # Same command developers run locally; package.json is the single source.
@@ -162,7 +162,7 @@ jobs:
           VITE_SITE_ENV: production
 
       - name: Verify production search metadata
-        run: node scripts/verify-seo.mjs --environment production
+        run: node scripts/verify/verify-seo.mjs --environment production
 
       - name: Enforce web performance budgets
         run: npm run budget:web
@@ -171,12 +171,12 @@ jobs:
       # sentinel, which the endpoint scan would reject. Packaging and release
       # runs always execute the full endpoint scan.
       - name: Verify Atomm static artifact
-        run: node scripts/verify-atomm-dist.mjs --skip-endpoint-scan
+        run: node scripts/verify/verify-atomm-dist.mjs --skip-endpoint-scan
 
       - name: Verify development indexing exclusion
         run: |
           npm run build -w @topostack/generator
-          node scripts/verify-seo.mjs --environment development
+          node scripts/verify/verify-seo.mjs --environment development
         env:
           VITE_SITE_ENV: development
 
@@ -283,7 +283,7 @@ jobs:
           VITE_SITE_ENV: ${{ github.ref_name == 'main' && 'production' || 'development' }}
 
       - name: Verify search indexing policy
-        run: node scripts/verify-seo.mjs --environment ${{ github.ref_name == 'main' && 'production' || 'development' }}
+        run: node scripts/verify/verify-seo.mjs --environment ${{ github.ref_name == 'main' && 'production' || 'development' }}
 
       # build-and-budget checks a hermetic https://ci.invalid build, but this job
       # deploys a different same-origin build (no VITE_MAP_API_URL, per-branch
@@ -293,10 +293,10 @@ jobs:
         run: npm run budget:web
 
       - name: Verify deployed static artifact
-        run: node scripts/verify-atomm-dist.mjs
+        run: node scripts/verify/verify-atomm-dist.mjs
 
       - name: Verify pinned lake outlines are provisioned
-        run: node scripts/fetch-lake-outlines.mjs ${{ github.ref_name == 'main' && '--prod' || '' }}
+        run: node scripts/provision/fetch-lake-outlines.mjs ${{ github.ref_name == 'main' && '--prod' || '' }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -317,7 +317,7 @@ jobs:
           GEOCODER_API_KEY: ${{ secrets.GEOCODER_API_KEY }}
 
       - name: Smoke test deployed Worker
-        run: node scripts/verify-worker-deployment.mjs
+        run: node scripts/verify/verify-worker-deployment.mjs
         env:
           # Allow the previous Worker version's routes/origin policy to settle.
           DEPLOYMENT_ROLLOUT: "1"
@@ -329,7 +329,7 @@ jobs:
       # that file without installing jsdom. Static assets can lag the Worker,
       # so this one keeps the propagation retry window.
       - name: Verify deployed search metadata over HTTP
-        run: node scripts/verify-seo-http.mjs "$PUBLIC_APP_URL" "$EXPECTED_WORKER_ENVIRONMENT"
+        run: node scripts/verify/verify-seo-http.mjs "$PUBLIC_APP_URL" "$EXPECTED_WORKER_ENVIRONMENT"
         env:
           PUBLIC_APP_URL: ${{ github.ref_name == 'main' && env.PRODUCTION_URL || env.DEVELOPMENT_URL }}
           EXPECTED_WORKER_ENVIRONMENT: ${{ github.ref_name == 'main' && 'production' || 'development' }}
@@ -368,7 +368,7 @@ jobs:
         run: |
           node --input-type=module <<'JS'
           import { appendFile } from "node:fs/promises";
-          import { readVersions } from "./scripts/versions.mjs";
+          import { readVersions } from "./scripts/release/versions.mjs";
           import { atommReleaseFiles } from "./scripts/lib/atomm-release-files.mjs";
           const files = atommReleaseFiles((await readVersions()).atommVersion);
           await appendFile(process.env.GITHUB_OUTPUT, Object.entries(files).map(([key, value]) => `${key}=${value}\n`).join(""));

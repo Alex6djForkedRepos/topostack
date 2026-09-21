@@ -1,0 +1,297 @@
+/* Overlays and dialogs: generation overlay, contour loader, layer dock, place search modal. */
+
+.generation-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--loidolt-surface-inverse) 95%, transparent);
+  color: var(--loidolt-text-inverse);
+}
+
+.generation-overlay.preview-update-overlay {
+  inset: 14px 14px auto auto;
+  width: min(250px, calc(100% - 28px));
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  justify-content: initial;
+  column-gap: 9px;
+  padding: 10px 12px;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--loidolt-surface) 92%, transparent);
+  color: var(--loidolt-text);
+  border: 1px solid var(--loidolt-border);
+  box-shadow: 0 8px 28px color-mix(in srgb, var(--loidolt-shadow, #000) 18%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.generation-overlay.preview-update-overlay .contour-loader {
+  width: 34px;
+  height: 24px;
+  grid-row: 1 / 3;
+}
+
+.generation-overlay.preview-update-overlay .contour-loader span {
+  border-width: 1.5px;
+}
+
+.generation-overlay.preview-update-overlay .contour-loader span:nth-child(2) {
+  inset: 4px 6px;
+}
+
+.generation-overlay.preview-update-overlay .contour-loader span:nth-child(3) {
+  inset: 8px 12px;
+}
+
+.generation-overlay.preview-update-overlay strong {
+  margin: 0;
+  font-size: 11px;
+}
+
+.generation-overlay.preview-update-overlay small {
+  min-width: 0;
+  margin: 2px 0 0;
+  overflow: hidden;
+  color: var(--loidolt-text-muted);
+  opacity: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.generation-overlay strong {
+  font-size: 15px;
+  margin-top: 18px;
+}
+
+.generation-overlay small {
+  color: var(--loidolt-text-inverse);
+  opacity: 0.75;
+  margin-top: 6px;
+  font: 9px var(--loidolt-font-utility);
+}
+
+.generation-step { margin-top: 8px; font-size: 12px; }
+
+.contour-loader {
+  width: 60px;
+  height: 42px;
+  position: relative;
+}
+
+.contour-loader span {
+  position: absolute;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  animation: contour 1.8s ease-in-out infinite;
+}
+
+.contour-loader span:nth-child(1) {
+  inset: 0;
+}
+
+.contour-loader span:nth-child(2) {
+  inset: 7px 10px;
+  animation-delay: 0.15s;
+}
+
+.contour-loader span:nth-child(3) {
+  inset: 14px 21px;
+  animation-delay: 0.3s;
+}
+
+.layer-dock {
+  background: var(--loidolt-surface);
+  border-top: 1px solid var(--loidolt-border);
+  padding: 10px 18px 8px;
+  min-height: 88px;
+}
+
+.layer-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font: 9px var(--loidolt-font-utility);
+  margin-bottom: 4px;
+  color: var(--loidolt-text-muted);
+}
+
+.layer-heading > span {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.layer-heading b {
+  color: var(--loidolt-text);
+}
+
+.layer-heading strong {
+  color: var(--loidolt-accent);
+  font-weight: 400;
+}
+
+.explode-control {
+  width: 210px;
+  max-width: 100%;
+  margin: 8px 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font: 8px var(--loidolt-font-utility);
+  text-transform: uppercase;
+  color: var(--loidolt-text-muted);
+}
+
+.explode-control input {
+  flex: 1;
+  min-width: 0;
+}
+
+.search-input {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.search-modal::backdrop {
+  background: var(--loidolt-scrim);
+}
+
+.search-modal {
+  inset: 50% auto auto 50%;
+  grid-template-rows: auto minmax(0, 1fr);
+  margin: 0;
+  padding: 0;
+}
+
+.search-modal:not([open]) {
+  display: none;
+}
+
+.search-input svg {
+  color: var(--loidolt-accent);
+}
+
+.search-input .ldt-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.coordinate-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 8px;
+  align-items: end;
+  margin-top: var(--loidolt-space-4);
+  padding-bottom: var(--loidolt-space-4);
+  border-bottom: var(--loidolt-border-width) solid var(--loidolt-border);
+}
+
+.search-results {
+  padding-block: var(--loidolt-space-3);
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.location-option {
+  width: 100%;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  padding: var(--loidolt-space-3);
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: var(--loidolt-space-3);
+  align-items: center;
+  text-align: left;
+  cursor: pointer;
+}
+
+.location-option:hover {
+  background: var(--loidolt-surface-sunken);
+}
+
+.location-option__icon {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--loidolt-border);
+  display: grid;
+  place-items: center;
+  color: var(--loidolt-accent);
+}
+
+.location-option__copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.search-results strong {
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.search-results small {
+  color: var(--loidolt-text-muted);
+  font: 8px var(--loidolt-font-utility);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search-results p {
+  color: var(--loidolt-text-danger);
+  font: 10px var(--loidolt-font-utility);
+  text-align: center;
+  padding: 18px;
+}
+
+.preset-locations h3 {
+  margin: 0 0 var(--loidolt-space-2);
+  color: var(--loidolt-text-muted);
+  font: var(--loidolt-font-size-xs) var(--loidolt-font-utility);
+  letter-spacing: var(--loidolt-font-tracking-utility);
+  text-transform: uppercase;
+}
+
+.preset-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--loidolt-border);
+  border: 1px solid var(--loidolt-border);
+}
+
+.preset-grid .location-option {
+  min-width: 0;
+  min-height: 60px;
+  background: var(--loidolt-surface);
+}
+
+.preset-grid .location-option:hover {
+  background: var(--loidolt-surface-sunken);
+}
+
+.provider-attribution {
+  display: block;
+  padding-top: var(--loidolt-space-2);
+  color: var(--loidolt-text-muted);
+  font: 8px var(--loidolt-font-utility);
+}
+
+.provider-attribution a {
+  color: inherit;
+}
+
+.three-stage {
+  border: 0;
+  padding: 0;
+}

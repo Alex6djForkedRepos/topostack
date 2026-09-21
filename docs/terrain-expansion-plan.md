@@ -10,12 +10,12 @@ Keep operator-controlled acquisition and publication, numeric elevation PMTiles,
 
 | Stage | Implementation | What works today |
 | --- | --- | --- |
-| Discovery | `scripts/discover-terrain.py` | Manual NRCan STAC search for HRDEM 1 m / 2 m DTM mosaics and MRDEM-30 DTM; upstream URL, ETag and byte-size pins |
-| Preparation | `scripts/build-hrdem-terrain.py`, `scripts/tile_writer.py` | Bounded remote COG reads; Web Mercator reprojection; numeric RGBA PNGs with transparent NoData; PMTiles verification and SHA-256 receipts |
-| Catalog | `scripts/data/terrain-sources.json`, `packages/core/src/source-catalog.ts` | Three Ontario HRDEM registrations; priority, native resolution, acquisition year and stable-ID ranking; CGVD2013-only validation |
-| Publication | `scripts/provision-lake-data.mjs`, `scripts/lib/archive-provisioning.mjs` | Immutable staged objects, full remote hash verification, conditional per-archive promotion, previous-release receipts; development default |
-| Serving | `workers/map-api/src/routes/archive.ts`, `workers/map-api/src/archive-release.ts` | Registered archive routes, bounded range reads and release resolution |
-| Selection | `apps/generator/src/terrain-sources.ts`, `apps/generator/src/data-provider.ts` | Valid samples win by rank; gaps fall through; malformed archives are discarded atomically; contribution metadata reaches exports |
+| Discovery | `scripts/data-build/discover-terrain.py` | Manual NRCan STAC search for HRDEM 1 m / 2 m DTM mosaics and MRDEM-30 DTM; upstream URL, ETag and byte-size pins |
+| Preparation | `scripts/data-build/build-hrdem-terrain.py`, `scripts/data-build/tile_writer.py` | Bounded remote COG reads; Web Mercator reprojection; numeric RGBA PNGs with transparent NoData; PMTiles verification and SHA-256 receipts |
+| Catalog | `scripts/data/terrain-sources.json`, `packages/data-contracts/src/source-catalog.ts` | Three Ontario HRDEM registrations; priority, native resolution, acquisition year and stable-ID ranking; CGVD2013-only validation |
+| Publication | `scripts/provision/provision-lake-data.mjs`, `scripts/lib/archive-provisioning.mjs` | Immutable staged objects, full remote hash verification, conditional per-archive promotion, previous-release receipts; development default |
+| Serving | `workers/map-api/src/routes/archive.ts`, `workers/map-api/src/archive-head.ts` | Registered archive routes, bounded range reads and release resolution |
+| Selection | `apps/generator/src/lib/domain/terrain-sources.ts`, `apps/generator/src/lib/domain/data-provider.ts` | Valid samples win by rank; gaps fall through; malformed archives are discarded atomically; contribution metadata reaches exports |
 
 The catalog is compiled into both browser and gateway. A manifest entry describes a registration, not proof of deployment. Existing documentation records the three Ontario archives as published in development; this review did not re-download and verify their live archive bytes. Both live gateways advertised archive-release support during the review.
 
@@ -104,7 +104,7 @@ Passed during this review:
 
 - 9 Python discovery/build tests (`test*terrain.py`).
 - 17 browser terrain selection/loading tests.
-- 40 core source-catalog/numeric PNG tests.
+- 40 data-contracts source-catalog/numeric PNG tests.
 - 9 data-operation tests covering staged publication, full-byte verification, conditional promotion and rollback receipts.
 
 These checks establish the existing regional behavior, not national scalability or readiness of another provider. The findings above include paths not covered by those tests. The workspace was changing during review, so this document describes inspected behavior rather than a committed release certification.
@@ -119,7 +119,7 @@ manifests, immutable pin/receipt enforcement, measured build receipts, publicati
 extent checks, browser extent checks and credential-free local archive verification.
 The original three registrations were migrated without changing coverage or IDs.
 
-The [initial Canadian benchmark](terrain-benchmark-20260916.md) records twelve
+The [initial Canadian benchmark](reports/terrain-benchmark-20260916.md) records twelve
 verified archives and recommends zoom 13 for further evaluation. Crop-edge losses
 and the runtime's missing parent-tile sampling prevent national activation. The
 larger-host benchmark, national coverage manifest and final budget gate remain open.

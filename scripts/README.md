@@ -1,0 +1,92 @@
+# scripts
+
+Operational tooling, grouped by purpose. `lib/` holds shared helpers, `test/` the Node tests (`npm run test:scripts`), and `data/` the source catalogs that the app, the Worker, and these scripts all read.
+
+Every script below says how it is run. "manual" means no npm script or workflow invokes it; the linked runbook does.
+
+## Build steps (`build/`)
+
+Run by `npm run build` in the generator or by CI after a build.
+
+| Script | Purpose | Run by |
+| --- | --- | --- |
+| `check-node.mjs` | Fail fast when the local Node.js release cannot run the script tests (needs native type stripping) | `npm run test:scripts` |
+| `check-web-budget.mjs` | Measure the built site against the JavaScript, CSS, and HTML budgets | `npm run budget:web` |
+| `configure-redirects.mjs` | Apply the Cloudflare redirect rules (www and legacy paths) to the zone | manual: [seo-operations.md](../docs/seo-operations.md), [README](../README.md) |
+| `finalize-static-headers.mjs` | Rewrite `_headers` for the selected site environment after a build | generator `build`; generator `build:e2e` |
+| `generate-icons.mjs` | Regenerate favicons and app icons from `static/favicon.svg` | `npm run assets:icons` |
+| `write-build-version.mjs` | Record git metadata for the About page in the built site | generator `build`; generator `build:e2e` |
+
+## Development and media capture (`dev/`)
+
+Local helpers; nothing in CI depends on them.
+
+| Script | Purpose | Run by |
+| --- | --- | --- |
+| `capture-feature-update.mjs` | Screenshot a feature for a release note or docs image | manual |
+| `capture-preview-fixture.mjs` | Regenerate the bundled Crater Lake preview source (`sample-preview.generated.ts`) | manual |
+| `capture-readme-assets.mjs` | Screenshot the studio and workflows for the README images | manual |
+| `dev.mjs` | Start the generator and the map-api Worker together, picking free ports | `npm run dev` |
+
+## Data builders (Python) (`data-build/`)
+
+Raster and vector processing that needs rasterio, fiona, scipy, and shapely. One pinned environment: `pip install -r scripts/data-build/requirements.txt`. Tests: `npm run test:python`.
+
+| Script | Purpose | Run by |
+| --- | --- | --- |
+| `benchmark-terrain.py` | Time the terrain packaging pipeline for a set of regions | manual |
+| `build-hrdem-terrain.py` | Package NRCan HRDEM rasters into terrain archives and register them in the catalog | manual: [hrdem-terrain.md](../docs/hrdem-terrain.md), [terrain-expansion-plan.md](../docs/terrain-expansion-plan.md) |
+| `build-lake-directory.py` | Build the lake directory the site and studio search read | manual: [lake-bathymetry.md](../docs/lake-bathymetry.md) |
+| `build-lake-outlines.py` | Build provider lake outlines for the outline archive | manual: [lake-bathymetry.md](../docs/lake-bathymetry.md) |
+| `build-noaa-bathymetry.py` | Build Great Lakes depth tiles from NOAA/NCEI rasters | manual: [noaa-bathymetry.md](../docs/noaa-bathymetry.md) |
+| `build-survey-bathymetry.py` | Build surveyed lake-floor archives from registered survey sources | manual: [lake-bathymetry.md](../docs/lake-bathymetry.md) |
+| `discover-terrain.py` | Discover and register candidate terrain sources for a region | manual: [terrain-coverage.md](../docs/terrain-coverage.md), [terrain-selection.md](../docs/terrain-selection.md), [terrain-expansion-plan.md](../docs/terrain-expansion-plan.md) |
+| `snapshot-survey-service.py` | Snapshot a survey web service into a local raster for the survey builder | manual |
+| `survey_regions.py` | Regional contour and reservoir adapters used by build-survey-bathymetry.py (library) | manual |
+| `terrain_release.py` | Offline terrain registry helpers: immutable manifests and atomic catalog snapshots (library) | manual |
+| `tile_writer.py` | Shared raster tile helpers for the survey bathymetry and HRDEM terrain builders (library) | manual: [terrain-expansion-plan.md](../docs/terrain-expansion-plan.md) |
+
+## Provisioning (`provision/`)
+
+Upload archives and catalogs to R2 and manage their lifecycle. Need Cloudflare credentials.
+
+| Script | Purpose | Run by |
+| --- | --- | --- |
+| `build-lake-data.mjs` | Build the global lake bathymetry archive (needs tippecanoe) | manual: [data-and-fabrication.md](../docs/data-and-fabrication.md), [README](../README.md) |
+| `fetch-lake-outlines.mjs` | Fetch the pinned lake-outline release into the build directory before deploy | CI/workflows |
+| `manage-cache-lifecycle.mjs` | Audit and apply the R2 cache lifecycle rules, with rollback receipts | `npm run data:cache-audit` |
+| `provision-lake-data.mjs` | Upload registered lake bathymetry and additional terrain archives to R2 | manual: [hrdem-terrain.md](../docs/hrdem-terrain.md), [data-layer-review.md](../docs/data-layer-review.md), [lake-bathymetry.md](../docs/lake-bathymetry.md), [data-and-fabrication.md](../docs/data-and-fabrication.md), [terrain-expansion-plan.md](../docs/terrain-expansion-plan.md), [data-layer-operations.md](../docs/data-layer-operations.md), [noaa-bathymetry.md](../docs/noaa-bathymetry.md), [README](../README.md), [README](../README.md) |
+| `provision-lake-outlines.mjs` | Upload a lake-outline release to R2 and promote it | manual: [lake-bathymetry.md](../docs/lake-bathymetry.md) |
+| `provision-vector-data.mjs` | Upload the pinned Protomaps OSM archive to R2 | `npm run data:provision` |
+| `prune-archives.mjs` | Delete superseded archive objects that no release points at | `npm run data:prune-archives` |
+
+## Verification and monitoring (`verify/`)
+
+Check deployed services, SEO output, and data quality. CI and the production monitors run several; the rest are manual checks named in the runbooks.
+
+| Script | Purpose | Run by |
+| --- | --- | --- |
+| `benchmark-data-layer.mjs` | Measure data-layer latency for representative projects (build core first) | `npm run data:benchmark` |
+| `verify-atomm-dist.mjs` | Check the Atomm build output for forbidden endpoints and required files | CI/workflows |
+| `verify-lake-directory.mjs` | Browser check of the lake directory and studio place links | `npm run data:verify-lake-directory` |
+| `verify-lake-outlines.mjs` | Compare provider outlines against real survey archives in a browser | manual: [lake-bathymetry.md](../docs/lake-bathymetry.md) |
+| `verify-lake-search.mjs` | Browser check that every surveyed lake is findable in studio search | manual: [lake-bathymetry.md](../docs/lake-bathymetry.md) |
+| `verify-noaa-live.mjs` | Integration check of NOAA depth data against a local app and Worker | manual: [noaa-bathymetry.md](../docs/noaa-bathymetry.md) |
+| `verify-seo-http.mjs` | Check a deployed site's SEO responses (headers, sitemap, robots, redirects) | CI/workflows |
+| `verify-seo.mjs` | Check the built site's metadata, sitemap, and structured data | CI/workflows |
+| `verify-surveys-live.mjs` | Integration check of survey archives against a local app and Worker | manual: [lake-bathymetry.md](../docs/lake-bathymetry.md) |
+| `verify-upstream-health.mjs` | Hourly monitor of the Worker's upstream cache-miss probes | CI/workflows |
+| `verify-worker-deployment.mjs` | Hourly monitor of the deployed Worker and its data paths | CI/workflows |
+
+## Release and Atomm packaging (`release/`)
+
+Version consistency and the Atomm marketplace bundle.
+
+| Script | Purpose | Run by |
+| --- | --- | --- |
+| `checksum-atomm.mjs` | Write and verify the SHA-256 of the packaged Atomm ZIP | `npm run release:atomm` |
+| `package-atomm-listing.mjs` | Package the Atomm marketplace listing (copy and cover assets) | `npm run package:atomm-listing` |
+| `package-atomm.mjs` | Build and package the Atomm static artifact as a versioned ZIP | `npm run package:atomm` |
+| `publish-atomm-release.mjs` | Tag, draft, upload, and publish an Atomm GitHub release | CI/workflows |
+| `validate-submission-env.mjs` | Fail-closed gate for Atomm packaging: the embedded map API URL must be production | manual |
+| `versions.mjs` | Check or bump the release version across workspaces and the Atomm manifest | `npm run version:check`; `npm run version:main`; `npm run version:atomm`; CI/workflows |

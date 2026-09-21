@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { env as workerEnv } from "cloudflare:workers";
 import worker from "../src/index";
-import { ARCHIVE_HEAD_TTL_MS, ARCHIVE_NEGATIVE_TTL_MS, cachedArchiveHead, resetArchiveHeadCache } from "../src/archive-release";
+import { ARCHIVE_HEAD_TTL_MS, ARCHIVE_NEGATIVE_TTL_MS, cachedArchiveHead, resetArchiveHeadCache } from "../src/archive-head";
 import { normalizeClientAddress } from "../src/http";
 import { probeUpstreams } from "../src/routes/health";
 import { terrainPng } from "./terrain-fixture";

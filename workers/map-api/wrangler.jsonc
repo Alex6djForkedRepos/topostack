@@ -56,7 +56,7 @@
       "preview_urls": false,
       // The first route is the canonical app. The legacy echofoxtrot.works
       // host stays attached only so published Atomm packages keep reaching the
-      // API there: a zone Redirect Rule (scripts/configure-legacy-redirects.mjs)
+      // API there: a zone Redirect Rule (scripts/configure-redirects.mjs)
       // sends every non-API request on it to the canonical host before the
       // Worker runs. CORS preflights cannot follow redirects, so the API is
       // served in place rather than redirected.

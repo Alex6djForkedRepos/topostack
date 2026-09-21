@@ -1,7 +1,7 @@
 <script lang="ts">
   import { base } from "$app/paths";
-  import Article from "../../lib/Article.svelte";
-  import { DOCS_NAV } from "../../lib/docs";
+  import Article from "$lib/site/Article.svelte";
+  import { DOCS_NAV } from "$lib/site/docs";
 </script>
 
 <Article title="Guides" intro="Everything you need to turn real terrain into a finished piece: step-by-step workflows, how lake depths are built, and where the map data comes from.">

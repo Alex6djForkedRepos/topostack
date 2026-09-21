@@ -8,17 +8,17 @@ The same tool also expires **retired terrain dataset versions**. Terrain cache k
 
 ```sh
 # Read-only audit; nonzero exit if a managed rule is missing or stale.
-node --env-file=.env scripts/manage-cache-lifecycle.mjs --prod
+node --env-file=.env scripts/provision/manage-cache-lifecycle.mjs --prod
 # Explicit reconciliation; first writes a backup of previous rules to the
 # gitignored .topostack/receipts/ (override with LIFECYCLE_RECEIPT_DIR).
-node --env-file=.env scripts/manage-cache-lifecycle.mjs --prod --apply
+node --env-file=.env scripts/provision/manage-cache-lifecycle.mjs --prod --apply
 ```
 
 Run it after each `DATASET_VERSION` deploy. Do not apply these rules to the vector-data buckets. Unrelated deletion rules (other than `geocode/` ones) still make the tool fail closed.
 
 ## Archive pruning
 
-Every provisioning run uploads a new immutable `archives/<sha256>/<uuid>.pmtiles`, and nothing deleted the archive a promotion replaced. `scripts/prune-archives.mjs` reports and, with `--apply`, deletes superseded archives. It keeps:
+Every provisioning run uploads a new immutable `archives/<sha256>/<uuid>.pmtiles`, and nothing deleted the archive a promotion replaced. `scripts/provision/prune-archives.mjs` reports and, with `--apply`, deletes superseded archives. It keeps:
 
 - `active`: the object each `releases/*.json` pointer serves.
 - `rollback`: the predecessor each pointer records in `previousObjectKey`, which gives one rollback generation per dataset. Provisioning writes this field; `null` means the release replaced nothing or a legacy object.
@@ -30,9 +30,9 @@ Legacy logical-key objects (for example `osm/current.pmtiles`) shadowed by a poi
 
 ```sh
 # Read-only report for development (add --prod for both buckets).
-node --env-file=.env scripts/prune-archives.mjs
+node --env-file=.env scripts/provision/prune-archives.mjs
 # Delete what the report marks `remove`; writes a receipt first.
-node --env-file=.env scripts/prune-archives.mjs --prod --apply [--grace-days=30] [--include-legacy]
+node --env-file=.env scripts/provision/prune-archives.mjs --prod --apply [--grace-days=30] [--include-legacy]
 ```
 
 The tool aborts if any pointer is unreadable or invalid, or if a bucket has no pointers at all. Before deleting, it rereads every pointer and aborts if any ETag or the pointer set changed since planning. The receipt in `.topostack/receipts/` lists the plan, the pointers it was based on, and each key as it is deleted. Deletion is permanent: the receipt records what was removed, not its bytes. Do not run `--apply` while rolling back to an archive older than the grace period. Promote the rollback first, then prune.
@@ -45,11 +45,11 @@ The gateway checks the per-location Workers Cache API before R2. It stores terra
 
 ```sh
 # Stage in development and fully verify the remote object without activation.
-node --env-file=.env scripts/provision-vector-data.mjs ./current.pmtiles \
+node --env-file=.env scripts/provision/provision-vector-data.mjs ./current.pmtiles \
   --provision --expected-sha256=<pinned-sha256>
 
 # Stage and activate a registered survey in development, after gateway deployment.
-node --env-file=.env scripts/provision-lake-data.mjs ./survey.pmtiles \
+node --env-file=.env scripts/provision/provision-lake-data.mjs ./survey.pmtiles \
   --source=usgs-crater-lake-v1 --provision --promote --expected-sha256=<pinned-sha256>
 ```
 

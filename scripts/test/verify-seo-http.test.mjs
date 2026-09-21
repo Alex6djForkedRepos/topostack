@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { fetchSeoResponse, fetchSitemapUrls } from "../verify-seo-http.mjs";
+import { fetchSeoResponse, fetchSitemapUrls } from "../verify/verify-seo-http.mjs";
 
 for (const status of [404, 429, 503]) {
   test(`deployment SEO retries a transient ${status}`, async (t) => {
@@ -29,7 +29,7 @@ for (const [name, status, options] of [
 }
 
 const sitemap = (...urls) => new Response(
-  '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + urls.map((url) => `<url><loc>${url}</loc></url>`).join("") + "</urlset>",
+  '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + urls.map((url) => `<url><loc>${url}</loc><lastmod>2026-09-18</lastmod></url>`).join("") + "</urlset>",
   { headers: { "content-type": "application/xml; charset=utf-8" } },
 );
 
@@ -46,4 +46,13 @@ test("a stale sitemap is reported as read once the propagation window expires, a
   assert.deepEqual(await fetchSitemapUrls("https://ci.invalid/sitemap.xml", ["https://ci.invalid/", "https://ci.invalid/guides/new"], { deadline: Date.now() - 1, retryDelayMs: 0 }), ["https://ci.invalid/"]);
   assert.deepEqual(await fetchSitemapUrls("https://ci.invalid/sitemap.xml", ["https://ci.invalid/guides/new"]), ["https://ci.invalid/"]);
   assert.equal(fetch.mock.callCount(), 2);
+});
+
+test("a deployed sitemap whose content dates do not match the build is rejected", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => sitemap("https://ci.invalid/"));
+  const read = (lastmod) => fetchSitemapUrls("https://ci.invalid/sitemap.xml", ["https://ci.invalid/"], { lastmod });
+  assert.deepEqual(await read({ "https://ci.invalid/": "2026-09-18" }), ["https://ci.invalid/"]);
+  await assert.rejects(() => read({ "https://ci.invalid/": "2026-09-19" }), /deployed lastmod/);
+  // Callers that do not know the dates still get the URL list.
+  assert.deepEqual(await read(undefined), ["https://ci.invalid/"]);
 });

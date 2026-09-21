@@ -1,6 +1,6 @@
 <script lang="ts">
   import { base } from "$app/paths";
-  import Article from "../../../lib/Article.svelte";
+  import Article from "$lib/site/Article.svelte";
 </script>
 
 <Article title="How to make a laser-cut topographic map" intro="Turn a mountain, lake or familiar landscape into a layered relief. TopoStack converts real elevation data into SVG cut panels, engraving companions and an assembly guide.">

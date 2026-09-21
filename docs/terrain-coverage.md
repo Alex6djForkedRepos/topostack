@@ -57,7 +57,7 @@ countries to this inventory as their authoritative products are assessed.
 6. Stage and verify full archive hashes, promote the data release, then enable its
    catalog registration in the application release. Keep rollback receipts.
 
-Use `scripts/discover-terrain.py` manually to inspect Canadian candidates and
+Use `scripts/data-build/discover-terrain.py` manually to inspect Canadian candidates and
 prepare approved areas. `--build`, `--register`, and archive `--promote` remain
 explicit operator actions. The discovery script is never called by the app.
 

@@ -1,0 +1,191 @@
+<script lang="ts">
+  import { ChevronDown, Compass, Grid3X3, Layers3, Map as MapIcon, Minus, Mountain, Square, Waves } from "@lucide/svelte";
+  import { Field, Section } from "@loidolt/theme-svelte";
+  import { displayElevation, displayLength, labelDimensions, labelPathData, MAX_WATER_DEPTH_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, NORTH_ARROW_MIN_SIZE_MM } from "@topostack/core";
+  import FeedbackButton from "$lib/site/FeedbackButton.svelte";
+  import NumberField from "$lib/studio/StudioNumberField.svelte";
+  import { FONT_OPTIONS, NORTH_ARROW_ANCHOR_OPTIONS, NORTH_ARROW_OPTIONS, WATER_FILL_PATTERNS } from "$lib/studio/options";
+  import Switch from "$lib/studio/StudioSwitch.svelte";
+  import LakeDepthHelp from "$lib/studio/panels/LakeDepthHelp.svelte";
+  import { getStudio } from "$lib/studio/studio-context";
+
+  let { openLakeDepthHelp }: { openLakeDepthHelp?: (trigger: HTMLButtonElement) => void } = $props();
+  const studio = getStudio();
+  const { getFeedbackContext, navigateChoice, previewMarkingPath, sectionSummary, setLakeDepth, shownDepth, shownLength, shownTextSize, storedLength, toggleSection, updateDepthLayerLimit, updateFabrication, updateMapDetails } = studio;
+</script>
+
+<Section class="config-section" aria-labelledby="atomm-details-title">
+  <button type="button" class="section-disclosure" id="atomm-details-title" aria-expanded={studio.openSections.details} aria-controls="section-details" onclick={() => toggleSection("details")}>
+    <span class="section-number">05</span>
+    <span class="section-title">Map details<small>{sectionSummary("details")}</small></span>
+    <ChevronDown size={16} class={studio.openSections.details ? "kicker-chevron kicker-chevron--open" : "kicker-chevron"} />
+  </button>
+  <div id="section-details" class="section-content" hidden={!studio.openSections.details}>
+
+  <div class="detail-column">
+  <div class="detail-group">
+    <p class="subgroup-heading">Terrain features</p>
+    <div class="toggle-stack">
+      <Switch checked={studio.project.showRoads} onCheckedChange={(showRoads) => void updateMapDetails({ showRoads })} aria-label="Roads"><span class="toggle-label"><Minus size={16} />Roads</span></Switch>
+      <Switch checked={studio.project.showTrails} onCheckedChange={(showTrails) => void updateMapDetails({ showTrails })} aria-label="Trails"><span class="toggle-label"><Minus size={16} />Trails</span></Switch>
+      <Switch checked={studio.project.showTransportationLabels} onCheckedChange={(showTransportationLabels) => void updateMapDetails({ showTransportationLabels })} aria-label="Transportation labels"><span class="toggle-label"><Minus size={16} />Transportation labels</span></Switch>
+      <div class="toggle-control">
+        <Switch checked={studio.project.showWater} onCheckedChange={(showWater) => void updateMapDetails({ showWater })} aria-label="Water outlines"><span class="toggle-label"><Waves size={16} />Water outlines</span></Switch>
+        {#if studio.project.outputMode === "engraving" && studio.project.showWater}
+          <div class="toggle-settings">
+            <p class="subgroup-heading">Water fill</p>
+            <div class="ldt-toggle-group water-pattern-options" role="radiogroup" aria-label="Water fill pattern">
+              {#each WATER_FILL_PATTERNS as option}
+                <button type="button" class="ldt-toggle-group__item" role="radio" aria-checked={studio.project.waterFillPattern === option.value} data-state={studio.project.waterFillPattern === option.value ? "on" : "off"} tabindex={studio.project.waterFillPattern === option.value ? 0 : -1} onclick={() => void updateFabrication({ waterFillPattern: option.value })} onkeydown={navigateChoice}>{option.label}</button>
+              {/each}
+            </div>
+            <small class="depth-note">Adds fabrication-ready vector marks inside water areas. None keeps outlines only.</small>
+          </div>
+        {/if}
+      </div>
+      <Switch checked={studio.project.showBoundaries} onCheckedChange={(showBoundaries) => void updateMapDetails({ showBoundaries })} aria-label="State and province boundaries"><span class="toggle-label"><MapIcon size={16} />State / province boundaries</span></Switch>
+      <Switch checked={studio.project.showCoordinateGrid} onCheckedChange={(showCoordinateGrid) => void updateMapDetails({ showCoordinateGrid })} aria-label="Latitude and longitude grid"><span class="toggle-label"><Grid3X3 size={16} />Latitude / longitude grid</span></Switch>
+      {#if studio.project.outputMode === "engraving"}
+        <Switch checked={studio.project.showEngravingBorder} onCheckedChange={(showEngravingBorder) => void updateFabrication({ showEngravingBorder })} aria-label="Engraved border"><span class="toggle-label"><Square size={16} />Engraved border</span></Switch>
+      {:else}
+      <div class="toggle-control">
+        <Switch checked={studio.project.showWaterDepth} onCheckedChange={(showWaterDepth) => void updateMapDetails({ showWaterDepth })} aria-label="Water depth"><span class="toggle-label"><Waves size={16} />Water depth</span></Switch>
+        {#if studio.project.showWaterDepth}
+          <div class="toggle-settings">
+            <div class="range-field">
+              <span class="range-field__label"><b>Depth exaggeration</b></span>
+              <div class="range-field__row">
+                <input type="range" aria-label="Water depth exaggeration slider" min={MIN_WATER_DEPTH_EXAGGERATION} max={MAX_WATER_DEPTH_EXAGGERATION} step="0.05" value={studio.project.waterDepthExaggeration} oninput={(event) => void updateFabrication({ waterDepthExaggeration: Number(event.currentTarget.value) })} />
+                <span class="number-input number-input--compact"><NumberField label="Water depth exaggeration" value={studio.project.waterDepthExaggeration} min={MIN_WATER_DEPTH_EXAGGERATION} max={MAX_WATER_DEPTH_EXAGGERATION} step={0.05} oninput={(event) => event.currentTarget.value !== "" && void updateFabrication({ waterDepthExaggeration: event.currentTarget.valueAsNumber })} onValueChange={(value) => value !== studio.project.waterDepthExaggeration && void updateFabrication({ waterDepthExaggeration: value })} /><em>×</em></span>
+              </div>
+              <small><span>{MIN_WATER_DEPTH_EXAGGERATION}×</span><span>{MAX_WATER_DEPTH_EXAGGERATION}× terrain</span></small>
+            </div>
+            <small class="depth-note">Relative to the terrain's vertical scale, which water already follows. 1× keeps lakes and sea floor on the same scale as the hills.</small>
+            <Switch checked={studio.project.waterDepthLayerLimit !== undefined} onCheckedChange={(limited) => void updateFabrication({ waterDepthLayerLimit: limited ? Math.max(1, studio.stackPlan.depthLayerCount) : undefined, fitLakeDepth: false })} aria-label="Limit depth layers"><span class="toggle-label">Limit depth layers</span></Switch>
+            {#if studio.project.waterDepthLayerLimit !== undefined}
+              <Field label="Depth layers" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label="Maximum depth layers" value={studio.project.waterDepthLayerLimit} min={1} step={1} oninput={(event) => event.currentTarget.value !== "" && updateDepthLayerLimit(event.currentTarget.valueAsNumber)} onValueChange={updateDepthLayerLimit} /></span>{/snippet}</Field>
+              <small class="depth-note">Up to {studio.project.waterDepthLayerLimit} {studio.project.waterDepthLayerLimit === 1 ? "layer" : "layers"} ({shownLength(studio.project.waterDepthLayerLimit * studio.project.materialThicknessMm)} {studio.shownLengthUnit}) below the lowest land. Land height stays unchanged.</small>
+              <Switch checked={studio.project.fitLakeDepth} onCheckedChange={(fitLakeDepth) => void updateFabrication({ fitLakeDepth })} aria-label="Fit lake depth to available layers"><span class="toggle-label">Fit lake depth to available layers</span></Switch>
+              <small class="depth-note">Compresses lakes into your depth allowance while preserving their floor shape and shorelines. With fitting off, deeper areas are clipped.</small>
+            {:else}
+              <small class="depth-note">Automatic: adds all layers needed for the requested water depth. Currently {studio.stackPlan.depthLayerCount} depth {studio.stackPlan.depthLayerCount === 1 ? "layer" : "layers"} ({shownLength(studio.stackPlan.depthLayerCount * studio.project.materialThicknessMm)} {studio.shownLengthUnit}) below the lowest land.</small>
+            {/if}
+            {#each studio.geometry.waterSurfaces.filter((lake) => lake.depthFitScale !== undefined) as lake (lake.id)}
+              <small class="depth-note">{lake.name ?? "Lake"}: {lake.appliedDepthExaggeration!.toFixed(2)}× terrain depth applied · {Math.round(lake.depthFitScale! * 100)}% of requested depth.</small>
+            {/each}
+          </div>
+        {/if}
+        {#if studio.project.showWaterDepth && (studio.activeSource.bathymetryStatus === "available" || studio.activeSource.bathymetryStatus === "partial")}
+          <small class="depth-note">Surveyed lake-floor data is used where available. Gaps use existing terrain or modeled depths.</small>
+        {/if}
+        {#if studio.project.showWaterDepth && studio.modeledLakes.length}
+          <div class="toggle-settings">
+            <div class="subgroup-heading subgroup-heading--action">
+              <p>Maximum depth</p>
+              {#if studio.hasDepthOverride}<button type="button" onclick={() => void updateFabrication({ waterDepthOverrides: {} })}>Reset</button>{/if}
+            </div>
+            <div class="field-stack">
+              {#each studio.modeledLakes as lake (lake.id)}
+                <Field label={lake.name} class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label={`${lake.name} maximum depth`} value={shownDepth(lake.maxDepthM)} min={1} max={Math.round(displayElevation(12000, studio.project.units))} onValueChange={(depth) => void setLakeDepth(lake.hylakId, depth)} /><em>{studio.shownElevationUnit}</em></span>{/snippet}</Field>
+              {/each}
+            </div>
+            <small class="depth-note">Estimated from shoreline terrain slopes and GLOBathy/HydroLAKES depths. This is a modeled lake floor.</small>
+          </div>
+        {/if}
+        <div class="depth-note">{#if !studio.embeddedInPlatform}<FeedbackButton label="Report lake data quality" type="lake" getContext={getFeedbackContext} />{/if} <LakeDepthHelp {openLakeDepthHelp} /></div>
+      </div>
+      {/if}
+    </div>
+  </div>
+
+  {#if studio.project.outputMode === "stack"}<div class="detail-group">
+    <p class="subgroup-heading">Assembly</p>
+    <div class="toggle-stack">
+      <Switch checked={studio.project.showAlignmentGuides} onCheckedChange={(showAlignmentGuides) => void updateMapDetails({ showAlignmentGuides })} aria-label="Assembly guides"><span class="toggle-label"><Layers3 size={16} />Assembly guides</span></Switch>
+    </div>
+  </div>{/if}
+
+  </div>
+  <div class="detail-column">
+  <div class="detail-group">
+    <p class="subgroup-heading">Annotations</p>
+    <div class="toggle-stack">
+      <div class="toggle-control">
+        <Switch checked={studio.project.showElevationLabels} onCheckedChange={(showElevationLabels) => void updateMapDetails({ showElevationLabels })} aria-label="Elevation labels"><span class="toggle-label"><Mountain size={16} />Elevation labels</span></Switch>
+        {#if studio.project.showElevationLabels}
+          <div class="toggle-settings">
+            <p class="subgroup-heading">Preferred position</p>
+            <div class="field-stack field-stack--offsets">
+              <Field label="Label X" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label="Label X" value={Math.round(studio.project.elevationLabelPosition.x * 100)} min={-90} max={90} oninput={(event) => event.currentTarget.value !== "" && void updateFabrication({ elevationLabelPosition: { ...studio.project.elevationLabelPosition, x: event.currentTarget.valueAsNumber / 100 } })} onValueChange={(x) => x !== Math.round(studio.project.elevationLabelPosition.x * 100) && void updateFabrication({ elevationLabelPosition: { ...studio.project.elevationLabelPosition, x: x / 100 } })} /><em>%</em></span>{/snippet}</Field>
+              <Field label="Label Y" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label="Label Y" value={Math.round(studio.project.elevationLabelPosition.y * 100)} min={-90} max={90} oninput={(event) => event.currentTarget.value !== "" && void updateFabrication({ elevationLabelPosition: { ...studio.project.elevationLabelPosition, y: event.currentTarget.valueAsNumber / 100 } })} onValueChange={(y) => y !== Math.round(studio.project.elevationLabelPosition.y * 100) && void updateFabrication({ elevationLabelPosition: { ...studio.project.elevationLabelPosition, y: y / 100 } })} /><em>%</em></span>{/snippet}</Field>
+            </div>
+          </div>
+        {/if}
+      </div>
+
+      <div class="toggle-control">
+        <Switch checked={studio.project.showNorthArrow} onCheckedChange={(showNorthArrow) => void updateMapDetails({ showNorthArrow })} aria-label="North arrow"><span class="toggle-label"><Compass size={16} />North arrow</span></Switch>
+        {#if studio.project.showNorthArrow}
+          <div class="toggle-settings">
+            <p class="subgroup-heading">Compass design</p>
+            <div class="swatch-options" role="radiogroup" aria-label="North arrow design">
+              {#each NORTH_ARROW_OPTIONS as option}
+                <button type="button" role="radio" aria-checked={studio.project.northArrowStyle === option.value} data-state={studio.project.northArrowStyle === option.value ? "on" : "off"} tabindex={studio.project.northArrowStyle === option.value ? 0 : -1} onclick={() => void updateFabrication({ northArrowStyle: option.value })} onkeydown={navigateChoice}>
+                  <svg viewBox="-52 -52 104 104" aria-hidden="true">{#each option.markings as marking}<path d={previewMarkingPath(marking)} />{/each}</svg>
+                  <span>{option.label}</span>
+                </button>
+              {/each}
+            </div>
+            <div class="range-field">
+              <span class="range-field__label"><b>Diameter</b></span>
+              <div class="range-field__row">
+                <input aria-label="North arrow size slider" type="range" min={displayLength(NORTH_ARROW_MIN_SIZE_MM, studio.project.units)} max={displayLength(studio.northArrowSizeLimitMm, studio.project.units)} step={studio.project.units === "imperial" ? 0.01 : 1} value={displayLength(studio.project.northArrowSizeMm, studio.project.units)} oninput={(event) => void updateFabrication({ northArrowSizeMm: storedLength(event.currentTarget.valueAsNumber) })} />
+                <span class="number-input number-input--compact"><NumberField label="North arrow size" value={shownTextSize(studio.project.northArrowSizeMm)} min={displayLength(NORTH_ARROW_MIN_SIZE_MM, studio.project.units)} max={displayLength(studio.northArrowSizeLimitMm, studio.project.units)} step={studio.project.units === "imperial" ? 0.01 : 1} oninput={(event) => event.currentTarget.value !== "" && void updateFabrication({ northArrowSizeMm: storedLength(event.currentTarget.valueAsNumber) })} onValueChange={(value) => { const sizeMm = storedLength(value); if (sizeMm !== studio.project.northArrowSizeMm) void updateFabrication({ northArrowSizeMm: sizeMm }); }} /><em>{studio.shownLengthUnit}</em></span>
+              </div>
+              <small><span>{shownTextSize(NORTH_ARROW_MIN_SIZE_MM)} {studio.shownLengthUnit}</span><span>{shownTextSize(studio.northArrowSizeLimitMm)} {studio.shownLengthUnit}</span></small>
+            </div>
+            <div class="subgroup-heading subgroup-heading--action">
+              <p>Placement</p>
+              <button type="button" onclick={() => void updateFabrication({ northArrowPlacement: { ...studio.project.northArrowPlacement, offset: { x: 0, y: 0 } } })}>Reset offset</button>
+            </div>
+            <div class="north-arrow-anchor-grid" role="radiogroup" aria-label="North arrow anchor">
+              {#each NORTH_ARROW_ANCHOR_OPTIONS as option}
+                <button type="button" role="radio" aria-label={option.label} title={option.label} aria-checked={studio.project.northArrowPlacement.anchor === option.value} data-state={studio.project.northArrowPlacement.anchor === option.value ? "on" : "off"} tabindex={studio.project.northArrowPlacement.anchor === option.value ? 0 : -1} onclick={() => void updateFabrication({ northArrowPlacement: { anchor: option.value, offset: { x: 0, y: 0 } } })} onkeydown={navigateChoice}><span></span></button>
+              {/each}
+            </div>
+            <div class="field-stack field-stack--offsets">
+              <Field label="Offset X" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label="North arrow offset X" value={Math.round(studio.project.northArrowPlacement.offset.x * 100)} min={-100} max={100} oninput={(event) => event.currentTarget.value !== "" && void updateFabrication({ northArrowPlacement: { ...studio.project.northArrowPlacement, offset: { ...studio.project.northArrowPlacement.offset, x: event.currentTarget.valueAsNumber / 100 } } })} onValueChange={(x) => x !== Math.round(studio.project.northArrowPlacement.offset.x * 100) && void updateFabrication({ northArrowPlacement: { ...studio.project.northArrowPlacement, offset: { ...studio.project.northArrowPlacement.offset, x: x / 100 } } })} /><em>%</em></span>{/snippet}</Field>
+              <Field label="Offset Y" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label="North arrow offset Y" value={Math.round(studio.project.northArrowPlacement.offset.y * 100)} min={-100} max={100} oninput={(event) => event.currentTarget.value !== "" && void updateFabrication({ northArrowPlacement: { ...studio.project.northArrowPlacement, offset: { ...studio.project.northArrowPlacement.offset, y: event.currentTarget.valueAsNumber / 100 } } })} onValueChange={(y) => y !== Math.round(studio.project.northArrowPlacement.offset.y * 100) && void updateFabrication({ northArrowPlacement: { ...studio.project.northArrowPlacement, offset: { ...studio.project.northArrowPlacement.offset, y: y / 100 } } })} /><em>%</em></span>{/snippet}</Field>
+            </div>
+          </div>
+        {/if}
+      </div>
+
+      <Switch checked={studio.project.showScaleBar} onCheckedChange={(showScaleBar) => void updateMapDetails({ showScaleBar })} aria-label="Scale bar"><span class="toggle-label"><Minus size={16} />Scale bar</span></Switch>
+    </div>
+  </div>
+
+  <div class="detail-group">
+    <p class="subgroup-heading">Text engraving</p>
+    <div class="swatch-options" role="radiogroup" aria-label="Engraving font">
+      {#each FONT_OPTIONS as option}
+        {@const sampleStyle = { font: option.value, sizeMm: 3.1 }}
+        <button type="button" role="radio" aria-checked={studio.project.textStyle.font === option.value} data-state={studio.project.textStyle.font === option.value ? "on" : "off"} tabindex={studio.project.textStyle.font === option.value ? 0 : -1} onclick={() => void updateFabrication({ textStyle: { ...studio.project.textStyle, font: option.value } })} onkeydown={navigateChoice}>
+          <!-- Glyphs run right and down from their origin, so start the sample half its size up and left of the box centre. -->
+          <svg viewBox="-8.5 -2.1 17 4.2" aria-hidden="true"><path stroke-linecap={option.value === "rounded" ? "round" : "butt"} stroke-linejoin={option.value === "rounded" ? "round" : "miter"} d={labelPathData("123m", { x: -labelDimensions("123m", sampleStyle).width / 2, y: -1.4 }, 0, 0, 0, sampleStyle)} /></svg>
+          <span>{option.label}</span>
+        </button>
+      {/each}
+    </div>
+    <div class="range-field">
+      <span class="range-field__label"><b>Text size</b></span>
+      <div class="range-field__row">
+        <input aria-label="Text size slider" type="range" min={displayLength(2, studio.project.units)} max={displayLength(10, studio.project.units)} step={studio.project.units === "imperial" ? 0.005 : 0.1} value={displayLength(studio.project.textStyle.sizeMm, studio.project.units)} oninput={(event) => void updateFabrication({ textStyle: { ...studio.project.textStyle, sizeMm: storedLength(event.currentTarget.valueAsNumber) } })} />
+        <span class="number-input number-input--compact"><NumberField label="Text size" value={shownTextSize(studio.project.textStyle.sizeMm)} min={displayLength(2, studio.project.units)} max={displayLength(10, studio.project.units)} step={studio.project.units === "imperial" ? 0.005 : 0.1} oninput={(event) => event.currentTarget.value !== "" && void updateFabrication({ textStyle: { ...studio.project.textStyle, sizeMm: storedLength(event.currentTarget.valueAsNumber) } })} onValueChange={(value) => { const sizeMm = storedLength(value); if (sizeMm !== studio.project.textStyle.sizeMm) void updateFabrication({ textStyle: { ...studio.project.textStyle, sizeMm } }); }} /><em>{studio.shownLengthUnit}</em></span>
+      </div>
+      <small><span>{shownTextSize(2)} {studio.shownLengthUnit}</span><span>{shownTextSize(10)} {studio.shownLengthUnit}</span></small>
+    </div>
+  </div>
+  </div>
+  </div>
+</Section>

@@ -27,11 +27,11 @@ The script refuses to upload unless the computed SHA-256 matches a pinned digest
 ```bash
 # Development only (default):
 PMTILES_BIN=/path/to/pmtiles EXPECTED_ARCHIVE_SHA256=<pinned-hex> \
-  node --env-file=.env scripts/provision-vector-data.mjs ./current.pmtiles --provision
+  node --env-file=.env scripts/provision/provision-vector-data.mjs ./current.pmtiles --provision
 
 # Development and production:
 PMTILES_BIN=/path/to/pmtiles EXPECTED_ARCHIVE_SHA256=<pinned-hex> \
-  node --env-file=.env scripts/provision-vector-data.mjs ./current.pmtiles --provision --prod
+  node --env-file=.env scripts/provision/provision-vector-data.mjs ./current.pmtiles --provision --prod
 ```
 
 The API token must allow R2 object writes and temporary-credential creation. Do not commit the token, temporary credentials, or generated archive. Keep the pinned source, maximum zoom, extracted-archive SHA-256, `DATASET_VERSION`, manifest response, and attribution synchronized when updating the data. The Protomaps archive is an ODbL Produced Work based on OpenStreetMap data.
@@ -78,14 +78,16 @@ CI normally synchronizes this secret from the matching GitHub environment during
 
 The development frontend and API are deployed at `https://dev.topostack.app`; production is at `https://topostack.app`. Wrangler uploads `apps/generator/dist` as static assets, while `/health` and `/v1/*` run the API Worker. Atomm and third-party browser clients can call the read-only API cross-origin.
 
-The former hosts, `topostack.echofoxtrot.works` and `dev-topostack.echofoxtrot.works`, stay attached to the same Workers as second Custom Domains so Atomm packages published before the move keep reaching the API (CORS preflights cannot follow redirects). Everything else on those hosts is sent to the same path on the new origin with a 301 by a Single Redirect rule in the `echofoxtrot.works` zone, which runs before the Worker and its static assets. The rules live in code; preview them, then apply them with a token that has Zone Read and Single Redirect Edit on `echofoxtrot.works`:
+The former hosts, `topostack.echofoxtrot.works` and `dev-topostack.echofoxtrot.works`, stay attached to the same Workers as second Custom Domains so Atomm packages published before the move keep reaching the API (CORS preflights cannot follow redirects). Everything else on those hosts is sent to the same path on the new origin with a 301 by a Single Redirect rule, which runs before the Worker and its static assets — a Worker-level redirect would take page responses out of the `_headers` policy. `www.topostack.app` has no Custom Domain at all and is redirected to the apex the same way, from a proxied placeholder record that exists only so the rule can run.
+
+The rules live in code; preview them, then apply them with a token that has Zone Read and Single Redirect Edit on `echofoxtrot.works` and `topostack.app`, plus DNS Edit on `topostack.app` for the `www` record:
 
 ```sh
-CLOUDFLARE_API_TOKEN=... node scripts/configure-legacy-redirects.mjs
-CLOUDFLARE_API_TOKEN=... node scripts/configure-legacy-redirects.mjs --apply
+CLOUDFLARE_API_TOKEN=... node scripts/build/configure-redirects.mjs
+CLOUDFLARE_API_TOKEN=... node scripts/build/configure-redirects.mjs --apply
 ```
 
-The script replaces only its own `topostack_legacy_*` rules and leaves any other redirect rules in the zone untouched.
+The script replaces only its own `topostack_*` rules, leaves any other redirect rule in either zone untouched, and never edits an existing `www` record.
 
 Configure `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and `GEOCODER_API_KEY` as secrets in both GitHub environments. The Cloudflare token needs Workers Scripts edit and R2 edit at the account level plus Workers Routes edit for the `topostack.app` and `echofoxtrot.works` zones so both environments can manage their Custom Domains. Restrict the development environment to `dev` and production to `main`; production should also use required reviewers. Pull requests run validation without environment access or Cloudflare credentials.
 
@@ -108,7 +110,7 @@ Both provisioning scripts save `<archive>.provisioning.json` after remote verifi
 The optional `/v1/bathymetry/noaa-great-lakes-v1.pmtiles` endpoint serves the
 versioned NOAA raster archive from the existing `VECTOR_DATA` binding, with the
 same bounded byte ranges, etags, and CORS as the global lake archive. Provision it
-with `scripts/provision-lake-data.mjs --source=noaa`; see
+with `scripts/provision/provision-lake-data.mjs --source=noaa`; see
 [build, provenance, and rollout instructions](../../docs/noaa-bathymetry.md).
 Missing NOAA data produces a modeled-depth fallback warning in the generator
 and does not change the existing required dependencies for `/ready`.

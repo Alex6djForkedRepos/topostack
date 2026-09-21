@@ -16,7 +16,7 @@ VITE_MAP_API_URL=https://topostack.app npm run dev:web
 Then run from the repository root:
 
 ```sh
-node scripts/capture-readme-assets.mjs
+node scripts/dev/capture-readme-assets.mjs
 ```
 
 Set `TOPOSTACK_CAPTURE_URL` if the frontend uses a different origin. The script requires installed Playwright Chromium (`npx playwright install chromium` if needed). It restores the settings in `atomm/media-project-v3.json`, generates fresh terrain, and requires both a successful USGS survey response and the app's surveyed-data notice before saving screenshots. Public API responses are relayed through Playwright without localhost Origin/Referer headers; their data is unchanged. Use a normal frontend, not an end-to-end test build, and avoid editing app files during capture because hot reload can reset the terrain.

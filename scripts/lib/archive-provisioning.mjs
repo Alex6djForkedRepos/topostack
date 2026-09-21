@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { access, stat } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
-import { parseArchiveRelease } from "../../packages/core/src/archive-release.ts";
+import { parseArchiveRelease } from "@topostack/data-contracts/archive-release";
 import { writeJsonAtomic } from "./files.mjs";
 import { verifyPromotionGateway } from "./gateway.mjs";
 import { bucketDeployment } from "./r2-buckets.mjs";
