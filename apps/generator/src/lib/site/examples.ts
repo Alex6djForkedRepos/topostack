@@ -160,7 +160,6 @@ export const ALL_EXAMPLES: readonly ExampleConfig[] = [
       "The surveyed lake floor is deep compared with the land relief, so depth exaggeration stays at 1× and the studio adds the depth sheets it needs.",
     ],
     keywords: "Lake Tahoe depth map",
-    draft: "The Tahoe survey renders with straight east–west bands across the lake floor; publish once that is fixed.",
     published: "2026-09-21",
     updated: "2026-09-21",
   },

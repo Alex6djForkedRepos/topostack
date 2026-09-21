@@ -11,7 +11,7 @@ describe("example projects", () => {
   it("publishes every example that is not a draft, each with a unique slug", () => {
     expect(new Set(ALL_EXAMPLES.map((example) => example.slug)).size).toBe(ALL_EXAMPLES.length);
     expect(EXAMPLES.every((example) => !example.draft)).toBe(true);
-    expect(ALL_EXAMPLES.filter((example) => example.draft).map((example) => example.slug)).toEqual(["lake-tahoe"]);
+    expect(ALL_EXAMPLES.filter((example) => example.draft).map((example) => example.slug)).toEqual([]);
   });
 
   it("ships a captured render, sharing card and importable project for each published example", () => {
