@@ -743,6 +743,7 @@ html:has(.atomm-workbench), body:has(.atomm-workbench) { height: 100%; margin: 0
   .generation-overlay.preview-update-overlay { inset: auto 16px 60px auto; display: flex; align-items: flex-start; gap: 4px; width: min(280px, calc(100% - 32px)); border-radius: 8px; }
   .generation-overlay.preview-update-overlay small { white-space: normal; overflow-wrap: anywhere; }
   .gen-params-header .unit-switch { width: auto; }
+  .project-identity { display: contents; }
   .project-name { width: 100%; border: 0; padding: 0; gap: 8px; }
   .project-name > span { font: var(--font-12-regular); text-transform: none; letter-spacing: 0; }
   .project-name input { height: 28px; padding: 0 6px; background: var(--color-bg-control); border: 1px solid transparent; border-radius: 6px; font: var(--font-12-regular); }
@@ -750,7 +751,6 @@ html:has(.atomm-workbench), body:has(.atomm-workbench) { height: 100%; margin: 0
   .ldt-button.ldt-icon-button { min-width: 32px; width: 32px; height: 32px; padding: 0; border-radius: 8px; }
   .output-mode-switch { width: 100%; }
   .output-mode-switch__icon, .output-mode-switch .ldt-toggle-group__item[data-state="on"] .output-mode-switch__icon { color: currentColor; background: transparent; border: 0; }
-  .context-export-status { display: none; }
   .config-section { margin: 0; padding: 0; border: 1px solid var(--color-stroke-divider); border-radius: 8px; background: var(--color-bg-default); }
   .section-disclosure { height: 40px; min-height: 40px; padding: 8px 16px; gap: 8px; border-bottom: 1px solid var(--color-stroke-divider); border-radius: 8px 8px 0 0; text-align: start; font: var(--font-12-medium); }
   .section-disclosure[aria-expanded="false"] { border-bottom-color: transparent; border-radius: 8px; }

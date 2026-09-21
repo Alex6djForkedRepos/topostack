@@ -31,9 +31,14 @@
 
 .preview-readout {
   display: flex;
-  gap: 17px;
+  flex-wrap: wrap;
+  gap: 4px 17px;
   color: var(--loidolt-text-muted);
   font: 9px var(--loidolt-font-utility);
+}
+
+.output-summary {
+  display: contents;
 }
 
 .preview-stage {

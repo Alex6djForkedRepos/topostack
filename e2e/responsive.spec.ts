@@ -61,7 +61,7 @@ for (const device of devices) {
       await page.getByRole("button", { name: "Collapse all", exact: true }).click();
       await page.getByRole("textbox", { name: "Project name", exact: true }).scrollIntoViewIfNeeded();
       await expect(page.getByRole("textbox", { name: "Project name", exact: true })).toHaveValue("Responsive landscape");
-      await expect(page.getByRole("button", { name: "Import project JSON", exact: true })).toBeInViewport();
+      await expect(page.getByRole("button", { name: "Project actions", exact: true })).toBeInViewport();
     }
 
     await page.getByRole("button", { name: /Project setup/ }).click();
