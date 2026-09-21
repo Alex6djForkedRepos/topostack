@@ -51,7 +51,7 @@ test(`keeps saved ${cropShape} bounds aligned after opening and resizing Map`, a
     { id: "north-west", symbol: "circle", lat: bounds.north, lon: bounds.west },
     { id: "south-east", symbol: "circle", lat: bounds.south, lon: bounds.east },
   ] };
-  await page.locator('input[type="file"]').setInputFiles({ name: "selection.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(project)) });
+  await page.locator('input[type="file"][accept^="application/json"]').setInputFiles({ name: "selection.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(project)) });
   await page.getByRole("button", { name: /Generate terrain/ }).click();
   await expect(page.getByText("Ready to export")).toBeVisible();
   await page.getByRole("radio", { name: "Map", exact: true }).click();
