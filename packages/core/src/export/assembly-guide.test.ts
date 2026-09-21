@@ -22,7 +22,11 @@ describe("assembly guide booklet", () => {
     // Step k draws the k - 1 layers beneath plus the highlighted new one.
     const last = html.slice(html.indexOf(`id="step-${ir.layers.length}"`));
     expect(last.slice(0, last.indexOf("</figure>")).match(/<use /g)).toHaveLength(ir.layers.length);
-    expect(last).toContain("This is the top layer.");
+    expect(last).toContain("<strong>Top layer.</strong>");
+    // The routine every layer follows is written once, not repeated per step.
+    expect(html.match(/Spread a thin layer of glue/g)).toHaveLength(1);
+    expect(html).toContain("<h3>For every layer</h3>");
+    expect(html).toContain("<strong>Base layer.</strong>");
   });
 
   it("names the sheet each layer is cut from and flags nested pieces", async () => {
@@ -32,7 +36,7 @@ describe("assembly guide booklet", () => {
     for (const panel of panels) expect(html).toContain(`<code>${panel.filename}</code>`);
     const nested = ir.layers[ir.fabricationNests[0]!.nestedLayerIndex]!;
     const step = html.slice(html.indexOf(`id="step-${nested.index + 1}"`));
-    expect(step.slice(0, step.indexOf("</article>"))).toMatch(/cut from inside layer \d+/);
+    expect(step.slice(0, step.indexOf("</article>"))).toMatch(/<strong>Nested\.<\/strong> (?:This piece was|These pieces were) cut from inside layer \d+/);
     expect(html).toContain("Keep every cutout.");
   });
 
@@ -51,7 +55,22 @@ describe("assembly guide booklet", () => {
     expect(pkg.files.some((entry) => entry.filename.includes("-paint-"))).toBe(false);
     expect(html).not.toContain("Paint before you glue");
     expect(html).not.toContain("paint template");
-    expect(html).toContain("3. Build the stack");
+    expect(html).toContain('<p class="label">Section 2</p>\n<h2>Build the stack</h2>');
+  });
+
+  it("embeds the fonts it is given and references nothing on the network", () => {
+    const ir = generateGeometry(DEFAULT_PROJECT, realSource());
+    const plain = assemblyGuideToHtml(ir, DEFAULT_PROJECT, []);
+    expect(plain).not.toContain("@font-face");
+    expect(plain).not.toMatch(/(?:href|src)="https?:|url\(https?:/);
+    const html = assemblyGuideToHtml(ir, DEFAULT_PROJECT, [], [
+      { family: "Jost", weight: 500, woff2Base64: "d09GMgABAAA=" },
+      { family: 'Evil"</style><script>', weight: 400, woff2Base64: "AAAA)</style>" },
+    ]);
+    expect(html).toContain('@font-face{font-family:"Jost";src:url(data:font/woff2;base64,d09GMgABAAA=) format("woff2");font-weight:500');
+    expect(html).toContain('font-family:"Evil/stylescript"');
+    expect(html.match(/<\/style>/g)).toHaveLength(1);
+    expect(html).not.toMatch(/(?:href|src)="https?:|url\(https?:/);
   });
 
   it("follows the project's units and escapes the project name", () => {
@@ -60,7 +79,7 @@ describe("assembly guide booklet", () => {
     const html = assemblyGuideToHtml(ir, config, []);
     expect(html).toContain("<h1>Rock &amp; &lt;Roll&gt;</h1>");
     expect(html).not.toContain("<Roll>");
-    expect(html).toMatch(/\d in × [\d.]+ in × [\d.]+ in/);
+    expect(html).toMatch(/<dd>[\d.]+ × [\d.]+ × [\d.]+ in<\/dd>/);
     expect(html).toMatch(/[\d,]+ ft – [\d,]+ ft/);
   });
 });

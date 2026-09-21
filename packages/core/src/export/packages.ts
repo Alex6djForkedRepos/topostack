@@ -2,7 +2,7 @@ import { ASSEMBLY, CUT, ENGRAVE, MAX_EXPORT_PACKAGE_BYTES, SCORE, safeName } fro
 import { ENGRAVE_ONLY, OPERATIONS, masterToSvg, paintTemplateSvg, panelBodies, panelToSvg } from "./svg.js";
 import { fabricationPanels } from "./panel-layout.js";
 import { engravingToSvg } from "./engraving-svg.js";
-import { assemblyGuideToHtml } from "./assembly-guide.js";
+import { assemblyGuideToHtml, type GuideFont } from "./assembly-guide.js";
 import { exportBlockReason } from "./export-policy.js";
 import { formatNumber as format } from "../primitives/format.js";
 import { horizontalScaleFor } from "../pipeline/stack-plan.js";
@@ -30,7 +30,13 @@ function attributionText(ir: GeometryIRV1): string {
   return `${ir.attribution.map((item) => `${item.name} — ${item.license}\n${item.url}`).join("\n\n")}\n\nImagery sources used:\n${ir.imagerySources.length ? ir.imagerySources.join("\n") : "Not reported by source service"}`;
 }
 
-export function buildFabricationPackage(generated: GeometryIRV1, config: ProjectConfigV1): FabricationPackageV1 {
+/** Optional inputs the core cannot fetch itself. */
+export interface PackageOptions {
+  /** Fonts embedded in the assembly guide; system fonts are used without them. */
+  guideFonts?: readonly GuideFont[];
+}
+
+export function buildFabricationPackage(generated: GeometryIRV1, config: ProjectConfigV1, options: PackageOptions = {}): FabricationPackageV1 {
   const ir = { ...generated, projectId: config.id, projectName: config.name };
   if (config.outputMode !== "stack") throw new Error("Choose layered relief before exporting fabrication files.");
   const reason = exportBlockReason(ir, config);
@@ -166,7 +172,7 @@ export function buildFabricationPackage(generated: GeometryIRV1, config: Project
       cellName: panel.cellName,
       included: panel.included,
       paintTemplates: paintTemplates.map((template) => ({ kind: template.kind, filename: template.file.filename })),
-    })))], { type: "text/html" }) },
+    })), options.guideFonts)], { type: "text/html" }) },
     { filename: `${base}-project.json`, blob: new Blob([JSON.stringify(manifest, null, 2)], { type: "application/json" }) },
     { filename: "README.txt", blob: new Blob([readme], { type: "text/plain" }) },
     { filename: "ATTRIBUTION.txt", blob: new Blob([attribution], { type: "text/plain" }) },
@@ -232,6 +238,6 @@ export function buildEngravingPackage(generated: GeometryIRV1, config: ProjectCo
   return { schemaVersion: 1, master, files };
 }
 
-export function buildProjectPackage(ir: GeometryIRV1, config: ProjectConfigV1): FabricationPackageV1 {
-  return config.outputMode === "engraving" ? buildEngravingPackage(ir, config) : buildFabricationPackage(ir, config);
+export function buildProjectPackage(ir: GeometryIRV1, config: ProjectConfigV1, options: PackageOptions = {}): FabricationPackageV1 {
+  return config.outputMode === "engraving" ? buildEngravingPackage(ir, config) : buildFabricationPackage(ir, config, options);
 }

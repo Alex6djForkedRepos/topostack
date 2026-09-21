@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_PROJECT, createSyntheticSource, generateGeometry } from "@topostack/core";
 import { createAtommExport } from "$lib/studio/export-policy";
 
-vi.mock("$lib/studio/export-policy", () => ({ createAtommExport: vi.fn(() => []) }));
+vi.mock("$lib/studio/export-policy", () => ({ createAtommExport: vi.fn(() => []), loadGuideFonts: vi.fn(async () => []) }));
 
 describe("Atomm bridge", () => {
   beforeEach(() => { vi.resetModules(); vi.mocked(createAtommExport).mockClear(); delete window.atomm; });
@@ -46,7 +46,7 @@ describe("Atomm bridge", () => {
     const exported = handler?.({ intent: "download" });
     await vi.advanceTimersByTimeAsync(20);
     await exported;
-    expect(createAtommExport).toHaveBeenCalledWith(geometry, project, "download");
+    expect(createAtommExport).toHaveBeenCalledWith(geometry, project, "download", []);
     expect(exportUpdate).toHaveBeenNthCalledWith(1, { phase: "preparing", intent: "download" });
     expect(exportUpdate).toHaveBeenNthCalledWith(2, { phase: "ready", intent: "download", fileCount: 0 });
     vi.mocked(createAtommExport).mockImplementationOnce(() => { throw new Error("Package could not be built"); });

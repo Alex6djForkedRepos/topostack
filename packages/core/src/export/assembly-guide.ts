@@ -5,6 +5,17 @@ import { displayElevation, displayLength, elevationUnit, lengthUnit } from "../p
 import { PAINT_BLEED_MM } from "../pipeline/paint-regions.js";
 import type { GeometryIRV1, LayerIR, PaintRegionKind, Point2D, Polygon2D, ProjectConfigV1 } from "../types.js";
 
+/**
+ * A web font to embed in the guide, as WOFF2 bytes in base64. The core cannot
+ * load files itself, so the caller passes the site's own faces in; without
+ * them the guide falls back to system fonts.
+ */
+export interface GuideFont {
+  family: string;
+  weight: number;
+  woff2Base64: string;
+}
+
 /** One exported sheet, as the guide refers to it: the file to cut and what it holds. */
 export interface GuideSheet {
   filename: string;
@@ -19,7 +30,6 @@ export interface GuideSheet {
 // The printed diagram is about 7.5 in wide, so detail finer than a few hundred
 // segments across the model is invisible and only bloats the file.
 const DIAGRAM_RESOLUTION = 900;
-const ACCENT = "#d9642b";
 
 /** Douglas-Peucker thinning of a closed ring; the result stays closed. */
 function simplifyRing(ring: Point2D[], tolerance: number): Point2D[] {
@@ -90,11 +100,11 @@ function labelPoint(polygon: Polygon2D): Point2D {
   return best ?? polygon.outer[0] ?? centre;
 }
 
-/** Stack tones from pale at the base to a deeper stone at the summit. */
+/** Stack tones from the site's pale panel at the base to a deeper stone at the summit. */
 function tone(index: number, count: number): string {
   const t = count > 1 ? index / (count - 1) : 0;
   const mix = (from: number, to: number) => Math.round(from + (to - from) * t);
-  return `rgb(${mix(236, 158)} ${mix(231, 146)} ${mix(221, 126)})`;
+  return `rgb(${mix(245, 170)} ${mix(242, 160)} ${mix(233, 134)})`;
 }
 
 function plural(count: number, one: string, many = `${one}s`): string {
@@ -106,17 +116,21 @@ function layerNumber(layer: LayerIR): string {
 }
 
 /**
- * A printable (US Letter), step-by-step assembly booklet: a cover with the finished
- * dimensions, a cutting checklist, how to read the engraved marks, and one
- * illustrated step per layer showing the stack so far with the new layer
- * highlighted. Self-contained HTML - it opens in any browser and prints from
- * there - and each layer's outline is written once and reused by every step
+ * A printable (US Letter), step-by-step assembly booklet: a cover with the
+ * finished dimensions, a cutting checklist, the routine every layer follows
+ * stated once, and one illustrated step per layer that adds only what is
+ * particular to it - where its pieces come from, nesting, painting - beside a
+ * picture of the stack so far with the new layer highlighted. Styled with the
+ * site's tokens and whichever of its fonts the caller embeds. Self-contained
+ * HTML with no network requests - it opens in any browser, offline too, and
+ * prints from there - and each layer's outline is written once and reused by every step
  * through `<use>`, so the file grows with the layer count rather than its square.
  */
-export function assemblyGuideToHtml(ir: GeometryIRV1, config: ProjectConfigV1, sheets: GuideSheet[]): string {
+export function assemblyGuideToHtml(ir: GeometryIRV1, config: ProjectConfigV1, sheets: GuideSheet[], fonts: readonly GuideFont[] = []): string {
   const units = config.units;
   const unit = lengthUnit(units);
-  const length = (valueMm: number) => `${format(Number(displayLength(valueMm, units).toFixed(units === "imperial" ? 2 : 1)))} ${unit}`;
+  const amount = (valueMm: number) => format(Number(displayLength(valueMm, units).toFixed(units === "imperial" ? 2 : 1)));
+  const length = (valueMm: number) => `${amount(valueMm)} ${unit}`;
   const elevation = (valueM: number) => `${Math.round(displayElevation(valueM, units)).toLocaleString("en-US")} ${elevationUnit(units)}`;
   const layers = ir.layers;
   const count = layers.length;
@@ -167,38 +181,24 @@ export function assemblyGuideToHtml(ir: GeometryIRV1, config: ProjectConfigV1, s
   const steps = layers.map((layer, index) => {
     const number = layerNumber(layer);
     const pieces = layer.pieces.length || layer.polygons.length;
-    const below = layers[index - 1];
     const layerSheets = sheetsByLayer.get(index) ?? [];
     const donors = donorsOf(index).map((donor) => layers[donor]).filter((entry): entry is LayerIR => Boolean(entry));
-    const hasSmall = layer.polygons.some((polygon) => {
-      const bounds = ringBounds(polygon.outer);
-      return Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) < Math.max(ir.widthMm, ir.heightMm) * 0.06;
-    });
-    const find = `Find the ${pieces === 1 ? "piece" : `${pieces} pieces`} of layer ${number}${layerSheets.length ? `, cut from ${layerSheets.map((sheet) => `<code>${escapeXml(sheet.filename)}</code>`).join(", ")}` : ""}.`;
-    const nestedNote = donors.length ? ` ${pieces === 1 ? "It was" : "They were"} cut from inside layer ${donors.map(layerNumber).join(" and ")} to save material, so look among that sheet's cutouts.` : "";
-    const smallNote = hasSmall ? " Small pieces are circled in the picture." : "";
-    const items = [`${find}${nestedNote}${smallNote}`];
-    for (const { kind, files } of templatesFor(index)) {
-      items.push(`Paint the ${kind} first if you have not already: ${files.map(({ filename }) => `<code>${escapeXml(filename)}</code>`).join(", ")} ${files.length === 1 ? "is its template" : "are its templates"}. Let it dry before gluing.`);
-    }
-    if (split && pieces > 1) {
-      items.push(`${labelsOn ? "Match the letter-number id engraved on each piece to the picture and b" : "B"}utt the pieces together${config.seamTabs && index < count - 1 ? "; the jigsaw tabs only fit their true neighbour, so press them home before gluing" : ""}.`);
-    }
-    if (index === 0) {
-      items.push("Lay it on a flat board, engraved side up. This is the base; every other layer stacks on top of it.");
-      if (nestedIn(0).length) items.push("Keep the small cutouts that fall out of it: they are pieces of higher layers.");
-    } else {
-      items.push("Spread a thin layer of glue on the underside, staying a little way in from the edges so squeeze-out stays hidden.");
-      items.push(config.showAlignmentGuides && below
-        ? `Set it down on layer ${layerNumber(below)} so its edges sit on the engraved outline there, then press it flat.`
-        : "Line its edges up with the terrain below as shown in the picture, then press it flat.");
-    }
-    if (index === count - 1) items.push("This is the top layer. Wipe off any squeeze-out now, before it cures.");
-    const meta = [`${elevation(layer.elevationM)} and up`, plural(pieces, "piece")].join(" · ");
+    // Only what differs from the routine stated once above the steps.
+    const notes: string[] = [];
+    if (index === 0) notes.push("<strong>Base layer.</strong> Lay it on a flat board, engraved side up. No glue under this one.");
+    if (nestedIn(index).length) notes.push(`<strong>Keep its cutouts.</strong> The pieces that drop out of it belong to layer ${nestedIn(index).map((nested) => layers[nested]).filter((entry): entry is LayerIR => Boolean(entry)).map(layerNumber).join(" and ")}.`);
+    if (donors.length) notes.push(`<strong>Nested.</strong> ${pieces === 1 ? "This piece was" : "These pieces were"} cut from inside layer ${donors.map(layerNumber).join(" and ")}; look among that sheet's cutouts.`);
+    for (const { kind, files } of templatesFor(index)) notes.push(`<strong>Paint the ${kind} first</strong> with ${files.map(({ filename }) => `<code>${escapeXml(filename)}</code>`).join(", ")}.`);
+    if (index === count - 1 && count > 1) notes.push(`<strong>Top layer.</strong> ${labelsOn && pieces > 1 ? "Its pieces carry no id; place them by the picture." : "The last one."}`);
+    const facts = [
+      ["Cut from", layerSheets.length ? layerSheets.map((sheet) => `<code>${escapeXml(sheet.filename)}</code>`).join(" ") : "—"],
+      ["Pieces", String(pieces)],
+      ["Elevation", `${elevation(layer.elevationM)} and up`],
+    ].map(([term, value]) => `<div><dt>${term}</dt><dd>${value}</dd></div>`).join("");
     return `<article class="step" id="step-${index + 1}">
-<header><span class="badge">${index + 1}</span><div><p class="kicker">Step ${index + 1} of ${count}</p><h3>Layer ${number}</h3><p class="meta">${meta}</p></div><label class="done"><input type="checkbox"> Done</label></header>
+<header><span class="badge">${index + 1}</span><div class="step-title"><p class="label">Step ${index + 1} of ${count}</p><h3>Layer ${number}</h3></div><label class="done"><input type="checkbox"> Done</label></header>
 <figure>${stepFigure(layer)}</figure>
-<ol>${items.map((item) => `<li>${item}</li>`).join("")}</ol>
+<div class="step-body"><dl class="step-facts">${facts}</dl>${notes.length ? `<ul class="notes">${notes.map((note) => `<li>${note}</li>`).join("")}</ul>` : ""}</div>
 </article>`;
   }).join("\n");
 
@@ -209,9 +209,10 @@ export function assemblyGuideToHtml(ir: GeometryIRV1, config: ProjectConfigV1, s
 
   const templateRows = templates.map(({ filename, sheet }) => `<tr><td><input type="checkbox" aria-label="Cut ${escapeXml(filename)}"></td><td><code>${escapeXml(filename)}</code></td><td>for <code>${escapeXml(sheet.filename)}</code></td></tr>`).join("");
   const paintSection = painted ? `<section class="page">
-<h2>3. Paint before you glue</h2>
-<p class="muted">${plural(templates.length, "sheet has", "sheets have")} a paper template for painting the ${paintWhat} that stays visible. Painted pieces are much harder to reach once the stack is built, so do this first.</p>
-<ol>
+<p class="label">Section 2</p>
+<h2>Paint before you glue</h2>
+<p class="lede">${plural(templates.length, "sheet has", "sheets have")} a paper template for painting the ${paintWhat} that stays visible. Painted pieces are much harder to reach once the stack is built, so do this first.</p>
+<ol class="numbered">
 <li>Cut each template from paper or stencil film <strong>with kerf compensation turned off</strong>: it is the piece at its nominal size, with the ${paintWhat} cut away as windows.</li>
 <li>Lay the template flush on its cut piece and line it up on the piece edges and tabs it keeps. Where the ${paintWhat} reaches the piece edge the template stops short of it.</li>
 <li>Spray, lift the template off, and let the paint dry.</li>
@@ -220,9 +221,27 @@ export function assemblyGuideToHtml(ir: GeometryIRV1, config: ProjectConfigV1, s
 <table><tbody>${templateRows}</tbody></table>
 </section>` : "";
 
+  const routine = [
+    "Find the layer's pieces. The step says which sheet they came from.",
+    split ? `Lay them out as in the picture${labelsOn ? ", matching the green id engraved on each piece (B2 in the picture is <code>Lnn-B2</code> on the wood)" : ""}, and butt them together.${config.seamTabs ? " The jigsaw tabs only fit their true neighbour; press them home." : ""}` : "",
+    painted ? "If the step says to paint, do that first and let it dry." : "",
+    "Spread a thin layer of glue on the underside, a little way in from the edges so squeeze-out stays hidden.",
+    config.showAlignmentGuides
+      ? "Set it on the layer below so its edges sit on the engraved outline there, then press it flat."
+      : "Line it up with the terrain below as shown in the picture, then press it flat.",
+    "Wipe off any squeeze-out before it cures.",
+  ].filter(Boolean);
+
+  const legend = [
+    `<li><span class="swatch swatch-current"></span>The layer you are adding</li>`,
+    `<li><span class="swatch swatch-below"></span>Layers already glued</li>`,
+    labelsOn ? `<li><span class="swatch swatch-id">B2</span>Piece id, also engraved on the piece</li>` : "",
+    `<li><span class="swatch swatch-ring"></span>A small piece, circled so it is not missed</li>`,
+  ].filter(Boolean).join("");
+
   const marks = [
-    config.showAlignmentGuides ? `<li><strong>Outline and Lxx label.</strong> Each layer carries an engraved outline showing exactly where the next layer sits, plus its layer number. Both end up hidden under the layer above.</li>` : "",
-    labelsOn ? `<li><strong>Piece ids.</strong> Each layer is cut in ${split!.columns} × ${split!.rows} parts. Every piece has a green id like <code>L03-B2</code> (layer 03, column B, row 2) where the next layer will cover it. Top-layer pieces have none; use the step picture.</li>` : "",
+    config.showAlignmentGuides ? `<li><strong>Outline and Lxx label.</strong> Each layer carries an engraved outline showing exactly where the next layer sits, plus its layer number. Both end up hidden.</li>` : "",
+    labelsOn ? `<li><strong>Piece ids.</strong> Each layer is cut in ${split!.columns} × ${split!.rows} parts. Every piece has a green id like <code>L03-B2</code> (layer 03, column B, row 2) where the next layer will cover it. Top-layer pieces have none.</li>` : "",
     split && !labelsOn ? `<li><strong>Split layers.</strong> Each layer is cut in ${split.columns} × ${split.rows} parts. Use the step pictures to place them.</li>` : "",
     `<li><strong>Everything else</strong> engraved on the pieces (contours, roads, labels) is part of the artwork.</li>`,
   ].filter(Boolean).join("");
@@ -230,13 +249,14 @@ export function assemblyGuideToHtml(ir: GeometryIRV1, config: ProjectConfigV1, s
   const width = length(ir.widthMm);
   const height = length(ir.heightMm);
   const facts = [
-    ["Finished size", `${width} × ${height} × ${length(count * thickness)}`],
+    ["Finished size", `${amount(ir.widthMm)} × ${amount(ir.heightMm)} × ${length(count * thickness)}`],
     ["Layers", `${count} × ${length(thickness)}`],
     ["Pieces", String(pieceTotal)],
     ["Sheets to cut", String(sheets.length)],
     ["Elevation", `${elevation(ir.minElevationM)} – ${elevation(ir.maxElevationM)}`],
     ["Vertical exaggeration", `${ir.verticalExaggeration.toFixed(1)}×`],
   ].map(([term, value]) => `<div><dt>${term}</dt><dd>${value}</dd></div>`).join("");
+  const buildSection = painted ? 3 : 2;
 
   const title = `${escapeXml(ir.projectName)}: assembly guide`;
   return `<!doctype html>
@@ -246,81 +266,118 @@ export function assemblyGuideToHtml(ir: GeometryIRV1, config: ProjectConfigV1, s
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title}</title>
 <style>
-:root{--ink:#1d2622;--muted:#5d6a63;--line:#d8d2c6;--paper:#fbf8f2;--card:#fff;--accent:${ACCENT}}
-*{box-sizing:border-box}
-html{background:var(--paper);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-body{margin:0;padding:24px 16px 64px}
+${fonts.map((font) => `@font-face{font-family:"${font.family.replace(/["\\<>;{}]/g, "")}";src:url(data:font/woff2;base64,${font.woff2Base64.replace(/[^A-Za-z0-9+/=]/g, "")}) format("woff2");font-weight:${Math.round(font.weight)};font-style:normal;font-display:swap}`).join("\n")}
+:root{color-scheme:light;--bg:#ebe7dc;--surface:#f5f2e9;--surface-alt:#efebe1;--text:#20231d;--muted:#5f5b50;--line:#c8c1b1;--line-soft:#ddd7c9;--line-strong:#847d6a;--accent:#c65224;--accent-text:#a9441d;--on-accent:#fff;--canvas:#d8d3c7;--display:"Jost","Avenir Next","Segoe UI",sans-serif;--utility:"Archivo","Helvetica Neue",Arial,sans-serif;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+@media screen and (prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#161814;--surface:#1e211c;--surface-alt:#24271f;--text:#ebe7dc;--muted:#a8a394;--line:#3a3d34;--line-soft:#2b2e26;--line-strong:#6a6e5f;--accent:#e0672f;--accent-text:#f0895c;--on-accent:#161814;--canvas:#d8d3c7}}
+*,::before,::after{box-sizing:border-box}
+html{background:var(--bg);color:var(--text);font:400 16px/1.6 var(--display);-webkit-font-smoothing:antialiased}
+body{margin:0;padding:0 16px 80px}
 main{max-width:8.5in;margin:0 auto}
-h1,h2,h3{line-height:1.15;margin:0}
-h1{font-size:2.4rem;letter-spacing:-.02em}
-h2{font-size:1.5rem;margin-bottom:12px}
-h3{font-size:1.35rem}
-p{margin:0 0 10px}
-code{font:.82em ui-monospace,SFMono-Regular,Menlo,monospace;background:#f1ece2;padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
-.muted,.meta,.kicker{color:var(--muted)}
-.kicker{text-transform:uppercase;letter-spacing:.08em;font-size:.75rem;font-weight:600;margin:0}
-.page{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:28px;margin-bottom:20px}
-.cover .diagram{margin:20px 0}
-.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px 20px;margin:0}
-.facts dt{font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
-.facts dd{margin:0;font-weight:600;font-size:1.05rem}
+h1,h2,h3{font-weight:500;line-height:1.15;margin:0}
+h1{font-size:clamp(34px,6vw,52px);letter-spacing:-.035em;margin:10px 0 12px}
+h2{font-size:26px;letter-spacing:-.02em;margin-bottom:14px}
+h3{font-size:22px;letter-spacing:-.01em}
+p{margin:0 0 12px}
+strong{font-weight:700}
+code{font:12.5px var(--mono);background:var(--surface-alt);border:1px solid var(--line-soft);padding:1px 5px;overflow-wrap:anywhere;white-space:normal}
+.label{font:11px/1.4 var(--utility);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0 0 6px}
+.muted{color:var(--muted)}
+.lede{font-size:18px;line-height:1.6;color:var(--muted);max-width:40em}
+.masthead{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:16px 0;margin-bottom:24px;border-bottom:1px solid var(--line)}
+.wordmark{font:500 20px var(--display);letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
+.wordmark svg{width:26px;height:26px}
+.masthead .label{margin:0}
+.page{background:var(--surface);border:1px solid var(--line);padding:32px;margin-bottom:24px}
+.cover{padding:36px 32px}
+.cover figure{margin:24px 0 28px}
+.facts{display:grid;grid-template-columns:repeat(3,1fr);margin:0;border-top:1px solid var(--line)}
+.facts>div{padding:12px 16px 12px 0;border-bottom:1px solid var(--line-soft)}
+.facts dt{font:11px var(--utility);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.facts dd{margin:4px 0 0;font-size:18px;font-weight:500}
+figure{margin:0;background:var(--canvas);padding:14px;box-shadow:0 18px 23px rgb(32 35 29/.12)}
 .diagram{display:block;width:100%;height:auto;max-height:118mm}
-.diagram use{stroke:#7d7566;stroke-width:.6;vector-effect:non-scaling-stroke;fill-rule:evenodd}
-.diagram use.current{fill:var(--accent);stroke:#5a2710;stroke-width:1.4}
-.diagram .callout{fill:none;stroke:var(--accent);stroke-width:1.6;stroke-dasharray:4 3;vector-effect:non-scaling-stroke}
-.diagram .piece-id{font:700 ${format(Math.max(ir.widthMm, ir.heightMm) * 0.035)}px system-ui,sans-serif;fill:#fff;stroke:#5a2710;stroke-width:.35em;paint-order:stroke;text-anchor:middle;dominant-baseline:central}
-.two{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.diagram use{stroke:#847d6a;stroke-width:.6;vector-effect:non-scaling-stroke;fill-rule:evenodd}
+.diagram use.current{fill:#c65224;stroke:#6e2a10;stroke-width:1.4}
+.diagram .callout{fill:none;stroke:#c65224;stroke-width:1.8;stroke-dasharray:4 3;vector-effect:non-scaling-stroke}
+.diagram .piece-id{font:600 ${format(Math.max(ir.widthMm, ir.heightMm) * 0.035)}px "Archivo","Helvetica Neue",sans-serif;fill:#fff;stroke:#6e2a10;stroke-width:.35em;paint-order:stroke;text-anchor:middle;dominant-baseline:central}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:32px}
 ul,ol{margin:0;padding-left:1.3em}
-li{margin-bottom:6px}
-table{width:100%;border-collapse:collapse;font-size:.92rem}
-td{border-top:1px solid var(--line);padding:6px 8px 6px 0;vertical-align:top}
-td:first-child{width:28px}
-input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent);margin:0}
-.step{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px 24px;margin-bottom:20px;break-inside:avoid}
-.step header{display:flex;gap:16px;align-items:center;margin-bottom:12px}
-.step header>div{flex:1}
-.badge{flex:none;width:52px;height:52px;border-radius:50%;background:var(--accent);color:#fff;font-weight:800;font-size:1.4rem;display:grid;place-items:center}
-.done{display:flex;gap:6px;align-items:center;font-size:.9rem;color:var(--muted);white-space:nowrap}
-figure{margin:0 0 14px;background:#f6f2ea;border-radius:10px;padding:10px}
-.print{position:fixed;right:16px;bottom:16px;border:0;border-radius:999px;background:var(--ink);color:#fff;padding:10px 18px;font:600 .95rem system-ui,sans-serif;cursor:pointer}
-footer{font-size:.8rem;color:var(--muted);margin-top:28px}
-@media (max-width:640px){.two{grid-template-columns:1fr}.page,.step{padding:18px}h1{font-size:1.9rem}.badge{width:42px;height:42px;font-size:1.15rem}}
+li{margin-bottom:8px}
+.numbered{counter-reset:n;list-style:none;padding:0}
+.numbered>li{counter-increment:n;position:relative;padding-left:40px;min-height:28px;margin-bottom:12px}
+.numbered>li::before{content:counter(n);position:absolute;left:0;top:0;width:26px;height:26px;display:grid;place-items:center;background:var(--text);color:var(--bg);font:600 12px var(--utility)}
+table{width:100%;border-collapse:collapse;font-size:15px;margin-top:16px}
+td{border-bottom:1px solid var(--line);padding:9px 12px 9px 0;vertical-align:top}
+td:first-child{width:32px}
+input[type=checkbox]{appearance:none;-webkit-appearance:none;width:18px;height:18px;margin:2px 0 0;border:1.5px solid var(--line-strong);background:var(--surface);display:inline-grid;place-content:center;cursor:pointer;vertical-align:-3px}
+input[type=checkbox]:checked{background:var(--accent);border-color:var(--accent)}
+input[type=checkbox]:checked::after{content:"";width:9px;height:5px;border:2px solid var(--on-accent);border-top:0;border-right:0;transform:translateY(-1px) rotate(-45deg)}
+input[type=checkbox]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.legend{list-style:none;padding:0}
+.legend li{display:flex;align-items:center;gap:12px}
+.swatch{flex:none;width:28px;height:18px;display:grid;place-items:center;font:600 10px var(--utility)}
+.swatch-current{background:#c65224;border:1.5px solid #6e2a10}
+.swatch-below{background:#d4ccbb;border:1px solid #847d6a}
+.swatch-id{background:#c65224;color:#fff}
+.swatch-ring{border:1.8px dashed #c65224;border-radius:50%;width:22px;height:22px;margin:0 3px}
+.build-intro h3{margin:0 0 12px}
+.step{background:var(--surface);border:1px solid var(--line);padding:24px;margin-bottom:20px;break-inside:avoid}
+.step header{display:flex;gap:16px;align-items:center;margin-bottom:16px}
+.step-title{flex:1}
+.step-title .label{margin:0 0 2px}
+.badge{flex:none;width:48px;height:48px;background:var(--accent);color:var(--on-accent);font:500 24px var(--display);display:grid;place-items:center}
+.done{display:flex;gap:8px;align-items:center;font:11px var(--utility);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);cursor:pointer}
+.step-body{margin-top:16px}
+.step-facts{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin:0}
+.step-facts>div{display:contents}
+.step-facts dt{font:11px/2 var(--utility);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.step-facts dd{margin:0}
+.notes{list-style:none;padding:12px 0 0;margin:12px 0 0;border-top:1px solid var(--line-soft)}
+.notes li{padding-left:14px;border-left:3px solid var(--accent);margin-bottom:10px}
+.print{position:fixed;right:16px;bottom:16px;border:0;min-height:44px;background:var(--accent);color:var(--on-accent);padding:10px 18px;font:500 15px var(--display);cursor:pointer;box-shadow:0 12px 30px rgb(32 35 29/.18)}
+.print:hover{background:var(--accent-text)}
+footer{font:12px/1.8 var(--utility);color:var(--muted);margin-top:24px;padding-top:16px;border-top:1px solid var(--line)}
+@media (max-width:640px){.two{grid-template-columns:1fr;gap:20px}.page,.step{padding:20px}.facts{grid-template-columns:1fr 1fr}.badge{width:40px;height:40px;font-size:20px}}
 @page{size:letter;margin:.5in}
 @media print{
 html{background:#fff;font-size:10pt}
 body{padding:0}
 .print{display:none}
-.page,.step{border:0;border-radius:0;padding:0;margin:0 0 .3in}
-h2,h3{break-after:avoid}
-tr{break-inside:avoid}
+.page,.step{background:none;border:0;padding:0;margin:0 0 .3in}
+.masthead{padding-top:0}
 .cover{break-after:page}
-.cover .diagram{max-height:5.5in}
-.build{break-before:page}
-.step{display:grid;grid-template-columns:1.3fr 1fr;gap:0 .25in;align-items:start;border-top:1px solid var(--line);padding-top:.15in;margin:0 0 .15in}
-.step header{grid-column:1/-1;margin-bottom:.08in}
-.step figure{margin:0;padding:.06in}
-.diagram{max-height:3.1in}
-.badge{width:.5in;height:.5in;font-size:1.2rem}
-li{margin-bottom:3px}
-figure,code,.badge,.diagram{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.cover .diagram{max-height:5.2in}
+h2,h3,.label{break-after:avoid}
+tr{break-inside:avoid}
+.build-intro{break-before:page}
+figure{background:#efebe1;box-shadow:none;padding:.06in}
+.step{display:grid;grid-template-columns:1.25fr 1fr;grid-template-areas:"fig head" "fig body";grid-template-rows:auto 1fr;gap:0 .25in;align-items:start;border-top:1.5px solid var(--text);padding-top:.12in;margin:0 0 .14in}
+.step header{grid-area:head;margin-bottom:.1in}
+.step figure{grid-area:fig}
+.step-body{grid-area:body;margin-top:0}
+.diagram{max-height:2.6in}
+.badge{width:.45in;height:.45in;font-size:18pt}
+code{font-size:8pt}
+figure,code,.badge,.diagram,.swatch,.numbered>li::before,input{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 </style>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>${defs}</defs></svg>
 <main>
+<header class="masthead"><span class="wordmark"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" fill="#20231d"/><g fill="none" stroke="#f0895c" stroke-width="1.6" stroke-linejoin="round"><path d="M5 22c3-3 8-2 11-4s9-1 11 1c-2 3-8 3-11 4s-8 1-11-1z"/><path d="M8 17c3-2 6-1 8-3s7 0 8 1c-2 2-6 2-8 3s-6 0-8-1z"/><path d="M12 12c2-1 3-1 4-2s4 0 5 1c-1 1-3 1-5 2s-3 0-4-1z"/></g></svg>TopoStack</span><span class="label">Assembly guide</span></header>
 <section class="page cover">
-<p class="kicker">Assembly guide</p>
+<p class="label">Layered relief · ${plural(count, "layer")}</p>
 <h1>${escapeXml(ir.projectName)}</h1>
-<p class="muted">A layered relief in ${plural(count, "layer")}. Build it from the bottom up, one layer per step.</p>
-${diagram(stack(count), "The finished relief seen from above")}
+<p class="lede">Build it from the bottom up, one layer per step. Every layer goes on the same way; each step only adds what is particular to it.</p>
+<figure>${diagram(stack(count), "The finished relief seen from above")}</figure>
 <dl class="facts">${facts}</dl>
 </section>
 <section class="page">
 <h2>Before you start</h2>
 <div class="two">
 <div>
-<h3 class="kicker">You will need</h3>
+<p class="label">You will need</p>
 <ul>
 <li>${plural(sheets.length, "sheet")} of ${length(thickness)} material${split ? ` that fit your ${length(config.workAreaWidthMm)} × ${length(config.workAreaHeightMm)} work area` : `, each at least ${width} × ${height}`}</li>
 <li>Glue suited to the material (wood glue for plywood or MDF)</li>
@@ -330,7 +387,7 @@ ${painted ? `<li>Paper or stencil film for ${plural(templates.length, "paint tem
 </ul>
 </div>
 <div>
-<h3 class="kicker">Tips</h3>
+<p class="label">Tips</p>
 <ul>
 <li>Do a test cut first to check power, speed, and kerf.</li>
 <li>As each sheet finishes, bag its pieces by layer number. Pencil the number on the back of any piece without one.</li>
@@ -341,19 +398,29 @@ ${nests.length ? `<li><strong>Keep every cutout.</strong> Some small pieces of h
 </div>
 </section>
 <section class="page">
-<h2>1. Cut the sheets</h2>
-<p class="muted">Tick each file off as it comes off the laser. The layers column says which pieces are on that sheet.</p>
+<p class="label">Section 1</p>
+<h2>Cut the sheets</h2>
+<p class="muted">Tick each file off as it comes off the laser. The last column says which layers are on that sheet.</p>
 <table><tbody>${sheetRows}</tbody></table>
 </section>
-<section class="page">
-<h2>2. Know the marks</h2>
-<ul>${marks}</ul>
-</section>
 ${paintSection}
-<section class="build">
-<h2 style="margin:28px 0 16px">${painted ? "4" : "3"}. Build the stack</h2>
-${steps}
+<section class="page build-intro">
+<p class="label">Section ${buildSection}</p>
+<h2>Build the stack</h2>
+<div class="two">
+<div>
+<h3>For every layer</h3>
+<ol class="numbered">${routine.map((item) => `<li>${item}</li>`).join("")}</ol>
+</div>
+<div>
+<h3>Reading the pictures</h3>
+<ul class="legend">${legend}</ul>
+<h3 style="margin-top:20px">Marks on the pieces</h3>
+<ul>${marks}</ul>
+</div>
+</div>
 </section>
+${steps}
 <section class="page">
 <h2>Finish</h2>
 <ul>
@@ -361,7 +428,7 @@ ${steps}
 <li>Clean laser smoke marks off the edges with a damp cloth or fine sandpaper.</li>
 <li>Frame or mount it as you like.</li>
 </ul>
-<footer>Terrain data is decorative, not survey or engineering data. Made with TopoStack.</footer>
+<footer>Terrain data is decorative, not survey or engineering data. Made with TopoStack · topostack.app</footer>
 </section>
 </main>
 <button class="print" type="button" onclick="window.print()">Print guide</button>

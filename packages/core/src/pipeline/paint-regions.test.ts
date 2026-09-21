@@ -256,9 +256,10 @@ describe("paint template export", () => {
     const paintFiles = output.files.filter((file) => file.filename.endsWith("-paint-water.svg"));
     expect(paintFiles.length).toBeGreaterThan(0);
     const html = await output.files.find((file) => file.filename.endsWith("-assembly-guide.html"))!.blob.text();
-    expect(html).toContain("3. Paint before you glue");
+    expect(html).toContain('<p class="label">Section 2</p>\n<h2>Paint before you glue</h2>');
     expect(html).toContain("kerf compensation turned off");
-    expect(html).toContain("4. Build the stack");
+    expect(html).toContain('<p class="label">Section 3</p>\n<h2>Build the stack</h2>');
+    expect(html).toContain("If the step says to paint, do that first");
     expect(html).toContain(`Paper or stencil film for ${paintFiles.length === 1 ? "1 paint template" : `${paintFiles.length} paint templates`}`);
     for (const file of paintFiles) expect(html).toContain(`<code>${file.filename}</code>`);
     // Each painted layer's step names its own template; dry layers' steps say nothing.
