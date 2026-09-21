@@ -88,6 +88,10 @@ Downloads are checked against SHA-256 pins in
 are excluded before numeric encoding. Source ZIP paths are checked before
 extraction; the oddly named Crater Lake `.tgz` is actually a ZIP containing a TAR.
 Tahoe's legacy floating-point E00 grid is decoded and its dimensions checked.
+Each E00 grid row starts on a new line: DDS-55 pads its 1,992-cell rows to 1,995
+values. Archives built before 2026-09-21 read the values as one stream, which
+sheared the lake floor into east–west bands; rebuild and reprovision Tahoe from
+the receipt in `lake-survey-builds.json`.
 
 The builder refuses existing PMTiles/MBTiles output paths. Each output has a
 `.sources.json` receipt containing input pins, output digest, grid extents, and

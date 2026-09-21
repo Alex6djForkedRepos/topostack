@@ -21,7 +21,11 @@ function scenario({ corrupted = false, pointerStatus = 404, promoteStatus = 200,
     checkpoint: async (receipt) => { receipts.push(structuredClone(receipt)); events.push("receipt"); },
     request: async (key, init) => {
       if (init.method === "PUT") { events.push("promote"); puts.push(init); return new Response(null, { status: promoteStatus }); }
-      if (key.startsWith("releases/")) return pointerStatus === 200 ? Response.json(previousRelease, { headers: { etag: '"previous"' } }) : new Response(null, { status: pointerStatus });
+      if (key.startsWith("releases/")) {
+        // Like R2, a compressible pointer comes back gzipped with a weak etag unless identity is requested.
+        const etag = init.headers?.["accept-encoding"] === "identity" ? '"previous"' : 'W/"previous"';
+        return pointerStatus === 200 ? Response.json(previousRelease, { headers: { etag } }) : new Response(null, { status: pointerStatus });
+      }
       events.push("verify");
       const body = corrupted ? bytes.slice().fill(4) : truncated ? bytes.slice(0, -1) : bytes;
       return new Response(body, { headers: { "content-length": "127", etag: '"fixture"' } });
