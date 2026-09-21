@@ -280,9 +280,7 @@
 
   function navigateChoice(event: KeyboardEvent & { currentTarget: HTMLButtonElement }): void {
     if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return;
-    // The radio group, not the parent: a grouped picker such as the fonts splits its radios across rows.
-    const group = event.currentTarget.closest('[role="radiogroup"]') ?? event.currentTarget.parentElement;
-    const choices = [...(group?.querySelectorAll<HTMLButtonElement>('button[role="radio"]') ?? [])];
+    const choices = [...(event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('button[role="radio"]') ?? [])];
     const current = choices.indexOf(event.currentTarget);
     if (current < 0 || !choices.length) return;
     event.preventDefault();
