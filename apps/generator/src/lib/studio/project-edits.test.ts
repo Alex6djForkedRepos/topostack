@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_PROJECT, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_MAP_MARKERS, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, type CustomLineFeatureV1, type ProjectConfigV1 } from "@topostack/core";
-import { addCustomLine, addCustomLinePoint, addMarker, canAddCustomLine, northArrowMaximumMm, removeCustomLine, removeCustomLinePoint, removeMarker, updateCustomLine, updateCustomLinePoint, updateMarker } from "$lib/studio/project-edits";
+import { addCustomLine, addCustomLinePoint, addMarker, addMarkerAt, canAddCustomLine, northArrowMaximumMm, removeCustomLine, removeCustomLinePoint, removeMarker, updateCustomLine, updateCustomLinePoint, updateMarker } from "$lib/studio/project-edits";
 
 const line = (id: string, count = 2): CustomLineFeatureV1 => ({ id, kind: "trail", points: Array.from({ length: count }, (_, index) => ({ lat: 40, lon: -105 + index * 0.01 })) });
 const withData = (patch: Partial<ProjectConfigV1>): ProjectConfigV1 => ({ ...DEFAULT_PROJECT, ...patch });
@@ -66,5 +66,15 @@ describe("custom line edits", () => {
     expect(removeCustomLinePoint(project, "a", 0)?.customLines[0]?.points).toHaveLength(2);
     expect(removeCustomLinePoint(project, "b", 0)).toBeUndefined();
     expect(removeCustomLine(project, "a").customLines.map((item) => item.id)).toEqual(["b"]);
+  });
+});
+
+describe("placing markers on the map", () => {
+  it("adds a pin at the clicked point unless it is unsupported or the list is full", () => {
+    const patch = addMarkerAt(DEFAULT_PROJECT, "placed", { lat: 42.95, lon: -122.1 });
+    expect(patch?.markers).toEqual([{ id: "placed", lat: 42.95, lon: -122.1, symbol: "pin", sizeMm: 8 }]);
+    expect(addMarkerAt(DEFAULT_PROJECT, "polar", { lat: 89, lon: 0 })).toBeUndefined();
+    const full = { ...DEFAULT_PROJECT, markers: Array.from({ length: MAX_MAP_MARKERS }, (_, index) => ({ id: String(index), lat: 1, lon: 1, symbol: "pin" as const, sizeMm: 8 })) };
+    expect(addMarkerAt(full, "extra", { lat: 1, lon: 1 })).toBeUndefined();
   });
 });

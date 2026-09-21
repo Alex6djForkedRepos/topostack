@@ -1149,6 +1149,23 @@ describe("TopoStack Svelte shell", () => {
     expect(loadVectorMarkingsMock).not.toHaveBeenCalled();
   });
 
+  it("opens the map to place markers and ends placement when the map cannot be shown", async () => {
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    const place = () => [...target.querySelectorAll<HTMLButtonElement>(".marker-add-button")].find((button) => button.title === "Click the map to place markers")!;
+    await vi.waitFor(() => expect(place()).toBeDefined());
+    expect(place().getAttribute("aria-pressed")).toBe("false");
+    place().click();
+    await tick();
+    expect(place().getAttribute("aria-pressed")).toBe("true");
+    expect(place().textContent).toContain("Done placing");
+    expect(target.querySelector('.mode-switch [aria-checked="true"]')?.textContent).toContain("Map");
+    // jsdom has no WebGL, so the map falls back to another preview, and a
+    // placement mode with no map to click must not stay on.
+    await vi.waitFor(() => expect(target.querySelector('.mode-switch [aria-checked="true"]')?.textContent).not.toContain("Map"));
+    await vi.waitFor(() => expect(place().getAttribute("aria-pressed")).toBe("false"));
+  });
+
   it("adds, edits, symbolizes, and removes an arbitrary marker list", async () => {
     const { saveProject } = await import("$lib/storage/storage");
     vi.mocked(saveProject).mockClear();

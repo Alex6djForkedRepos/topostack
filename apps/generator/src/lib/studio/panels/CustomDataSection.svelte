@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ChevronDown, Map as MapIcon, MapPin, Plus, Route, Trash2 } from "@lucide/svelte";
+  import { ChevronDown, Crosshair, Map as MapIcon, MapPin, Plus, Route, Trash2 } from "@lucide/svelte";
   import { Field, Section } from "@loidolt/theme-svelte";
   import { displayLength, MAP_MARKER_SIZE_MM, MAP_MARKER_MIN_SIZE_MM, MAP_MARKER_MAX_SIZE_MM } from "@topostack/core";
   import NumberField from "$lib/studio/StudioNumberField.svelte";
@@ -26,10 +26,13 @@
     <div class="marker-editor">
       <div class="subgroup-heading subgroup-heading--action">
         <p><MapPin size={14} />Markers <span>{studio.project.markers.length}</span></p>
-        <button type="button" class="marker-add-button" onclick={() => applyCustomDataEdit(edits.addMarker(studio.project, crypto.randomUUID()))} disabled={!edits.canAddMarker(studio.project)}><Plus size={13} />Add marker</button>
+        <span class="marker-add-actions">
+          <button type="button" class="marker-add-button" aria-pressed={studio.placingMarker} title="Click the map to place markers" onclick={() => { studio.placingMarker = !studio.placingMarker; if (studio.placingMarker) studio.mode = "map"; }} disabled={!studio.placingMarker && !edits.canAddMarker(studio.project)}><Crosshair size={13} />{studio.placingMarker ? "Done placing" : "Place on map"}</button>
+          <button type="button" class="marker-add-button" onclick={() => applyCustomDataEdit(edits.addMarker(studio.project, crypto.randomUUID()))} disabled={!edits.canAddMarker(studio.project)}><Plus size={13} />Add marker</button>
+        </span>
       </div>
       {#if studio.project.markers.length === 0}
-        <small class="marker-empty">Add a marker, enter its latitude and longitude, then choose the symbol to engrave.</small>
+        <small class="marker-empty">Place markers by clicking the map, or add one and enter its latitude and longitude, then choose the symbol to engrave.</small>
       {:else}
         <div class="marker-list">
           {#each studio.project.markers as marker, index (marker.id)}

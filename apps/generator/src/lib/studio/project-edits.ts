@@ -30,6 +30,12 @@ export function addMarker(project: Project, id: string): MarkersPatch | undefine
   return { markers: [...project.markers, marker] };
 }
 
+/** A pin at a chosen point, as placed by clicking the map. */
+export function addMarkerAt(project: Project, id: string, point: GeoPoint): MarkersPatch | undefined {
+  if (!canAddMarker(project) || !isSupportedCoordinate(point.lat, point.lon)) return undefined;
+  return { markers: [...project.markers, { id, lat: point.lat, lon: point.lon, symbol: "pin", sizeMm: MAP_MARKER_SIZE_MM }] };
+}
+
 export function updateMarker(project: Project, id: string, patch: Partial<MapMarkerV1>): MarkersPatch | undefined {
   const current = project.markers.find((marker) => marker.id === id);
   if (!current) return undefined;
