@@ -1,0 +1,24 @@
+/* Advanced section: fabrication fields and the seam summary. */
+
+.advanced-section {
+  border-bottom: 0;
+}
+
+.advanced-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  margin-top: 12px;
+}
+
+.advanced-fields > .field-row {
+  min-width: 0;
+}
+
+/** What the work-area fields resolve to: sheet count and tile size. */
+.seam-summary {
+  margin: -4px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ldt-muted-foreground, #5a6b61);
+}

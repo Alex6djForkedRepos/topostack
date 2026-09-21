@@ -1,0 +1,94 @@
+/* Annotation choices: swatch options and the north arrow anchor grid. */
+
+/* Shared picker chrome for the compass designs and the engraving fonts; the two
+   blocks were near-identical copies. */
+.swatch-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.swatch-options button {
+  min-width: 0;
+  padding: 6px 3px;
+  border: 1px solid var(--loidolt-border);
+  background: var(--loidolt-surface);
+  color: var(--loidolt-text-muted);
+  cursor: pointer;
+}
+
+.swatch-options button[data-state="on"] {
+  border-color: var(--loidolt-accent);
+  background: var(--loidolt-surface-alt);
+  color: var(--loidolt-text);
+}
+
+.swatch-options button:focus-visible,
+.north-arrow-anchor-grid button:focus-visible {
+  outline: 2px solid var(--loidolt-accent);
+  outline-offset: 2px;
+}
+
+.swatch-options svg {
+  display: block;
+  width: 100%;
+  fill: none;
+  stroke: currentColor;
+}
+
+.swatch-options[aria-label="North arrow design"] svg {
+  height: 45px;
+  stroke-width: 1.15;
+}
+
+.swatch-options[aria-label="Engraving font"] svg {
+  height: 24px;
+  stroke-width: 0.18;
+}
+
+.swatch-options button > span {
+  display: block;
+  margin-top: 3px;
+  font: var(--panel-font-micro) var(--loidolt-font-utility);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.north-arrow-anchor-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 32px);
+  gap: 4px;
+  align-self: center;
+  padding: 6px;
+  border: 1px solid var(--loidolt-border-soft);
+  background: var(--loidolt-surface-alt);
+}
+
+/* 32x28 keeps the nine anchors above the kit's control minimum; they were the
+   smallest pointer targets in the app at 28x24. */
+.north-arrow-anchor-grid button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+}
+
+.north-arrow-anchor-grid button span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--loidolt-text-muted);
+}
+
+.north-arrow-anchor-grid button[data-state="on"] {
+  border-color: var(--loidolt-accent);
+  background: var(--loidolt-surface);
+}
+
+.north-arrow-anchor-grid button[data-state="on"] span {
+  background: var(--loidolt-accent);
+}

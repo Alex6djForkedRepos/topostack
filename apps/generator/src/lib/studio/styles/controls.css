@@ -1,0 +1,209 @@
+/* Shared controls: mode, shape and unit switches, field stacks, number and range fields, relief summary, depth notes, toggles. */
+
+.shape-switch,
+.unit-switch,
+.mode-switch {
+  width: 100%;
+}
+
+.shape-switch .ldt-toggle-group__item,
+.unit-switch .ldt-toggle-group__item,
+.mode-switch .ldt-toggle-group__item {
+  flex: 1;
+}
+
+.unit-switch {
+  margin-bottom: var(--loidolt-space-2);
+}
+
+/* One column, so each field owns the panel's full content width. Two fields
+   side by side left the input about three characters wide. */
+.field-stack {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+/* The box lives on the wrapper rather than on .ldt-number-field, so the unit
+   suffix sits inside the control instead of orphaned past its underline. */
+.number-input {
+  display: flex;
+  align-items: center;
+  border: var(--loidolt-border-width) solid var(--loidolt-border-control);
+  background: var(--loidolt-surface-input);
+  padding-inline: var(--panel-space-1);
+}
+
+.number-input:focus-within {
+  border-color: var(--loidolt-accent);
+}
+
+.number-input > .ldt-number-field {
+  flex: 1;
+  min-width: 0;
+  border-bottom: 0;
+}
+
+.config-panel .ldt-number-field {
+  grid-template-columns: 1.5rem minmax(0, 1fr) 1.5rem;
+}
+
+/* Paired with a slider, so the steppers are redundant and the whole width goes
+   to the value: with them the field was too narrow to show a number at all. */
+.number-input--compact {
+  flex: 0 0 auto;
+  width: 78px;
+}
+
+.number-input--compact > .ldt-number-field {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.number-input--compact .ldt-number-field__button {
+  display: none;
+}
+
+.number-input--compact .ldt-number-field__input {
+  text-align: right;
+}
+
+.number-input em {
+  font-style: normal;
+  padding: 0 2px;
+  color: var(--loidolt-text-muted);
+  font-size: var(--panel-font-micro);
+  text-transform: none;
+}
+
+.range-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-bottom: 12px;
+}
+
+.range-field > span {
+  display: flex;
+  justify-content: space-between;
+  font: var(--panel-font-caption) var(--loidolt-font-utility);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+/* Label on its own line, then slider and an editable number share the row.
+   This replaces the read-only output chip plus a separate "exact" field. */
+.range-field__row {
+  display: flex;
+  align-items: center;
+  gap: var(--panel-space-2);
+}
+
+.range-field__row input[type="range"] {
+  flex: 1;
+  min-width: 0;
+}
+
+.range-field input,
+.layer-range,
+.explode-control input {
+  width: 100%;
+  accent-color: var(--loidolt-accent);
+}
+
+.range-field small,
+.layer-scale {
+  display: flex;
+  justify-content: space-between;
+  color: var(--loidolt-text-muted);
+  font: var(--panel-font-micro, 8px) var(--loidolt-font-utility);
+}
+
+/* The ticks label the slider, so they stop where the slider stops. */
+.range-field__row ~ small {
+  padding-right: calc(78px + var(--panel-space-2));
+}
+
+.relief-summary {
+  margin-top: 12px;
+  border-left: 2px solid var(--loidolt-accent);
+  background: var(--loidolt-surface-alt);
+  padding: 9px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.relief-summary > span {
+  display: flex;
+  flex-direction: column;
+}
+
+.relief-summary strong {
+  font-size: var(--panel-font-label);
+  font-weight: 500;
+}
+
+.relief-summary small {
+  font: var(--panel-font-micro) var(--loidolt-font-utility);
+  color: var(--loidolt-text-muted);
+}
+
+.depth-note {
+  display: block;
+  margin-top: var(--panel-space-1);
+  color: var(--loidolt-text-muted);
+  font: var(--panel-font-micro) var(--loidolt-font-utility);
+  line-height: 1.4;
+}
+
+.toggle-stack {
+  display: flex;
+  flex-direction: column;
+}
+
+.toggle-stack .ldt-switch {
+  width: 100%;
+  min-height: var(--loidolt-size-control);
+  flex-direction: row-reverse;
+  justify-content: space-between;
+  /* Switch renders a <button>, which centers its text by default. Invisible
+     until a label wraps, and "Transportation labels" sits at the wrap point. */
+  text-align: left;
+}
+
+/* Switch wraps its children in an unclassed span; let it take the free space so
+   the track stays pinned right and a long label wraps instead of shoving it. */
+.toggle-stack .ldt-switch > span:last-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--loidolt-text);
+  font: var(--loidolt-font-size-xs) var(--loidolt-font-utility);
+  text-transform: uppercase;
+  letter-spacing: var(--loidolt-font-tracking-utility);
+}
+
+.toggle-label svg {
+  flex: none;
+  color: var(--loidolt-text-muted);
+}
+
+/* A toggle that reveals its own settings when switched on. */
+.toggle-control {
+  display: flex;
+  flex-direction: column;
+}
+
+.toggle-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--panel-space-2);
+  margin: 2px 0 var(--panel-space-2);
+  padding: var(--panel-space-1) 0 var(--panel-space-2) var(--panel-space-2);
+  border-left: 2px solid var(--loidolt-border-soft);
+}
