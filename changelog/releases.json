@@ -2,6 +2,96 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "0.3.0",
+      "date": "2026-09-21",
+      "entries": [
+        {
+          "type": "feature",
+          "title": "Undo and redo shortcuts",
+          "body": "Press `Ctrl+Z` and `Ctrl+Shift+Z` (`Cmd` on a Mac) to step back and forward through edits. Advice about empty layers is also clearer.",
+          "pr": 52
+        },
+        {
+          "type": "feature",
+          "title": "Share links",
+          "body": "Copy a link that opens your design, with its place and settings, straight in the studio.",
+          "pr": 53
+        },
+        {
+          "type": "feature",
+          "title": "Import GPX, KML and GeoJSON",
+          "body": "Bring tracks, routes and waypoints from other apps into a project as custom paths and markers. See [custom markers and paths](/guides/custom-markers-and-paths).",
+          "pr": 54
+        },
+        {
+          "type": "feature",
+          "title": "Place markers by clicking the map",
+          "body": "Turn on Place on map in custom data and click to drop pins; drag any marker on the map to move it.",
+          "pr": 55
+        },
+        {
+          "type": "feature",
+          "title": "Engraved title plaque",
+          "body": "Engrave up to three lines, such as a place name, date and route, anchored in any corner or edge, with contours and roads cleared beneath the letters.",
+          "pr": 56
+        },
+        {
+          "type": "feature",
+          "title": "Lake depth map pages",
+          "body": "Browse [surveyed lakes by state and county](/lakes) and open any of them in the studio, or follow the new guide to [making a custom lake depth map](/guides/custom-lake-depth-map).",
+          "pr": 58
+        },
+        {
+          "type": "feature",
+          "title": "Example gallery",
+          "body": "An [example gallery](/examples) shows finished projects, from the Grand Canyon and Yosemite Valley to Mount Fuji, the Matterhorn and Lake Tahoe, each with its render and a project file you can import.",
+          "pr": 59
+        },
+        {
+          "type": "feature",
+          "title": "Changelog",
+          "body": "See what changed in each release on the [changelog](/changelog), or subscribe to its feed in any feed reader. The studio marks new releases in its menu.",
+          "pr": 62
+        },
+        {
+          "type": "feature",
+          "title": "Real typefaces for labels and titles",
+          "body": "Choose from eight new engraving fonts: four single-line fonts (Hershey Sans, Serif and Script, Relief SingleLine) that trace each letter once, and four filled typefaces (Jost, Oswald, Lora, Roboto Slab). They support lowercase and most accented letters. The title can now have its own font. See [map details](/guides/map-details).",
+          "pr": 73
+        },
+        {
+          "type": "improvement",
+          "title": "Directory lakes open ready to preview",
+          "body": "Opening a lake from the directory or a lake page generates its terrain straight away instead of waiting for you to press Generate.",
+          "pr": 61
+        },
+        {
+          "type": "improvement",
+          "title": "A calmer studio header",
+          "body": "Import, share link and reset now live in a menu beside the project name. The color scheme, what's new, guides and home links sit behind one ⋯ button. A dot on Export shows when your project is ready, and the layer and panel counts moved into the readout above the preview. See the [studio tour](/guides/studio-tour).",
+          "pr": 64
+        },
+        {
+          "type": "improvement",
+          "title": "A simpler Export dialog",
+          "body": "Export now leads with one recommended download, the complete project, and says what's in it. Single SVGs, panel bundles, paint templates and the assembly guide are listed under Individual files, with a note on when to use each. See [export files](/guides/export-files).",
+          "pr": 65
+        },
+        {
+          "type": "improvement",
+          "title": "A step-by-step assembly booklet",
+          "body": "The assembly guide is now a printable booklet that opens in any browser: finished size and materials, a checklist of sheets to cut, and one illustrated step per layer showing where it goes, which sheet its pieces come from, and where split pieces fit. See [export files](/guides/export-files).",
+          "pr": 66
+        },
+        {
+          "type": "fix",
+          "title": "Lake Tahoe survey no longer sheared",
+          "body": "The Lake Tahoe depth survey lines up with the shoreline again; a padding error had shifted its rows.",
+          "pr": 60
+        }
+      ]
+    },
+    {
       "version": "0.2.0",
       "date": "2026-09-18",
       "entries": [
