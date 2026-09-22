@@ -40,6 +40,25 @@ describe("inferLevels", () => {
     expect(() => inferLevels({ ...base, interval: 0, lines: [], inward: 1 })).toThrow(/positive contour interval/);
   });
 
+  it("levels a leaky scan from the facing graph and keeps the frame outside the shore unlevelled", () => {
+    // Every ring broken somewhere, so the space between all of them is one
+    // leaking region; only the local facing of lines can place them.
+    const fractions = [1, 0.8, 0.6, 0.4, 0.2];
+    const broken = fractions.map((fraction, index): LevelLine => {
+      const points = ring(fraction);
+      const start = Math.floor(((index * 47) % 100) / 100 * points.length);
+      const kept = [...points.slice(start + 8), ...points.slice(0, start)];
+      return { points: kept, closed: false };
+    });
+    broken[1]!.value = 5;
+    broken[3]!.value = 15;
+    const frame: LevelLine = { points: [[20, 20], [1180, 20], [1180, 980], [20, 980]], closed: true };
+    const result = inferLevels({ ...base, lines: [...broken, frame], inward: 1, surface: 0 });
+    expect(result.regions.banded).toBeLessThan(result.regions.total);
+    expect(result.values).toEqual([0, 5, 10, 15, 20, undefined]);
+    expect(result.inferred).toEqual([true, false, true, false, true, false]);
+  });
+
   it("votes along open fragments that do not close any region", () => {
     // The middle contour is only a stretch of line; regions leak around its ends.
     const partial = lines({ 0: 5, 2: 15 });

@@ -1,10 +1,16 @@
 // Contour levels from topology. A chart labels only some of its lines; the
 // rest follow from the rule that the space between neighbouring contours is
-// a band spanning exactly one interval. Rasterize the lines, flood the space
-// between them into regions, and solve the resulting constraints: a region
-// touching lines of two levels is the band between them, and a line lies at
-// the level its bands on either side share. The shoreline seeds the outermost
-// band, whose other edge is one interval inward.
+// a band spanning exactly one interval. Two views of that rule work together:
+//
+// - Regions: rasterize the lines, flood the space between them, and solve for
+//   bands. Exact on clean vector charts, but one gap in a line merges two
+//   bands, and scans are full of gaps.
+// - The facing graph: rays cast sideways from each line record which lines it
+//   faces across open water. Rules over it are local, so a gap elsewhere does
+//   not matter; each needs a clear majority of samples, and propagation needs
+//   the lines to see each other both ways, so rays that slip through gaps do
+//   not decide. Lines the shore faces on its land side (frames, roads, the
+//   legend of a scan) never take a level.
 
 import type { Point2 } from "./local-frame.ts";
 
@@ -45,11 +51,30 @@ export interface LevelResult {
 }
 
 const EPSILON = 1e-6;
-/** Samples per line for the sideways vote, how far a ray looks as a share of the page, and what counts as a decision. */
-const RAY_SAMPLES = 60;
+/** Samples per line for the facing graph, how far a ray looks as a share of the page, and what counts as a decision. */
+const RAY_SAMPLES = 80;
 const RAY_REACH_SHARE = 0.15;
-const RAY_MIN_VOTES = 3;
-const RAY_MIN_SHARE = 0.75;
+const MIN_VOTES = 3;
+const MIN_SHARE = 0.75;
+const LEFT = 0;
+const RIGHT = 1;
+
+/** What one line faces: tallies per side, and the pair of lines hit left and right at each sample. */
+interface Facing {
+  sides: [Map<number, number>, Map<number, number>];
+  pairs: [number | undefined, number | undefined][];
+}
+
+function decisive(best: number, total: number): boolean {
+  return best >= MIN_VOTES && best >= total * MIN_SHARE;
+}
+
+/** The heaviest entry of a tally. */
+function strongest(tally: Map<number, number>): [number, number] | undefined {
+  let best: [number, number] | undefined;
+  for (const entry of tally) if (!best || entry[1] > best[1]) best = entry;
+  return best;
+}
 /** Regions smaller than this are pockets left by drawing, not the space between lines. */
 const MIN_SIDE_CELLS = 16;
 
@@ -185,6 +210,73 @@ export function inferLevels(input: LevelInput): LevelResult {
     return true;
   };
 
+  const rungAbove = (value: number) => offset + (Math.floor(step(value) + 1e-6) + 1) * interval;
+  const rungBelow = (value: number) => offset + (Math.ceil(step(value) - 1e-6) - 1) * interval;
+  const facing = facingGraph();
+  /** Which side of each known line faces higher values, once its neighbours tell. */
+  const higher: (number | undefined)[] = new Array(lines.length).fill(undefined);
+  /** Lines found beyond the shore; they never take a level. */
+  const land = new Array<boolean>(lines.length).fill(false);
+
+  /**
+   * For each line, how often each side faces each other line across open
+   * water: rays cast left and right from samples along it, stopping at the
+   * first other line within reach. Local, so leaks between regions do not
+   * matter. Index `lines.length` is the shoreline, which is only ever faced.
+   */
+  function facingGraph(): Facing[] {
+    const reach = Math.ceil((Math.max(input.width, input.height) * RAY_REACH_SHARE) / cellSize);
+    return lines.map((line, id) => {
+      const sides: [Map<number, number>, Map<number, number>] = [new Map(), new Map()];
+      const pairs: [number | undefined, number | undefined][] = [];
+      const ring = line.closed ? [...line.points, line.points[0]!] : line.points;
+      let total = 0;
+      for (let index = 1; index < ring.length; index += 1) total += Math.hypot(ring[index]![0] - ring[index - 1]![0], ring[index]![1] - ring[index - 1]![1]);
+      const spacing = Math.max(cellSize * 3, total / RAY_SAMPLES);
+      let travelled = 0;
+      let nextSample = spacing / 2;
+      for (let index = 1; index < ring.length; index += 1) {
+        const [x1, y1] = ring[index - 1]!;
+        const [x2, y2] = ring[index]!;
+        const span = Math.hypot(x2 - x1, y2 - y1);
+        if (!span) continue;
+        // Left of the direction of travel, with y down.
+        const normal: Point2 = [(y2 - y1) / span, -(x2 - x1) / span];
+        while (nextSample <= travelled + span) {
+          const t = (nextSample - travelled) / span;
+          const x = x1 + t * (x2 - x1);
+          const y = y1 + t * (y2 - y1);
+          const hits = [LEFT, RIGHT].map((side) => {
+            const sign = side === LEFT ? 1 : -1;
+            let cleared = false;
+            for (let k = 1; k <= reach; k += 1) {
+              const column = Math.floor((x + sign * normal[0] * k * cellSize) / cellSize);
+              const row = Math.floor((y + sign * normal[1] * k * cellSize) / cellSize);
+              if (row < 0 || column < 0 || row >= height || column >= width) return undefined;
+              const other = owner[row * width + column]!;
+              if (other === -1) {
+                cleared = true;
+                continue;
+              }
+              // Still inside this line's own stroke, or it looped back on itself.
+              if (other === id) {
+                if (cleared) return undefined;
+                continue;
+              }
+              sides[side]!.set(other, (sides[side]!.get(other) ?? 0) + 1);
+              return other;
+            }
+            return undefined;
+          });
+          pairs.push([hits[LEFT], hits[RIGHT]]);
+          nextSample += spacing;
+        }
+        travelled += span;
+      }
+      return { sides, pairs };
+    });
+  }
+
   for (let changed = true; changed;) {
     changed = false;
     for (let index = 0; index < regions; index += 1) changed = assign(index, settleBand(index)) || changed;
@@ -207,7 +299,7 @@ export function inferLevels(input: LevelInput): LevelResult {
       }
     });
     lines.forEach((_, id) => {
-      if (values[id] !== undefined) return;
+      if (values[id] !== undefined || land[id]) return;
       const sides = [...lineRegions[id]!];
       // A line with the same region on both sides is a dangling fragment; it bounds nothing.
       if (sides.length < 2) return;
@@ -240,84 +332,106 @@ export function inferLevels(input: LevelInput): LevelResult {
         changed = true;
       }
     });
-    // Regions on a real chart leak through shoreline gaps and merge where
-    // lines crowd closer than a cell, so also vote locally along each line.
-    lines.forEach((line, id) => {
-      if (values[id] !== undefined) return;
-      const vote = rayVote(line, id);
-      if (vote === undefined || !allowed(vote)) return;
-      values[id] = vote;
-      inferred[id] = true;
-      changed = true;
-    });
+    // Regions on a real chart leak through gaps and merge where lines crowd
+    // closer than a cell, so also reason locally, over the facing graph.
+    changed = faceStep() || changed;
   }
 
   /**
-   * Samples points along a line and looks sideways both ways for the first
-   * other line. Where both neighbours are known and exactly one rung lies
-   * between them, that rung is this line's level. A clear majority decides.
+   * One round over the facing graph. Each rule weighs its evidence by how
+   * many samples agree, and a line takes a level only on a clear majority,
+   * so a stray ray through an unbridged gap outvotes nothing.
+   * - Between: a line whose sides face known levels two rungs apart is the rung between.
+   * - Orientation: a known line facing a known neighbour one rung away learns its higher side.
+   * - Propagation: a known, oriented line gives the rung above to what faces
+   *   its higher side, and the rung below to what faces its lower side.
    */
-  function rayVote(line: LevelLine, id: number): number | undefined {
-    const ring = line.closed ? [...line.points, line.points[0]!] : line.points;
-    let total = 0;
-    for (let index = 1; index < ring.length; index += 1) total += Math.hypot(ring[index]![0] - ring[index - 1]![0], ring[index]![1] - ring[index - 1]![1]);
-    const spacing = Math.max(cellSize * 3, total / RAY_SAMPLES);
-    const reach = Math.ceil((Math.max(input.width, input.height) * RAY_REACH_SHARE) / cellSize);
-    const tally = new Map<number, number>();
-    let cast = 0;
-    let travelled = 0;
-    let nextSample = spacing / 2;
-    for (let index = 1; index < ring.length; index += 1) {
-      const [x1, y1] = ring[index - 1]!;
-      const [x2, y2] = ring[index]!;
-      const span = Math.hypot(x2 - x1, y2 - y1);
-      if (!span) continue;
-      const normal: Point2 = [-(y2 - y1) / span, (x2 - x1) / span];
-      while (nextSample <= travelled + span) {
-        const t = (nextSample - travelled) / span;
-        const x = x1 + t * (x2 - x1);
-        const y = y1 + t * (y2 - y1);
-        const hit = (sign: number) => {
-          let left = false;
-          for (let k = 1; k <= reach; k += 1) {
-            const column = Math.floor((x + sign * normal[0] * k * cellSize) / cellSize);
-            const row = Math.floor((y + sign * normal[1] * k * cellSize) / cellSize);
-            if (row < 0 || column < 0 || row >= height || column >= width) return undefined;
-            const other = owner[row * width + column]!;
-            if (other === -1) {
-              left = true;
-              continue;
-            }
-            if (other === id) {
-              // Still inside this line's own stroke, or it looped back on itself.
-              if (left) return undefined;
-              continue;
-            }
-            return values[other];
-          }
-          return undefined;
-        };
-        const a = hit(1);
-        const b = hit(-1);
-        cast += 1;
-        if (a !== undefined && b !== undefined && !same(a, b)) {
-          const [low, high] = a < b ? [a, b] : [b, a];
-          const rungs: number[] = [];
-          for (let rung = Math.floor(step(low) + 1e-6) + 1; offset + rung * interval < high - EPSILON * Math.max(1, Math.abs(high)); rung += 1) rungs.push(offset + rung * interval);
-          if (rungs.length === 1) tally.set(rungs[0]!, (tally.get(rungs[0]!) ?? 0) + 1);
+  function faceStep(): boolean {
+    let changed = false;
+    /**
+     * How strongly two lines face each other: only as much as each sees the
+     * other. A long line (a frame, a road) collects rays that slip through
+     * gaps in the lines between; it does not see the far line back.
+     */
+    const mutual = (id: number, other: number, count: number) => {
+      if (other === shoreId) return count;
+      let back = 0;
+      for (const side of facing[other]!.sides) back += side.get(id) ?? 0;
+      return Math.min(count, back);
+    };
+    lines.forEach((_, id) => {
+      const level = values[id];
+      if (level === undefined || higher[id] !== undefined) return;
+      const votes = [0, 0];
+      for (const side of [LEFT, RIGHT]) {
+        for (const [other, count] of facing[id]!.sides[side]!) {
+          const neighbour = values[other];
+          if (neighbour === undefined || !adjacent(neighbour, level)) continue;
+          votes[neighbour > level ? side : 1 - side]! += mutual(id, other, count);
         }
-        nextSample += spacing;
       }
-      travelled += span;
+      const side = votes[LEFT]! >= votes[RIGHT]! ? LEFT : RIGHT;
+      if (decisive(votes[side]!, votes[LEFT]! + votes[RIGHT]!)) {
+        higher[id] = side;
+        changed = true;
+      }
+    });
+    // What the land side of a surface-level line faces is land (a frame, a
+    // road, the legend) and takes no level, however rays through gaps in the
+    // lines vote. Only what the shore faces directly: spreading further would
+    // leak back into the lake through the same gaps.
+    lines.forEach((_, id) => {
+      const level = values[id];
+      const up = higher[id];
+      if (level === undefined || up === undefined || bound === undefined || !same(level, bound)) return;
+      for (const [other, count] of facing[id]!.sides[1 - up]!) {
+        if (other === shoreId || land[other] || values[other] !== undefined || mutual(id, other, count) < MIN_VOTES) continue;
+        land[other] = true;
+        changed = true;
+      }
+    });
+    const candidates = new Map<number, Map<number, number>>();
+    const propose = (id: number, level: number, weight: number) => {
+      if (!allowed(level) || land[id]) return;
+      const tally = candidates.get(id) ?? new Map<number, number>();
+      const key = Math.round(level * 1e6) / 1e6;
+      tally.set(key, (tally.get(key) ?? 0) + weight);
+      candidates.set(id, tally);
+    };
+    lines.forEach((_, id) => {
+      const level = values[id];
+      const up = higher[id];
+      if (level === undefined || up === undefined) return;
+      for (const side of [LEFT, RIGHT]) {
+        const next = side === up ? rungAbove(level) : rungBelow(level);
+        for (const [other, count] of facing[id]!.sides[side]!) if (other !== shoreId && values[other] === undefined) propose(other, next, mutual(id, other, count));
+      }
+    });
+    lines.forEach((_, id) => {
+      if (values[id] !== undefined) return;
+      // Sample by sample, since a long line faces different neighbours along
+      // its length; only neighbours that see this line back count.
+      for (const [left, right] of facing[id]!.pairs) {
+        if (left === undefined || right === undefined) continue;
+        const a = values[left];
+        const b = values[right];
+        if (a === undefined || b === undefined || same(a, b)) continue;
+        const [low, high] = a < b ? [a, b] : [b, a];
+        const between = rungAbove(low);
+        // Exactly one rung strictly between; the surface need not sit on the ladder (320 between 315 and a 322 ft pool).
+        if (between < high - EPSILON * Math.max(1, Math.abs(high)) && rungAbove(between) >= high - EPSILON * Math.max(1, Math.abs(high))) propose(id, between, 1);
+      }
+    });
+    for (const [id, tally] of candidates) {
+      const best = strongest(tally);
+      let total = 0;
+      for (const weight of tally.values()) total += weight;
+      if (!best || !decisive(best[1], total)) continue;
+      values[id] = best[0];
+      inferred[id] = true;
+      changed = true;
     }
-    let best: [number, number] | undefined;
-    let votes = 0;
-    for (const entry of tally) {
-      votes += entry[1];
-      if (!best || entry[1] > best[1]) best = entry;
-    }
-    if (!best || best[1] < RAY_MIN_VOTES || best[1] < votes * RAY_MIN_SHARE || cast === 0) return undefined;
-    return best[0];
+    return changed;
   }
 
   // A label is in conflict when a region beside it holds labels no single band
