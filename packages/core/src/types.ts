@@ -194,6 +194,34 @@ export interface GeoBounds {
   north: number;
 }
 
+/**
+ * A depth chart's id: 8-64 lowercase letters, digits or dashes. The chart
+ * record contract states the same pattern (`CHART_ID_PATTERN`); core is built
+ * on its own and cannot import it, so a test holds the two together.
+ */
+export const DEPTH_CHART_ID_PATTERN = /^[a-z0-9][a-z0-9-]{7,63}$/;
+
+/**
+ * The key for a lake HydroLAKES does not know, mostly small lakes drawn only
+ * in OpenStreetMap. Their outlines carry no lasting id, so the chart itself
+ * names the lake: `outline:<chart id>`, and the lake is the one the chart's
+ * own outline overlaps.
+ */
+export const OUTLINE_CHART_KEY_PREFIX = "outline:";
+
+/**
+ * Whether `key` may name the lake a chart reference carves: a HydroLAKES id, or
+ * `outline:` followed by that same chart's id.
+ */
+export function isDepthChartLakeKey(key: string, reference: Pick<UserDepthChartRefV1, "id">): boolean {
+  return /^[1-9]\d*$/.test(key) || key === `${OUTLINE_CHART_KEY_PREFIX}${reference.id}`;
+}
+
+/** The key a project uses for the lake a chart was traced for. */
+export function depthChartLakeKey(chart: { id: string; hylakId?: number }): string {
+  return chart.hylakId === undefined ? `${OUTLINE_CHART_KEY_PREFIX}${chart.id}` : String(chart.hylakId);
+}
+
 /** Which traced depth chart a lake uses, and the exact content it was carved from. */
 export interface UserDepthChartRefV1 {
   /** The chart record's id, as stored in the browser or exported beside the project. */
@@ -287,7 +315,8 @@ export interface ProjectConfigV1 {
   plaque?: PlaqueV1;
   /**
    * Depth charts the maker traced, one per lake, keyed by HydroLAKES id as
-   * `waterDepthOverrides` is. The chart itself lives in browser storage or
+   * `waterDepthOverrides` is, or for a lake without one by
+   * `outline:<chart id>` (see OUTLINE_CHART_KEY_PREFIX). The chart itself lives in browser storage or
    * beside the project in its exported file; this records which chart a lake
    * uses and the content it was carved from. Absent in every project without
    * one, which keeps their fingerprints.

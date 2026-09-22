@@ -89,6 +89,10 @@ export function resolveLakeOutlines(providers: WaterAreaV1[], hydro: WaterAreaV1
     }
   }
   inland.forEach((p, i) => {
+    // polygon-clipping can fail on near-degenerate map water (a sliver shared
+    // by two rivers, say). One such polygon is skipped rather than costing the
+    // whole map its water: it is map-only water, which carves nothing anyway.
+    try {
     const candidate = input(p), size = area(candidate);
     if (!(size > 0)) return;
     const matches = resolved.filter((lake) => {
@@ -106,6 +110,9 @@ export function resolveLakeOutlines(providers: WaterAreaV1[], hydro: WaterAreaV1
       } else return;
     }
     resolved.push({ id: `osm-lake-${i}`, kind: "lake", polygon: p, outlineSource: "osm" });
+    } catch (error) {
+      console.warn("TopoStack: a map water outline could not be compared with the lake data and was left out.", error);
+    }
   });
   return resolved;
 }

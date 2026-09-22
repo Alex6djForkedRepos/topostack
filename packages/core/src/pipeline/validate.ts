@@ -6,6 +6,8 @@ import {
   MAP_MARKER_MIN_SIZE_MM,
   MAP_MARKER_MAX_SIZE_MM,
   MARKER_SYMBOLS,
+  DEPTH_CHART_ID_PATTERN,
+  isDepthChartLakeKey,
   MAX_CUSTOM_DATA_POINTS,
   MAX_CUSTOM_LINE_POINTS,
   MAX_CUSTOM_LINES,
@@ -136,9 +138,9 @@ export function validateProject(config: ProjectConfigV1): void {
   if (config.userDepthCharts !== undefined) {
     if (typeof config.userDepthCharts !== "object" || Array.isArray(config.userDepthCharts)) throw new Error("Depth chart references must be an object.");
     for (const [lake, reference] of Object.entries(config.userDepthCharts)) {
-      if (!/^[1-9]\d*$/.test(lake)) throw new Error(`Depth chart key ${lake} must be a HydroLAKES id.`);
       if (!reference || typeof reference !== "object") throw new Error(`Depth chart for lake ${lake} must be an object.`);
-      if (typeof reference.id !== "string" || !/^[a-z0-9][a-z0-9-]{7,63}$/.test(reference.id)) throw new Error(`Depth chart id for lake ${lake} must be 8-64 lowercase letters, digits, or dashes.`);
+      if (typeof reference.id !== "string" || !DEPTH_CHART_ID_PATTERN.test(reference.id)) throw new Error(`Depth chart id for lake ${lake} must be 8-64 lowercase letters, digits, or dashes.`);
+      if (!isDepthChartLakeKey(lake, reference)) throw new Error(`Depth chart key ${lake} must be a HydroLAKES id, or outline: and the chart's own id.`);
       if (typeof reference.contentHash !== "string" || !/^[a-f0-9]{64}$/.test(reference.contentHash)) throw new Error(`Depth chart for lake ${lake} needs a lowercase SHA-256 content hash.`);
     }
   }

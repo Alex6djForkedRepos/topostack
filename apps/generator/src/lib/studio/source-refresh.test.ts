@@ -37,4 +37,13 @@ describe("stale source data", () => {
     expect(markStaleSourceData(source, { paintTemplates: ["water"] }, DEFAULT_PROJECT, { ...DEFAULT_PROJECT, paintTemplates: ["water"] })).toBe(source);
     expect(markStaleSourceData(source, { paintTemplates: [] }, { ...dry, paintTemplates: ["water"] }, dry)).toBe(source);
   });
+
+  it("loads lake depths again when a depth chart is used or dropped", () => {
+    const source = loaded({ bathymetryStatus: "available" });
+    const reference = { id: "round-lake-chart-00000001", contentHash: "a".repeat(64) };
+    expect(stale(source, { userDepthCharts: { "9092": reference } }).bathymetryStatus).toBeUndefined();
+    expect(stale(source, { userDepthCharts: undefined }).bathymetryStatus).toBeUndefined();
+    // Vectors and outlines are untouched: only which depths a lake carves changed.
+    expect(stale(source, { userDepthCharts: { "9092": reference } }).lakeDataStatus).toBe("available");
+  });
 });

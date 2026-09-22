@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_PROJECT } from "@topostack/core";
+import { DEFAULT_PROJECT, DEPTH_CHART_ID_PATTERN } from "@topostack/core";
+import { CHART_ID_PATTERN } from "@topostack/data-contracts/chart-bathymetry";
 import { parseProject } from "$lib/storage/storage";
 
 describe("project import validation", () => {
@@ -229,11 +230,19 @@ describe("project import validation", () => {
       "2": { id: "round-lake-chart", contentHash: "short" },
       "3": "round-lake-chart",
       lake: reference,
+      "outline:round-lake-chart": reference,
+      "outline:someone-elses-chart": reference,
     } });
-    expect(parsed.userDepthCharts).toEqual({ "9092": reference });
+    expect(parsed.userDepthCharts).toEqual({ "9092": reference, "outline:round-lake-chart": reference });
     // Absent stays absent, so projects saved before charts keep their fingerprint.
     expect("userDepthCharts" in parseProject({ ...DEFAULT_PROJECT })).toBe(false);
     expect("userDepthCharts" in parseProject({ ...DEFAULT_PROJECT, userDepthCharts: { "1": { id: "bad", contentHash: "" } } })).toBe(false);
+  });
+
+  it("holds core's chart id pattern to the record contract's", () => {
+    // Core is built on its own and keeps a copy; this is what keeps it honest.
+    expect(DEPTH_CHART_ID_PATTERN.source).toBe(CHART_ID_PATTERN.source);
+    expect(DEPTH_CHART_ID_PATTERN.flags).toBe(CHART_ID_PATTERN.flags);
   });
 
   it("drops depth overrides that are not usable depths", () => {
