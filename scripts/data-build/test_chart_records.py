@@ -67,6 +67,20 @@ class ChartRecordTests(unittest.TestCase):
                 np.testing.assert_allclose(values[0], [0, 1.5])
                 self.assertTrue(np.isnan(values[1, 0]))
 
+    def test_optional_record_fields_are_optional(self):
+        from tile_writer import write_grid
+        own = record(attestation='own-work')
+        del own['provenance']['sourceUrl']
+        del own['provenance']['publisher']
+        with tempfile.TemporaryDirectory() as directory:
+            pins = charts(CHART_SOURCE, Path(directory), FakeWriter(), write_grid, [own])
+        self.assertIsNone(pins[0]['url'])
+        self.assertIsNone(pins[0]['publisher'])
+        nameless = record()
+        del nameless['lake']['name']
+        with tempfile.TemporaryDirectory() as directory, self.assertRaisesRegex(ValueError, 'no lake name'):
+            charts(CHART_SOURCE, Path(directory), FakeWriter(), write_grid, [nameless])
+
     def test_a_chart_outside_the_source_bounds_names_the_file_to_widen(self):
         from tile_writer import write_grid
         with tempfile.TemporaryDirectory() as directory:

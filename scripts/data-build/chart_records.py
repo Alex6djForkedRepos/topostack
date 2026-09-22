@@ -80,6 +80,11 @@ def charts(source, cache, writer, write_grid, records=None):
         write_grid(prepared, decode_depths(grid), transform, 'EPSG:4326')
         writer.add(prepared, record['id'])
         provenance = record['provenance']
+        # The contract makes the lake's name optional, but the lake directory
+        # lists published charts by it, so a nameless one is stopped here with
+        # a reason rather than a KeyError. A maker's own chart has no source URL.
+        if not record['lake'].get('name'):
+            raise ValueError(f"{record['id']} has no lake name; name the lake in the record before publishing it")
         pins.append({
             'id': record['id'],
             'dataset': source['id'],
@@ -87,7 +92,7 @@ def charts(source, cache, writer, write_grid, records=None):
             'region': record['lake'].get('region'),
             'title': provenance['title'],
             'publisher': provenance.get('publisher'),
-            'url': provenance['sourceUrl'],
+            'url': provenance.get('sourceUrl'),
             'sha256': provenance['fileSha256'],
             'tool': provenance['tool'],
             'license': record['license']['attestation'],
