@@ -4,6 +4,31 @@ User-facing changes to TopoStack, newest first. Also at https://topostack.app/ch
 
 Generated from `changelog/releases.json` by `npm run changelog:prepare`; do not edit by hand. See [docs/changelog.md](docs/changelog.md).
 
+## 0.3.0 (2026-09-21)
+
+### New
+
+- **Undo and redo shortcuts**: Press `Ctrl+Z` and `Ctrl+Shift+Z` (`Cmd` on a Mac) to step back and forward through edits. Advice about empty layers is also clearer. ([#52](https://github.com/Echo-Foxtrot-Works/topostack/pull/52))
+- **Share links**: Copy a link that opens your design, with its place and settings, straight in the studio. ([#53](https://github.com/Echo-Foxtrot-Works/topostack/pull/53))
+- **Import GPX, KML and GeoJSON**: Bring tracks, routes and waypoints from other apps into a project as custom paths and markers. See [custom markers and paths](https://topostack.app/guides/custom-markers-and-paths). ([#54](https://github.com/Echo-Foxtrot-Works/topostack/pull/54))
+- **Place markers by clicking the map**: Turn on Place on map in custom data and click to drop pins; drag any marker on the map to move it. ([#55](https://github.com/Echo-Foxtrot-Works/topostack/pull/55))
+- **Engraved title plaque**: Engrave up to three lines, such as a place name, date and route, anchored in any corner or edge, with contours and roads cleared beneath the letters. ([#56](https://github.com/Echo-Foxtrot-Works/topostack/pull/56))
+- **Lake depth map pages**: Browse [surveyed lakes by state and county](https://topostack.app/lakes) and open any of them in the studio, or follow the new guide to [making a custom lake depth map](https://topostack.app/guides/custom-lake-depth-map). ([#58](https://github.com/Echo-Foxtrot-Works/topostack/pull/58))
+- **Example gallery**: An [example gallery](https://topostack.app/examples) shows finished projects, from the Grand Canyon and Yosemite Valley to Mount Fuji, the Matterhorn and Lake Tahoe, each with its render and a project file you can import. ([#59](https://github.com/Echo-Foxtrot-Works/topostack/pull/59))
+- **Changelog**: See what changed in each release on the [changelog](https://topostack.app/changelog), or subscribe to its feed in any feed reader. The studio marks new releases in its menu. ([#62](https://github.com/Echo-Foxtrot-Works/topostack/pull/62))
+- **Real typefaces for labels and titles**: Choose from eight new engraving fonts: four single-line fonts (Hershey Sans, Serif and Script, Relief SingleLine) that trace each letter once, and four filled typefaces (Jost, Oswald, Lora, Roboto Slab). They support lowercase and most accented letters. The title can now have its own font. See [map details](https://topostack.app/guides/map-details). ([#73](https://github.com/Echo-Foxtrot-Works/topostack/pull/73))
+
+### Improved
+
+- **Directory lakes open ready to preview**: Opening a lake from the directory or a lake page generates its terrain straight away instead of waiting for you to press Generate. ([#61](https://github.com/Echo-Foxtrot-Works/topostack/pull/61))
+- **A calmer studio header**: Import, share link and reset now live in a menu beside the project name. The color scheme, what's new, guides and home links sit behind one ⋯ button. A dot on Export shows when your project is ready, and the layer and panel counts moved into the readout above the preview. See the [studio tour](https://topostack.app/guides/studio-tour). ([#64](https://github.com/Echo-Foxtrot-Works/topostack/pull/64))
+- **A simpler Export dialog**: Export now leads with one recommended download, the complete project, and says what's in it. Single SVGs, panel bundles, paint templates and the assembly guide are listed under Individual files, with a note on when to use each. See [export files](https://topostack.app/guides/export-files). ([#65](https://github.com/Echo-Foxtrot-Works/topostack/pull/65))
+- **A step-by-step assembly booklet**: The assembly guide is now a printable booklet that opens in any browser: finished size and materials, a checklist of sheets to cut, and one illustrated step per layer showing where it goes, which sheet its pieces come from, and where split pieces fit. See [export files](https://topostack.app/guides/export-files). ([#66](https://github.com/Echo-Foxtrot-Works/topostack/pull/66))
+
+### Fixed
+
+- **Lake Tahoe survey no longer sheared**: The Lake Tahoe depth survey lines up with the shoreline again; a padding error had shifted its rows. ([#60](https://github.com/Echo-Foxtrot-Works/topostack/pull/60))
+
 ## 0.2.0 (2026-09-18)
 
 ### New
