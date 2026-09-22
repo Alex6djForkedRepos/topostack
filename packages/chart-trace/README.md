@@ -4,7 +4,7 @@ Turns a lake depth chart into bathymetry. The batch build runs it in Node for cu
 
 | Subpath | Owns |
 | --- | --- |
-| `@topostack/chart-trace/georef` | Placing chart pixels on the ground as a pixel→lon/lat homography. Two routes: a least-squares affine or homography fit from clicked control points, or snapping a traced shoreline onto the known lake outline. Snapping tries each orientation, with and without a mirror, then refines with symmetric ICP and reports the overlap (IoU). |
+| `@topostack/chart-trace/georef` | Placing chart pixels on the ground as a pixel→lon/lat homography. Two routes: a least-squares affine or homography fit from clicked control points, or snapping a traced shoreline onto the known lake outline. Snapping tries each orientation, with and without a mirror, then refines with symmetric ICP and reports the overlap (IoU). `snapCandidates` returns every distinct placement, best first, for lakes that fit more than one way. |
 | `@topostack/chart-trace/grid` | Interpolating contours and spot soundings into a lon/lat-aligned depth grid. `harmonic` (the default) solves Laplace's equation with contours fixed and the shore at zero, and domes flat pools enclosed by a single ring. `tin` ports `survey_regions.contour_grid` exactly, for parity with the published contour surveys. |
 | `@topostack/chart-trace/local-frame` | The lake-centred equirectangular metre frame both modules work in |
 | `@topostack/chart-trace/pdf` | Reading one vector PDF page into styled polylines and positioned text (`VectorPage`, top-left origin, y down). pdf.js 6 is passed in by the caller, so this package never bundles it. |
