@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildFabricationPackage, DEFAULT_PROJECT, generateGeometry, labelDimensions, labelLineSegments, layerToSvg } from "../index.js";
+import { buildFabricationPackage, DEFAULT_PROJECT, generateGeometry, groundWidthMFor, labelDimensions, labelLineSegments, layerToSvg, scaleBarMarkings } from "../index.js";
 import { placeElevationLabel } from "../annotate/label-placement.js";
 import { pointInRing, realSource } from "../test-support/sources.js";
 
@@ -9,14 +9,15 @@ describe("labels and fonts", () => {
     const metric = generateGeometry(DEFAULT_PROJECT, realSource());
     const metricLabels = metric.layers.flatMap((layer) => layer.markings).filter((marking) => marking.label).map((marking) => marking.label ?? "");
     expect(metricLabels.some((label) => /\d m$/.test(label))).toBe(true);
-    expect(metric.layers[0]?.markings.find((marking) => marking.id === "scale-label")?.label).toMatch(/\d (m|km)$/);
+    const scaleLabel = (project: typeof DEFAULT_PROJECT, bounds: typeof metric.bounds) => scaleBarMarkings(project, groundWidthMFor(bounds)).find((marking) => marking.id === "scale-label")?.label;
+    expect(scaleLabel(DEFAULT_PROJECT, metric.bounds)).toMatch(/\d (m|km)$/);
 
     const imperialProject = { ...DEFAULT_PROJECT, units: "imperial" as const };
     const imperial = generateGeometry(imperialProject, realSource(imperialProject));
     const imperialLabels = imperial.layers.flatMap((layer) => layer.markings).filter((marking) => marking.label).map((marking) => marking.label ?? "");
     expect(imperial.units).toBe("imperial");
     expect(imperialLabels.some((label) => /\d ft$/.test(label))).toBe(true);
-    expect(imperial.layers[0]?.markings.find((marking) => marking.id === "scale-label")?.label).toMatch(/\d (ft|mi)$/);
+    expect(scaleLabel(imperialProject, imperial.bounds)).toMatch(/\d (ft|mi)$/);
     const fabrication = buildFabricationPackage(imperial, imperialProject);
     expect(await fabrication.files.find((file) => file.filename === "README.txt")?.blob.text()).toContain(" in each");
     expect(await fabrication.files.find((file) => file.filename.endsWith("assembly-guide.html"))?.blob.text()).toMatch(/\d ft – [\d,]+ ft/);

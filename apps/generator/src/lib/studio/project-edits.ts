@@ -101,9 +101,12 @@ export function plaqueText(text: string): string {
 
 export const clampPlaqueSize = (sizeMm: number): number => Math.min(PLAQUE_MAX_SIZE_MM, Math.max(PLAQUE_MIN_SIZE_MM, sizeMm));
 
-/** The title's settings, starting from the project name in the free bottom-left corner the first time it is switched on. */
+/** A new title starts in the bottom-left corner, which the default compass leaves free. */
+export const DEFAULT_PLAQUE_PLACEMENT: PlaqueV1["placement"] = { anchor: "bottom-left", offset: { x: 0, y: 0 } };
+
+/** The title's settings, starting from the project name in the default corner the first time it is switched on. */
 export function plaqueSettings(project: Pick<ProjectConfigV1, "name" | "plaque">, patch: Partial<PlaqueV1>): PlaqueV1 {
-  const current = project.plaque ?? { enabled: false, text: plaqueText(project.name), sizeMm: DEFAULT_PLAQUE_SIZE_MM, placement: { anchor: "bottom-left", offset: { x: 0, y: 0 } } };
+  const current = project.plaque ?? { enabled: false, text: plaqueText(project.name), sizeMm: DEFAULT_PLAQUE_SIZE_MM, placement: { ...DEFAULT_PLAQUE_PLACEMENT, offset: { ...DEFAULT_PLAQUE_PLACEMENT.offset } } };
   return { ...current, ...patch };
 }
 

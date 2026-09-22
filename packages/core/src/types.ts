@@ -271,6 +271,8 @@ export interface ProjectConfigV1 {
   northArrowSizeMm: number;
   northArrowPlacement: NorthArrowPlacementV1;
   showScaleBar: boolean;
+  /** Where the scale bar sits. Absent keeps its original spot near the top-left edge, and older projects' fingerprints. */
+  scaleBarPlacement?: NorthArrowPlacementV1;
   /** Optional engraved title. Absent in projects saved before titles existed, which keeps their fingerprints. */
   plaque?: PlaqueV1;
   /** User-placed symbols, projected from geographic coordinates onto the artwork. */

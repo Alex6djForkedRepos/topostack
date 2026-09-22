@@ -2,6 +2,30 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "0.4.0",
+      "date": "2026-09-22",
+      "entries": [
+        {
+          "type": "feature",
+          "title": "Place and size the north arrow, title and scale bar anywhere",
+          "body": "The north arrow, title and scale bar are no longer limited to fixed spots. Choose **Move on preview**: the preview looks straight down on your finished piece, and you drag them anywhere, even across layers, or nudge them with the arrow keys. Drag the corner handle, or press + and −, to resize the north arrow or the title in place. Choose **Done** to engrave them where you left them, or **Cancel** to put them back. See [map details](/guides/map-details).",
+          "pr": 76
+        },
+        {
+          "type": "fix",
+          "title": "Keep annotation placement edits and previews reliable",
+          "body": "Moving a title preserves sidebar text and font changes, and committed positions survive reloads. Placement waits for fonts, shows title backings correctly, keeps resizing within limits, and pauses Undo and Redo until you finish. Controls remain reachable on small screens without covering annotations or conflicting with preview zoom controls.",
+          "pr": 76
+        },
+        {
+          "type": "fix",
+          "title": "Scale bar no longer hidden under upper layers",
+          "body": "On layered reliefs the scale bar was engraved on the bottom sheet only, so the sheets above could cover most of it. It is now engraved on whichever sheets it crosses, like the north arrow.",
+          "pr": 76
+        }
+      ]
+    },
+    {
       "version": "0.3.0",
       "date": "2026-09-21",
       "entries": [

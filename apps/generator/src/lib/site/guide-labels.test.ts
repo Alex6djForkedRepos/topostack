@@ -20,7 +20,7 @@ const decode = (text: string): string => text.replaceAll("&amp;", "&").replace(/
  * exact so a short label such as "Water" cannot hide inside unrelated code.
  */
 function studioStrings(): Set<string> {
-  const files = ["lib/studio/App.svelte", ...readdirSync(join(src, "lib/studio/panels")).map((file) => `lib/studio/panels/${file}`), "lib/studio/ExportDialog.svelte", "lib/studio/LocationDialog.svelte", "lib/studio/MapCanvas.svelte", "lib/studio/TwoDPreview.svelte", "lib/studio/options.ts", "lib/site/FeedbackButton.svelte"];
+  const files = ["lib/studio/App.svelte", ...readdirSync(join(src, "lib/studio/panels")).map((file) => `lib/studio/panels/${file}`), "lib/studio/ExportDialog.svelte", "lib/studio/LocationDialog.svelte", "lib/studio/MapCanvas.svelte", "lib/studio/TwoDPreview.svelte", "lib/studio/placement/PlacementLayer.svelte", "lib/studio/options.ts", "lib/site/FeedbackButton.svelte"];
   const strings = new Set<string>();
   for (const file of files) {
     const source = readFileSync(join(src, file), "utf8");

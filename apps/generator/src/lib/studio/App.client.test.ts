@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import noaaFixture from "$lib/domain/fixtures/noaa-erie-z11.json";
 import { mount, tick, unmount } from "svelte";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, onTestFinished, beforeAll, describe, expect, it, vi } from "vitest";
 import { createSyntheticSource, DEFAULT_PROJECT, generateGeometry, type GeometryIRV1 } from "@topostack/core";
 import { theme } from "$lib/site/theme";
 import { createSamplePreviewSource } from "$lib/domain/sample-preview";
@@ -68,6 +68,45 @@ describe("TopoStack Svelte shell", () => {
     await import("$lib/studio/ThreePreview.svelte");
   });
   afterEach(async () => { if (component) await unmount(component); component = undefined; loadTerrainMock.mockReset(); loadVectorMarkingsMock.mockReset(); loadLakeAreasMock.mockReset(); Object.values(noaaArchive).forEach((mock) => mock.mockReset()); theme.preference = "system"; localStorage.removeItem("topostack-theme"); localStorage.removeItem("topostack-menu-sections-v1"); delete window.atomm; });
+
+  it("title edits survive committing an open placement draft", async () => {
+    const { saveProject } = await import("$lib/storage/storage");
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await tick();
+    target.querySelector<HTMLButtonElement>('button[role="switch"][aria-label="Title"]')!.click();
+    await vi.waitFor(() => expect(target.querySelector(".plaque-settings button.placement-start")).not.toBeNull());
+    target.querySelector<HTMLButtonElement>(".plaque-settings button.placement-start")!.click();
+    // First placement lazily imports and instruments the SVG components under coverage.
+    await vi.waitFor(() => expect(target.querySelector('[data-placeable="plaque"]')).not.toBeNull(), { timeout: 5_000 });
+    target.querySelector('[data-placeable="plaque"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    await tick();
+    const text = target.querySelector<HTMLTextAreaElement>('.plaque-settings textarea')!;
+    text.value = "Updated title";
+    text.dispatchEvent(new Event("input", { bubbles: true }));
+    await tick();
+    window.dispatchEvent(new Event("pagehide"));
+    expect(vi.mocked(saveProject).mock.lastCall![0].plaque?.text).toBe("Updated title");
+    [...target.querySelectorAll<HTMLButtonElement>(".placement-toolbar button")].find(b => b.textContent?.trim() === "Done")!.click();
+    // Done allows up to four seconds for generation, then fades out.
+    await vi.waitFor(() => expect(target.querySelector("[data-placement-layer]")).toBeNull(), { timeout: 6_000 });
+    window.dispatchEvent(new Event("pagehide"));
+    expect(vi.mocked(saveProject).mock.lastCall![0].plaque?.text).toBe("Updated title");
+  });
+  it("toolbar undo is paused during placement", async () => {
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await tick();
+    const name = target.querySelector<HTMLInputElement>('[aria-label="Project name"]')!;
+    name.value = "Changed name";
+    name.dispatchEvent(new Event("input", { bubbles: true }));
+    await tick();
+    target.querySelector<HTMLButtonElement>("button.placement-start")!.click();
+    await vi.waitFor(() => expect(target.querySelector("[data-placement-layer]")).not.toBeNull());
+    target.querySelector<HTMLButtonElement>('button[aria-label="Undo"]')!.click();
+    await tick();
+    expect(name.value).toBe("Changed name");
+  });
 
   it("resets the entire saved project to Crater Lake defaults and supports Undo", async () => {
     const { loadProject, saveProject } = await import("$lib/storage/storage");
@@ -725,7 +764,7 @@ describe("TopoStack Svelte shell", () => {
     expect(loadTerrainMock).not.toHaveBeenCalled();
   });
 
-  it("customizes north-arrow design, physical size, and anchored placement without refetching terrain", async () => {
+  it("customizes north-arrow design and physical size without refetching terrain", async () => {
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
     await tick();
@@ -737,16 +776,88 @@ describe("TopoStack Svelte shell", () => {
     const size = target.querySelector<HTMLInputElement>('input[aria-label="North arrow size"]')!;
     size.value = "30";
     size.dispatchEvent(new Event("input", { bubbles: true }));
-    const topLeft = target.querySelector<HTMLButtonElement>('.north-arrow-anchor-grid button[aria-label="Top left"]')!;
-    topLeft.click();
-    const offsetX = target.querySelector<HTMLInputElement>('input[aria-label="North arrow offset X"]')!;
-    offsetX.value = "15";
-    offsetX.dispatchEvent(new Event("input", { bubbles: true }));
-    await vi.waitFor(() => expect(topLeft.getAttribute("aria-checked")).toBe("true"));
     await vi.waitFor(() => expect(target.querySelector<HTMLInputElement>('input[aria-label="North arrow size slider"]')?.value).toBe("30"));
-    expect(offsetX.value).toBe("15");
     // Preview refreshes trail rapid edits, so wait for the coalesced rebuild.
     await vi.waitFor(() => expect(Number(target.querySelector<HTMLElement>(".preview-stage")?.dataset.northMarkings)).toBeGreaterThan(10));
+    expect(loadTerrainMock).not.toHaveBeenCalled();
+  });
+
+  it("places the compass and title in placement mode and bakes them only on Done", async () => {
+    const { saveProject } = await import("$lib/storage/storage");
+    const target = document.createElement("div");
+    // Attached, so focus moves to the placement handles.
+    document.body.append(target);
+    onTestFinished(() => target.remove());
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await tick();
+    const moveButtons = () => [...target.querySelectorAll<HTMLButtonElement>("button.placement-start")];
+    const pointer = (type: string, clientX: number, clientY: number): MouseEvent => {
+      const event = new MouseEvent(type, { bubbles: true, cancelable: true, button: 0, clientX, clientY });
+      Object.defineProperty(event, "pointerId", { value: 7 });
+      return event;
+    };
+    const layer = () => target.querySelector<SVGSVGElement>("[data-placement-layer]");
+    const handle = (id: string) => target.querySelector<SVGPathElement>(`[data-placeable="${id}"]`)!;
+    const northCenter = () => { const project = vi.mocked(saveProject).mock.lastCall![0]; return project.northArrowPlacement; };
+
+    // Layered output keeps the 3D preview mounted under the placement layer.
+    moveButtons()[0]!.click();
+    await vi.waitFor(() => expect(layer()).not.toBeNull());
+    expect(target.querySelector('[data-placement-backdrop="3d"]')).not.toBeNull();
+    expect(target.querySelector('[data-testid="three-preview"]')).not.toBeNull();
+    await vi.waitFor(() => expect(document.activeElement).toBe(handle("north")));
+    // jsdom lays nothing out: fit the viewBox to 500 px so one pixel is a known length.
+    const [, , viewWidth, viewHeight] = layer()!.getAttribute("viewBox")!.split(" ").map(Number);
+    layer()!.getBoundingClientRect = () => ({ width: 500, height: 500, left: 0, top: 0, right: 500, bottom: 500, x: 0, y: 0, toJSON: () => ({}) });
+    const millimetersPerPixel = Math.max(viewWidth! / 500, viewHeight! / 500);
+    const moved = (id: string) => target.querySelector(`[data-placement-item="${id}"]`)!;
+    handle("north").setPointerCapture = vi.fn();
+    window.dispatchEvent(new Event("pagehide"));
+    const before = northCenter();
+    const circleX = () => Number(moved("north").querySelector<SVGPathElement>(".placement-handle")!.getAttribute("d")!.match(/^M\s*([-\d.]+)/)![1]);
+    const startX = circleX();
+    handle("north").dispatchEvent(pointer("pointerdown", 400, 400));
+    handle("north").dispatchEvent(pointer("pointermove", 300, 350));
+    handle("north").dispatchEvent(pointer("pointerup", 300, 350));
+    await vi.waitFor(() => expect(target.querySelector(".placement-item--selected")?.getAttribute("data-placement-item")).toBe("north"));
+    // The draft follows the pointer: 100 px left.
+    expect(circleX()).toBeCloseTo(startX - 100 * millimetersPerPixel, 3);
+    // Nothing is saved or regenerated while the draft is open.
+    window.dispatchEvent(new Event("pagehide"));
+    expect(northCenter()).toEqual(before);
+    [...target.querySelectorAll<HTMLButtonElement>(".placement-toolbar button")].find((button) => button.textContent?.trim() === "Done")!.click();
+    // Coverage instrumentation can make generation exceed waitFor's default second.
+    await vi.waitFor(() => expect(layer()).toBeNull(), { timeout: 6_000 });
+    window.dispatchEvent(new Event("pagehide"));
+    expect(northCenter()).not.toEqual(before);
+    expect(Number(target.querySelector<HTMLElement>(".preview-stage")?.dataset.northMarkings)).toBeGreaterThan(0);
+
+    // Flat engravings place over the top-down composite, with the baked markings hidden.
+    target.querySelector<HTMLButtonElement>('button[role="radio"][aria-label="Flat engraving"]')!.click();
+    target.querySelector<HTMLButtonElement>('button[role="switch"][aria-label="Title"]')!.click();
+    await vi.waitFor(() => expect(moveButtons()).toHaveLength(3));
+    await vi.waitFor(() => expect(Number(target.querySelector<HTMLElement>(".preview-stage")?.dataset.plaqueMarkings)).toBeGreaterThan(0));
+    target.querySelector<HTMLButtonElement>(".plaque-settings button.placement-start")!.click();
+    await vi.waitFor(() => expect(target.querySelector('[data-placement-backdrop="flat"]')).not.toBeNull());
+    // The scale bar is placed in the same session.
+    expect(handle("scale")).not.toBeNull();
+    const topView = target.querySelector<SVGSVGElement>(".stack-top-view")!;
+    expect(topView.querySelector("rect, circle")).not.toBeNull();
+    expect(target.querySelectorAll("[data-placement-artwork] path").length).toBeGreaterThan(10);
+    await vi.waitFor(() => expect(document.activeElement).toBe(handle("plaque")));
+    const titleLeft = () => Number(handle("plaque").getAttribute("d")!.match(/^M\s*([-\d.]+)/)![1]);
+    const startLeft = titleLeft();
+    handle("plaque").dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", shiftKey: true, bubbles: true, cancelable: true }));
+    await vi.waitFor(() => expect(titleLeft()).toBeCloseTo(startLeft + 10, 3));
+    // Plus grows the title about its center; the toolbar reads the new size.
+    handle("plaque").dispatchEvent(new KeyboardEvent("keydown", { key: "+", bubbles: true, cancelable: true }));
+    await vi.waitFor(() => expect(target.querySelector(".placement-toolbar__size")?.textContent).toContain("Letter height 6.5 mm"));
+    expect(target.querySelector('[data-placement-grip="plaque"]')).not.toBeNull();
+    // Escape discards the draft.
+    handle("plaque").dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+    await vi.waitFor(() => expect(layer()).toBeNull());
+    window.dispatchEvent(new Event("pagehide"));
+    expect(vi.mocked(saveProject).mock.lastCall![0].plaque?.placement).toEqual({ anchor: "bottom-left", offset: { x: 0, y: 0 } });
     expect(loadTerrainMock).not.toHaveBeenCalled();
   });
 

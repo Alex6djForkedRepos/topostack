@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildFabricationPackage, DEFAULT_PROJECT, generateGeometry, MIN_LAYER_COUNT, planTerrainStack } from "../index.js";
+import { buildFabricationPackage, DEFAULT_PROJECT, generateGeometry, groundWidthMFor, MIN_LAYER_COUNT, planTerrainStack, scaleBarMarkings } from "../index.js";
 import { gridSource, groundBounds, realSource, scaledForLayers } from "../test-support/sources.js";
 
 describe("terrain stack planning", () => {
@@ -71,8 +71,11 @@ describe("terrain stack planning", () => {
   it("keeps the scale bar length and its engraved label in agreement", () => {
     const project = { ...DEFAULT_PROJECT, cropShape: "circle" as const, widthMm: 300, heightMm: 200 };
     const result = generateGeometry(project, realSource(project));
-    const main = result.layers[0]!.markings.find((marking) => marking.id === "scale-main")!;
-    const label = result.layers[0]!.markings.find((marking) => marking.id === "scale-label")!.label!;
+    // Generation splits the bar across the exposed sheets; the whole design is what agrees.
+    const design = scaleBarMarkings(project, groundWidthMFor(result.bounds));
+    const main = design.find((marking) => marking.id === "scale-main")!;
+    const label = design.find((marking) => marking.id === "scale-label")!.label!;
+    expect(result.layers.flatMap((layer) => layer.markings).some((marking) => marking.id.startsWith("scale-main"))).toBe(true);
     const lengthMm = Math.abs(main.points[1]!.x - main.points[0]!.x);
     const capMm = (Math.min(project.widthMm, project.heightMm) / 2) * 0.55;
     expect(lengthMm).toBeGreaterThan(0);
