@@ -23,7 +23,7 @@ export default tseslint.config(
     files: ["**/*.ts"],
     languageOptions: {
       parserOptions: {
-        projectService: { allowDefaultProject: ["apps/generator/vitest.config.ts", "apps/generator/vitest.client.config.ts", "packages/core/vitest.config.ts", "packages/data-contracts/vitest.config.ts"] },
+        projectService: { allowDefaultProject: ["apps/generator/vitest.config.ts", "apps/generator/vitest.client.config.ts", "packages/chart-trace/vitest.config.ts", "packages/core/vitest.config.ts", "packages/data-contracts/vitest.config.ts"] },
         tsconfigRootDir: import.meta.dirname,
       },
     },

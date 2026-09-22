@@ -22,6 +22,7 @@ Run generator tests from `apps/generator` or via `npm run test -w @topostack/gen
 | --- | --- |
 | Geometry, contours, stack planning, nesting, water depth, labels, SVG output | `packages/core/src/<cluster>/` (see the folder table in the architecture doc); export new entry points from `index.ts` explicitly |
 | A contract the browser, Worker, and scripts all read (catalog shape, archive release, terrain PNG codec, usage events) | `packages/data-contracts/src/`, one subpath export per module |
+| Turning a depth chart image into bathymetry (georeferencing, gridding, tracing) | `packages/chart-trace/src/`, one subpath export per module; relative imports use `.ts` so Node runs it unbuilt |
 | Data loading, tile math, coordinates, cleanup | `apps/generator/src/lib/domain/` |
 | IndexedDB persistence | `apps/generator/src/lib/storage/` |
 | Geometry worker or its protocol | `apps/generator/src/lib/workers/` |

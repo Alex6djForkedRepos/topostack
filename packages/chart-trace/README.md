@@ -1,0 +1,13 @@
+# @topostack/chart-trace
+
+Turns a lake depth chart into bathymetry. The batch build runs it in Node for curated public charts; the studio will run it in a worker for charts makers upload. The output is the grid inside a `UserChartBathymetryV1` record from `@topostack/data-contracts/chart-bathymetry`. See [docs/depth-chart-tracing.md](../../docs/depth-chart-tracing.md).
+
+| Subpath | Owns |
+| --- | --- |
+| `@topostack/chart-trace/georef` | Placing chart pixels on the ground as a pixel→lon/lat homography. Two routes: a least-squares affine or homography fit from clicked control points, or snapping a traced shoreline onto the known lake outline. Snapping tries each orientation, with and without a mirror, then refines with symmetric ICP and reports the overlap (IoU). |
+| `@topostack/chart-trace/grid` | Interpolating contours and spot soundings into a lon/lat-aligned depth grid. `harmonic` (the default) solves Laplace's equation with contours fixed and the shore at zero, and domes flat pools enclosed by a single ring. `tin` ports `survey_regions.contour_grid` exactly, for parity with the published contour surveys. |
+| `@topostack/chart-trace/local-frame` | The lake-centred equirectangular metre frame both modules work in |
+
+Like `@topostack/data-contracts`, the package is source-only and has no DOM, Svelte, or storage imports. Relative imports carry `.ts` extensions so Node's native type stripping can run it without a build step.
+
+`src/fixtures/tin-parity.json` is produced by `scripts/data-build/make-chart-trace-fixture.py`. `grid.test.ts` requires the TypeScript TIN to match it to the centimetre. Regenerate the fixture whenever `contour_grid` changes.

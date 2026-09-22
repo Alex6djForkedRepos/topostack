@@ -42,6 +42,7 @@ Raster and vector processing that needs rasterio, fiona, scipy, and shapely. One
 | `build-lake-outlines.py` | Build provider lake outlines for the outline archive | manual: [lake-bathymetry.md](../docs/lake-bathymetry.md) |
 | `build-noaa-bathymetry.py` | Build Great Lakes depth tiles from NOAA/NCEI rasters | manual: [noaa-bathymetry.md](../docs/noaa-bathymetry.md) |
 | `build-survey-bathymetry.py` | Build surveyed lake-floor archives from registered survey sources | manual: [lake-bathymetry.md](../docs/lake-bathymetry.md) |
+| `make-chart-trace-fixture.py` | Regenerate `packages/chart-trace/src/fixtures/tin-parity.json` from `survey_regions.contour_grid`, the parity target for the TypeScript TIN grid | manual, after changing `contour_grid`: [depth-chart-tracing.md](../docs/depth-chart-tracing.md) |
 | `discover-terrain.py` | Discover and register candidate terrain sources for a region | manual: [terrain-coverage.md](../docs/terrain-coverage.md), [terrain-selection.md](../docs/terrain-selection.md), [terrain-expansion-plan.md](../docs/terrain-expansion-plan.md) |
 | `snapshot-survey-service.py` | Snapshot a survey web service into a local raster for the survey builder | manual |
 | `survey_regions.py` | Regional contour and reservoir adapters used by build-survey-bathymetry.py (library) | manual |
