@@ -1,6 +1,7 @@
 import { getContext, setContext } from "svelte";
 import type { GeometryIRV1, LineStyleV1, OperationPath, ProjectConfigV1, SourceBundleV1, TerrainStackPlan } from "@topostack/core";
 import type { elevationUnit, lengthUnit, planSeamGrid } from "@topostack/core";
+import type { UserChartBathymetryV1 } from "@topostack/data-contracts/chart-bathymetry";
 import type { PlaceResult } from "$lib/domain/data-provider";
 import type { studioFeedbackContext } from "$lib/site/feedback";
 import type { ExportPhase } from "$lib/studio/export-notice";
@@ -104,6 +105,9 @@ export interface StudioContext {
   placingMarker: boolean;
   lineworkOpen: boolean;
   locationTrigger: HTMLButtonElement | undefined;
+  /** The lake whose depth chart dialog is open, by HydroLAKES id; undefined when closed. */
+  depthChartLake: number | undefined;
+  depthChartTrigger: HTMLButtonElement | undefined;
 
   // Display units
   readonly shownLengthUnit: ReturnType<typeof lengthUnit>;
@@ -125,6 +129,10 @@ export interface StudioContext {
   setLakeDepth(hylakId: number, shown: number): Promise<void> | undefined;
   setLineWidth(key: LineWidthKey, shown: number): Promise<void> | undefined;
   applyCustomDataEdit(patch: Partial<ProjectConfigV1> | undefined): void;
+  /** Saves a traced depth chart in this browser and points the lake at it. */
+  saveDepthChart(hylakId: number, record: UserChartBathymetryV1): Promise<void>;
+  /** Stops using a lake's depth chart; the saved chart itself is kept. */
+  clearDepthChart(hylakId: number): Promise<void>;
   choosePlace(place: PlaceResult): void;
   undo(): void;
   redo(): void;

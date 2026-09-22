@@ -15,7 +15,8 @@ Many lakes have no digital survey but do have a published depth chart: a scanned
 | Records published as a survey archive (`community-charts-v1` in the survey build) | Builds; not registered in the catalog yet |
 | Loading saved charts in the studio, IndexedDB storage, project import and export | Done |
 | Tracing an uploaded chart in the browser (the engine and its worker) | Done |
-| Tracing wizard in the studio, with OCR loaded only when needed | Planned |
+| Tracing dialog in the studio, with depths typed by the maker | Done |
+| Reading printed depths with OCR instead of typing them | Planned; needs `'wasm-unsafe-eval'` in the site's script policy |
 | Reviewed catalog submissions through the map-api Worker | Planned |
 
 ## The record
@@ -165,6 +166,16 @@ It reads every record in `scripts/data/depth-charts/`, refuses any whose attesta
 **Assembly is shared with the batch.** `@topostack/chart-trace/record` turns any trace into a record: levels to depths, geometry to lon/lat, contours simplified until they fit the contract, then the grid. The batch build and the studio both end there, so a curated chart and an uploaded one mean the same thing.
 
 **What OCR will need.** The engine takes labels as given (`words`), which is also how the batch supplies hand-placed ones, and `chart-trace` never bundles a recognizer: the caller passes one in. Adding Tesseract to the wizard means self-hosting its worker, core and language data, and adding `'wasm-unsafe-eval'` to `script-src` in `static/_headers` — the current policy has no such source, so a WebAssembly engine cannot start under it.
+
+## The tracing dialog
+
+`DepthChartDialog.svelte` is opened per lake from Map details, beside that lake's modeled maximum depth, and loaded only when it is opened. It asks for the three things a picture cannot say: which lake (already chosen by opening it there), what the numbers mean (units, depths or elevations, the interval), and which contour each number belongs to.
+
+**Depths are typed, not read.** The maker types a depth and clicks the contour it is printed on. Each click becomes a glyph-sized word at that point, which is exactly what the batch manifest's hand-placed `trace.words` are, so the same levelling runs. Two depths are required before tracing can start: the dialog says so rather than reporting poor coverage afterwards.
+
+**What the result page has to earn.** It shows the finished lake bed as a heat map, the deepest depth, the share of contours that got a level, and the fit to the lake's outline. A fit below `SNAP_MIN_IOU` and any coverage under 100% each say what to do about it. Only then does it ask where the chart came from, and save.
+
+**A lake with a chart stops taking a maximum-depth override**, because that control only shapes a modeled basin; the panel offers "Stop using it" instead, which forgets the reference and keeps the saved chart.
 
 ## In the browser
 

@@ -20,6 +20,8 @@
     void studio.geometry;
     return plaque ? unsupportedLabelCharacters(plaque.text, titleFont) : [];
   });
+  /** A lake carved from the maker's own chart; its modeled maximum no longer applies. */
+  const charted = (hylakId: number): boolean => studio.project.userDepthCharts?.[String(hylakId)] !== undefined;
   const { startPlacement, getFeedbackContext, navigateChoice, previewMarkingPath, sectionSummary, setLakeDepth, shownDepth, shownLength, shownTextSize, storedLength, toggleSection, updateDepthLayerLimit, updateFabrication, updateMapDetails } = studio;
 </script>
 
@@ -95,10 +97,18 @@
             </div>
             <div class="field-stack">
               {#each studio.modeledLakes as lake (lake.id)}
-                <Field label={lake.name} class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label={`${lake.name} maximum depth`} value={shownDepth(lake.maxDepthM)} min={1} max={Math.round(displayElevation(12000, studio.project.units))} onValueChange={(depth) => void setLakeDepth(lake.hylakId, depth)} /><em>{studio.shownElevationUnit}</em></span>{/snippet}</Field>
+                <Field label={lake.name} class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label={`${lake.name} maximum depth`} value={shownDepth(lake.maxDepthM)} min={1} max={Math.round(displayElevation(12000, studio.project.units))} onValueChange={(depth) => void setLakeDepth(lake.hylakId, depth)} disabled={charted(lake.hylakId)} /><em>{studio.shownElevationUnit}</em></span>{/snippet}</Field>
+                <p class="depth-chart-row">
+                  {#if charted(lake.hylakId)}
+                    <span>Depth chart in use</span>
+                    <button type="button" onclick={() => void studio.clearDepthChart(lake.hylakId)}>Stop using it</button>
+                  {:else}
+                    <button type="button" onclick={(event) => { studio.depthChartTrigger = event.currentTarget; studio.depthChartLake = lake.hylakId; }}>Trace a depth chart…</button>
+                  {/if}
+                </p>
               {/each}
             </div>
-            <small class="depth-note">Estimated from shoreline terrain slopes and GLOBathy/HydroLAKES depths. This is a modeled lake floor.</small>
+            <small class="depth-note">Estimated from shoreline terrain slopes and GLOBathy/HydroLAKES depths. This is a modeled lake floor. A depth chart of your own replaces it.</small>
           </div>
         {/if}
         <div class="depth-note">{#if !studio.embeddedInPlatform}<FeedbackButton label="Report lake data quality" type="lake" getContext={getFeedbackContext} />{/if} <LakeDepthHelp {openLakeDepthHelp} /></div>

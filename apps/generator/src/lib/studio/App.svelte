@@ -5,6 +5,8 @@
   import { sourceRequirements, DEFAULT_PROJECT, planSeamGrid, displayElevation, displayLength, elevationUnit, generateGeometry, labelPathData, lengthUnit, MAX_PROJECT_NAME_LENGTH, millimetersFromDisplay, planTerrainStack, projectFingerprint, validateProject, type GeometryIRV1, type LineStyleV1, type OperationPath, type ProjectConfigV1, type SourceBundleV1 } from "@topostack/core";
   import { assembleWater, boundsForProject, loadLakeAreas, loadSurveyedLakeDepths, loadTerrain, loadVectorMarkings, type PlaceResult } from "$lib/domain/data-provider";
   import { applySurveyProvenance } from "$lib/domain/bathymetry";
+  import { artworkToLonLat } from "$lib/domain/tile-math";
+  import type { UserChartBathymetryV1 } from "@topostack/data-contracts/chart-bathymetry";
   import { resolveLakeOutlines } from "$lib/domain/lake-outlines";
   import { theme } from "$lib/site/theme";
   import { trackUsage } from "$lib/site/usage";
@@ -92,6 +94,8 @@
   $effect(() => { if (mode !== "map") placingMarker = false; });
   let locationTrigger: HTMLButtonElement;
   let lineworkOpen = $state(false);
+  let depthChartLake = $state<number | undefined>(undefined);
+  let depthChartTrigger = $state<HTMLButtonElement | undefined>(undefined);
   let menuStateReady = $state(false);
   let openSections = $state<Record<ConfigSectionId, boolean>>({
     setup: true,
@@ -152,7 +156,11 @@
   const placementStage = new LazyComponent(() => import("$lib/studio/placement/PlacementStage.svelte"), (error) => {
     console.error("TopoStack could not load placement mode.", error); placement = undefined; status = "Placement could not load · reload to update TopoStack";
   });
+  const depthChartDialog = new LazyComponent(() => import("$lib/studio/DepthChartDialog.svelte"), (error) => {
+    console.error("TopoStack could not load depth chart tracing.", error); depthChartLake = undefined; status = "Depth chart tracing could not load · reload to update TopoStack";
+  });
   const LocationDialog = $derived(locationDialog.component);
+  const DepthChartDialog = $derived(depthChartDialog.component);
   const MapCanvas = $derived(mapCanvas.component);
   const EngravingPreview = $derived(engravingPreview.component);
   const TwoDPreview = $derived(twoDPreview.component);
@@ -234,6 +242,7 @@
   // no fallback view, so they wait for the Retry button instead of looping.
   $effect(() => {
     if (searchOpen) locationDialog.load();
+    if (depthChartLake !== undefined) depthChartDialog.load();
     if (mode === "map") mapCanvas.load();
     else if (mode === "engraving") engravingPreview.ensure();
     else if (mode === "2d") twoDPreview.ensure();
@@ -546,6 +555,32 @@
     projectHistory.record(project, ["location"]);
     project = { ...project, location: { ...project.location, ...patch, ...(("lat" in patch || "lon" in patch || "zoom" in patch) && !("bounds" in patch) ? { bounds: undefined } : {}) } };
     status = "Map area changed · regenerate terrain data";
+  }
+  // The lake the chart dialog is tracing, with its outline moved from artwork
+  // millimetres back to the ground, which is where a chart is placed.
+  const chartingLake = $derived.by(() => {
+    if (depthChartLake === undefined) return undefined;
+    const area = (activeSource.waterAreas ?? []).find((item) => item.kind === "lake" && item.hylakId === depthChartLake);
+    if (!area || !area.polygon.outer.length) return undefined;
+    const toLonLat = artworkToLonLat(activeSource.bounds, sourceProject.widthMm, sourceProject.heightMm);
+    return { hylakId: depthChartLake, name: area.name ?? "this lake", outline: area.polygon.outer.map(toLonLat) };
+  });
+  function closeDepthChartDialog(): void {
+    depthChartLake = undefined;
+    window.requestAnimationFrame(() => depthChartTrigger?.focus());
+  }
+  /** Saves a traced chart in this browser, then points the lake at it as one edit. */
+  async function saveDepthChart(hylakId: number, record: UserChartBathymetryV1): Promise<void> {
+    const { saveUserChart } = await import("$lib/storage/user-charts");
+    const reference = await saveUserChart(record);
+    await updateFabrication({ userDepthCharts: { ...project.userDepthCharts, [String(hylakId)]: reference } });
+    status = `Depth chart saved for ${record.lake.name ?? "this lake"} · regenerate to carve it`;
+  }
+  /** Forgets a lake's chart reference; the saved chart stays for another project. */
+  async function clearDepthChart(hylakId: number): Promise<void> {
+    const remaining = { ...project.userDepthCharts };
+    delete remaining[String(hylakId)];
+    await updateFabrication({ userDepthCharts: Object.keys(remaining).length ? remaining : undefined });
   }
   function closeLocationDialog(): void {
     searchOpen = false;
@@ -873,7 +908,11 @@
     set lineworkOpen(value) { lineworkOpen = value; },
     get locationTrigger() { return locationTrigger; },
     set locationTrigger(value) { locationTrigger = value; },
-    shownLength, shownDepth, shownLineWidth, shownTextSize, storedLength, workAreaLength, updateProject, updateFabrication, updateMapDetails, updateLocation, updateVerticalExaggeration, updateDepthLayerLimit, setLakeDepth, setLineWidth, applyCustomDataEdit, choosePlace, startPlacement, commitPlacement, cancelPlacement, undo, redo, importProject, copyShareLink, importCustomData, generate, cancelGeneration, toggleSection, setAllSections, sectionSummary, navigateChoice, dismissPreviewWarning, previewMarkingPath, trailPatternDash, getFeedbackContext,
+    get depthChartLake() { return depthChartLake; },
+    set depthChartLake(value) { depthChartLake = value; },
+    get depthChartTrigger() { return depthChartTrigger; },
+    set depthChartTrigger(value) { depthChartTrigger = value; },
+    shownLength, shownDepth, shownLineWidth, shownTextSize, storedLength, workAreaLength, updateProject, updateFabrication, updateMapDetails, updateLocation, updateVerticalExaggeration, updateDepthLayerLimit, setLakeDepth, setLineWidth, applyCustomDataEdit, saveDepthChart, clearDepthChart, choosePlace, startPlacement, commitPlacement, cancelPlacement, undo, redo, importProject, copyShareLink, importCustomData, generate, cancelGeneration, toggleSection, setAllSections, sectionSummary, navigateChoice, dismissPreviewWarning, previewMarkingPath, trailPatternDash, getFeedbackContext,
   });
 </script>
 
@@ -887,6 +926,7 @@
   <!-- One dialog for both shells: the embedded and standalone branches rendered
        identical copies, so a prop or handler change had to be made twice. -->
   {#if searchOpen && LocationDialog}<LocationDialog {project} presets={PRESETS} onChoose={choosePlace} onCoordinates={(lat, lon) => updateLocation({ lat, lon, label: "Custom coordinates" })} onClose={closeLocationDialog} />{/if}
+  {#if chartingLake && DepthChartDialog}<DepthChartDialog lake={chartingLake} onClose={closeDepthChartDialog} onSave={(record) => saveDepthChart(chartingLake.hylakId, record)} />{/if}
 {/snippet}
 
 {#if embeddedInPlatform}
