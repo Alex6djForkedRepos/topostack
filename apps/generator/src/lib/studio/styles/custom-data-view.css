@@ -1,0 +1,261 @@
+/* The custom data view: the preview area turned into a workspace for data the
+   maker brings. Depth charts are the first thing in it. It scrolls on its own,
+   because it is a working surface rather than a rendered preview. */
+
+.custom-data-view {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  padding: var(--loidolt-space-4);
+  background: var(--loidolt-surface);
+}
+
+.custom-data-view__header h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--loidolt-space-2);
+  margin: 0 0 var(--loidolt-space-2);
+}
+
+.custom-data-view__header p {
+  margin: 0 0 var(--loidolt-space-4);
+  max-width: 62ch;
+  color: var(--loidolt-text-muted);
+}
+
+.custom-data-view__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--loidolt-space-4);
+  max-width: 68rem;
+}
+
+.chart-step,
+.chart-hint {
+  margin: 0;
+  color: var(--loidolt-text-muted);
+}
+
+.chart-error,
+.chart-warning {
+  margin: 0;
+  padding: var(--loidolt-space-2) var(--loidolt-space-3);
+  border-radius: var(--loidolt-border-radius);
+  /* Tinted from the surface so it reads in both themes. */
+  background: color-mix(in srgb, var(--loidolt-danger) 12%, var(--loidolt-surface));
+  color: var(--loidolt-text-danger);
+  border-left: 2px solid var(--loidolt-danger);
+}
+
+.chart-warning {
+  background: color-mix(in srgb, var(--loidolt-warning) 12%, var(--loidolt-surface));
+  color: var(--loidolt-text-warning);
+  border-left-color: var(--loidolt-warning);
+}
+
+/* Choosing the lake */
+
+.chart-search {
+  display: flex;
+  gap: var(--loidolt-space-2);
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.chart-search__input {
+  display: flex;
+  align-items: center;
+  gap: var(--loidolt-space-2);
+  flex: 1 1 18rem;
+}
+
+.chart-places,
+.chart-lakes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--loidolt-space-2);
+  margin: var(--loidolt-space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chart-places button,
+.chart-lakes button {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  padding: var(--loidolt-space-2) var(--loidolt-space-3);
+  border: 1px solid var(--loidolt-border);
+  border-radius: var(--loidolt-border-radius);
+  background: var(--loidolt-surface-alt);
+  color: inherit;
+  cursor: pointer;
+}
+
+.chart-places button:hover,
+.chart-lakes button:hover {
+  border-color: var(--loidolt-accent);
+}
+
+.chart-chosen {
+  display: flex;
+  align-items: center;
+  gap: var(--loidolt-space-3);
+  margin: 0;
+}
+
+/* Tracing */
+
+.chart-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--loidolt-space-3);
+}
+
+.chart-upload {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--loidolt-space-2);
+  padding: var(--loidolt-space-5);
+  border: 2px dashed var(--loidolt-border);
+  border-radius: var(--loidolt-border-radius);
+  cursor: pointer;
+}
+
+.chart-upload:focus-within {
+  border-color: var(--loidolt-accent);
+}
+
+.chart-upload input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.chart-settings,
+.chart-place {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--loidolt-space-3);
+  align-items: end;
+}
+
+/* Clicking the chart places a depth, so the whole image is a target. */
+.chart-canvas {
+  width: 100%;
+  height: auto;
+  max-height: 60vh;
+  object-fit: contain;
+  cursor: crosshair;
+  background: #fff;
+  border: 1px solid var(--loidolt-border);
+  border-radius: var(--loidolt-border-radius);
+}
+
+.chart-depths {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--loidolt-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chart-depths li {
+  display: flex;
+  align-items: center;
+  gap: var(--loidolt-space-2);
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--loidolt-border);
+  border-radius: 999px;
+}
+
+.chart-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--loidolt-space-3);
+  flex-wrap: wrap;
+}
+
+.chart-result {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--loidolt-space-4);
+  align-items: center;
+}
+
+.chart-preview {
+  flex: 1 1 14rem;
+  max-width: 22rem;
+  height: auto;
+  image-rendering: pixelated;
+  background: var(--loidolt-surface-alt);
+  border-radius: var(--loidolt-border-radius);
+}
+
+.chart-report {
+  display: grid;
+  gap: var(--loidolt-space-2);
+  margin: 0;
+}
+
+.chart-report dt {
+  color: var(--loidolt-text-muted);
+}
+
+.chart-report dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+/* The library, and using a chart for a lake */
+
+.chart-library h3 {
+  margin: 0 0 var(--loidolt-space-2);
+}
+
+.chart-saved {
+  display: grid;
+  gap: var(--loidolt-space-2);
+  margin: 0 0 var(--loidolt-space-2);
+  padding: 0;
+  list-style: none;
+}
+
+.chart-saved li {
+  display: flex;
+  align-items: center;
+  gap: var(--loidolt-space-3);
+  flex-wrap: wrap;
+  padding: var(--loidolt-space-2) var(--loidolt-space-3);
+  border: 1px solid var(--loidolt-border);
+  border-radius: var(--loidolt-border-radius);
+}
+
+.chart-saved__name {
+  display: grid;
+  gap: 2px;
+  flex: 1 1 14rem;
+}
+
+.chart-saved__name small,
+.chart-saved__state {
+  color: var(--loidolt-text-muted);
+}
+
+.chart-saved__delete {
+  margin-left: auto;
+}
+
+/* The pointer from a lake's modeled depth to this view. */
+.depth-chart-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--loidolt-space-2);
+  margin: 0 0 var(--loidolt-space-2);
+  font-size: 0.85em;
+  color: var(--loidolt-text-muted);
+}

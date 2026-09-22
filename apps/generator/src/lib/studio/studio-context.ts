@@ -1,5 +1,5 @@
 import { getContext, setContext } from "svelte";
-import type { GeometryIRV1, LineStyleV1, OperationPath, ProjectConfigV1, SourceBundleV1, TerrainStackPlan } from "@topostack/core";
+import type { GeometryIRV1, LineStyleV1, OperationPath, ProjectConfigV1, SourceBundleV1, TerrainStackPlan, UserDepthChartRefV1 } from "@topostack/core";
 import type { elevationUnit, lengthUnit, planSeamGrid } from "@topostack/core";
 import type { UserChartBathymetryV1 } from "@topostack/data-contracts/chart-bathymetry";
 import type { PlaceResult } from "$lib/domain/data-provider";
@@ -13,7 +13,7 @@ import type { ConfigSectionId, countDetailMarkings, modeledLakes, visibleWarning
 
 /** Editing, waiting for Done's regeneration, or fading out. */
 export type PlacementPhase = "editing" | "settling" | "closing";
-export type PreviewMode = "map" | "engraving" | "2d" | "3d";
+export type PreviewMode = "map" | "engraving" | "2d" | "3d" | "custom";
 export type GenerateState = "idle" | "loading" | "ready" | "error";
 export type LineWidthKey = Exclude<keyof LineStyleV1, "trailPattern" | "roadStyle" | "roadCap">;
 
@@ -82,6 +82,8 @@ export interface StudioContext {
   readonly engravingPreview: LazyComponent<typeof import("$lib/studio/EngravingPreview.svelte").default>;
   readonly twoDPreview: LazyComponent<typeof import("$lib/studio/TwoDPreview.svelte").default>;
   readonly PlacementStage: typeof import("$lib/studio/placement/PlacementStage.svelte").default | undefined;
+  readonly CustomDataView: typeof import("$lib/studio/customdata/CustomDataView.svelte").default | undefined;
+  readonly customDataView: LazyComponent<typeof import("$lib/studio/customdata/CustomDataView.svelte").default>;
 
   // Placement mode
   /** The open placement session, or undefined outside placement mode. */
@@ -105,9 +107,6 @@ export interface StudioContext {
   placingMarker: boolean;
   lineworkOpen: boolean;
   locationTrigger: HTMLButtonElement | undefined;
-  /** The lake whose depth chart dialog is open, by HydroLAKES id; undefined when closed. */
-  depthChartLake: number | undefined;
-  depthChartTrigger: HTMLButtonElement | undefined;
 
   // Display units
   readonly shownLengthUnit: ReturnType<typeof lengthUnit>;
@@ -129,9 +128,14 @@ export interface StudioContext {
   setLakeDepth(hylakId: number, shown: number): Promise<void> | undefined;
   setLineWidth(key: LineWidthKey, shown: number): Promise<void> | undefined;
   applyCustomDataEdit(patch: Partial<ProjectConfigV1> | undefined): void;
-  /** Saves a traced depth chart in this browser and points the lake at it. */
-  saveDepthChart(hylakId: number, record: UserChartBathymetryV1): Promise<void>;
-  /** Stops using a lake's depth chart; the saved chart itself is kept. */
+  /**
+   * Keeps a traced chart in this browser's library. It changes no project:
+   * tracing a chart and carving a lake with it are separate acts.
+   */
+  saveChartToLibrary(record: UserChartBathymetryV1): Promise<UserDepthChartRefV1>;
+  /** Carves this lake from a saved chart, and marks the terrain for regeneration. */
+  useChartForLake(hylakId: number, reference: UserDepthChartRefV1): Promise<void>;
+  /** Stops using a lake's chart; the chart stays in the library. */
   clearDepthChart(hylakId: number): Promise<void>;
   choosePlace(place: PlaceResult): void;
   undo(): void;

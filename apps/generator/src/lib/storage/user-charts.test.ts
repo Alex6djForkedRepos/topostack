@@ -72,7 +72,10 @@ describe("saved depth charts", () => {
     vi.setSystemTime(new Date("2026-02-01T00:00:00Z"));
     await saveUserChart(chart("other-lake-chart", "Other Lake"));
     vi.useRealTimers();
-    expect((await listUserCharts()).map((item) => item.name)).toEqual(["Other Lake", "Round Lake"]);
+    // Listed by the chart's own name, with the lake it can carve beside it.
+    expect((await listUserCharts()).map((item) => item.name)).toEqual(["Other Lake depth map", "Round Lake depth map"]);
+    expect((await listUserCharts()).map((item) => item.lakeName)).toEqual(["Other Lake", "Round Lake"]);
+    expect((await listUserCharts()).every((item) => item.hylakId === undefined)).toBe(true);
     await deleteUserChart("other-lake-chart");
     expect((await listUserCharts()).map((item) => item.id)).toEqual(["round-lake-chart"]);
   });

@@ -15,7 +15,7 @@ Many lakes have no digital survey but do have a published depth chart: a scanned
 | Records published as a survey archive (`community-charts-v1` in the survey build) | Builds; not registered in the catalog yet |
 | Loading saved charts in the studio, IndexedDB storage, project import and export | Done |
 | Tracing an uploaded chart in the browser (the engine and its worker) | Done |
-| Tracing dialog in the studio, with depths typed by the maker | Done |
+| Custom data view in the studio, where charts are traced and kept | Done |
 | Reading printed depths with OCR instead of typing them | Planned; needs `'wasm-unsafe-eval'` in the site's script policy |
 | Reviewed catalog submissions through the map-api Worker | Planned |
 
@@ -167,15 +167,19 @@ It reads every record in `scripts/data/depth-charts/`, refuses any whose attesta
 
 **What OCR will need.** The engine takes labels as given (`words`), which is also how the batch supplies hand-placed ones, and `chart-trace` never bundles a recognizer: the caller passes one in. Adding Tesseract to the wizard means self-hosting its worker, core and language data, and adding `'wasm-unsafe-eval'` to `script-src` in `static/_headers` — the current policy has no such source, so a WebAssembly engine cannot start under it.
 
-## The tracing dialog
+## The custom data view
 
-`DepthChartDialog.svelte` is opened per lake from Map details, beside that lake's modeled maximum depth, and loaded only when it is opened. It asks for the three things a picture cannot say: which lake (already chosen by opening it there), what the numbers mean (units, depths or elevations, the interval), and which contour each number belongs to.
+Tracing a chart is its own job, not a step inside making a relief, so it has its own view: "Custom data" sits beside Map, Cut layers and 3D stack, and is loaded only when opened. Depth charts are the first thing in it; the markers and paths still in the sidebar belong there in time.
 
-**Depths are typed, not read.** The maker types a depth and clicks the contour it is printed on. Each click becomes a glyph-sized word at that point, which is exactly what the batch manifest's hand-placed `trace.words` are, so the same levelling runs. Two depths are required before tracing can start: the dialog says so rather than reporting poor coverage afterwards.
+**It needs no terrain and no map area.** A lake is found by name through the same place search the studio already uses, and `domain/lake-lookup.ts` then reads the lakes around that place straight from the water data. Many are unnamed in HydroLAKES, so each is listed with how big it is and how far it lies from the place searched. A maker can therefore build charts long before framing anything.
 
-**What the result page has to earn.** It shows the finished lake bed as a heat map, the deepest depth, the share of contours that got a level, and the fit to the lake's outline. A fit below `SNAP_MIN_IOU` and any coverage under 100% each say what to do about it. Only then does it ask where the chart came from, and save.
+**Depths are typed, not read.** The maker types a depth and clicks the contour it is printed on. Each click becomes a glyph-sized word at that point, which is exactly what the batch manifest's hand-placed `trace.words` are, so the same levelling runs. Two depths are required before tracing can start: the view says so rather than reporting poor coverage afterwards.
 
-**A lake with a chart stops taking a maximum-depth override**, because that control only shapes a modeled basin; the panel offers "Stop using it" instead, which forgets the reference and keeps the saved chart.
+**Keeping is not carving.** "Keep this chart" only adds it to the library in this browser. A separate "Use for this lake" attaches it to the project and marks the terrain stale, so the two jobs stay apart. A chart whose lake is outside the current map area says so rather than claiming to carve.
+
+**The work in progress outlives the view.** Switching to the map and back unmounts the editor, so the half-traced chart lives in `customdata/chart-draft.svelte.ts` instead of in the component. It is deliberately not part of the project: nothing is saved until the maker keeps it.
+
+**A lake with a chart stops taking a maximum-depth override**, because that control only shapes a modeled basin; Map details shows the chart is in use and points at this view.
 
 ## In the browser
 

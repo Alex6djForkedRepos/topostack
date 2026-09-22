@@ -103,7 +103,8 @@
                     <span>Depth chart in use</span>
                     <button type="button" onclick={() => void studio.clearDepthChart(lake.hylakId)}>Stop using it</button>
                   {:else}
-                    <button type="button" onclick={(event) => { studio.depthChartTrigger = event.currentTarget; studio.depthChartLake = lake.hylakId; }}>Trace a depth chart…</button>
+                    <!-- Charts are built in their own view; this only points there. -->
+                    <button type="button" onclick={() => { studio.mode = "custom"; }}>Use a depth chart…</button>
                   {/if}
                 </p>
               {/each}

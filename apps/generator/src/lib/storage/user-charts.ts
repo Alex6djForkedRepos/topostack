@@ -88,8 +88,20 @@ export async function loadUserCharts(references: Record<string, UserDepthChartRe
   return charts;
 }
 
+/** One line per saved chart: enough to list it, and to use it for its lake. */
+export interface SavedChartSummary {
+  id: string;
+  savedAt: string;
+  /** The chart's own name. */
+  name: string;
+  /** The lake it was traced for, which is the only lake it can carve. */
+  lakeName: string | undefined;
+  hylakId: number | undefined;
+  contentHash: string;
+}
+
 /** Every saved chart, newest first, for a manager listing. */
-export async function listUserCharts(): Promise<{ id: string; savedAt: string; name: string; contentHash: string }[]> {
+export async function listUserCharts(): Promise<SavedChartSummary[]> {
   let stored: IDBValidKey[];
   try {
     stored = await keys();
@@ -97,13 +109,13 @@ export async function listUserCharts(): Promise<{ id: string; savedAt: string; n
     console.warn("TopoStack: saved depth charts are unavailable in this browser.", error);
     return [];
   }
-  const listed: { id: string; savedAt: string; name: string; contentHash: string }[] = [];
+  const listed: SavedChartSummary[] = [];
   for (const key of stored) {
     if (typeof key !== "string" || !key.startsWith(PREFIX)) continue;
     const loaded = await loadUserChart(key.slice(PREFIX.length));
     if (!loaded) continue;
     const saved = await get<StoredChart>(key);
-    listed.push({ id: loaded.chart.id, savedAt: saved?.savedAt ?? "", name: loaded.chart.lake.name ?? loaded.chart.provenance.title, contentHash: loaded.contentHash });
+    listed.push({ id: loaded.chart.id, savedAt: saved?.savedAt ?? "", name: loaded.chart.provenance.title, lakeName: loaded.chart.lake.name, hylakId: loaded.chart.lake.hylakId, contentHash: loaded.contentHash });
   }
   return listed.sort((a, b) => (a.savedAt < b.savedAt ? 1 : a.savedAt > b.savedAt ? -1 : a.id.localeCompare(b.id)));
 }
