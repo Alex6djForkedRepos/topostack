@@ -38,8 +38,11 @@ export interface GridSpot {
 }
 
 export interface GridRequest {
-  /** Lake water area in [lon, lat]; holes are islands. */
-  water: { outer: Point2[]; holes?: Point2[][] };
+  /**
+   * Lake water area in [lon, lat]: an outline with islands, or any set of
+   * rings filled even-odd (a vector chart's water fill, drawn in tiles).
+   */
+  water: { outer: Point2[]; holes?: Point2[][] } | { rings: Point2[][] };
   contours: GridContour[];
   spots?: GridSpot[];
   resolutionM: number;
@@ -63,17 +66,19 @@ export interface DepthGrid {
 export const DEFAULT_MAX_SIDE = 1024;
 const MAX_DEPTH_M = 1500;
 
-/** Python's grid layout: origin at the water bounds' top-left, sides rounded up. */
+/** Python's grid layout: origin at the water bounds' top-left, sides rounded up. Holes lie inside the outline, so all rings give the same bounds. */
 export function waterLayout(rings: readonly (readonly Point2[])[], resolution: number, maxCells = 30_000_000): GridLayout {
   let left = Infinity;
   let right = -Infinity;
   let bottom = Infinity;
   let top = -Infinity;
-  for (const [x, y] of rings[0] ?? []) {
-    left = Math.min(left, x);
-    right = Math.max(right, x);
-    bottom = Math.min(bottom, y);
-    top = Math.max(top, y);
+  for (const ring of rings) {
+    for (const [x, y] of ring) {
+      left = Math.min(left, x);
+      right = Math.max(right, x);
+      bottom = Math.min(bottom, y);
+      top = Math.max(top, y);
+    }
   }
   const width = Math.ceil((right - left) / resolution);
   const height = Math.ceil((top - bottom) / resolution);
@@ -417,13 +422,22 @@ export function harmonicGridMetres(input: HarmonicInput): Float32Array {
 export function gridDepths(request: GridRequest): DepthGrid {
   const method = request.method ?? "harmonic";
   if (!(request.resolutionM > 0)) throw new Error("Grid resolution must be positive.");
-  if (request.water.outer.length < 3) throw new Error("The water area needs an outline.");
-  const frame = frameFor(request.water.outer);
-  const rings = [request.water.outer, ...(request.water.holes ?? [])].map((ring) => ring.map(([lon, lat]) => frame.toLocal(lon, lat)));
-  const outer = rings[0]!;
+  const lonLatRings = ("rings" in request.water ? request.water.rings : [request.water.outer, ...(request.water.holes ?? [])]).filter((ring) => ring.length >= 3);
+  if (!lonLatRings.length) throw new Error("The water area needs an outline.");
+  const frame = frameFor(lonLatRings.flat());
+  const rings = lonLatRings.map((ring) => ring.map(([lon, lat]) => frame.toLocal(lon, lat)));
   const maxSide = request.maxSide ?? DEFAULT_MAX_SIDE;
-  const spanX = Math.max(...outer.map(([x]) => x)) - Math.min(...outer.map(([x]) => x));
-  const spanY = Math.max(...outer.map(([, y]) => y)) - Math.min(...outer.map(([, y]) => y));
+  let [minX, maxX, minY, maxY] = [Infinity, -Infinity, Infinity, -Infinity];
+  for (const ring of rings) {
+    for (const [x, y] of ring) {
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
+    }
+  }
+  const spanX = maxX - minX;
+  const spanY = maxY - minY;
   const resolution = Math.max(request.resolutionM, spanX / maxSide, spanY / maxSide) * (1 + 1e-9);
   const contours = request.contours.map((contour) => ({ ...contour, line: contour.line.map(([lon, lat]) => frame.toLocal(lon, lat)) }));
   const spots = (request.spots ?? []).map((spot) => {

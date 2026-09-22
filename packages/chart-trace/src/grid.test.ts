@@ -136,6 +136,20 @@ describe("gridDepths", () => {
     expect(tin.depthsM[60 * 120 + 60]!).toBeCloseTo(9, 0);
   });
 
+  it("takes water as tiles of rings filled even-odd, as a vector chart draws it", () => {
+    // The lake split into a west and an east tile, plus an island ring.
+    const west = toLonLat([[-600, -600], [0, -600], [0, 600], [-600, 600]]);
+    const east = toLonLat([[0, -600], [600, -600], [600, 600], [0, 600]]);
+    const island = toLonLat(circle(300, 0, 40));
+    const grid = gridDepths({ ...request, water: { rings: [west, east, island] } });
+    expect(grid).toMatchObject({ width: 120, height: 120 });
+    // Both tiles are water; the island is not.
+    expect(Number.isNaN(grid.depthsM[60 * 120 + 10]!)).toBe(false);
+    expect(Number.isNaN(grid.depthsM[60 * 120 + 110]!)).toBe(false);
+    expect(Number.isNaN(grid.depthsM[60 * 120 + 90]!)).toBe(true);
+    expect(() => gridDepths({ ...request, water: { rings: [[[0, 0], [1, 1]]] } })).toThrow(/outline/);
+  });
+
   it("rejects unusable requests", () => {
     expect(() => gridDepths({ ...request, resolutionM: 0 })).toThrow(/resolution/);
     expect(() => gridDepths({ ...request, water: { outer: request.water.outer.slice(0, 2) } })).toThrow(/outline/);

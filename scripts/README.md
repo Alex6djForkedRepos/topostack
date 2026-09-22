@@ -49,6 +49,12 @@ Raster and vector processing that needs rasterio, fiona, scipy, and shapely. One
 | `terrain_release.py` | Offline terrain registry helpers: immutable manifests and atomic catalog snapshots (library) | manual |
 | `tile_writer.py` | Shared raster tile helpers for the survey bathymetry and HRDEM terrain builders (library) | manual: [terrain-expansion-plan.md](../docs/terrain-expansion-plan.md) |
 
+One Node builder lives here too, because its output feeds the survey build:
+
+| Script | Purpose | Run by |
+| --- | --- | --- |
+| `trace-depth-charts.mjs` | Trace the curated charts in `scripts/data/depth-charts.json` into depth chart records with `@topostack/chart-trace`. Sources are downloaded to `.topostack/depth-charts/` and checked against their sha256 pins. Publishable records go to `scripts/data/depth-charts/`; the rest stay local with `report.json`. Scanned PDFs need poppler's `pdftoppm`. Library: `lib/depth-charts.mjs`. | manual: `node scripts/data-build/trace-depth-charts.mjs [--only <id>]`, see [depth-chart-tracing.md](../docs/depth-chart-tracing.md) |
+
 ## Provisioning (`provision/`)
 
 Upload archives and catalogs to R2 and manage their lifecycle. Need Cloudflare credentials.
