@@ -11,9 +11,22 @@
   import * as THREE from "three";
   import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
   import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+  import { placementFrustum, placementViewBox } from "$lib/studio/placement/viewport";
+  import { hiddenByPrefix } from "$lib/studio/placement/placeables";
   import { labelLineSegments, type GeometryIRV1, type Point2D, type Polygon2D, type TextStyleV1 } from "@topostack/core";
 
-  let { geometry, exploded, onUnavailable }: { geometry: GeometryIRV1; exploded: number; onUnavailable?: () => void } = $props();
+  /**
+   * `placement` turns the preview into the backdrop for placement mode: the
+   * stack collapses and the camera eases to a top-down orthographic view fitted
+   * like the placement layer's viewBox, orbiting is off, and generated markings
+   * matching `hiddenPrefixes` are left out while their drafts are drawn above.
+   */
+  let { geometry, exploded, placement, onUnavailable }: {
+    geometry: GeometryIRV1;
+    exploded: number;
+    placement?: { hiddenPrefixes: readonly string[]; marginMm: number; hideMarkings?: boolean };
+    onUnavailable?: () => void;
+  } = $props();
   import AtommZoom from "$lib/atomm/AtommZoom.svelte";
   import { MARKING_COLORS, markingStyleKey, type MarkingStyleKey } from "$lib/studio/marking-style";
   import { sharedPieceEdges } from "$lib/studio/seam-lines";
@@ -37,6 +50,8 @@
 
   interface Runtime {
     renderer: THREE.WebGLRenderer; camera: THREE.PerspectiveCamera; controls: OrbitControls;
+    /** Top-down camera for placement mode; used once the ease to overhead finishes. */
+    topCamera: THREE.OrthographicCamera; topDown: boolean;
     rig: THREE.Group; content: THREE.Group; resizeObserver: ResizeObserver; frame: number;
     environmentTarget: THREE.WebGLRenderTarget; texture: THREE.CanvasTexture; fitSignature?: string;
     keyLight: THREE.DirectionalLight; detachContextHandlers: () => void; requestRender: () => void;
@@ -206,6 +221,77 @@
     content.add(object);
   }
 
+  /** Frame the top-down camera exactly like the placement layer's meet-fitted viewBox. */
+  function fitTopCamera(): void {
+    if (!runtime || !placement) return;
+    const { halfWidth, halfHeight } = placementFrustum(placementViewBox(geometry.widthMm, geometry.heightMm, placement.marginMm), container.clientWidth, container.clientHeight);
+    Object.assign(runtime.topCamera, { left: -halfWidth, right: halfWidth, top: halfHeight, bottom: -halfHeight });
+    runtime.topCamera.updateProjectionMatrix();
+  }
+
+  const TOP_DOWN_EASE_MS = 260;
+  let orbitBeforePlacement: { position: THREE.Vector3; target: THREE.Vector3; minDistance: number } | undefined;
+  let easeFrame = 0;
+  const easeDuration = () => (matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : TOP_DOWN_EASE_MS);
+
+  /** Run `apply` with an eased 0→1 fraction over the ease duration, then `done`. */
+  function ease(apply: (fraction: number) => void, done: () => void): void {
+    cancelAnimationFrame(easeFrame);
+    const started = performance.now(); const duration = easeDuration();
+    const step = () => {
+      if (!runtime) return;
+      const t = duration ? Math.min(1, (performance.now() - started) / duration) : 1;
+      apply(1 - (1 - t) ** 3);
+      runtime.controls.update();
+      if (t < 1) easeFrame = requestAnimationFrame(step); else { easeFrame = 0; done(); }
+      runtime.requestRender();
+    };
+    easeFrame = requestAnimationFrame(step);
+  }
+
+  /**
+   * Straight overhead, at the distance where the perspective camera frames the
+   * base like the orthographic one, so swapping cameras at either end of the
+   * ease does not jump. A hair of y offset keeps OrbitControls' lookAt defined.
+   */
+  function overheadPosition(): THREE.Vector3 {
+    const { halfHeight } = placementFrustum(placementViewBox(geometry.widthMm, geometry.heightMm, placement?.marginMm ?? 0), container.clientWidth, container.clientHeight);
+    return new THREE.Vector3(0, -0.001, halfHeight / Math.tan(THREE.MathUtils.degToRad(runtime!.camera.fov) / 2));
+  }
+
+  /** Ease the orbit camera overhead and collapse the stack, then switch to the orthographic camera. */
+  function enterTopDown(): void {
+    if (!runtime || orbitBeforePlacement) return;
+    const { camera, controls, content } = runtime;
+    orbitBeforePlacement = { position: camera.position.clone(), target: controls.target.clone(), minDistance: controls.minDistance };
+    controls.enabled = false;
+    controls.minDistance = 0;
+    fitTopCamera();
+    const fromPosition = camera.position.clone(); const fromTarget = controls.target.clone();
+    const toPosition = overheadPosition(); const toTarget = new THREE.Vector3(0, 0, 0);
+    const fromExploded = exploded;
+    ease((fraction) => {
+      camera.position.lerpVectors(fromPosition, toPosition, fraction);
+      controls.target.lerpVectors(fromTarget, toTarget, fraction);
+      applyExploded(content, fromExploded * (1 - fraction));
+    }, () => { if (runtime) runtime.topDown = true; });
+  }
+
+  /** Swap back to the orbit camera overhead, then ease it to where it was and re-explode the stack. */
+  function leaveTopDown(): void {
+    if (!runtime || !orbitBeforePlacement) return;
+    const { camera, controls, content } = runtime;
+    const back = orbitBeforePlacement; orbitBeforePlacement = undefined;
+    runtime.topDown = false;
+    const fromPosition = camera.position.clone(); const fromTarget = controls.target.clone();
+    const toExploded = exploded;
+    ease((fraction) => {
+      camera.position.lerpVectors(fromPosition, back.position, fraction);
+      controls.target.lerpVectors(fromTarget, back.target, fraction);
+      applyExploded(content, toExploded * fraction);
+    }, () => { controls.minDistance = back.minDistance; controls.enabled = true; });
+  }
+
   onMount(() => {
     const scene = new THREE.Scene(); scene.background = new THREE.Color(isEmbedded() ? getComputedStyle(container).getPropertyValue("--color-bg-editor").trim() || "#e7e8ea" : "#20231d");
     const camera = new THREE.PerspectiveCamera(34, 1, 10, 4_000);
@@ -221,6 +307,7 @@
     const fillLight = new THREE.DirectionalLight(0xa8c6e8, 0.85); fillLight.position.set(210, 150, 120); scene.add(fillLight);
     scene.add(new THREE.HemisphereLight(0x9fb8ad, 0x2d2118, 0.9));
     const rig = new THREE.Group(); const content = new THREE.Group(); content.scale.y = -1; rig.add(content); scene.add(rig);
+    const topCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 20_000); topCamera.position.set(0, 0, 5_000); topCamera.lookAt(0, 0, 0);
     const controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.dampingFactor = 0.065; controls.maxPolarAngle = Math.PI * 0.95; controls.minDistance = 120; controls.maxDistance = 1800; controls.target.set(0, 0, 10); camera.position.set(15, -165, 270); controls.update();
     if (savedCamera) { camera.position.set(...savedCamera.position); controls.target.set(...savedCamera.target); controls.update(); fitDistance = savedCamera.fitDistance; fitTarget = new THREE.Vector3(...savedCamera.fitTarget); }
     const texture = makeWoodTexture();
@@ -236,12 +323,12 @@
       // OrbitControls emits change while damping settles, requesting the next
       // frame. Once the camera stops moving there is no ongoing render loop.
       controls.update();
-      renderer.render(scene, camera);
+      renderer.render(scene, runtime.topDown ? runtime.topCamera : camera);
     };
     controls.addEventListener("change", requestRender);
     const updateZoom = () => { zoom = fitDistance / controls.getDistance(); };
     controls.addEventListener("change", updateZoom);
-    const resizeObserver = new ResizeObserver(([entry]) => { const width = entry?.contentRect.width ?? 0; const height = entry?.contentRect.height ?? 0; if (width <= 0 || height <= 0) return; camera.aspect = width / height; camera.updateProjectionMatrix(); renderer.setSize(width, height, false); requestRender(); }); resizeObserver.observe(container);
+    const resizeObserver = new ResizeObserver(([entry]) => { const width = entry?.contentRect.width ?? 0; const height = entry?.contentRect.height ?? 0; if (width <= 0 || height <= 0) return; camera.aspect = width / height; camera.updateProjectionMatrix(); renderer.setSize(width, height, false); fitTopCamera(); requestRender(); }); resizeObserver.observe(container);
     const stopFrame = () => { if (runtime) { cancelAnimationFrame(runtime.frame); runtime.frame = 0; } };
     const onVisibilityChange = () => { if (document.hidden) stopFrame(); else requestRender(); };
     const onContextLost = (event: Event) => { event.preventDefault(); contextLost = true; stopFrame(); };
@@ -256,11 +343,12 @@
       controls.removeEventListener("change", requestRender);
       controls.removeEventListener("change", updateZoom);
     };
-    runtime = { renderer, camera, controls, rig, content, resizeObserver, frame: 0, environmentTarget, texture, keyLight, detachContextHandlers, requestRender, sceneResources: [], layerMeshes: new Map(), fitSignature: savedCamera?.fitSignature };
+    runtime = { renderer, camera, topCamera, topDown: false, controls, rig, content, resizeObserver, frame: 0, environmentTarget, texture, keyLight, detachContextHandlers, requestRender, sceneResources: [], layerMeshes: new Map(), fitSignature: savedCamera?.fitSignature };
     requestRender();
     return () => {
       if (!runtime) return;
-      const { position } = runtime.camera; const { target } = runtime.controls;
+      const { position, target } = orbitBeforePlacement ?? { position: runtime.camera.position, target: runtime.controls.target };
+      cancelAnimationFrame(easeFrame);
       savedCamera = { position: [position.x, position.y, position.z], target: [target.x, target.y, target.z], fitSignature: runtime.fitSignature, fitDistance, fitTarget: [fitTarget.x, fitTarget.y, fitTarget.z] };
       cancelAnimationFrame(runtime.frame); runtime.detachContextHandlers(); runtime.resizeObserver.disconnect(); disposeContent(runtime.content, runtime.sceneResources); disposeLayerCache(runtime.layerMeshes); runtime.texture.dispose(); runtime.environmentTarget.dispose(); scene.environment = null; runtime.keyLight.shadow.dispose(); runtime.controls.dispose(); runtime.renderer.dispose();
       // Browsers cap live WebGL contexts; release this one now instead of at GC.
@@ -275,8 +363,13 @@
   const lineStyle = $derived(geometry.lineStyle);
   const widthMm = $derived(geometry.widthMm);
   const heightMm = $derived(geometry.heightMm);
+  // A string, so an equal prefix list from a new array does not rebuild the scene.
+  const hiddenKey = $derived(placement?.hiddenPrefixes.join("|") ?? "");
+  const hideMarkings = $derived(placement?.hideMarkings ?? false);
   $effect(() => {
+    const omitMarkings = hideMarkings;
     const activeGeometry = { layers, waterSurfaces, lineStyle, widthMm, heightMm };
+    const hiddenPrefixes = hiddenKey ? hiddenKey.split("|") : [];
     const timeout = window.setTimeout(() => {
       if (!runtime) return;
       // Decide what survives before tearing the scene down: a style edit leaves
@@ -352,6 +445,7 @@
         const labelBatch: LineBatch = { positions: [] };
         for (const mesh of cached.meshes) addStacked(runtime!.content, mesh, layer.index, baseZ);
         layer.markings.forEach((marking) => {
+          if (omitMarkings || hiddenByPrefix(marking.id, hiddenPrefixes)) return;
           if (marking.filled && marking.points.length > 2) {
             const marker = new THREE.Mesh(new THREE.ShapeGeometry(shapeFromPolygon({ outer: marking.points, holes: marking.holes ?? [] })), marking.knockout ? face : markerFillMaterial);
             marker.renderOrder = marking.knockout ? 2 : 3;
@@ -385,7 +479,7 @@
         });
       });
 
-      applyExploded(runtime.content, untrack(() => exploded));
+      applyExploded(runtime.content, untrack(() => (placement ? 0 : exploded)));
       const radius = Math.hypot(activeGeometry.widthMm / 2, activeGeometry.heightMm / 2);
       // Fit the key light and its shadow frustum to the model, including the
       // fully exploded stack height, so shadows stay crisp at every size.
@@ -397,7 +491,9 @@
       runtime.keyLight.shadow.camera.near = radius * 0.4; runtime.keyLight.shadow.camera.far = radius * 6;
       runtime.keyLight.shadow.normalBias = Math.max(radius * 0.003, 0.05);
       runtime.keyLight.shadow.camera.updateProjectionMatrix();
-      runtime.controls.minDistance = radius * 1.2; runtime.controls.maxDistance = radius * 8;
+      // The overhead placement camera sits inside the orbit limit until it leaves.
+      if (orbitBeforePlacement) orbitBeforePlacement.minDistance = radius * 1.2; else runtime.controls.minDistance = radius * 1.2;
+      runtime.controls.maxDistance = radius * 8;
       runtime.camera.near = Math.max(radius * 0.15, 0.5); runtime.camera.far = radius * 24; runtime.camera.updateProjectionMatrix();
       const fitSignature = [activeGeometry.widthMm, activeGeometry.heightMm, activeGeometry.layers.length, activeGeometry.layers[0]?.materialThicknessMm ?? 1].join(":");
       if (runtime.fitSignature !== fitSignature) {
@@ -424,11 +520,25 @@
   // Exploded-slider changes only reposition existing meshes.
   $effect(() => {
     const activeExploded = exploded;
-    if (runtime) { applyExploded(runtime.content, activeExploded); runtime.requestRender(); }
+    if (runtime && !untrack(() => placement)) { applyExploded(runtime.content, activeExploded); runtime.requestRender(); }
+  });
+
+  // Placement mode on and off. Reads only whether it is active, so a new
+  // margin or prefix list re-fits the camera without replaying the ease.
+  const placing = $derived(placement !== undefined);
+  $effect(() => {
+    if (placing) untrack(enterTopDown); else untrack(leaveTopDown);
+  });
+  // Draft edits can replace the placement prop. Refit only when its margin
+  // changes: otherwise every nudge schedules an expensive terrain render.
+  const topMargin = $derived(placement?.marginMm);
+  $effect(() => {
+    void topMargin; void widthMm; void heightMm;
+    untrack(() => { fitTopCamera(); runtime?.requestRender(); });
   });
 
   function handleKeyDown(event: KeyboardEvent): void {
-    if (!runtime) return; if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "+", "-"].includes(event.key)) event.preventDefault();
+    if (!runtime || placement) return; if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "+", "-"].includes(event.key)) event.preventDefault();
     if (event.key === "ArrowLeft" || event.key === "ArrowRight") { const direction = event.key === "ArrowLeft" ? 1 : -1; const relative = runtime.camera.position.clone().sub(runtime.controls.target).applyAxisAngle(new THREE.Vector3(0, 0, 1), direction * 0.12); runtime.camera.position.copy(runtime.controls.target).add(relative); }
     else if (event.key === "ArrowUp" || event.key === "+") runtime.camera.position.lerp(runtime.controls.target, 0.08);
     else if (event.key === "ArrowDown" || event.key === "-") runtime.camera.position.lerp(runtime.controls.target, -0.08);

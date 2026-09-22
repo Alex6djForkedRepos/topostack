@@ -24,8 +24,8 @@
   {/if}
 </div>
 <div class="history-actions">
-  <IconButton label="Undo" title="Undo (Ctrl+Z / ⌘Z)" aria-keyshortcuts="Control+Z Meta+Z" onclick={undo} disabled={!studio.historyAvailability.canUndo}><Undo2 size={17} /></IconButton>
-  <IconButton label="Redo" title="Redo (Ctrl+Shift+Z / ⇧⌘Z)" aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z Control+Y" onclick={redo} disabled={!studio.historyAvailability.canRedo}><Redo2 size={17} /></IconButton>
+  <IconButton label="Undo" title="Undo (Ctrl+Z / ⌘Z)" aria-keyshortcuts="Control+Z Meta+Z" onclick={undo} disabled={!!studio.placement || !studio.historyAvailability.canUndo}><Undo2 size={17} /></IconButton>
+  <IconButton label="Redo" title="Redo (Ctrl+Shift+Z / ⇧⌘Z)" aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z Control+Y" onclick={redo} disabled={!!studio.placement || !studio.historyAvailability.canRedo}><Redo2 size={17} /></IconButton>
   {#if studio.embeddedInPlatform}
     <IconButton label="Reset project" aria-haspopup="dialog" onclick={(event: MouseEvent) => { if (event.currentTarget instanceof HTMLElement) event.currentTarget.focus(); studio.resetOpen = true; }} disabled={!studio.booted}><RotateCcw size={17} /></IconButton>
     <IconButton label="Import project JSON" onclick={() => importInput.click()}><Upload size={17} /></IconButton>

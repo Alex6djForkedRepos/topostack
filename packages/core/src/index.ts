@@ -4,7 +4,7 @@ export { generateGeometry } from "./pipeline/generate.js";
 export { validateProject } from "./pipeline/validate.js";
 export { createSyntheticSource } from "./pipeline/synthetic-source.js";
 export { projectFingerprint } from "./pipeline/fingerprint.js";
-export { horizontalScaleFor, planTerrainStack } from "./pipeline/stack-plan.js";
+export { groundWidthMFor, horizontalScaleFor, planTerrainStack } from "./pipeline/stack-plan.js";
 export { CONTOUR_SIMPLIFICATION_FACTOR } from "./pipeline/contours.js";
 export { coordinateGridInterval } from "./pipeline/coordinate-grid.js";
 // Polygon clip inputs appear in exported signatures (paint regions, marker
@@ -15,6 +15,7 @@ export { FONT_CATALOG, FontNotLoadedError, clearRegisteredFonts, decodeFontGlyph
 export * from "./annotate/markers.js";
 export * from "./annotate/north-arrow.js";
 export * from "./annotate/plaque.js";
+export * from "./annotate/scale-bar.js";
 export * from "./primitives/offset.js";
 export { layerToSvg, masterToSvg } from "./export/svg.js";
 export { assemblyGuideToHtml, type GuideFont, type GuideSheet } from "./export/assembly-guide.js";

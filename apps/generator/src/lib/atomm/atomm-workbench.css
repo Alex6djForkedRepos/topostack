@@ -875,7 +875,7 @@ html:has(.atomm-workbench), body:has(.atomm-workbench) { height: 100%; margin: 0
   .line-presets small { display: none; }
   .line-presets button[data-state="on"] { background: var(--color-bg-default); color: var(--color-text-primary); border-color: var(--color-stroke-active); }
   .linework-customize { width: calc(100% - 32px); margin-inline: 16px; text-transform: none; letter-spacing: normal; }
-  .marker-add-button, .linework-customize, .subgroup-heading--action button, .custom-point-add { height: 32px; min-height: 32px; border-radius: 6px; padding: 0 8px; font: var(--font-12-medium); }
+  .marker-add-button, .linework-customize, .subgroup-heading--action button, .custom-point-add, .placement-start { height: 32px; min-height: 32px; border-radius: 6px; padding: 0 8px; font: var(--font-12-medium); }
   .marker-card__header button, .custom-point-heading button { width: 24px; height: 24px; min-height: 24px !important; border-radius: 4px; }
   .marker-symbol-options button { display: grid; place-items: center; width: 32px; height: 32px; min-height: 32px; padding: 0; border-radius: 6px; }
   .marker-symbol-options svg { width: 16px; height: 16px; }

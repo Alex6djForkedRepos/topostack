@@ -24,6 +24,8 @@
   import * as edits from "$lib/studio/project-edits";
   import { isAbortError, PreviewPipeline } from "$lib/studio/preview-pipeline";
   import { LazyComponent } from "$lib/studio/lazy-component";
+  import { availablePlaceables, hiddenMarkingPrefixes, placementPatch, PLACEABLES, type PlaceableId, type PlacementSession } from "$lib/studio/placement/placeables";
+  import { placementMarginMm } from "$lib/studio/placement/viewport";
   import { createProjectPreviewSource } from "$lib/studio/project-preview";
   import { restoreStartupProject } from "$lib/studio/startup-restore";
   import { activeLinePreset as findActiveLinePreset, CONFIG_SECTION_IDS, countDetailMarkings, featuredLayerIndex, layerForEnabledDetail, modeledLakes as findModeledLakes, sectionSummary as summarizeSection, visibleWarnings as summarizeWarnings, type ConfigSectionId } from "$lib/studio/preview-summary";
@@ -33,7 +35,7 @@
   import { changedProjectKeys, projectPatch } from "$lib/studio/project-patch";
   import type { SourcePreparationCache } from "$lib/studio/source-refresh";
   import { generationStatus, generationToast, previewPendingStatus, previewUpdatedStatus, type PreviewUpdateKind } from "$lib/studio/status-messages";
-  import { provideStudio, type GenerateState, type LineWidthKey, type PreviewMode } from "$lib/studio/studio-context";
+  import { provideStudio, type PlacementPhase, type GenerateState, type LineWidthKey, type PreviewMode } from "$lib/studio/studio-context";
   import ProjectControls from "$lib/studio/panels/ProjectControls.svelte";
   import StudioMenu from "$lib/studio/panels/StudioMenu.svelte";
   import OutputSwitch from "$lib/studio/panels/OutputSwitch.svelte";
@@ -141,13 +143,78 @@
   });
   const threePreview = new LazyComponent(() => import("$lib/studio/ThreePreview.svelte"), (error) => {
     console.error("TopoStack could not load the 3D preview.", error);
+    // Placement falls back to the flat top-down view on its own.
+    if (placement) threeUnavailable = true;
     if (mode === "3d") { threeUnavailable = true; mode = "2d"; previewNotice = "3D preview could not load · reload to update TopoStack"; }
+  });
+  const placementStage = new LazyComponent(() => import("$lib/studio/placement/PlacementStage.svelte"), (error) => {
+    console.error("TopoStack could not load placement mode.", error); placement = undefined; status = "Placement could not load · reload to update TopoStack";
   });
   const LocationDialog = $derived(locationDialog.component);
   const MapCanvas = $derived(mapCanvas.component);
   const EngravingPreview = $derived(engravingPreview.component);
   const TwoDPreview = $derived(twoDPreview.component);
   const ThreePreview = $derived(threePreview.component);
+  const PlacementStage = $derived(placementStage.component);
+
+  // Placement mode: an uncommitted project patch moved on a top-down view of
+  // the piece. Done applies it as one edit, which generation bakes into the
+  // sheets; see docs/placement.md.
+  let placement = $state<PlacementSession | undefined>();
+  // "settling" holds the drafts on screen until Done's regeneration lands.
+  // "closing" crossfades them into the generated markings while the view is
+  // still top-down, so they line up; only then does the 3D camera ease back.
+  let placementPhase = $state<PlacementPhase>("editing");
+  // Set briefly when entering or leaving swaps the view under the layer, so the new one fades in.
+  let placementFade = $state(false);
+  const PLACEMENT_EXIT_MS = 220;
+  const PLACEMENT_SETTLE_LIMIT_MS = 4_000;
+  const placementBackdrop: "3d" | "flat" | undefined = $derived(placement ? (project.outputMode === "stack" && !threeUnavailable ? "3d" : "flat") : undefined);
+  const reducedMotion = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function pulsePlacementFade(): void {
+    if (placementBackdrop !== "3d" || mode === "3d" || reducedMotion()) return;
+    placementFade = true;
+    setTimeout(() => { placementFade = false; }, 400);
+  }
+  const placementMargin = $derived(placementMarginMm(geometry.widthMm, geometry.heightMm));
+  const placementHiddenPrefixes = $derived(placement ? hiddenMarkingPrefixes(project) : []);
+  function startPlacement(id: PlaceableId): void {
+    if (!PLACEABLES[id].available(project)) return;
+    if (placement) {
+      // A second Move button while placing only switches the selection.
+      if (placementPhase === "editing") placement = { ...placement, selected: id };
+      return;
+    }
+    placement = { selected: id, draft: {} };
+    placementPhase = "editing";
+    placementStage.load();
+    pulsePlacementFade();
+  }
+  function closePlacement(): void {
+    const closingSession = placement;
+    placementPhase = "closing";
+    setTimeout(() => {
+      if (placement !== closingSession) return;
+      pulsePlacementFade();
+      placement = undefined;
+      placementPhase = "editing";
+    }, reducedMotion() ? 0 : PLACEMENT_EXIT_MS);
+  }
+  function commitPlacement(): void {
+    if (!placement || placementPhase !== "editing") return;
+    if (!Object.keys(placement.draft).length) { closePlacement(); return; }
+    const committingSession = placement;
+    placementPhase = "settling";
+    const settled = updateFabrication(placementPatch(project, $state.snapshot(placement.draft))).catch(() => undefined);
+    void Promise.race([settled, new Promise((resolve) => setTimeout(resolve, PLACEMENT_SETTLE_LIMIT_MS))]).then(() => { if (placement === committingSession) closePlacement(); });
+  }
+  function cancelPlacement(): void {
+    if (placement && placementPhase === "editing") closePlacement();
+  }
+  // Turning every placeable off leaves nothing to place.
+  $effect(() => {
+    if (placement && !availablePlaceables(project).length) untrack(cancelPlacement);
+  });
 
   $effect(() => {
     const outputMode = project.outputMode;
@@ -169,6 +236,7 @@
     else if (mode === "engraving") engravingPreview.ensure();
     else if (mode === "2d") twoDPreview.ensure();
     else if (mode === "3d") threePreview.load();
+    if (placementBackdrop === "3d") threePreview.load();
   });
 
   const explodedPreview = $derived(explodedDrag ?? project.explodedPreview);
@@ -431,6 +499,7 @@
    * superseded, exactly as `refreshPreview` does.
    */
   function replaceSourceProject(next: ProjectConfigV1, source: SourceBundleV1): void {
+    placement = undefined;
     project = next; sourceProject = next; activeSource = source;
     geometry = { ...geometry, projectName: next.name };
     const revision = pipeline.revision;
@@ -527,12 +596,13 @@
     status = "Project reset to Crater Lake defaults · Undo restores your previous settings";
   }
 
-  function undo(): void { const previous = projectHistory.undo(project); if (previous) restoreProject(previous, "Undo"); }
-  function redo(): void { const next = projectHistory.redo(project); if (next) restoreProject(next, "Redo"); }
+  function undo(): void { if (placement) return; const previous = projectHistory.undo(project); if (previous) restoreProject(previous, "Undo"); }
+  function redo(): void { if (placement) return; const next = projectHistory.redo(project); if (next) restoreProject(next, "Redo"); }
 
   function handleHistoryKey(event: KeyboardEvent): void {
     const shortcut = historyShortcut(event);
-    if (!shortcut) return;
+    // An undo would rewrite the project under an open draft; Done or Cancel first.
+    if (!shortcut || placement) return;
     event.preventDefault();
     if (shortcut === "undo") undo(); else redo();
   }
@@ -757,6 +827,14 @@
     get ThreePreview() { return ThreePreview; },
     get engravingPreview() { return engravingPreview; },
     get twoDPreview() { return twoDPreview; },
+    get PlacementStage() { return PlacementStage; },
+    get placement() { return placement; },
+    set placement(value) { placement = value; },
+    get placementBackdrop() { return placementBackdrop; },
+    get placementPhase() { return placementPhase; },
+    get placementFade() { return placementFade; },
+    get placementMargin() { return placementMargin; },
+    get placementHiddenPrefixes() { return placementHiddenPrefixes; },
     get openSections() { return openSections; },
     get shownLengthUnit() { return shownLengthUnit; },
     get shownElevationUnit() { return shownElevationUnit; },
@@ -782,7 +860,7 @@
     set lineworkOpen(value) { lineworkOpen = value; },
     get locationTrigger() { return locationTrigger; },
     set locationTrigger(value) { locationTrigger = value; },
-    shownLength, shownDepth, shownLineWidth, shownTextSize, storedLength, workAreaLength, updateProject, updateFabrication, updateMapDetails, updateLocation, updateVerticalExaggeration, updateDepthLayerLimit, setLakeDepth, setLineWidth, applyCustomDataEdit, choosePlace, undo, redo, importProject, copyShareLink, importCustomData, generate, cancelGeneration, toggleSection, setAllSections, sectionSummary, navigateChoice, dismissPreviewWarning, previewMarkingPath, trailPatternDash, getFeedbackContext,
+    shownLength, shownDepth, shownLineWidth, shownTextSize, storedLength, workAreaLength, updateProject, updateFabrication, updateMapDetails, updateLocation, updateVerticalExaggeration, updateDepthLayerLimit, setLakeDepth, setLineWidth, applyCustomDataEdit, choosePlace, startPlacement, commitPlacement, cancelPlacement, undo, redo, importProject, copyShareLink, importCustomData, generate, cancelGeneration, toggleSection, setAllSections, sectionSummary, navigateChoice, dismissPreviewWarning, previewMarkingPath, trailPatternDash, getFeedbackContext,
   });
 </script>
 

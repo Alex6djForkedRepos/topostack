@@ -1,0 +1,275 @@
+/* Placement mode: the top-down stage, the draft layer over it, and its toolbar.
+   The layer's SVG and every backdrop share one meet-fitted viewBox, so all of
+   them fill the stage box exactly; see lib/studio/placement/viewport.ts. */
+.preview-stage:has(.placement-stage) {
+  --placement-toolbar-space: 96px;
+}
+
+.placement-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+/* Over 3D, the drafts appear as the camera finishes easing overhead. */
+.placement-stage--shown {
+  opacity: 1;
+}
+
+.placement-stage[data-placement-backdrop="3d"].placement-stage--shown {
+  transition-delay: 160ms;
+}
+
+.placement-stage--flat {
+  pointer-events: auto;
+  background: #292d27;
+}
+
+.stack-top-view,
+.placement-layer,
+.placement-layer > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Keep the shared drawing viewport below the controls, including in 3D.
+   A millimeter margin alone cannot protect handles from a pixel-sized toolbar. */
+.preview-stage:has(.placement-stage) .three-stage,
+.placement-stage .stack-top-view,
+.placement-layer > svg {
+  top: var(--placement-toolbar-space);
+  height: calc(100% - var(--placement-toolbar-space));
+}
+
+.placement-layer > svg {
+  overflow: visible;
+  pointer-events: none;
+}
+
+.placement-item {
+  opacity: 0.55;
+}
+
+.placement-item--selected {
+  opacity: 1;
+}
+
+.placement-handle {
+  fill: transparent;
+  stroke: var(--loidolt-accent);
+  stroke-width: 1px;
+  stroke-dasharray: 4 3;
+  vector-effect: non-scaling-stroke;
+  pointer-events: all;
+  cursor: grab;
+  touch-action: none;
+  outline: none;
+}
+
+.placement-item--selected .placement-handle {
+  stroke-width: 2px;
+  fill: color-mix(in srgb, var(--loidolt-accent) 12%, transparent);
+}
+
+.placement-item--dragging .placement-handle {
+  cursor: grabbing;
+  stroke-dasharray: none;
+}
+
+.placement-handle:focus-visible {
+  stroke-width: 3px;
+}
+
+/* The mode is framed in the accent color and the toolbar sits top center
+   with a halo that pulses as it arrives, so placing is hard to miss. */
+.placement-stage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--loidolt-accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--loidolt-accent) 30%, transparent), inset 0 0 48px color-mix(in srgb, var(--loidolt-accent) 18%, transparent);
+  pointer-events: none;
+}
+
+.preview-stage:has(.placement-stage) .warning-stack {
+  display: none;
+}
+
+.placement-toolbar {
+  position: absolute;
+  left: 50%;
+  top: 16px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  padding: 8px 8px 8px 10px;
+  border: 2px solid var(--loidolt-accent);
+  background: var(--loidolt-surface);
+  box-shadow: var(--loidolt-shadow-popover), 0 0 0 4px color-mix(in srgb, var(--loidolt-accent) 22%, transparent);
+  color: var(--loidolt-text);
+  font-size: var(--panel-font-body);
+  pointer-events: auto;
+  transition: opacity 160ms ease, translate 200ms ease;
+}
+
+.placement-stage--shown .placement-toolbar {
+  animation: placement-toolbar-halo 1.4s ease-out 0.3s 2;
+}
+
+@keyframes placement-toolbar-halo {
+  0% { box-shadow: var(--loidolt-shadow-popover), 0 0 0 4px color-mix(in srgb, var(--loidolt-accent) 45%, transparent); }
+  100% { box-shadow: var(--loidolt-shadow-popover), 0 0 0 14px color-mix(in srgb, var(--loidolt-accent) 0%, transparent); }
+}
+
+.placement-toolbar__icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--loidolt-accent);
+  color: var(--loidolt-on-accent);
+}
+
+.placement-toolbar__text {
+  display: grid;
+  white-space: normal;
+  gap: 2px;
+  min-width: 0;
+  margin-right: 4px;
+}
+
+.placement-toolbar__status b {
+  color: var(--loidolt-accent);
+}
+
+.placement-stage:not(.placement-stage--shown) .placement-toolbar,
+.placement-layer--inert .placement-toolbar {
+  opacity: 0;
+  translate: 0 -12px;
+  pointer-events: none;
+}
+
+.placement-layer--inert .placement-handle {
+  pointer-events: none;
+  cursor: default;
+}
+
+.placement-toolbar__hint {
+  color: var(--loidolt-text-muted);
+  font: var(--panel-font-caption) var(--loidolt-font-utility);
+}
+
+/* The sidebar entry point, in the same chrome as the compass design swatches
+   above it; pressed while its item is the one being placed. */
+.placement-start {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid var(--loidolt-border);
+  background: var(--loidolt-surface);
+  color: var(--loidolt-text);
+  font: var(--panel-font-micro) var(--loidolt-font-utility);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease;
+}
+
+.placement-start:hover {
+  border-color: var(--loidolt-accent);
+}
+
+.placement-start[aria-pressed="true"] {
+  border-color: var(--loidolt-accent);
+  background: var(--loidolt-accent);
+  color: var(--loidolt-on-accent);
+}
+
+.placement-start:focus-visible {
+  outline: 2px solid var(--loidolt-accent);
+  outline-offset: 2px;
+}
+
+/* A view that mounts because placement swapped the preview under it fades in. */
+@keyframes placement-view-in {
+  from { opacity: 0; }
+}
+
+.preview-stage[data-placement-fade] :is(.three-stage, .two-d-stage, .engraving-stage, .map-wrap) {
+  animation: placement-view-in 240ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .placement-stage,
+  .placement-toolbar,
+  .placement-start {
+    transition: none;
+  }
+
+  .placement-stage[data-placement-backdrop="3d"].placement-stage--shown {
+    transition-delay: 0s;
+  }
+
+  .placement-stage--shown .placement-toolbar {
+    animation: none;
+  }
+}
+
+@container terrain-preview (max-width: 560px) {
+  .preview-stage:has(.placement-stage) {
+    --placement-toolbar-space: 112px;
+  }
+
+  .placement-toolbar {
+    gap: 8px;
+    width: calc(100% - 32px);
+  }
+
+  .placement-toolbar__icon {
+    display: none;
+  }
+
+  .placement-toolbar__text {
+    flex: 1;
+  }
+  .placement-toolbar__hint {
+    display: none;
+  }
+}
+
+/* The resize grip on the selected item's lower-right corner. */
+.placement-grip {
+  fill: var(--loidolt-surface);
+  stroke: var(--loidolt-accent);
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: all;
+  cursor: nwse-resize;
+  touch-action: none;
+}
+
+.placement-layer--inert .placement-grip {
+  pointer-events: none;
+}
+
+.placement-toolbar__size {
+  margin-left: 0.5em;
+  padding-left: 0.5em;
+  border-left: 1px solid var(--loidolt-border);
+  color: var(--loidolt-text-muted);
+  font-variant-numeric: tabular-nums;
+}

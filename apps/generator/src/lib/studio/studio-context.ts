@@ -6,9 +6,12 @@ import type { studioFeedbackContext } from "$lib/site/feedback";
 import type { ExportPhase } from "$lib/studio/export-notice";
 import type { HistoryAvailability } from "$lib/studio/history";
 import type { LazyComponent } from "$lib/studio/lazy-component";
+import type { PlaceableId, PlacementSession } from "$lib/studio/placement/placeables";
 import type { ENGRAVING_MODE_OPTIONS, STACK_MODE_OPTIONS } from "$lib/studio/options";
 import type { ConfigSectionId, countDetailMarkings, modeledLakes, visibleWarnings } from "$lib/studio/preview-summary";
 
+/** Editing, waiting for Done's regeneration, or fading out. */
+export type PlacementPhase = "editing" | "settling" | "closing";
 export type PreviewMode = "map" | "engraving" | "2d" | "3d";
 export type GenerateState = "idle" | "loading" | "ready" | "error";
 export type LineWidthKey = Exclude<keyof LineStyleV1, "trailPattern" | "roadStyle" | "roadCap">;
@@ -77,6 +80,21 @@ export interface StudioContext {
   readonly ThreePreview: typeof import("$lib/studio/ThreePreview.svelte").default | undefined;
   readonly engravingPreview: LazyComponent<typeof import("$lib/studio/EngravingPreview.svelte").default>;
   readonly twoDPreview: LazyComponent<typeof import("$lib/studio/TwoDPreview.svelte").default>;
+  readonly PlacementStage: typeof import("$lib/studio/placement/PlacementStage.svelte").default | undefined;
+
+  // Placement mode
+  /** The open placement session, or undefined outside placement mode. */
+  placement: PlacementSession | undefined;
+  /** Which view placement mode draws over: the studio's 3D preview, or the flat top-down composite. */
+  readonly placementBackdrop: "3d" | "flat" | undefined;
+  readonly placementPhase: PlacementPhase;
+  /** True for a moment after placement swaps the view underneath, so it fades in. */
+  readonly placementFade: boolean;
+  readonly placementMargin: number;
+  readonly placementHiddenPrefixes: readonly string[];
+  startPlacement(id: PlaceableId): void;
+  commitPlacement(): void;
+  cancelPlacement(): void;
 
   // Sidebar and dialogs
   readonly openSections: Record<ConfigSectionId, boolean>;

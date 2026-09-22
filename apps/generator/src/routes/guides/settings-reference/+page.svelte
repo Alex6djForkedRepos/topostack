@@ -63,12 +63,12 @@
       <tr><td>North arrow</td><td>On, off</td><td>On</td><td></td></tr>
       <tr><td>Compass design</td><td>Minimal, Classic, Mariner</td><td>Classic</td><td></td></tr>
       <tr><td>Diameter</td><td>12 mm to a limit set by the artwork size</td><td>24 mm</td><td></td></tr>
-      <tr><td>Placement</td><td>Nine positions from top left to bottom right</td><td>Bottom right</td><td></td></tr>
-      <tr><td>Offset X, Offset Y</td><td>−100 to 100%</td><td>0%</td><td>Reset offset returns to 0.</td></tr>
-      <tr><td>Scale bar</td><td>On, off</td><td>On</td><td></td></tr>
+      <tr><td>Placement</td><td>Anywhere inside the material</td><td>Bottom right</td><td>Move on preview, then drag or use the arrow keys, and choose Done. The corner handle or + and − resize it there. Reset position returns to the default.</td></tr>
+      <tr><td>Scale bar</td><td>On, off</td><td>On</td><td>Length follows the map scale.</td></tr>
+      <tr><td>Scale bar placement</td><td>Anywhere inside the material</td><td>Near the top-left edge</td><td>Move on preview, like the north arrow.</td></tr>
       <tr><td>Title</td><td>On, off</td><td>Off</td><td>Up to 3 lines of 40 characters, engraved in capitals. Starts from the project name.</td></tr>
       <tr><td>Title letter height</td><td>3–30 mm</td><td>6 mm</td><td>Uses the Text engraving font.</td></tr>
-      <tr><td>Title placement</td><td>Nine positions from top left to bottom right</td><td>Bottom left</td><td></td></tr>
+      <tr><td>Title placement</td><td>Anywhere inside the material</td><td>Bottom left</td><td>Move on preview, like the north arrow. Lines align toward the nearest edge.</td></tr>
       <tr><td>Font</td><td>Technical, Rounded, Stencil</td><td>Technical</td><td>Under Text engraving.</td></tr>
       <tr><td>Text size</td><td>2–10 mm</td><td>3.1 mm</td><td>Capital-letter height.</td></tr>
     </tbody>

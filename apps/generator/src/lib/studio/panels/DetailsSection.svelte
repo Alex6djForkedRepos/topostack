@@ -1,15 +1,15 @@
 <script lang="ts">
-  import { ChevronDown, Compass, Grid3X3, Layers3, Map as MapIcon, Minus, Mountain, Square, Type, Waves } from "@lucide/svelte";
+  import { ChevronDown, Compass, Grid3X3, Layers3, Map as MapIcon, Minus, Mountain, Move, Square, Type, Waves } from "@lucide/svelte";
   import { Field, Section } from "@loidolt/theme-svelte";
-  import { displayElevation, displayLength, fontEntry, isBitmapFont, MAX_WATER_DEPTH_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, NORTH_ARROW_MIN_SIZE_MM, PLAQUE_MAX_LINE_LENGTH, PLAQUE_MAX_LINES, PLAQUE_MAX_SIZE_MM, PLAQUE_MIN_SIZE_MM, plaqueFont, unsupportedLabelCharacters } from "@topostack/core";
+  import { DEFAULT_PROJECT, displayElevation, displayLength, fontEntry, isBitmapFont, MAX_WATER_DEPTH_EXAGGERATION, MIN_WATER_DEPTH_EXAGGERATION, NORTH_ARROW_MIN_SIZE_MM, PLAQUE_MAX_LINE_LENGTH, PLAQUE_MAX_LINES, PLAQUE_MAX_SIZE_MM, PLAQUE_MIN_SIZE_MM, plaqueFont, unsupportedLabelCharacters } from "@topostack/core";
   import FeedbackButton from "$lib/site/FeedbackButton.svelte";
   import NumberField from "$lib/studio/StudioNumberField.svelte";
   import FontPicker from "$lib/studio/panels/FontPicker.svelte";
-  import { NORTH_ARROW_ANCHOR_OPTIONS, NORTH_ARROW_OPTIONS, WATER_FILL_PATTERNS } from "$lib/studio/options";
+  import { NORTH_ARROW_OPTIONS, WATER_FILL_PATTERNS } from "$lib/studio/options";
   import Switch from "$lib/studio/StudioSwitch.svelte";
   import LakeDepthHelp from "$lib/studio/panels/LakeDepthHelp.svelte";
   import { getStudio } from "$lib/studio/studio-context";
-  import { clampPlaqueSize, plaqueSettings, plaqueText, plaqueWithFont } from "$lib/studio/project-edits";
+  import { clampPlaqueSize, DEFAULT_PLAQUE_PLACEMENT, plaqueSettings, plaqueText, plaqueWithFont } from "$lib/studio/project-edits";
 
   let { openLakeDepthHelp }: { openLakeDepthHelp?: (trigger: HTMLButtonElement) => void } = $props();
   const studio = getStudio();
@@ -20,7 +20,7 @@
     void studio.geometry;
     return plaque ? unsupportedLabelCharacters(plaque.text, titleFont) : [];
   });
-  const { getFeedbackContext, navigateChoice, previewMarkingPath, sectionSummary, setLakeDepth, shownDepth, shownLength, shownTextSize, storedLength, toggleSection, updateDepthLayerLimit, updateFabrication, updateMapDetails } = studio;
+  const { startPlacement, getFeedbackContext, navigateChoice, previewMarkingPath, sectionSummary, setLakeDepth, shownDepth, shownLength, shownTextSize, storedLength, toggleSection, updateDepthLayerLimit, updateFabrication, updateMapDetails } = studio;
 </script>
 
 <Section class="config-section" aria-labelledby="atomm-details-title">
@@ -155,22 +155,25 @@
             </div>
             <div class="subgroup-heading subgroup-heading--action">
               <p>Placement</p>
-              <button type="button" onclick={() => void updateFabrication({ northArrowPlacement: { ...studio.project.northArrowPlacement, offset: { x: 0, y: 0 } } })}>Reset offset</button>
+              <button type="button" onclick={() => void updateFabrication({ northArrowPlacement: structuredClone(DEFAULT_PROJECT.northArrowPlacement) })}>Reset position</button>
             </div>
-            <div class="north-arrow-anchor-grid" role="radiogroup" aria-label="North arrow anchor">
-              {#each NORTH_ARROW_ANCHOR_OPTIONS as option}
-                <button type="button" role="radio" aria-label={option.label} title={option.label} aria-checked={studio.project.northArrowPlacement.anchor === option.value} data-state={studio.project.northArrowPlacement.anchor === option.value ? "on" : "off"} tabindex={studio.project.northArrowPlacement.anchor === option.value ? 0 : -1} onclick={() => void updateFabrication({ northArrowPlacement: { anchor: option.value, offset: { x: 0, y: 0 } } })} onkeydown={navigateChoice}><span></span></button>
-              {/each}
-            </div>
-            <div class="field-stack field-stack--offsets">
-              <Field label="Offset X" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label="North arrow offset X" value={Math.round(studio.project.northArrowPlacement.offset.x * 100)} min={-100} max={100} oninput={(event) => event.currentTarget.value !== "" && void updateFabrication({ northArrowPlacement: { ...studio.project.northArrowPlacement, offset: { ...studio.project.northArrowPlacement.offset, x: event.currentTarget.valueAsNumber / 100 } } })} onValueChange={(x) => x !== Math.round(studio.project.northArrowPlacement.offset.x * 100) && void updateFabrication({ northArrowPlacement: { ...studio.project.northArrowPlacement, offset: { ...studio.project.northArrowPlacement.offset, x: x / 100 } } })} /><em>%</em></span>{/snippet}</Field>
-              <Field label="Offset Y" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label="North arrow offset Y" value={Math.round(studio.project.northArrowPlacement.offset.y * 100)} min={-100} max={100} oninput={(event) => event.currentTarget.value !== "" && void updateFabrication({ northArrowPlacement: { ...studio.project.northArrowPlacement, offset: { ...studio.project.northArrowPlacement.offset, y: event.currentTarget.valueAsNumber / 100 } } })} onValueChange={(y) => y !== Math.round(studio.project.northArrowPlacement.offset.y * 100) && void updateFabrication({ northArrowPlacement: { ...studio.project.northArrowPlacement, offset: { ...studio.project.northArrowPlacement.offset, y: y / 100 } } })} /><em>%</em></span>{/snippet}</Field>
-            </div>
+            <button type="button" class="placement-start" aria-pressed={studio.placement?.selected === "north"} onclick={() => startPlacement("north")}><Move size={14} />{studio.placement?.selected === "north" ? "Placing on preview" : "Move on preview"}</button>
           </div>
         {/if}
       </div>
 
-      <Switch checked={studio.project.showScaleBar} onCheckedChange={(showScaleBar) => void updateMapDetails({ showScaleBar })} aria-label="Scale bar"><span class="toggle-label"><Minus size={16} />Scale bar</span></Switch>
+      <div class="toggle-control">
+        <Switch checked={studio.project.showScaleBar} onCheckedChange={(showScaleBar) => void updateMapDetails({ showScaleBar })} aria-label="Scale bar"><span class="toggle-label"><Minus size={16} />Scale bar</span></Switch>
+        {#if studio.project.showScaleBar}
+          <div class="toggle-settings">
+            <div class="subgroup-heading subgroup-heading--action">
+              <p>Placement</p>
+              {#if studio.project.scaleBarPlacement}<button type="button" onclick={() => void updateFabrication({ scaleBarPlacement: undefined })}>Reset position</button>{/if}
+            </div>
+            <button type="button" class="placement-start" aria-pressed={studio.placement?.selected === "scale"} onclick={() => startPlacement("scale")}><Move size={14} />{studio.placement?.selected === "scale" ? "Placing on preview" : "Move on preview"}</button>
+          </div>
+        {/if}
+      </div>
 
       <div class="toggle-control">
         <Switch checked={plaque?.enabled ?? false} onCheckedChange={(enabled) => void updateMapDetails({ plaque: plaqueSettings(studio.project, { enabled }) })} aria-label="Title"><span class="toggle-label"><Type size={16} />Title</span></Switch>
@@ -187,12 +190,11 @@
             <Field label="Letter height" class="field-row">{#snippet children({ id })}<span class="number-input"><NumberField {id} label="Title size" value={shownTextSize(plaque.sizeMm)} min={displayLength(PLAQUE_MIN_SIZE_MM, studio.project.units)} max={displayLength(PLAQUE_MAX_SIZE_MM, studio.project.units)} step={studio.project.units === "imperial" ? 0.01 : 0.5} onValueChange={(value) => { const sizeMm = clampPlaqueSize(storedLength(value)); if (sizeMm !== plaque.sizeMm) void updateFabrication({ plaque: plaqueSettings(studio.project, { sizeMm }) }); }} /><em>{studio.shownLengthUnit}</em></span>{/snippet}</Field>
             <p class="subgroup-heading">Title font</p>
             <FontPicker label="Title font" value={plaque.font} inherited={{ label: "Same as labels", font: studio.project.textStyle.font }} onSelect={(font) => void updateFabrication({ plaque: plaqueWithFont(studio.project, font) })} />
-            <p class="subgroup-heading">Placement</p>
-            <div class="north-arrow-anchor-grid" role="radiogroup" aria-label="Title anchor">
-              {#each NORTH_ARROW_ANCHOR_OPTIONS as option}
-                <button type="button" role="radio" aria-label={option.label} title={option.label} aria-checked={plaque.placement.anchor === option.value} data-state={plaque.placement.anchor === option.value ? "on" : "off"} tabindex={plaque.placement.anchor === option.value ? 0 : -1} onclick={() => void updateFabrication({ plaque: plaqueSettings(studio.project, { placement: { anchor: option.value, offset: { x: 0, y: 0 } } }) })} onkeydown={navigateChoice}><span></span></button>
-              {/each}
+            <div class="subgroup-heading subgroup-heading--action">
+              <p>Placement</p>
+              <button type="button" onclick={() => void updateFabrication({ plaque: plaqueSettings(studio.project, { placement: structuredClone(DEFAULT_PLAQUE_PLACEMENT) }) })}>Reset position</button>
             </div>
+            <button type="button" class="placement-start" aria-pressed={studio.placement?.selected === "plaque"} onclick={() => startPlacement("plaque")}><Move size={14} />{studio.placement?.selected === "plaque" ? "Placing on preview" : "Move on preview"}</button>
           </div>
         {/if}
       </div>

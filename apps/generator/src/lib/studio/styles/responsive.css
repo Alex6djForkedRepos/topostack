@@ -296,15 +296,6 @@
   .config-panel .number-input--compact > .ldt-number-field {
     grid-template-columns: minmax(0, 1fr);
   }
-
-  .north-arrow-anchor-grid {
-    grid-template-columns: repeat(3, 44px);
-  }
-
-  .north-arrow-anchor-grid button {
-    width: 44px;
-    height: 44px;
-  }
 }
 
 /* Measure the preview itself: a landscape tablet also has a narrow canvas
