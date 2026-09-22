@@ -15,7 +15,7 @@
         "attestation": "public-domain",
         "note": "USGS-authored work: https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits. The OpenStreetMap basemap on this sheet is in the location inset (figure 31), outside the traced map area."
       },
-      "lake": { "name": "Lake Viking" },
+      "lake": { "name": "Lake Viking", "region": "Daviess County · Missouri, USA" },
       "input": { "kind": "pdf-vector", "page": 1 },
       "units": "ft",
       "trace": {

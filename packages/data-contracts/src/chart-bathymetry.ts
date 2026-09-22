@@ -76,7 +76,8 @@ export type ChartLabelsV1 =
 export interface UserChartBathymetryV1 {
   schema: typeof CHART_BATHYMETRY_SCHEMA;
   id: string;
-  lake: { name?: string; hylakId?: number; outline: ChartLonLat[] };
+  /** `region` is where a reader would look for the lake, as the lake directory lists it. */
+  lake: { name?: string; region?: string; hylakId?: number; outline: ChartLonLat[] };
   georef: {
     method: ChartGeorefMethod;
     /** Row-major 3x3 homography from chart pixels to [lon, lat, 1]. */
@@ -211,13 +212,14 @@ export function parseUserChartBathymetry(value: unknown): UserChartBathymetryV1 
   if (r.schema !== CHART_BATHYMETRY_SCHEMA) fail(`schema must be ${CHART_BATHYMETRY_SCHEMA}.`);
   if (typeof r.id !== "string" || !/^[a-z0-9][a-z0-9-]{7,63}$/.test(r.id)) fail("id must be 8-64 lowercase letters, digits, or dashes.");
 
-  const lakeRecord = record(r.lake, "lake", ["name", "hylakId", "outline"]);
+  const lakeRecord = record(r.lake, "lake", ["name", "region", "hylakId", "outline"]);
   const outline = list(lakeRecord.outline, "lake outline", limits.maxOutlinePoints, 4).map((point, index) => lonLat(point, `lake outline point ${index}`));
   const hylakId = optional(lakeRecord.hylakId, (id) => {
     if (!Number.isSafeInteger(id) || (id as number) <= 0) fail("lake hylakId must be a positive whole number.");
     return id as number;
   });
   const name = optional(lakeRecord.name, (item) => text(item, "lake name", limits.title));
+  const region = optional(lakeRecord.region, (item) => text(item, "lake region", limits.title));
 
   const g = record(r.georef, "georef", ["method", "matrix", "controlPoints", "rmsM", "iou"]);
   const matrix = list(g.matrix, "georef matrix", 9, 9).map((item, index) => finite(item, `georef matrix entry ${index}`, -Number.MAX_VALUE, Number.MAX_VALUE));
@@ -279,7 +281,7 @@ export function parseUserChartBathymetry(value: unknown): UserChartBathymetryV1 
   return {
     schema: CHART_BATHYMETRY_SCHEMA,
     id: r.id,
-    lake: { ...(name ? { name } : {}), ...(hylakId === undefined ? {} : { hylakId }), outline },
+    lake: { ...(name ? { name } : {}), ...(region ? { region } : {}), ...(hylakId === undefined ? {} : { hylakId }), outline },
     georef: {
       method, matrix, ...(controlPoints ? { controlPoints } : {}),
       rmsM: finite(g.rmsM, "georef rmsM", 0, 1_000_000), ...(iou === undefined ? {} : { iou }),

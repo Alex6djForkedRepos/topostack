@@ -33,8 +33,12 @@ REGIONS = {'noaa-great-lakes-v1': 'Great Lakes, USA / Canada', 'usgs-crater-lake
            'mn-dnr-lakes-v1': 'Minnesota, USA', 'swissbathy3d-v1': 'Switzerland & border lakes',
            'syke-finland-lakes-v1': 'Finland', 'ontario-lakes-v1': 'Ontario, Canada',
            'nve-norway-lakes-v1': 'Norway', 'twdb-texas-reservoirs-v1': 'Texas, USA',
-           'usbr-reservoirs-v1': 'Colorado, USA'}
+           'usbr-reservoirs-v1': 'Colorado, USA',
+           # Charts are published one lake at a time; each record names its own region.
+           'community-charts-v1': 'Published depth charts'}
 GROUPS = {key: ('Canada' if key.startswith('ontario') else 'Norway' if key.startswith('nve-') else 'Finland' if key.startswith('syke') else 'Switzerland & border lakes' if key.startswith('swiss') else 'Great Lakes' if key.startswith('noaa') else 'United States') for key in REGIONS}
+# Charts are grouped by how they were made, not by country: the next one may be anywhere.
+GROUPS['community-charts-v1'] = 'Published depth charts'
 
 
 def build(cache, archives):
@@ -65,7 +69,7 @@ def build(cache, archives):
     sources, lakes = [], []
     for source in catalog:
         dataset = source['id']
-        contours = dataset in ('mn-dnr-lakes-v1', 'syke-finland-lakes-v1', 'ontario-lakes-v1', 'nve-norway-lakes-v1', 'twdb-texas-reservoirs-v1', 'usbr-reservoirs-v1')
+        contours = dataset in ('mn-dnr-lakes-v1', 'syke-finland-lakes-v1', 'ontario-lakes-v1', 'nve-norway-lakes-v1', 'twdb-texas-reservoirs-v1', 'usbr-reservoirs-v1', 'community-charts-v1')
         sources.append({'id': dataset, 'name': source['name'], 'url': source['url'], 'license': source['license'],
                         'kind': 'contours' if contours else 'grid', 'region': REGIONS[dataset], 'group': GROUPS[dataset]})
         if dataset == 'noaa-great-lakes-v1':
@@ -99,6 +103,11 @@ def build(cache, archives):
             elif dataset == 'swissbathy3d-v1':
                 name, aliases = SWISS_NAMES[key.removeprefix('swissbathy3d_')]
                 note = 'Coverage follows the published survey footprint, which may cover only part of this lake.'
+            elif dataset == 'community-charts-v1':
+                # Each chart record names its own lake and region; the receipt carries them.
+                pin = next(item for item in receipt['sources'] if item['id'] == key)
+                name, region = pin['lake'], pin.get('region') or region
+                note = f"Traced from {pin['title']}."
             elif dataset.startswith('usgs-'):
                 name = {'crater': 'Crater Lake', 'tahoe': 'Lake Tahoe', 'mono': 'Mono Lake'}[key]
             else:

@@ -146,7 +146,7 @@ export function chartRecord(chart, traced, { fileSha256, tool }) {
   const record = {
     schema: CHART_BATHYMETRY_SCHEMA,
     id: chart.id,
-    lake: { name: chart.lake?.name ?? chart.title, ...(chart.lake?.hylakId ? { hylakId: chart.lake.hylakId } : {}), outline: outline.length >= 4 ? outline : [...outline, outline[0]] },
+    lake: { name: chart.lake?.name ?? chart.title, ...(chart.lake?.region ? { region: chart.lake.region } : {}), ...(chart.lake?.hylakId ? { hylakId: chart.lake.hylakId } : {}), outline: outline.length >= 4 ? outline : [...outline, outline[0]] },
     georef: { method: "control-points", matrix: fit.matrix, controlPoints: controlPoints(chart.georef), rmsM: Math.round(fit.rmsM * 100) / 100 },
     units: chart.units,
     labels,

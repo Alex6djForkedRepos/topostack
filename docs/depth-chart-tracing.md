@@ -12,7 +12,7 @@ Many lakes have no digital survey but do have a published depth chart: a scanned
 | `@topostack/chart-trace`: colour segmentation, line tracing, label reading for scans | Done (labels best-effort; see below) |
 | `@topostack/chart-trace`: level inference that survives leaky scans (a facing graph beside raster regions) | Done |
 | Batch tracing of curated charts into records (`trace-depth-charts.mjs`) | Done |
-| Records published as a survey archive (a `chart` provider in the survey build) | Planned |
+| Records published as a survey archive (`community-charts-v1` in the survey build) | Builds; not registered in the catalog yet |
 | Loading saved charts in the studio, IndexedDB storage, project import and export | Planned |
 | Tracing wizard in the studio, with OCR loaded only when needed | Planned |
 | Reviewed catalog submissions through the map-api Worker | Planned |
@@ -117,6 +117,26 @@ Records whose attestation is publishable go to `scripts/data/depth-charts/<id>.j
 - **Status.** The chart's redistribution terms are not confirmed, so the manifest marks it `personal-use` and its record stays local.
 
 Lake Margrethe is not in the manifest yet. Its sheet has no grid ticks, so control points would have to come from the public land survey section corners it shows, or from snapping to a lake outline.
+
+## Publishing the records as a survey archive
+
+Published records reach the studio the same way a government survey does, so no browser code is involved. `chart_records.py` is the survey build's `community-charts-v1` provider:
+
+```bash
+python3 scripts/data-build/build-survey-bathymetry.py --cache <cache> --out-dir <out> --dataset community-charts-v1
+```
+
+It reads every record in `scripts/data/depth-charts/`, refuses any whose attestation may not be published, writes each record's grid as a north-up lon/lat GeoTIFF, and hands it to the shared `TileWriter`. Each chart's publisher, source URL, file digest, tracer version and licence become the archive's source pins, so the receipt beside the archive says where every tile came from.
+
+**The record's grid is used as it stands.** The record says how it was made, and re-deriving it here would risk the Python and TypeScript interpolators disagreeing about the same chart. To change a grid, re-run the tracer and commit the new record.
+
+**The source bounds are a gate.** `SOURCE['bounds']` in `chart_records.py` must cover every record, so admitting a chart in a new place is a deliberate edit.
+
+**The archive is not registered yet.** `community-charts-v1` is deliberately absent from `scripts/data/lake-bathymetry.json`: that catalog is live for every visitor, and a source whose archive is not in R2 makes the studio report depth data it cannot load. Registering it is one provisioning pass, in this order:
+1. Build the archive, then upload it with `scripts/provision/provision-lake-data.mjs`.
+2. Copy `chart_records.SOURCE` into `scripts/data/lake-bathymetry.json`, and the receipt's digest, size, tile and grid counts into `scripts/data/lake-survey-builds.json`.
+3. Rebuild the lake directory (`build-lake-directory.py`, which already knows this source) and add `community-charts-v1` to a region in `apps/generator/src/lib/site/lake-pages.ts`.
+4. Rebuild and republish the lake outlines, whose release pins the directory's digest.
 
 ## Georeferencing and gridding
 
