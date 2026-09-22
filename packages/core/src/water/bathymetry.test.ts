@@ -80,6 +80,29 @@ describe("NOAA lake-floor carving", () => {
     expect(result.grid.min).toBeLessThan(180);
   });
 
+  it("carves a traced depth chart exactly like a survey but reports it as the maker's own depth", () => {
+    const area: WaterAreaV1 = { ...lake(), bathymetryOrigin: "chart" };
+    area.bathymetry!.depthsM[13] = 35;
+    const result = carveWaterDepth(grid, config, [area], 5000);
+    const survey = carveWaterDepth(grid, config, [lake()], 5000);
+    expect(result.grid.values[12]).toBe(survey.grid.values[12]);
+    expect(result.grid.values[13]).toBe(145);
+    expect(result.surfaces[0]).toMatchObject({ depthSource: "user", bathymetryOrigin: "chart" });
+    expect(survey.surfaces[0]).not.toHaveProperty("bathymetryOrigin");
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("names the depth chart when its coverage has gaps or does not fit the grid", () => {
+    const gappy: WaterAreaV1 = { ...lake(), bathymetryOrigin: "chart" };
+    gappy.bathymetry!.depthsM[12] = Number.NaN;
+    const gaps = carveWaterDepth(grid, config, [gappy], 5000);
+    expect(gaps.surfaces[0]).toMatchObject({ depthSource: "user", bathymetryOrigin: "chart", maxDepthM: 100 });
+    expect(gaps.warnings[0]?.message).toContain("incomplete depth chart coverage");
+    const misaligned: WaterAreaV1 = { ...lake(), bathymetryOrigin: "chart" };
+    misaligned.bathymetry!.width = 6;
+    expect(carveWaterDepth(grid, config, [misaligned], 5000).warnings[0]?.message).toContain("has depth chart data that does not match");
+  });
+
   it("models a lake whose survey grid is misaligned instead of failing the map", () => {
     const area = lake();
     area.bathymetry!.width = 6;
@@ -155,6 +178,17 @@ describe("predicted lake-depth warning", () => {
     expect(warningsFor([lake()])).toEqual([]);
     expect(warningsFor([{ ...lake(), kind: "ocean" }])).toEqual([]);
     expect(warningsFor([])).toEqual([]);
+  });
+
+  it("reports a traced chart separately from predicted depths", () => {
+    const chart: WaterAreaV1 = { ...lake(), bathymetryOrigin: "chart" };
+    const all = (areas: WaterAreaV1[]) => generateGeometry(config, { ...createSyntheticSource(config, 5), elevation: grid, waterAreas: areas }).warnings;
+    expect(warningsFor([chart])).toEqual([]);
+    expect(all([chart]).filter((warning) => warning.code === "LAKE_DEPTH_FROM_CHART")).toHaveLength(1);
+    const band = (lo: number, hi: number) => ({ outer: [{ x: lo, y: -50 }, { x: hi, y: -50 }, { x: hi, y: 50 }, { x: lo, y: 50 }, { x: lo, y: -50 }], holes: [] });
+    const modeled: WaterAreaV1 = { ...lake(), id: "modeled", hylakId: 2, polygon: band(10, 50), bathymetry: undefined };
+    expect(warningsFor([{ ...chart, polygon: band(-50, -10) }, modeled])).toHaveLength(1);
+    expect(all([lake()]).some((warning) => warning.code === "LAKE_DEPTH_FROM_CHART")).toBe(false);
   });
 
   it("does not warn when water depth is disabled or output is flat engraving", () => {

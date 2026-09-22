@@ -528,9 +528,16 @@ function waterOutputs({ config, source, flatEngraving, clip, warnings }: Generat
 
   // Report provenance for lakes actually included in the output. A user-set
   // maximum or partial survey does not make the rest of a lake floor measured.
-  if (waterSurfaces.some((surface) => surface.kind === "lake" && surface.depthSource !== "surveyed")) warnings.push({
+  // A traced chart is neither surveyed nor modeled; gaps in one are reported
+  // per lake as BATHYMETRY_FALLBACK when it is carved.
+  const lakes = waterSurfaces.filter((surface) => surface.kind === "lake");
+  if (lakes.some((surface) => surface.depthSource !== "surveyed" && surface.bathymetryOrigin !== "chart")) warnings.push({
     code: "LAKE_DEPTH_PREDICTED",
     message: "Some lake depths are estimated rather than surveyed. Modeled lake floors may differ from the actual underwater terrain.",
+  });
+  if (lakes.some((surface) => surface.bathymetryOrigin === "chart")) warnings.push({
+    code: "LAKE_DEPTH_FROM_CHART",
+    message: "Some lake floors come from a traced depth chart. They are only as accurate as the chart and its tracing.",
   });
 
   const waterPatternAreas = flatEngraving && config.showWater && config.waterFillPattern !== "none"
