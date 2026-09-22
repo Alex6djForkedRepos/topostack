@@ -5,7 +5,7 @@
 
 import type { Point2 } from "./local-frame.ts";
 import { inferLevels } from "./levels.ts";
-import { bridgeGaps, chainPaths, depthLabels, labelChains, styleKey, type Chain } from "./vector-chart.ts";
+import { bridgeGaps, chainPaths, depthLabels, labelChains, styleKey, type Chain, type DepthLabel } from "./vector-chart.ts";
 import type { VectorPage } from "./vector-page.ts";
 import { inferIntervalM } from "./grid.ts";
 
@@ -22,6 +22,13 @@ export interface VectorTraceOptions {
   interval?: number;
   /** The map's page rectangle. Labels and contour paths outside it (legends, insets, grid ticks) are ignored. */
   mapArea?: { left: number; top: number; right: number; bottom: number };
+  /** Join contour pieces straight through junctions where other ink crosses them; for scans. */
+  continueThroughJunctions?: boolean;
+  /**
+   * Leave out long, ruler-straight lines (section lines, roads, frames) that
+   * share the contours' ink; for scans. A contour is never straight for long.
+   */
+  dropStraightLines?: boolean;
 }
 
 export interface TracedContour {
@@ -62,6 +69,32 @@ function pathLength(points: readonly Point2[]): number {
   return total;
 }
 
+/**
+ * With the interval known, keeps only labels on the chart's ladder: the
+ * remainder most labels share (0 for depths in whole intervals, 2 for
+ * elevations like 322, 317, 312). OCR misreads of dashes and symbols fall off.
+ */
+function onLadder(labels: DepthLabel[], interval: number | undefined): DepthLabel[] {
+  if (!interval || labels.length < 2) return labels;
+  const remainder = (value: number) => Math.round((((value % interval) + interval) % interval) * 1000) / 1000;
+  const counts = new Map<number, number>();
+  for (const label of labels) counts.set(remainder(label.value), (counts.get(remainder(label.value)) ?? 0) + 1);
+  const [common] = [...counts].sort((a, b) => b[1] - a[1])[0]!;
+  return labels.filter((label) => remainder(label.value) === common);
+}
+
+/** A long open chain that never strays more than 1% of its length from the chord between its ends. */
+function isStraight(chain: Chain, minLength: number): boolean {
+  if (chain.closed) return false;
+  const [x1, y1] = chain.points[0]!;
+  const [x2, y2] = chain.points.at(-1)!;
+  const chord = Math.hypot(x2 - x1, y2 - y1);
+  if (chord < minLength) return false;
+  let farthest = 0;
+  for (const [x, y] of chain.points) farthest = Math.max(farthest, Math.abs((x2 - x1) * (y1 - y) - (x1 - x) * (y2 - y1)) / chord);
+  return farthest <= chord * 0.01;
+}
+
 export function traceVectorChart(page: VectorPage, options: VectorTraceOptions): VectorTrace {
   const contourStyles = new Set(options.contourStyles);
   const shorelineStyles = new Set(options.shorelineStyles ?? []);
@@ -74,11 +107,13 @@ export function traceVectorChart(page: VectorPage, options: VectorTraceOptions):
   const contourPaths = page.paths.filter((path) => path.stroke && contourStyles.has(styleKey(path)) && onMap(path.points));
   // Ends a hair apart are the same point; scale with the page, never below a quarter unit.
   const tolerance = Math.max(0.25, Math.hypot(page.width, page.height) * 1e-4);
-  const labels = depthLabels(page.texts, inMap);
+  const labels = onLadder(depthLabels(page.texts, inMap), options.interval);
   const widths = labels.map((label) => label.width).sort((a, b) => a - b);
   const typicalLabel = widths.length ? widths[Math.floor(widths.length / 2)]! : 0;
   // A label gap is about one label wide; allow some margin either side.
-  const chains = bridgeGaps(chainPaths(contourPaths, tolerance), Math.max(tolerance * 4, typicalLabel * 1.8));
+  const bridged = bridgeGaps(chainPaths(contourPaths, tolerance, options.continueThroughJunctions), Math.max(tolerance * 4, typicalLabel * 1.8), undefined, undefined, labels.map((label): Point2 => [label.x, label.y]));
+  const minStraight = Math.hypot(page.width, page.height) * 0.03;
+  const chains = options.dropStraightLines ? bridged.filter((chain) => !isStraight(chain, minStraight)) : bridged;
   const labelled = labelChains(chains, labels);
   const interval = options.interval ?? inferIntervalM(labels.map((label) => label.value));
   if (!interval) throw new Error("Set the contour interval; the labels do not show it.");
@@ -92,6 +127,7 @@ export function traceVectorChart(page: VectorPage, options: VectorTraceOptions):
     ...(shoreline.length ? { shoreline: { rings: shoreline, value: surface } } : {}),
     interval,
     inward: options.labels === "depth" ? 1 : -1,
+    surface,
     width: page.width,
     height: page.height,
   });

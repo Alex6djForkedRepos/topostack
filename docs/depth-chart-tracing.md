@@ -9,7 +9,8 @@ Many lakes have no digital survey but do have a published depth chart: a scanned
 | Record contract (`@topostack/data-contracts/chart-bathymetry`) and core carving with `bathymetryOrigin: "chart"` | Done |
 | `@topostack/chart-trace`: georeferencing and gridding | Done |
 | `@topostack/chart-trace`: vector PDF extraction (paths and text layer) and level inference | Done |
-| `@topostack/chart-trace`: colour segmentation, line tracing, label reading | Planned |
+| `@topostack/chart-trace`: colour segmentation, line tracing, label reading for scans | Done (labels best-effort; see below) |
+| `@topostack/chart-trace`: level inference that survives leaky scans (line-adjacency bands instead of raster regions) | Planned |
 | Batch pipeline for curated public charts, published as a survey archive | Planned |
 | Loading saved charts in the studio, IndexedDB storage, project import and export | Planned |
 | Tracing wizard in the studio, with OCR loaded only when needed | Planned |
@@ -54,7 +55,25 @@ A GIS-exported PDF already holds the contours as paths and the labels as text, s
   - A contour parts the band below its level from the band above it, so one known side gives the other.
 
   Real sheets leak: lines crowd closer than a raster cell, and gaps at the map edge join bands that should be separate. So each unlabelled line also votes along its length: rays sideways to the nearest known line on each side name the single rung between them.
-- **Result on the TWDB sheet.** 32 labels on 10 chains lead to 36 more inferred, covering **86%** of the contour length. The inferred levels nest in order from 320 at the shore to 270 at the dam. The rest is mostly small closed loops and scraps that bound no band.
+- **Result on the TWDB sheet.** 32 labels on 10 chains lead to 47 more inferred, covering **86%** of the contour length. The inferred levels nest in order from 320 at the shore to 270 at the dam. The rest is mostly small closed loops and scraps that bound no band.
+
+## Reading scanned charts
+
+A scan becomes the same kind of page as a vector chart: traced lines stand in for paths, and read labels stand in for the text layer. From there it runs the vector route above.
+
+- **Ink.** Ink is everything darker than Otsu's split of the page, or near colours the maker picks from a k-means palette. The scan is traced at most 4096 px across. Specks, dots and lone digits are dropped, a closing heals hairline breaks, and Zhang–Suen thinning leaves one-pixel lines that keep their topology.
+- **Lines.** A skeleton pixel's role comes from how many separate branches leave it, not from its neighbour count, so the staircase corners thinning leaves stay inside lines. Short dead-end spurs are pruned, and each line keeps its stroke width.
+- **What scans need beyond the vector route:**
+  - **Crossings.** Section lines and roads cross contours in the same ink, so chaining continues straight through junctions.
+  - **Straight lines.** Long, ruler-straight lines are dropped.
+  - **Label gaps.** They are bridged more readily where a label sits in the gap.
+  - **The shore.** It is inferred as depth 0 from the band beside it, with no depth allowed shallower than that. "Auto" shoreline detection by stroke width exists, but Lake Margrethe draws its shore no bolder than its contours; there, the heavy lines are the frame, roads and lettering.
+- **Finding labels.** Loose labels are digit-sized ink clusters. At tracing resolution, a label that fills its contour's gap fuses into one blob, and the skeleton runs straight through it. What gives it away is the stroke swelling to two or three times the line's width for about a label's length. Each candidate is cropped from the full-resolution scan, turned upright along its line, and read both ways up by the OCR engine the caller passes in.
+- **Result on Lake Margrethe.** Tracing works: each contour comes out as one long chain through crossings and label gaps. Two things do not work yet:
+  - **OCR.** Tesseract with a digit whitelist reads loose labels, but the italic labels set into the lines are read poorly, because pieces of the contour inside the crop confuse it. Dash marks and symbols also produce stray digits. With the interval known, labels off the chart's ladder are dropped, which removes most of them.
+  - **Levels.** Even with three correct labels given by hand, only about 4% of the length gets a level. Leaks through unbridged gaps join the raster regions into a few huge contradictory ones, so the band rules have nothing to hold on to.
+
+  The next step is to build bands from a line-adjacency graph (which lines face each other across open water) instead of raster regions. Until then, the wizard's plan of a maker clicking a line and typing its depth, then confirming what inference fills in, is the dependable route for scans.
 
 The adapter reads the page with pdf.js 6, which the caller passes in. 5.x carries a high-severity advisory, so it is not supported.
 

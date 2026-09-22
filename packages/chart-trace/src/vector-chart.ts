@@ -39,6 +39,11 @@ export interface LabelledChain extends Chain {
   labels: number[];
 }
 
+/** Cosine of the largest bend (about 25 degrees) still read as a line carrying on through a junction. */
+const CONTINUATION = 0.9;
+/** How squarely the ends of a gap with a label in it must face it (about 70 degrees). */
+const LABELLED_GAP_ALIGNMENT = 0.3;
+
 export function styleKey(path: Pick<VectorPath, "stroke" | "lineWidth" | "dashed">): string {
   return `${path.stroke ?? "none"}/${path.lineWidth.toFixed(2)}${path.dashed ? "/dashed" : ""}`;
 }
@@ -83,10 +88,13 @@ export function depthLabels(texts: readonly VectorText[], within?: (x: number, y
 
 /**
  * Joins paths of one style end to end. Two ends within `tolerance` join only
- * when no third end is there too; a junction of three or more is where lines
- * of different levels touch, and joining through it would mix them.
+ * when no third end is there too: on a vector chart a junction of three or
+ * more is where lines of different levels touch, and joining through it would
+ * mix them. On a scan, junctions are mostly other ink crossing a contour (a
+ * section line, a road); `continueThroughJunctions` then pairs the ends at a
+ * junction that carry straight on through it.
  */
-export function chainPaths(paths: readonly VectorPath[], tolerance: number): Chain[] {
+export function chainPaths(paths: readonly VectorPath[], tolerance: number, continueThroughJunctions = false): Chain[] {
   const chains: Chain[] = [];
   const byStyle = new Map<string, VectorPath[]>();
   for (const path of paths) {
@@ -126,6 +134,21 @@ export function chainPaths(paths: readonly VectorPath[], tolerance: number): Cha
           }
         }
         if (near.length === 1) partner.set(`${index}:${side}`, near[0]!);
+        else if (near.length > 1 && continueThroughJunctions) {
+          // Ends leave a junction in opposite directions when one line runs through it.
+          const out = direction(open[index]!.points, side === 1);
+          let best: [number, number] | undefined;
+          let straightest = -CONTINUATION;
+          for (const other of near) {
+            const theirs = direction(open[other[0]]!.points, other[1] === 1);
+            const dot = out[0] * theirs[0] + out[1] * theirs[1];
+            if (dot < straightest) {
+              straightest = dot;
+              best = other;
+            }
+          }
+          if (best) partner.set(`${index}:${side}`, best);
+        }
       }
     });
     // A join needs both ends to name each other as their only partner.
@@ -168,10 +191,24 @@ export function chainPaths(paths: readonly VectorPath[], tolerance: number): Cha
   return chains;
 }
 
-function direction(points: readonly Point2[], atEnd: boolean): Point2 {
-  const tip = atEnd ? points.at(-1)! : points[0]!;
-  // Look a few vertices back so a jittery last segment does not decide the direction.
-  const back = atEnd ? points[Math.max(0, points.length - 4)]! : points[Math.min(points.length - 1, 3)]!;
+/**
+ * The heading out through one end, measured from the point about `reach`
+ * back along the line (or three vertices back without one): far enough that
+ * a jittery last pixel does not decide it, near enough to follow a curve.
+ */
+function direction(points: readonly Point2[], atEnd: boolean, reach?: number): Point2 {
+  const ordered = atEnd ? [...points].reverse() : points;
+  const tip = ordered[0]!;
+  let back = ordered[Math.min(ordered.length - 1, 3)]!;
+  if (reach !== undefined) {
+    back = ordered.at(-1)!;
+    for (const point of ordered) {
+      if (Math.hypot(point[0] - tip[0], point[1] - tip[1]) >= reach) {
+        back = point;
+        break;
+      }
+    }
+  }
   const dx = tip[0] - back[0];
   const dy = tip[1] - back[1];
   const size = Math.hypot(dx, dy) || 1;
@@ -181,9 +218,12 @@ function direction(points: readonly Point2[], atEnd: boolean): Point2 {
 /**
  * Joins open chains of one style across the gaps a chart leaves for its
  * labels: the ends must be within `maxGap`, both must point across the gap,
- * and the closest pairs are joined first.
+ * and the closest pairs are joined first. Each end needs `minAlignment`
+ * with the gap and the two together `minCombined`, which lets one end curve
+ * into a bend while the other runs straight across. A label sitting in the
+ * gap is the reason it exists, so there the ends need only roughly face.
  */
-export function bridgeGaps(chains: readonly Chain[], maxGap: number, minAlignment = 0.85): Chain[] {
+export function bridgeGaps(chains: readonly Chain[], maxGap: number, minAlignment = 0.6, minCombined = 1.5, labels: readonly Point2[] = []): Chain[] {
   const out = chains.map((chain) => ({ ...chain, points: [...chain.points] }));
   // Ends are kept as the point objects themselves, which survive merging.
   const candidates: { a: number; aEnd: boolean; b: number; bEnd: boolean; pa: Point2; pb: Point2; gap: number }[] = [];
@@ -201,11 +241,14 @@ export function bridgeGaps(chains: readonly Chain[], maxGap: number, minAlignmen
           const gap = Math.hypot(q[0] - p[0], q[1] - p[1]);
           if (gap > maxGap || gap === 0) continue;
           const across: Point2 = [(q[0] - p[0]) / gap, (q[1] - p[1]) / gap];
-          const da = direction(out[a]!.points, aEnd);
-          const db = direction(out[b]!.points, bEnd);
+          const da = direction(out[a]!.points, aEnd, maxGap);
+          const db = direction(out[b]!.points, bEnd, maxGap);
           // Each chain must head out through its own end towards the other.
-          if (da[0] * across[0] + da[1] * across[1] < minAlignment) continue;
-          if (-(db[0] * across[0] + db[1] * across[1]) < minAlignment) continue;
+          const alignA = da[0] * across[0] + da[1] * across[1];
+          const alignB = -(db[0] * across[0] + db[1] * across[1]);
+          const middle: Point2 = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
+          const labelled = labels.some(([x, y]) => Math.hypot(x - middle[0], y - middle[1]) <= gap / 2);
+          if (labelled ? alignA < LABELLED_GAP_ALIGNMENT || alignB < LABELLED_GAP_ALIGNMENT : alignA < minAlignment || alignB < minAlignment || alignA + alignB < minCombined) continue;
           candidates.push({ a, aEnd, b, bEnd, pa: p, pb: q, gap });
         }
       }
@@ -267,7 +310,7 @@ export function labelChains(chains: readonly Chain[], labels: readonly DepthLabe
         const distance = Math.hypot(label.x - x1 - t * dx, label.y - y1 - t * dy);
         if (distance > reach || (best && distance >= best.distance)) continue;
         // Labels read along the line, in either direction.
-        if (Math.abs((dx / span) * Math.cos(label.angle) + (dy / span) * Math.sin(label.angle)) < minAlignment) continue;
+        if (Number.isFinite(label.angle) && Math.abs((dx / span) * Math.cos(label.angle) + (dy / span) * Math.sin(label.angle)) < minAlignment) continue;
         best = { chain: index, distance };
       }
     });

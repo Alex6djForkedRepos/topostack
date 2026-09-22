@@ -22,6 +22,12 @@ export interface LevelInput {
   interval: number;
   /** +1 when values grow away from the shore (depths), -1 when they shrink (elevations). */
   inward: 1 | -1;
+  /**
+   * The water surface, which no contour lies beyond: depths are at least 0,
+   * elevations at most the pool. Lines that would fall outside it (roads,
+   * frames, the shore of a scan) are left without a level.
+   */
+  surface?: number;
   width: number;
   height: number;
   /** Raster cell size in page units; defaults so the longer side is at most 2048 cells. */
@@ -39,9 +45,9 @@ export interface LevelResult {
 }
 
 const EPSILON = 1e-6;
-/** Samples per line for the sideways vote, how far a ray looks in cells, and what counts as a decision. */
+/** Samples per line for the sideways vote, how far a ray looks as a share of the page, and what counts as a decision. */
 const RAY_SAMPLES = 60;
-const RAY_REACH_CELLS = 120;
+const RAY_REACH_SHARE = 0.15;
 const RAY_MIN_VOTES = 3;
 const RAY_MIN_SHARE = 0.75;
 /** Regions smaller than this are pockets left by drawing, not the space between lines. */
@@ -154,6 +160,9 @@ export function inferLevels(input: LevelInput): LevelResult {
     return undefined;
   };
 
+  const bound = input.surface ?? input.shoreline?.value;
+  /** Whether a level lies on the water side of the surface. */
+  const allowed = (value: number) => bound === undefined || (inward > 0 ? value >= bound - EPSILON : value <= bound + EPSILON);
   /** The rung on the far side of `level` from `other`. */
   const beyond = (level: number, other: number) => {
     const rung = step(level);
@@ -193,6 +202,7 @@ export function inferLevels(input: LevelInput): LevelResult {
         const other = same(band.low, level) ? band.high : same(band.high, level) ? band.low : undefined;
         if (other === undefined) continue;
         const far = beyond(level, other);
+        if (!allowed(far)) continue;
         changed = assign(to, { low: Math.min(level, far), high: Math.max(level, far) }) || changed;
       }
     });
@@ -223,6 +233,7 @@ export function inferLevels(input: LevelInput): LevelResult {
           break;
         }
       }
+      candidates = candidates?.filter(allowed);
       if (candidates?.length === 1) {
         values[id] = candidates[0];
         inferred[id] = true;
@@ -234,7 +245,7 @@ export function inferLevels(input: LevelInput): LevelResult {
     lines.forEach((line, id) => {
       if (values[id] !== undefined) return;
       const vote = rayVote(line, id);
-      if (vote === undefined) return;
+      if (vote === undefined || !allowed(vote)) return;
       values[id] = vote;
       inferred[id] = true;
       changed = true;
@@ -251,7 +262,7 @@ export function inferLevels(input: LevelInput): LevelResult {
     let total = 0;
     for (let index = 1; index < ring.length; index += 1) total += Math.hypot(ring[index]![0] - ring[index - 1]![0], ring[index]![1] - ring[index - 1]![1]);
     const spacing = Math.max(cellSize * 3, total / RAY_SAMPLES);
-    const reach = RAY_REACH_CELLS;
+    const reach = Math.ceil((Math.max(input.width, input.height) * RAY_REACH_SHARE) / cellSize);
     const tally = new Map<number, number>();
     let cast = 0;
     let travelled = 0;
