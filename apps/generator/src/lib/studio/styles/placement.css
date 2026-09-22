@@ -1,10 +1,14 @@
 /* Placement mode: the top-down stage, the draft layer over it, and its toolbar.
    The layer's SVG and every backdrop share one meet-fitted viewBox, so all of
    them fill the stage box exactly; see lib/studio/placement/viewport.ts. */
+.preview-stage:has(.placement-stage) {
+  --placement-toolbar-space: 96px;
+}
+
 .placement-stage {
   position: absolute;
   inset: 0;
-  z-index: 2;
+  z-index: 4;
   pointer-events: none;
   opacity: 0;
   transition: opacity 200ms ease;
@@ -31,6 +35,15 @@
   inset: 0;
   width: 100%;
   height: 100%;
+}
+
+/* Keep the shared drawing viewport below the controls, including in 3D.
+   A millimeter margin alone cannot protect handles from a pixel-sized toolbar. */
+.preview-stage:has(.placement-stage) .three-stage,
+.placement-stage .stack-top-view,
+.placement-layer > svg {
+  top: var(--placement-toolbar-space);
+  height: calc(100% - var(--placement-toolbar-space));
 }
 
 .placement-layer > svg {
@@ -95,6 +108,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  width: max-content;
   max-width: calc(100% - 32px);
   padding: 8px 8px 8px 10px;
   border: 2px solid var(--loidolt-accent);
@@ -128,7 +142,7 @@
 
 .placement-toolbar__text {
   display: grid;
-  white-space: nowrap;
+  white-space: normal;
   gap: 2px;
   min-width: 0;
   margin-right: 4px;
@@ -216,6 +230,22 @@
 }
 
 @container terrain-preview (max-width: 560px) {
+  .preview-stage:has(.placement-stage) {
+    --placement-toolbar-space: 112px;
+  }
+
+  .placement-toolbar {
+    gap: 8px;
+    width: calc(100% - 32px);
+  }
+
+  .placement-toolbar__icon {
+    display: none;
+  }
+
+  .placement-toolbar__text {
+    flex: 1;
+  }
   .placement-toolbar__hint {
     display: none;
   }

@@ -69,6 +69,44 @@ describe("TopoStack Svelte shell", () => {
   });
   afterEach(async () => { if (component) await unmount(component); component = undefined; loadTerrainMock.mockReset(); loadVectorMarkingsMock.mockReset(); loadLakeAreasMock.mockReset(); Object.values(noaaArchive).forEach((mock) => mock.mockReset()); theme.preference = "system"; localStorage.removeItem("topostack-theme"); localStorage.removeItem("topostack-menu-sections-v1"); delete window.atomm; });
 
+  it("title edits survive committing an open placement draft", async () => {
+    const { saveProject } = await import("$lib/storage/storage");
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await tick();
+    target.querySelector<HTMLButtonElement>('button[role="switch"][aria-label="Title"]')!.click();
+    await vi.waitFor(() => expect(target.querySelector(".plaque-settings button.placement-start")).not.toBeNull());
+    target.querySelector<HTMLButtonElement>(".plaque-settings button.placement-start")!.click();
+    await vi.waitFor(() => expect(target.querySelector('[data-placeable="plaque"]')).not.toBeNull());
+    target.querySelector('[data-placeable="plaque"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    await tick();
+    const text = target.querySelector<HTMLTextAreaElement>('.plaque-settings textarea')!;
+    text.value = "Updated title";
+    text.dispatchEvent(new Event("input", { bubbles: true }));
+    await tick();
+    window.dispatchEvent(new Event("pagehide"));
+    expect(vi.mocked(saveProject).mock.lastCall![0].plaque?.text).toBe("Updated title");
+    [...target.querySelectorAll<HTMLButtonElement>(".placement-toolbar button")].find(b => b.textContent?.trim() === "Done")!.click();
+    // Done allows up to four seconds for generation, then fades out.
+    await vi.waitFor(() => expect(target.querySelector("[data-placement-layer]")).toBeNull(), { timeout: 6_000 });
+    window.dispatchEvent(new Event("pagehide"));
+    expect(vi.mocked(saveProject).mock.lastCall![0].plaque?.text).toBe("Updated title");
+  });
+  it("toolbar undo is paused during placement", async () => {
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await tick();
+    const name = target.querySelector<HTMLInputElement>('[aria-label="Project name"]')!;
+    name.value = "Changed name";
+    name.dispatchEvent(new Event("input", { bubbles: true }));
+    await tick();
+    target.querySelector<HTMLButtonElement>("button.placement-start")!.click();
+    await vi.waitFor(() => expect(target.querySelector("[data-placement-layer]")).not.toBeNull());
+    target.querySelector<HTMLButtonElement>('button[aria-label="Undo"]')!.click();
+    await tick();
+    expect(name.value).toBe("Changed name");
+  });
+
   it("resets the entire saved project to Crater Lake defaults and supports Undo", async () => {
     const { loadProject, saveProject } = await import("$lib/storage/storage");
     const saved = { ...DEFAULT_PROJECT, name: "My mountain", widthMm: 450, outputMode: "engraving" as const,
@@ -787,7 +825,8 @@ describe("TopoStack Svelte shell", () => {
     window.dispatchEvent(new Event("pagehide"));
     expect(northCenter()).toEqual(before);
     [...target.querySelectorAll<HTMLButtonElement>(".placement-toolbar button")].find((button) => button.textContent?.trim() === "Done")!.click();
-    await vi.waitFor(() => expect(layer()).toBeNull());
+    // Coverage instrumentation can make generation exceed waitFor's default second.
+    await vi.waitFor(() => expect(layer()).toBeNull(), { timeout: 6_000 });
     window.dispatchEvent(new Event("pagehide"));
     expect(northCenter()).not.toEqual(before);
     expect(Number(target.querySelector<HTMLElement>(".preview-stage")?.dataset.northMarkings)).toBeGreaterThan(0);
@@ -802,7 +841,8 @@ describe("TopoStack Svelte shell", () => {
     // The scale bar is placed in the same session.
     expect(handle("scale")).not.toBeNull();
     const topView = target.querySelector<SVGSVGElement>(".stack-top-view")!;
-    expect(topView.querySelectorAll("path").length).toBeGreaterThan(10);
+    expect(topView.querySelector("rect, circle")).not.toBeNull();
+    expect(target.querySelectorAll("[data-placement-artwork] path").length).toBeGreaterThan(10);
     await vi.waitFor(() => expect(document.activeElement).toBe(handle("plaque")));
     const titleLeft = () => Number(handle("plaque").getAttribute("d")!.match(/^M\s*([-\d.]+)/)![1]);
     const startLeft = titleLeft();

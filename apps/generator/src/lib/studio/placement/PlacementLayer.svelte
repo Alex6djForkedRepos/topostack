@@ -2,13 +2,15 @@
   import { onMount, tick } from "svelte";
   import { Button } from "@loidolt/theme-svelte";
   import { Move } from "@lucide/svelte";
-  import { displayLength, lengthUnit, type Point2D, type ProjectConfigV1 } from "@topostack/core";
-  import { markingColor, markingWidth } from "$lib/studio/marking-style";
-  import { labelPaths, markingPath, pointsToPath } from "$lib/studio/svg-path";
+  import { displayLength, lengthUnit, type GeometryIRV1, type Point2D, type ProjectConfigV1 } from "@topostack/core";
+  import { pointsToPath } from "$lib/studio/svg-path";
   import { availablePlaceables, draftProject, movePlaceable, PLACEABLES, resizePlaceable, type PlaceableId, type PlacementContext, type PlacementSession } from "./placeables";
+  import PlacementArtwork from "./PlacementArtwork.svelte";
   import { placementViewBox } from "./viewport";
 
-  let { project, context, session, widthMm, heightMm, marginMm, interactive = true, onChange, onDone, onCancel }: {
+  let { geometry, hiddenPrefixes, project, context, session, widthMm, heightMm, marginMm, interactive = true, onChange, onDone, onCancel }: {
+    geometry: GeometryIRV1;
+    hiddenPrefixes: readonly string[];
     project: ProjectConfigV1;
     context: PlacementContext;
     session: PlacementSession;
@@ -36,12 +38,10 @@
   let pixel = $state(0.5);
 
   const draft = $derived(draftProject(project, session));
-  const items = $derived(availablePlaceables(draft).map((placeable) => ({
-    placeable,
-    grip: placeable.resize ? gripPoint(placeable.outline(draft, context)) : undefined,
-    outline: pointsToPath(placeable.outline(draft, context)),
-    markings: placeable.markings(draft, context),
-  })));
+  const items = $derived(availablePlaceables(draft).map((placeable) => {
+    const ring = placeable.outline(draft, context);
+    return { placeable, grip: placeable.resize ? gripPoint(ring) : undefined, outline: pointsToPath(ring) };
+  }));
   const viewBox = $derived(placementViewBox(widthMm, heightMm, marginMm));
   const selected = $derived(PLACEABLES[session.selected]);
   const selectedLabel = $derived(selected.label);
@@ -107,6 +107,7 @@
   }
 
   function select(id: PlaceableId): void {
+    if (!interactive) return;
     if (session.selected !== id) onChange({ ...session, selected: id });
   }
 
@@ -168,18 +169,11 @@
 
 <!-- Escape and Enter here are shortcuts for the toolbar's Cancel and Done buttons. -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="placement-layer" class:placement-layer--inert={!interactive} onkeydown={handleKey}>
+<div class="placement-layer" class:placement-layer--inert={!interactive} inert={!interactive} onkeydown={handleKey}>
   <svg bind:this={svg} viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`} data-placement-layer>
-    {#each items as { placeable, grip, outline, markings } (placeable.id)}
+    <PlacementArtwork {geometry} project={draft} {context} {hiddenPrefixes} />
+    {#each items as { placeable, grip, outline } (placeable.id)}
       <g class="placement-item" class:placement-item--selected={session.selected === placeable.id} class:placement-item--dragging={dragging === placeable.id} data-placement-item={placeable.id}>
-        {#each markings as marking (marking.id)}
-          {#if marking.label && marking.points[0]}
-            {@const text = labelPaths(marking)}
-            {#if text.fill}<path d={text.fill} fill-rule="evenodd" fill={markingColor(marking)} />{:else}<path d={text.stroke} fill="none" stroke={markingColor(marking)} stroke-width={draft.lineStyle.annotationMm} stroke-linecap={text.round ? "round" : "butt"} stroke-linejoin={text.round ? "round" : "miter"} />{/if}
-          {:else}
-            <path d={markingPath(marking)} fill={marking.filled ? markingColor(marking) : "none"} fill-rule="evenodd" stroke={marking.filled ? "none" : markingColor(marking)} stroke-width={markingWidth(marking, draft.lineStyle)} />
-          {/if}
-        {/each}
         <path
           class="placement-handle" d={`${outline} Z`}
           data-placeable={placeable.id}

@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { GeometryIRV1, ProjectConfigV1 } from "@topostack/core";
+  import { isFontLoaded, projectFonts, type GeometryIRV1, type ProjectConfigV1 } from "@topostack/core";
   import type { PlacementPhase } from "$lib/studio/studio-context";
+  import { ensureFonts } from "$lib/domain/fonts";
   import PlacementLayer from "./PlacementLayer.svelte";
   import StackTopView from "./StackTopView.svelte";
   import { placementContext, type PlacementSession } from "./placeables";
@@ -28,6 +29,25 @@
 
   const context = $derived(placementContext(geometry));
 
+  const fonts = $derived(projectFonts(project));
+  const fontKey = $derived(fonts.join("|"));
+  let loadedKey = $state<string>();
+  let fontError = $state("");
+  let retry = $state(0);
+  const fontsReady = $derived(loadedKey === fontKey || fonts.every(isFontLoaded));
+  $effect(() => {
+    const key = fontKey;
+    void retry;
+    let active = true;
+    fontError = "";
+    void ensureFonts(fonts).then(() => {
+      if (active) loadedKey = key;
+    }, (error: unknown) => {
+      if (active) fontError = error instanceof Error ? error.message : "Could not load the engraving font.";
+    });
+    return () => { active = false; };
+  });
+
   // Rendered hidden, then shown on the next frame, so the fade-in always plays.
   let shown = $state(false);
   onMount(() => {
@@ -37,6 +57,14 @@
 </script>
 
 <div class="placement-stage" class:placement-stage--flat={backdrop === "flat"} class:placement-stage--shown={shown && phase !== "closing"} data-placement-backdrop={backdrop} data-placement-phase={phase}>
-  {#if backdrop === "flat"}<StackTopView {geometry} outputMode={project.outputMode} {cropShape} {marginMm} {hiddenPrefixes} />{/if}
-  <PlacementLayer {project} {context} {session} widthMm={geometry.widthMm} heightMm={geometry.heightMm} {marginMm} interactive={phase === "editing"} {onChange} {onDone} {onCancel} />
+  {#if backdrop === "flat"}<StackTopView {geometry} outputMode={project.outputMode} {cropShape} {marginMm} hiddenPrefixes={[""]} bare />{/if}
+  {#if fontsReady}
+  <PlacementLayer {geometry} {hiddenPrefixes} {project} {context} {session} widthMm={geometry.widthMm} heightMm={geometry.heightMm} {marginMm} interactive={phase === "editing"} {onChange} {onDone} {onCancel} />
+  {:else}
+    <div class="placement-toolbar" role="status">
+      <span>{fontError || "Loading engraving font…"}</span>
+      {#if fontError}<button type="button" onclick={() => retry += 1}>Retry</button>{/if}
+      <button type="button" onclick={onCancel}>Cancel</button>
+    </div>
+  {/if}
 </div>

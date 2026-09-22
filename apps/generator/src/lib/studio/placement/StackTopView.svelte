@@ -11,12 +11,13 @@
    * exposed, with its markings. Flat engravings draw their one sheet with the
    * contour lines on it. The fallback backdrop for placement mode.
    */
-  let { geometry, outputMode, cropShape, marginMm, hiddenPrefixes }: {
+  let { geometry, outputMode, cropShape, marginMm, hiddenPrefixes, bare = false }: {
     geometry: GeometryIRV1;
     outputMode: ProjectConfigV1["outputMode"];
     cropShape: ProjectConfigV1["cropShape"];
     marginMm: number;
     hiddenPrefixes: readonly string[];
+    bare?: boolean;
   } = $props();
 
   const viewBox = $derived(placementViewBox(geometry.widthMm, geometry.heightMm, marginMm));
@@ -32,11 +33,11 @@
 <svg class="stack-top-view" viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`} role="img" aria-label="Top-down view of the piece">
   {#if outputMode === "engraving"}
     {#if cropShape === "circle"}<circle cx="0" cy="0" r={cropRadiusMm(geometry)} fill="#e8cfaa" />{:else}<rect x={-geometry.widthMm / 2} y={-geometry.heightMm / 2} width={geometry.widthMm} height={geometry.heightMm} fill="#e8cfaa" />{/if}
-    <g fill="none" stroke="#6b4a2d" stroke-width={geometry.lineStyle.contourMm}>
+    {#if !bare}<g fill="none" stroke="#6b4a2d" stroke-width={geometry.lineStyle.contourMm}>
       {#each geometry.layers.slice(1) as layer (layer.id)}
         {#each layer.polygons as polygon}<path d={ringsPath(polygon)} />{/each}
       {/each}
-    </g>
+    </g>{/if}
   {/if}
   {#each layers as { layer, shade, markings } (layer.id)}
     {#if outputMode === "stack"}

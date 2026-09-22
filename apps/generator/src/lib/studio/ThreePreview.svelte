@@ -24,7 +24,7 @@
   let { geometry, exploded, placement, onUnavailable }: {
     geometry: GeometryIRV1;
     exploded: number;
-    placement?: { hiddenPrefixes: readonly string[]; marginMm: number };
+    placement?: { hiddenPrefixes: readonly string[]; marginMm: number; hideMarkings?: boolean };
     onUnavailable?: () => void;
   } = $props();
   import AtommZoom from "$lib/atomm/AtommZoom.svelte";
@@ -365,7 +365,9 @@
   const heightMm = $derived(geometry.heightMm);
   // A string, so an equal prefix list from a new array does not rebuild the scene.
   const hiddenKey = $derived(placement?.hiddenPrefixes.join("|") ?? "");
+  const hideMarkings = $derived(placement?.hideMarkings ?? false);
   $effect(() => {
+    const omitMarkings = hideMarkings;
     const activeGeometry = { layers, waterSurfaces, lineStyle, widthMm, heightMm };
     const hiddenPrefixes = hiddenKey ? hiddenKey.split("|") : [];
     const timeout = window.setTimeout(() => {
@@ -443,7 +445,7 @@
         const labelBatch: LineBatch = { positions: [] };
         for (const mesh of cached.meshes) addStacked(runtime!.content, mesh, layer.index, baseZ);
         layer.markings.forEach((marking) => {
-          if (hiddenByPrefix(marking.id, hiddenPrefixes)) return;
+          if (omitMarkings || hiddenByPrefix(marking.id, hiddenPrefixes)) return;
           if (marking.filled && marking.points.length > 2) {
             const marker = new THREE.Mesh(new THREE.ShapeGeometry(shapeFromPolygon({ outer: marking.points, holes: marking.holes ?? [] })), marking.knockout ? face : markerFillMaterial);
             marker.renderOrder = marking.knockout ? 2 : 3;
@@ -527,8 +529,11 @@
   $effect(() => {
     if (placing) untrack(enterTopDown); else untrack(leaveTopDown);
   });
+  // Draft edits can replace the placement prop. Refit only when its margin
+  // changes: otherwise every nudge schedules an expensive terrain render.
+  const topMargin = $derived(placement?.marginMm);
   $effect(() => {
-    void placement?.marginMm; void widthMm; void heightMm;
+    void topMargin; void widthMm; void heightMm;
     untrack(() => { fitTopCamera(); runtime?.requestRender(); });
   });
 

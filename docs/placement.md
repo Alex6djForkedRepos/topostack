@@ -14,16 +14,20 @@ custom-line points are meant to join it. The code lives in `apps/generator/src/l
      the exploded stack, eases the orbit camera overhead, then renders with an
      orthographic camera. Orbiting is off.
    - Flat engravings, and layered projects without WebGL, draw
-     `StackTopView`: every sheet painted bottom to top with its markings.
+     `StackTopView`: the material sheets painted bottom to top.
 
-   Either way, the generated markings of the placeables are hidden, so the old
-   position is not shown twice.
+   Either way, generated markings are hidden in the material backdrop.
+   `PlacementArtwork` composes the saved markings and draft annotations in SVG.
+   Title and marker knockouts mask earlier artwork, preserving the material
+   texture beneath them; markers remain above the title. Static marking
+   components retain their path data while a draft moves.
 3. `PlacementLayer` draws every available placeable above everything, from the
    draft. A placeable cannot disappear under a sheet, because it is not on one yet.
    Dragging, arrow-key nudges, the resize grip, + and −, and Tab only change
-   the draft. Nothing saves or
-   regenerates while the session is open, and undo/redo are paused.
-4. **Done** hands the draft to `updateFabrication` as one edit. The normal
+   the draft. Placement gestures do not save or regenerate; sidebar edits
+   still use the normal update flow. Undo/redo are paused.
+4. **Done** merges the placement-owned fields into the current project and hands
+   that patch to `updateFabrication` as one edit. The normal
    pipeline regenerates, and generation decides which sheets the item lands on,
    exactly as for any other setting. This gives one regeneration and one undo step.
    **Cancel** or Esc drops the draft.
@@ -34,7 +38,9 @@ The layer is an SVG whose viewBox is the artwork plus a margin
 (`placementViewBox`), fitted with the default `xMidYMid meet`. Each backdrop
 draws with that same fit: `StackTopView` uses the same viewBox, and the
 orthographic camera's frustum comes from `placementFrustum`. So millimeters
-line up without passing a camera object between components.
+line up without passing a camera object between components. The SVG, flat
+backdrop, and 3D container share the drawing area below the placement toolbar;
+the controls reserve screen space so default edge annotations remain reachable.
 
 The pointer math is one number, millimeters per pixel from the SVG's
 bounding box.
@@ -69,10 +75,25 @@ length:
   are hidden in the backdrop while a draft is shown. `placeables.test.ts`
   checks them against real generated geometry.
 
-Then add a sidebar control that calls `startPlacement(id)`. The draft is a
-project patch, so no new state, persistence or migration is needed unless the
+Then add a sidebar control that calls `startPlacement(id)`. The draft uses `PlacementPatch`, which contains only position and size fields.
+Nested fields are merged at preview and commit time so live title text, font,
+and enabled-state edits survive. Extend that type when adding a placeable;
+no new persistence or migration is needed unless the
 placeable needs a new project field. Versioned fields still follow the
 migration rule in the architecture doc.
 
 An annotation should be generated onto the exposed surface (`followSurface`
 in `placeAnnotations`), so wherever it is placed, no upper sheet hides it.
+
+## Loading and interaction
+
+`PlacementStage` waits for the selected project's glyphs before mounting any
+font-dependent draft geometry. A failed load offers Retry and Cancel; obsolete
+loads cannot update a newer selection or an unmounted stage. History actions
+and their toolbar controls are disabled for the entire placement session.
+
+The terrain backdrop changes only when generated geometry or placement mode
+changes. Pointer and keyboard edits update SVG artwork and masks; they do not
+regenerate terrain or rebuild the 3D scene. The browser placement test attaches
+frame timings for tracking interaction performance without imposing
+hardware-dependent timing thresholds on CI.

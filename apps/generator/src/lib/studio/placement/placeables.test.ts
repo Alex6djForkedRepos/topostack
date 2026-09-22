@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_PROJECT, generateGeometry, type ProjectConfigV1 } from "@topostack/core";
+import { DEFAULT_PROJECT, generateGeometry, validateProject, type ProjectConfigV1 } from "@topostack/core";
 import { createSamplePreviewSource } from "$lib/domain/sample-preview";
 import { availablePlaceables, draftProject, hiddenByPrefix, hiddenMarkingPrefixes, movePlaceable, PLACEABLES, PLACEABLE_ORDER, resizePlaceable, type PlacementSession } from "./placeables";
 
@@ -9,6 +9,24 @@ import { placementFrustum, placementViewBox } from "./viewport";
 const project: ProjectConfigV1 = { ...DEFAULT_PROJECT, plaque: { enabled: true, text: "Crater Lake", sizeMm: 6, placement: { anchor: "bottom-left", offset: { x: 0, y: 0 } } } };
 
 describe("placeables", () => {
+  it("keeps resized values valid at fractional maximum sizes", () => {
+    for (const dimension of [101, 101.1, 101.23]) {
+      const small = { ...project, widthMm: dimension, heightMm: dimension };
+      const session = resizePlaceable(small, { selected: "north", draft: {} }, "north", 999, context);
+      expect(() => validateProject(draftProject(small, session))).not.toThrow();
+    }
+  });
+
+  it("merges only edited title fields over live text, font, and visibility", () => {
+    let session = movePlaceable(project, { selected: "plaque", draft: {} }, "plaque", { x: 0, y: 0 }, context);
+    session = resizePlaceable(project, session, "plaque", 7, context);
+    session = movePlaceable(project, session, "plaque", { x: 1, y: 2 }, context);
+    expect(Object.keys(session.draft.plaque!).sort()).toEqual(["placement", "sizeMm"]);
+    const live = { ...project, plaque: { ...project.plaque!, text: "Updated", font: "rounded" as const, enabled: false } };
+    expect(draftProject(live, session).plaque).toMatchObject({ text: "Updated", font: "rounded", enabled: false, sizeMm: 7 });
+    expect(draftProject(live, session).plaque?.placement).toEqual(session.draft.plaque?.placement);
+  });
+
   it("moves each placeable to the dropped center and draws it there", () => {
     for (const id of PLACEABLE_ORDER) {
       const session = movePlaceable(project, { selected: id, draft: {} }, id, { x: 12, y: -9 }, context);

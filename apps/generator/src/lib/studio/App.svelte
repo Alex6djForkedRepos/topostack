@@ -24,7 +24,7 @@
   import * as edits from "$lib/studio/project-edits";
   import { isAbortError, PreviewPipeline } from "$lib/studio/preview-pipeline";
   import { LazyComponent } from "$lib/studio/lazy-component";
-  import { availablePlaceables, hiddenMarkingPrefixes, PLACEABLES, type PlaceableId, type PlacementSession } from "$lib/studio/placement/placeables";
+  import { availablePlaceables, hiddenMarkingPrefixes, placementPatch, PLACEABLES, type PlaceableId, type PlacementSession } from "$lib/studio/placement/placeables";
   import { placementMarginMm } from "$lib/studio/placement/viewport";
   import { createProjectPreviewSource } from "$lib/studio/project-preview";
   import { restoreStartupProject } from "$lib/studio/startup-restore";
@@ -191,8 +191,10 @@
     pulsePlacementFade();
   }
   function closePlacement(): void {
+    const closingSession = placement;
     placementPhase = "closing";
     setTimeout(() => {
+      if (placement !== closingSession) return;
       pulsePlacementFade();
       placement = undefined;
       placementPhase = "editing";
@@ -201,9 +203,10 @@
   function commitPlacement(): void {
     if (!placement || placementPhase !== "editing") return;
     if (!Object.keys(placement.draft).length) { closePlacement(); return; }
+    const committingSession = placement;
     placementPhase = "settling";
-    const settled = updateFabrication(placement.draft).catch(() => undefined);
-    void Promise.race([settled, new Promise((resolve) => setTimeout(resolve, PLACEMENT_SETTLE_LIMIT_MS))]).then(closePlacement);
+    const settled = updateFabrication(placementPatch(project, $state.snapshot(placement.draft))).catch(() => undefined);
+    void Promise.race([settled, new Promise((resolve) => setTimeout(resolve, PLACEMENT_SETTLE_LIMIT_MS))]).then(() => { if (placement === committingSession) closePlacement(); });
   }
   function cancelPlacement(): void {
     if (placement && placementPhase === "editing") closePlacement();
@@ -496,6 +499,7 @@
    * superseded, exactly as `refreshPreview` does.
    */
   function replaceSourceProject(next: ProjectConfigV1, source: SourceBundleV1): void {
+    placement = undefined;
     project = next; sourceProject = next; activeSource = source;
     geometry = { ...geometry, projectName: next.name };
     const revision = pipeline.revision;
@@ -592,8 +596,8 @@
     status = "Project reset to Crater Lake defaults · Undo restores your previous settings";
   }
 
-  function undo(): void { const previous = projectHistory.undo(project); if (previous) restoreProject(previous, "Undo"); }
-  function redo(): void { const next = projectHistory.redo(project); if (next) restoreProject(next, "Redo"); }
+  function undo(): void { if (placement) return; const previous = projectHistory.undo(project); if (previous) restoreProject(previous, "Undo"); }
+  function redo(): void { if (placement) return; const next = projectHistory.redo(project); if (next) restoreProject(next, "Redo"); }
 
   function handleHistoryKey(event: KeyboardEvent): void {
     const shortcut = historyShortcut(event);
