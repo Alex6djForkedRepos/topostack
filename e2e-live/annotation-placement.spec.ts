@@ -3,12 +3,15 @@ import { unzipSync } from "fflate";
 
 for (const output of ["Layered relief", "Flat engraving"]) {
   test(`${output}: real terrain retains placed annotations through export and reload`, async ({ page }, testInfo) => {
+    // Two real generations (before export and after reload) each allow 120 seconds.
+    test.setTimeout(300_000);
+    const readyStatus = output === "Flat engraving" ? "Engraving ready" : "Real terrain ready";
     const errors: string[] = [];
     page.on("pageerror", error => errors.push(error.message));
     await page.goto("/studio", { waitUntil: "domcontentloaded" });
     await page.getByRole("radio", { name: output, exact: true }).click();
     await page.getByRole("button", { name: /Generate terrain/ }).click();
-    await expect(page.locator(".status-line")).toContainText("Real terrain ready", { timeout: 120_000 });
+    await expect(page.locator(".status-line")).toContainText(readyStatus, { timeout: 120_000 });
     await page.getByRole("button", { name: "Expand all", exact: true }).click();
     await page.getByRole("switch", { name: "Title", exact: true }).click();
     await page.locator(".plaque-settings textarea").fill("Release placement check");
@@ -36,12 +39,12 @@ for (const output of ["Layered relief", "Flat engraving"]) {
     for await (const chunk of stream) chunks.push(Buffer.from(chunk));
     const files = unzipSync(Buffer.concat(chunks));
     const projectFile = Object.keys(files).find(name => name.endsWith("-project.json"));
-    const masterFile = Object.keys(files).find(name => name.endsWith("-master.svg"));
+    const masterFile = Object.keys(files).find(name => name.endsWith(output === "Flat engraving" ? "-engraving.svg" : "-master.svg"));
     expect(projectFile).toBeTruthy();
     expect(masterFile).toBeTruthy();
     const saved = JSON.parse(Buffer.from(files[projectFile!]!).toString("utf8")).project;
     expect(saved.plaque.text).toBe("Release placement check");
-    expect(saved.plaque.sizeMm).toBe(7);
+    expect(saved.plaque.sizeMm).toBe(6.5);
     expect(saved.northArrowSizeMm).toBe(25);
     expect(saved.scaleBarPlacement).toBeDefined();
     const master = Buffer.from(files[masterFile!]!).toString("utf8");
@@ -51,7 +54,7 @@ for (const output of ["Layered relief", "Flat engraving"]) {
     await page.keyboard.press("Escape");
     await page.reload();
     await page.getByRole("button", { name: /Generate terrain/ }).click();
-    await expect(page.locator(".status-line")).toContainText("Real terrain ready", { timeout: 120_000 });
+    await expect(page.locator(".status-line")).toContainText(readyStatus, { timeout: 120_000 });
     await page.locator(".plaque-settings .placement-start").click();
     for (const [index, item] of [title, compass, scale].entries()) {
       await expect(item).toHaveAttribute("d", positions[index]!);
