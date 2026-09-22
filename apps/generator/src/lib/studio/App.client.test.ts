@@ -77,7 +77,8 @@ describe("TopoStack Svelte shell", () => {
     target.querySelector<HTMLButtonElement>('button[role="switch"][aria-label="Title"]')!.click();
     await vi.waitFor(() => expect(target.querySelector(".plaque-settings button.placement-start")).not.toBeNull());
     target.querySelector<HTMLButtonElement>(".plaque-settings button.placement-start")!.click();
-    await vi.waitFor(() => expect(target.querySelector('[data-placeable="plaque"]')).not.toBeNull());
+    // First placement lazily imports and instruments the SVG components under coverage.
+    await vi.waitFor(() => expect(target.querySelector('[data-placeable="plaque"]')).not.toBeNull(), { timeout: 5_000 });
     target.querySelector('[data-placeable="plaque"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
     await tick();
     const text = target.querySelector<HTMLTextAreaElement>('.plaque-settings textarea')!;
