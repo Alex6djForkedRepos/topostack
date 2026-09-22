@@ -8,11 +8,17 @@ import { apply, fitControlPoints } from "@topostack/chart-trace/georef";
 import { gridDepths } from "@topostack/chart-trace/grid";
 import { traceRasterChart, simplify } from "@topostack/chart-trace/trace-raster";
 import { traceVectorChart } from "@topostack/chart-trace/trace-vector";
-import { CHART_ATTESTATIONS, CHART_BATHYMETRY_LIMITS, CHART_BATHYMETRY_SCHEMA, CHART_UNIT_METRES, chartLabelDepthM, encodeChartDepths, isPublishableChart, parseUserChartBathymetry } from "@topostack/data-contracts/chart-bathymetry";
+import { CHART_ATTESTATIONS, CHART_BATHYMETRY_LIMITS, CHART_BATHYMETRY_SCHEMA, CHART_ID_PATTERN as ID, CHART_UNIT_METRES, chartLabelDepthM, encodeChartDepths, isPublishableChart, parseUserChartBathymetry } from "@topostack/data-contracts/chart-bathymetry";
 
 const INPUTS = ["pdf-vector", "pdf-raster", "png"];
-const ID = /^[a-z0-9][a-z0-9-]{7,63}$/;
 const SHA256 = /^[a-f0-9]{64}$/;
+
+/** At most `limit` contours, the longest, in the order they came. */
+function longestContours(contours, limit) {
+  if (contours.length <= limit) return contours;
+  const kept = new Set([...contours].sort((left, right) => right.points.length - left.points.length).slice(0, limit));
+  return contours.filter((contour) => kept.has(contour));
+}
 
 function fail(id, message) {
   throw new Error(`Depth chart ${id ?? "(unnamed)"}: ${message}`);
@@ -113,9 +119,12 @@ export function chartRecord(chart, traced, { fileSha256, tool }) {
   const metresPerUnit = Math.hypot((lon1 - lon0) * 111_320 * Math.cos((lat0 * Math.PI) / 180), (lat1 - lat0) * 110_574);
   const unit = CHART_UNIT_METRES[chart.units];
   const labels = chart.trace.labels === "depth" ? { kind: "depth" } : { kind: "elevation", surfaceElevationM: chart.trace.surface * unit, ...(chart.trace.datum ? { datum: chart.trace.datum } : {}) };
-  const leveled = traced.contours
+  // Keep the longest lines, in their own order, when a noisy scan yields more
+  // than a record holds. Capping first also bounds the loop below: every line
+  // keeps at least two points, and the cap's two points each fit the budget.
+  const leveled = longestContours(traced.contours
     .map((contour) => ({ ...contour, depthM: chartLabelDepthM(labels, contour.value * unit) }))
-    .filter((contour) => contour.depthM >= 0 && contour.points.length >= 2);
+    .filter((contour) => contour.depthM >= 0 && contour.points.length >= 2), CHART_BATHYMETRY_LIMITS.maxContours);
   if (!leveled.length) throw new Error(`Depth chart ${chart.id}: no contour got a level; add labels (trace.words) or check the styles.`);
   // Simplify until the contours fit the contract's point budget.
   let tolerance = chart.grid.resolutionM / 4 / metresPerUnit;
@@ -125,7 +134,7 @@ export function chartRecord(chart, traced, { fileSha256, tool }) {
     if (contours.reduce((sum, contour) => sum + contour.line.length, 0) <= CHART_BATHYMETRY_LIMITS.maxContourPoints) break;
     tolerance *= 1.5;
   }
-  contours = contours.filter((contour) => contour.line.length >= 2).slice(0, CHART_BATHYMETRY_LIMITS.maxContours);
+  contours = contours.filter((contour) => contour.line.length >= 2);
 
   const surfaceLines = chart.water.shoreLevel === undefined ? [] : traced.contours.filter((contour) => contour.points.length >= 3 && Math.abs(contour.value - chart.water.shoreLevel) < 1e-9).map((contour) => contour.points);
   // The shore is drawn at the same scale as the contours, so it simplifies the same way.
