@@ -77,6 +77,35 @@ describe("buildChartFromImage", () => {
     expect(report.waterCells).toBe(covered.length);
   });
 
+  it("levels a chart from depths clicked on the steep sides of its contours", () => {
+    // Clicks carry no reading direction, and a box erased around a point on a
+    // line cuts it; marks do neither, so any part of a contour takes a depth.
+    const { record, report } = buildChartFromImage({
+      ...request,
+      words: undefined,
+      marks: [{ x: 275, y: 140, value: 5, reach: 6 }, { x: 131, y: 141, value: 10, reach: 6 }],
+    });
+    expect(report.coverage).toBe(1);
+    expect(record.contours.map((contour) => contour.depthM).sort((a, b) => a - b)).toEqual([0, 5, 10]);
+  });
+
+  it("offers another placement for a lake that fits its chart more than one way", () => {
+    // Round Lake is an ellipse: turned half round it fits just as well.
+    const first = buildChartFromImage(request);
+    expect(first.report.ambiguous).toBe(true);
+    expect(first.report.placements).toBeGreaterThan(1);
+    expect(first.report.placement).toBe(0);
+    const second = buildChartFromImage({ ...request, placement: 1 });
+    expect(second.report.placement).toBe(1);
+    expect(second.record.georef.matrix).not.toEqual(first.record.georef.matrix);
+    // Asking past the end takes the last placement rather than failing.
+    expect(buildChartFromImage({ ...request, placement: 99 }).report.placement).toBe(first.report.placements - 1);
+  });
+
+  it("asks for the surface elevation rather than failing on negative depths", () => {
+    expect(() => buildChartFromImage({ ...request, labels: "elevation", surface: Number.NaN })).toThrow(/surface elevation/);
+  });
+
   it("says what to fix when there is nothing to trace or no lake to place against", () => {
     const blank = { width: 40, height: 40, data: new Uint8ClampedArray(40 * 40 * 4).fill(255) };
     expect(() => buildChartFromImage({ ...request, image: blank })).toThrow(/No lines were traced/);
@@ -85,7 +114,7 @@ describe("buildChartFromImage", () => {
 
   it("refuses a chart whose lines carry no level", () => {
     expect(() => buildChartFromImage({ ...request, words: [], interval: undefined })).toThrow(/interval/);
-    expect(() => buildChartFromImage({ ...request, words: [] })).toThrow(/no contour got a level/);
+    expect(() => buildChartFromImage({ ...request, words: [] }), "said in the maker's terms, without record ids").toThrow(/^The placed depths/);
   });
 
   it("levels every ring from two labels, and leaves the rest unlevelled from one", () => {

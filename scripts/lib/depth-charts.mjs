@@ -8,10 +8,9 @@ import { fitControlPoints } from "@topostack/chart-trace/georef";
 import { buildChartRecord } from "@topostack/chart-trace/record";
 import { traceRasterChart } from "@topostack/chart-trace/trace-raster";
 import { traceVectorChart } from "@topostack/chart-trace/trace-vector";
-import { CHART_ATTESTATIONS, CHART_UNIT_METRES } from "@topostack/data-contracts/chart-bathymetry";
+import { CHART_ATTESTATIONS, CHART_ID_PATTERN as ID, CHART_UNIT_METRES } from "@topostack/data-contracts/chart-bathymetry";
 
 const INPUTS = ["pdf-vector", "pdf-raster", "png"];
-const ID = /^[a-z0-9][a-z0-9-]{7,63}$/;
 const SHA256 = /^[a-f0-9]{64}$/;
 
 function fail(id, message) {

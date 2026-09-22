@@ -11,7 +11,7 @@ import type { VectorPage, VectorPath, VectorText } from "./vector-page.ts";
 /** The slice of the pdf.js API this module uses. */
 export interface PdfJs {
   OPS: Record<string, number>;
-  getDocument(source: { data: Uint8Array; disableFontFace?: boolean; isEvalSupported?: boolean; verbosity?: number }): { promise: Promise<PdfDocument>; destroy(): Promise<void> };
+  getDocument(source: { data: Uint8Array; disableFontFace?: boolean; useWasm?: boolean; verbosity?: number }): { promise: Promise<PdfDocument>; destroy(): Promise<void> };
 }
 
 interface PdfDocument {
@@ -68,7 +68,7 @@ function bezier(p0: Point2, p1: Point2, p2: Point2, p3: Point2): Point2[] {
 }
 
 export async function readPdfPage(pdfjs: PdfJs, data: Uint8Array, pageNumber = 1): Promise<VectorPage> {
-  const task = pdfjs.getDocument({ data, disableFontFace: true, isEvalSupported: false, verbosity: 0 });
+  const task = pdfjs.getDocument({ data, disableFontFace: true, useWasm: false, verbosity: 0 });
   try {
     const document = await task.promise;
     if (pageNumber < 1 || pageNumber > document.numPages) throw new Error(`The PDF has no page ${pageNumber}.`);

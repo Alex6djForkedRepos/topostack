@@ -1,7 +1,8 @@
-import type { GeoBounds, ElevationGrid, ProjectConfigV1 } from "@topostack/core";
+import { OUTLINE_CHART_KEY_PREFIX, type GeoBounds, type ElevationGrid, type ProjectConfigV1, type WaterAreaV1 } from "@topostack/core";
+import { ringIou } from "@topostack/chart-trace/georef";
 import { decodeChartDepths, type UserChartBathymetryV1 } from "@topostack/data-contracts/chart-bathymetry";
 import { buildPixelMask, sampleDepth, type PixelMask, type SurveyResult } from "$lib/domain/bathymetry";
-import { latToWorldY, worldYToLat } from "$lib/domain/tile-math";
+import { artworkToLonLat, latToWorldY, worldYToLat } from "$lib/domain/tile-math";
 
 /**
  * A depth chart the maker traced themselves, resampled onto the terrain grid.
@@ -74,6 +75,71 @@ export function chartSpacingM(chart: UserChartBathymetryV1): number {
 const overlaps = (bounds: GeoBounds, grid: UserChartBathymetryV1["grid"]): boolean =>
   bounds.east > grid.bounds.west && bounds.west < grid.bounds.east && bounds.north > grid.bounds.south && bounds.south < grid.bounds.north;
 
+/** A chart keyed by outline takes a lake only when their outlines overlap at least this much. */
+export const OUTLINE_MATCH_MIN_IOU = 0.5;
+
+type LonLat = [number, number];
+
+/** A ring cut to a rectangle (Sutherland-Hodgman; the rectangle is convex, so this is exact). */
+function clipRing(ring: readonly LonLat[], bounds: GeoBounds): LonLat[] {
+  const edges: [(point: LonLat) => boolean, (a: LonLat, b: LonLat) => LonLat][] = [
+    [([x]) => x >= bounds.west, (a, b) => [bounds.west, a[1] + ((b[1] - a[1]) * (bounds.west - a[0])) / (b[0] - a[0])]],
+    [([x]) => x <= bounds.east, (a, b) => [bounds.east, a[1] + ((b[1] - a[1]) * (bounds.east - a[0])) / (b[0] - a[0])]],
+    [([, y]) => y >= bounds.south, (a, b) => [a[0] + ((b[0] - a[0]) * (bounds.south - a[1])) / (b[1] - a[1]), bounds.south]],
+    [([, y]) => y <= bounds.north, (a, b) => [a[0] + ((b[0] - a[0]) * (bounds.north - a[1])) / (b[1] - a[1]), bounds.north]],
+  ];
+  let output: LonLat[] = [...ring];
+  for (const [inside, cross] of edges) {
+    const input = output;
+    output = [];
+    for (let index = 0; index < input.length; index += 1) {
+      const current = input[index]!;
+      const previous = input[(index + input.length - 1) % input.length]!;
+      if (inside(current)) {
+        if (!inside(previous)) output.push(cross(previous, current));
+        output.push(current);
+      } else if (inside(previous)) output.push(cross(previous, current));
+    }
+    if (!output.length) break;
+  }
+  return output;
+}
+
+/**
+ * Which chart each lake carves with, by area id. A lake HydroLAKES knows takes
+ * the chart under its id. A chart keyed `outline:<chart id>` names no lake, so
+ * it takes the one lake its own outline overlaps best, if well enough. The map
+ * area may cut a lake off, so the chart's outline is cut the same way first.
+ */
+export function chartsForAreas(
+  areas: readonly WaterAreaV1[],
+  charts: ReadonlyMap<string, LoadedUserChart>,
+  bounds: GeoBounds,
+  dimensions?: Pick<ProjectConfigV1, "widthMm" | "heightMm">,
+): Map<string, LoadedUserChart> {
+  const chosen = new Map<string, LoadedUserChart>();
+  for (const area of areas) {
+    const loaded = area.hylakId === undefined ? undefined : charts.get(String(area.hylakId));
+    if (loaded) chosen.set(area.id, loaded);
+  }
+  const byOutline = [...charts].filter(([key]) => key.startsWith(OUTLINE_CHART_KEY_PREFIX)).map(([, loaded]) => loaded);
+  if (!byOutline.length || !dimensions) return chosen;
+  const toLonLat = artworkToLonLat(bounds, dimensions.widthMm, dimensions.heightMm);
+  const candidates = areas.filter((area) => area.kind === "lake" && !chosen.has(area.id)).map((area) => ({ area, outline: area.polygon.outer.map(toLonLat) }));
+  for (const loaded of byOutline) {
+    const outline = clipRing(loaded.chart.lake.outline, bounds);
+    if (outline.length < 3) continue;
+    let best: { id: string; iou: number } | undefined;
+    for (const candidate of candidates) {
+      if (chosen.has(candidate.area.id)) continue;
+      const iou = ringIou(outline, candidate.outline);
+      if (iou >= OUTLINE_MATCH_MIN_IOU && (!best || iou > best.iou)) best = { id: candidate.area.id, iou };
+    }
+    if (best) chosen.set(best.id, loaded);
+  }
+  return chosen;
+}
+
 /**
  * Replace each charted lake's depths with the chart's, keyed by HydroLAKES id
  * as `waterDepthOverrides` is. A chart whose samples miss the lake entirely
@@ -94,8 +160,9 @@ export async function applyUserCharts(
   const masks = new Map<string, PixelMask>();
   let areas = result.areas;
   let charted = false;
+  const chosen = chartsForAreas(result.areas, charts, bounds, dimensions);
   for (const area of result.areas) {
-    const loaded = area.hylakId === undefined ? undefined : charts.get(String(area.hylakId));
+    const loaded = chosen.get(area.id);
     if (!loaded || !overlaps(bounds, loaded.chart.grid)) continue;
     signal?.throwIfAborted();
     const values = sampleChartDepths(loaded.chart, bounds, grid);

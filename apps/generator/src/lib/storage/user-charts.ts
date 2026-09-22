@@ -1,4 +1,4 @@
-import { del, get, keys, set } from "idb-keyval";
+import { del, get, getMany, keys, set } from "idb-keyval";
 import type { ProjectConfigV1, UserDepthChartRefV1 } from "@topostack/core";
 import { parseUserChartBathymetry, type UserChartBathymetryV1 } from "@topostack/data-contracts/chart-bathymetry";
 import type { LoadedUserChart } from "$lib/domain/user-bathymetry";
@@ -15,6 +15,12 @@ import type { LoadedUserChart } from "$lib/domain/user-bathymetry";
 
 const PREFIX = "topostack:chart:v1:";
 const chartKey = (id: string): string => `${PREFIX}${id}`;
+/**
+ * A few fields per chart, kept beside it so listing the library reads a line
+ * per chart rather than decoding and validating every contour and grid.
+ */
+const SUMMARY_PREFIX = "topostack:chart-summary:v1:";
+const summaryKey = (id: string): string => `${SUMMARY_PREFIX}${id}`;
 
 /** A saved chart alongside the hash a project references it by. */
 interface StoredChart {
@@ -23,22 +29,38 @@ interface StoredChart {
   chart: UserChartBathymetryV1;
 }
 
+/** JSON with every object's keys sorted, so the same record always gives the same text. */
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>).filter(([, item]) => item !== undefined).sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
+    return `{${entries.map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
 /**
- * The hash a project pins a chart by: SHA-256 of the record's canonical JSON.
- * The record is already JSON-safe and its key order comes from
- * `parseUserChartBathymetry`, so stringifying it is stable.
+ * The hash a project pins a chart by: SHA-256 of the record's canonical JSON,
+ * keys sorted. It must not depend on the order a parser happens to build keys
+ * in, or a later release would see every saved chart as changed.
  */
 export async function chartContentHash(chart: UserChartBathymetryV1): Promise<string> {
-  const bytes = new TextEncoder().encode(JSON.stringify(chart));
+  const bytes = new TextEncoder().encode(canonicalJson(chart));
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
+
+const summaryOf = (chart: UserChartBathymetryV1, savedAt: string, contentHash: string): SavedChartSummary => ({
+  id: chart.id, savedAt, name: chart.provenance.title, lakeName: chart.lake.name, hylakId: chart.lake.hylakId, contentHash,
+});
 
 /** Saves a chart and returns the reference a project stores for a lake. */
 export async function saveUserChart(chart: UserChartBathymetryV1): Promise<UserDepthChartRefV1> {
   const parsed = parseUserChartBathymetry(chart);
   const contentHash = await chartContentHash(parsed);
-  await set(chartKey(parsed.id), { savedAt: new Date().toISOString(), contentHash, chart: parsed } satisfies StoredChart);
+  const savedAt = new Date().toISOString();
+  await set(chartKey(parsed.id), { savedAt, contentHash, chart: parsed } satisfies StoredChart);
+  await set(summaryKey(parsed.id), summaryOf(parsed, savedAt, contentHash));
   return { id: parsed.id, contentHash };
 }
 
@@ -56,7 +78,11 @@ export async function loadUserChart(id: string): Promise<LoadedUserChart | undef
     return undefined;
   }
   if (!stored || typeof stored !== "object") return undefined;
-  const record = stored as Partial<StoredChart>;
+  return readStored(id, stored as Partial<StoredChart>);
+}
+
+/** A stored entry as a chart and its hash, or undefined when it no longer parses. */
+async function readStored(id: string, record: Partial<StoredChart>): Promise<LoadedUserChart | undefined> {
   try {
     const chart = parseUserChartBathymetry(record.chart);
     return { chart, contentHash: typeof record.contentHash === "string" ? record.contentHash : await chartContentHash(chart) };
@@ -67,10 +93,11 @@ export async function loadUserChart(id: string): Promise<LoadedUserChart | undef
 }
 
 /**
- * The charts a project's lakes use, keyed by the same HydroLAKES id. A chart
- * whose content no longer matches what the project was carved from is still
- * used, because the maker's newer trace is the one they mean; the project's
- * reference is what needs updating, and the caller does that when it saves.
+ * The charts a project's lakes use, under the same keys. A chart whose content
+ * no longer matches the project's reference is still used, because the saved
+ * chart is the one the maker means; `currentChartReferences` brings the
+ * project's references up to date before a generation, so what is carved and
+ * what the project says it carved agree.
  */
 export async function loadUserCharts(references: Record<string, UserDepthChartRefV1> | undefined): Promise<Map<string, LoadedUserChart>> {
   const charts = new Map<string, LoadedUserChart>();
@@ -100,28 +127,64 @@ export interface SavedChartSummary {
   contentHash: string;
 }
 
-/** Every saved chart, newest first, for a manager listing. */
+function isSummary(value: unknown): value is SavedChartSummary {
+  const summary = value as Partial<SavedChartSummary> | undefined;
+  return !!summary && typeof summary.id === "string" && typeof summary.name === "string" && typeof summary.contentHash === "string";
+}
+
+/**
+ * Every saved chart, newest first, for a manager listing. Charts saved before
+ * summaries existed are read in full once and given one.
+ */
 export async function listUserCharts(): Promise<SavedChartSummary[]> {
   let stored: IDBValidKey[];
+  let summaries: unknown[];
+  let ids: string[];
   try {
     stored = await keys();
+    ids = stored.filter((key): key is string => typeof key === "string" && key.startsWith(PREFIX)).map((key) => key.slice(PREFIX.length));
+    summaries = ids.length ? await getMany(ids.map(summaryKey)) : [];
   } catch (error) {
     console.warn("TopoStack: saved depth charts are unavailable in this browser.", error);
     return [];
   }
   const listed: SavedChartSummary[] = [];
-  for (const key of stored) {
-    if (typeof key !== "string" || !key.startsWith(PREFIX)) continue;
-    const loaded = await loadUserChart(key.slice(PREFIX.length));
+  for (const [index, id] of ids.entries()) {
+    const summary = summaries[index];
+    if (isSummary(summary)) { listed.push(summary); continue; }
+    const saved = await get<Partial<StoredChart>>(chartKey(id)).catch(() => undefined);
+    const loaded = saved && await readStored(id, saved);
     if (!loaded) continue;
-    const saved = await get<StoredChart>(key);
-    listed.push({ id: loaded.chart.id, savedAt: saved?.savedAt ?? "", name: loaded.chart.provenance.title, lakeName: loaded.chart.lake.name, hylakId: loaded.chart.lake.hylakId, contentHash: loaded.contentHash });
+    const backfilled = summaryOf(loaded.chart, typeof saved.savedAt === "string" ? saved.savedAt : "", loaded.contentHash);
+    await set(summaryKey(id), backfilled).catch(() => undefined);
+    listed.push(backfilled);
   }
   return listed.sort((a, b) => (a.savedAt < b.savedAt ? 1 : a.savedAt > b.savedAt ? -1 : a.id.localeCompare(b.id)));
 }
 
+/**
+ * The project's chart references with each content hash made current. A chart
+ * saved again under the same id (a project imported with a newer copy) carves
+ * as it is now, so the reference, and with it the design's fingerprint, must
+ * say so. Returns the same object when nothing changed, and leaves a chart
+ * this browser does not hold as it was.
+ */
+export async function currentChartReferences(references: Record<string, UserDepthChartRefV1> | undefined): Promise<Record<string, UserDepthChartRefV1> | undefined> {
+  if (!references) return references;
+  let changed = false;
+  const next: Record<string, UserDepthChartRefV1> = {};
+  for (const [lake, reference] of Object.entries(references)) {
+    const summary = await get<unknown>(summaryKey(reference.id)).catch(() => undefined);
+    const stored = isSummary(summary) ? summary.contentHash : (await loadUserChart(reference.id))?.contentHash;
+    if (stored && stored !== reference.contentHash) { next[lake] = { id: reference.id, contentHash: stored }; changed = true; }
+    else next[lake] = reference;
+  }
+  return changed ? next : references;
+}
+
 export async function deleteUserChart(id: string): Promise<void> {
   await del(chartKey(id));
+  await del(summaryKey(id));
 }
 
 /** At most this many charts travel with one project file. */
