@@ -1,1 +1,2 @@
 GEOCODER_API_KEY="replace-with-geoapify-key"
+FEEDBACK_EMAIL_TO="admin@topostack.app"
