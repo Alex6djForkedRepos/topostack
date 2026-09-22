@@ -4,6 +4,17 @@ User-facing changes to TopoStack, newest first. Also at https://topostack.app/ch
 
 Generated from `changelog/releases.json` by `npm run changelog:prepare`; do not edit by hand. See [docs/changelog.md](docs/changelog.md).
 
+## 0.4.0 (2026-09-22)
+
+### New
+
+- **Place and size the north arrow, title and scale bar anywhere**: The north arrow, title and scale bar are no longer limited to fixed spots. Choose **Move on preview**: the preview looks straight down on your finished piece, and you drag them anywhere, even across layers, or nudge them with the arrow keys. Drag the corner handle, or press + and −, to resize the north arrow or the title in place. Choose **Done** to engrave them where you left them, or **Cancel** to put them back. See [map details](https://topostack.app/guides/map-details). ([#76](https://github.com/Echo-Foxtrot-Works/topostack/pull/76))
+
+### Fixed
+
+- **Keep annotation placement edits and previews reliable**: Moving a title preserves sidebar text and font changes, and committed positions survive reloads. Placement waits for fonts, shows title backings correctly, keeps resizing within limits, and pauses Undo and Redo until you finish. Controls remain reachable on small screens without covering annotations or conflicting with preview zoom controls. ([#76](https://github.com/Echo-Foxtrot-Works/topostack/pull/76))
+- **Scale bar no longer hidden under upper layers**: On layered reliefs the scale bar was engraved on the bottom sheet only, so the sheets above could cover most of it. It is now engraved on whichever sheets it crosses, like the north arrow. ([#76](https://github.com/Echo-Foxtrot-Works/topostack/pull/76))
+
 ## 0.3.0 (2026-09-21)
 
 ### New
