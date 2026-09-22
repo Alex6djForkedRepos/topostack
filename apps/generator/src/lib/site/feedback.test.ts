@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_PROJECT, createSyntheticSource, generateGeometry } from '@topostack/core';
-import { FEEDBACK_TYPES, feedbackLink, feedbackReport, studioFeedbackContext, type FeedbackType } from '$lib/site/feedback';
+import { FEEDBACK_KINDS } from '@topostack/data-contracts/feedback';
+import { FEEDBACK_TYPES, feedbackLink, feedbackReport, sendFeedback, studioFeedbackContext, type FeedbackType } from '$lib/site/feedback';
 
 describe('GitHub feedback', () => {
   it.each(Object.keys(FEEDBACK_TYPES) as FeedbackType[])('round-trips %s reports without injecting URL parameters', (type) => {
@@ -40,5 +41,21 @@ describe('GitHub feedback', () => {
     expect(serialized).not.toContain('markers');
     expect(serialized).not.toContain('customLines');
     expect(serialized).not.toContain('values');
+  });
+});
+
+describe('emailed feedback', () => {
+  it('offers exactly the kinds the Worker accepts', () => {
+    expect(Object.keys(FEEDBACK_TYPES).sort()).toEqual([...FEEDBACK_KINDS].sort());
+  });
+
+  it('posts same-origin JSON without credentials and maps responses', async () => {
+    const submission = { kind: 'bug' as const, summary: 'Broken', details: 'Details' };
+    const ok = vi.fn(async () => new Response(null, { status: 204 }));
+    expect(await sendFeedback(submission, ok)).toBe('sent');
+    expect(ok).toHaveBeenCalledWith('/v1/feedback', expect.objectContaining({ method: 'POST', credentials: 'omit', body: JSON.stringify(submission) }));
+    expect(await sendFeedback(submission, async () => new Response(null, { status: 429 }))).toBe('rate-limited');
+    expect(await sendFeedback(submission, async () => new Response(null, { status: 503 }))).toBe('failed');
+    expect(await sendFeedback(submission, async () => { throw new TypeError('offline'); })).toBe('failed');
   });
 });

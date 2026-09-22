@@ -49,7 +49,8 @@ export function isAllowedOrigin(origin: string | null, env: OriginPolicyEnv): bo
 
 export function corsHeaders(request: Request, env: Env): Headers {
   const origin = request.headers.get("origin");
-  const isEvent = new URL(request.url).pathname === "/v1/events";
+  const pathname = new URL(request.url).pathname;
+  const isEvent = pathname === "/v1/events" || pathname === "/v1/feedback";
   const headers = new Headers({
     "access-control-allow-methods": isEvent ? "POST,OPTIONS" : "GET,HEAD,OPTIONS",
     "access-control-allow-headers": "range,content-type,if-none-match",
@@ -58,7 +59,7 @@ export function corsHeaders(request: Request, env: Env): Headers {
     "vary": "Origin",
   });
   // Read-only data is public and carries no browser credentials. Keep event
-  // collection on its existing allowlist and same-origin POST validation.
+  // collection and feedback on the allowlist and same-origin POST validation.
   if (!isEvent) headers.set("access-control-allow-origin", "*");
   else if (origin && isAllowedOrigin(origin, env)) headers.set("access-control-allow-origin", origin);
   return headers;
