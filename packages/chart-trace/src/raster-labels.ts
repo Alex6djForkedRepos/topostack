@@ -1,13 +1,16 @@
-// Finding and reading the depth labels on a scanned chart. Labels are small,
-// rotated to follow their contour, and often set in the contour's own gap, so
-// whole-page OCR misses most of them. Instead: find digit-sized clusters of
-// ink, take their reading direction from the digits' own line or the nearest
-// contour, crop each one upright from the full-resolution scan, and let the
-// caller's OCR engine read it both ways up.
+// Finding the depth labels printed on a scanned chart, so they can be erased
+// before tracing: a printed number left in place traces as a scrap of line,
+// and a label set in its contour's gap swells the line around it. Labels are
+// small and rotated to follow their contour, so they are found as digit-sized
+// clusters of ink, each with the reading direction of its own digits or of the
+// nearest contour.
+//
+// Nothing here reads them. Depths are typed by the maker: a machine reads
+// labels set into contour lines poorly, and a wrong depth carves a lake bed
+// that looks right.
 
 import type { Point2 } from "./local-frame.ts";
-import { components, type Mask, type RgbaImage } from "./raster.ts";
-import { parseLabel } from "./vector-chart.ts";
+import { components, type Mask } from "./raster.ts";
 
 export interface LabelCandidate {
   /** Box in traced pixels. */
@@ -22,24 +25,6 @@ export interface LabelCandidate {
   glyph: number;
   /** Reading direction in radians, y down; ambiguous by half a turn. */
   angle: number;
-}
-
-/** Reads one upright crop. Tesseract with a digit whitelist is the intended engine. */
-export type Recognizer = (image: RgbaImage) => Promise<{ text: string; confidence: number }>;
-
-export interface ReadLabel {
-  text: string;
-  value: number;
-  confidence: number;
-  /** Box in original image pixels. */
-  left: number;
-  top: number;
-  right: number;
-  bottom: number;
-  angle: number;
-  /** Extent along and across the reading direction, in original pixels. */
-  length: number;
-  height: number;
 }
 
 /**
@@ -204,73 +189,4 @@ function principalAngle(points: readonly Point2[]): number {
     xy += (px - mx) * (py - my);
   }
   return 0.5 * Math.atan2(2 * xy, xx - yy);
-}
-
-/**
- * Samples a rotated rectangle of the image into an upright crop, `scale`
- * output pixels per source pixel, on white. Bilinear, so thin strokes survive
- * enlargement for OCR.
- */
-export function uprightCrop(image: RgbaImage, cx: number, cy: number, width: number, height: number, angle: number, scale: number): RgbaImage {
-  const outWidth = Math.max(1, Math.round(width * scale));
-  const outHeight = Math.max(1, Math.round(height * scale));
-  const data = new Uint8Array(outWidth * outHeight * 4).fill(255);
-  const cos = Math.cos(angle);
-  const sin = Math.sin(angle);
-  const sample = (x: number, y: number, channel: number) => {
-    const x0 = Math.floor(x);
-    const y0 = Math.floor(y);
-    const fx = x - x0;
-    const fy = y - y0;
-    const at = (px: number, py: number) => (px < 0 || py < 0 || px >= image.width || py >= image.height ? 255 : image.data[(py * image.width + px) * 4 + channel]!);
-    return (at(x0, y0) * (1 - fx) + at(x0 + 1, y0) * fx) * (1 - fy) + (at(x0, y0 + 1) * (1 - fx) + at(x0 + 1, y0 + 1) * fx) * fy;
-  };
-  for (let row = 0; row < outHeight; row += 1) {
-    for (let column = 0; column < outWidth; column += 1) {
-      // Output pixel to source: undo the scale, then rotate by the reading angle about the centre.
-      const u = (column + 0.5) / scale - width / 2;
-      const v = (row + 0.5) / scale - height / 2;
-      const x = cx + u * cos - v * sin - 0.5;
-      const y = cy + u * sin + v * cos - 0.5;
-      const index = (row * outWidth + column) * 4;
-      for (let channel = 0; channel < 3; channel += 1) data[index + channel] = Math.round(sample(x, y, channel));
-    }
-  }
-  return { width: outWidth, height: outHeight, data };
-}
-
-/** OCR target glyph height in output pixels; Tesseract reads 30-40 px text best. */
-const GLYPH_PIXELS = 36;
-
-/**
- * Reads each candidate upright both ways from the full-resolution image and
- * keeps readings that parse as a depth label. `scale` converts traced pixels
- * to original pixels.
- */
-export async function readLabels(image: RgbaImage, candidates: readonly LabelCandidate[], scale: number, recognize: Recognizer, minConfidence = 50): Promise<ReadLabel[]> {
-  const labels: ReadLabel[] = [];
-  for (const candidate of candidates) {
-    const glyph = candidate.glyph * scale;
-    // Span along the reading direction: the box's extent projected on it, plus margin.
-    const along = Math.abs((candidate.right - candidate.left) * Math.cos(candidate.angle)) + Math.abs((candidate.bottom - candidate.top) * Math.sin(candidate.angle));
-    const width = along * scale + glyph * 1.2;
-    const height = glyph * 2;
-    const zoom = GLYPH_PIXELS / glyph;
-    let best: ReadLabel | undefined;
-    for (const turn of [0, Math.PI]) {
-      const angle = candidate.angle + turn;
-      const crop = uprightCrop(image, candidate.x * scale, candidate.y * scale, width, height, angle, zoom);
-      const { text, confidence } = await recognize(crop);
-      const cleaned = text.replace(/\s+/g, "");
-      const value = parseLabel(cleaned);
-      if (value === undefined || confidence < minConfidence || (best && best.confidence >= confidence)) continue;
-      best = {
-        text: cleaned, value, confidence, angle: Math.atan2(Math.sin(angle), Math.cos(angle)),
-        left: candidate.left * scale, top: candidate.top * scale, right: candidate.right * scale, bottom: candidate.bottom * scale,
-        length: along * scale, height: glyph,
-      };
-    }
-    if (best) labels.push(best);
-  }
-  return labels;
 }

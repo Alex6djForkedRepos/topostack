@@ -338,21 +338,39 @@ function similarity(from: Moments, to: Moments, angle: number, mirror: boolean):
 }
 
 /**
- * Places a chart by matching its traced shoreline (pixels) to the lake's known
- * outline (lon/lat). Charts can be rotated or not north-up, and pixel rows run
- * down while northings run up, so every principal-axis orientation is tried
- * with and without a mirror; a nearly round lake gets a full turn of guesses.
- * The best guess by overlap is returned whatever its score, so the caller can
- * compare `iou` to SNAP_MIN_IOU and fall back to control points.
+ * A reflected fit is taken only when it overlaps the lake this much better than
+ * the best fit read the right way round. A chart printed mirror-imaged is rare;
+ * a nearly symmetric lake that overlaps just as well either way is not.
  */
-export function snapToOutline(shoreline: readonly Point2[], outline: readonly Point2[]): SnapResult {
+const MIRROR_MARGIN = 0.05;
+
+/**
+ * Two placements are the same one when the shore lands within this share of
+ * the lake's size of itself. Refinement from different first guesses often
+ * converges on one fit; those are not alternatives.
+ */
+const SAME_PLACEMENT = 0.05;
+
+/**
+ * Every distinct way the chart's traced shoreline (pixels) lays onto the
+ * lake's known outline (lon/lat), best first. Charts can be rotated or not
+ * north-up, so every principal-axis orientation is tried; a nearly round lake
+ * gets a full turn of guesses. Pixel rows run down while northings run up, so
+ * a chart read the right way round needs exactly one flip; fits without one
+ * lay the lake bed down mirror-imaged and rank below by MIRROR_MARGIN.
+ *
+ * A lake that looks the same turned half round fits equally well both ways,
+ * and nothing in the outline can say which is right. The rest of the list is
+ * for that: the maker compares the lake bed with the chart and steps on.
+ */
+export function snapCandidates(shoreline: readonly Point2[], outline: readonly Point2[]): SnapResult[] {
   if (shoreline.length < 3 || outline.length < 3) throw new Error("Snapping needs a traced shoreline and a lake outline.");
   const frame = frameFor(outline);
   const target = outline.map(([lon, lat]) => frame.toLocal(lon, lat));
   const targetMoments = moments(target);
   const targetSamples = resampleRing(target, ICP_SAMPLES);
   const sourceSamples = resampleRing(shoreline, ICP_SAMPLES);
-  let best: { transform: Matrix3; rmsM: number; iou: number } | undefined;
+  const fits: { transform: Matrix3; rmsM: number; iou: number; score: number }[] = [];
   for (const mirror of [true, false]) {
     const mirrored = shoreline.map(([x, y]): Point2 => [x, mirror ? -y : y]);
     const source = moments(mirrored);
@@ -364,8 +382,37 @@ export function snapToOutline(shoreline: readonly Point2[], outline: readonly Po
       const guess = similarity(sourceMoments, targetMoments, angle, mirror);
       const { transform, rmsM } = refine(sourceSamples, targetSamples, guess);
       const iou = ringIou(shoreline.map(([x, y]) => apply(transform, x, y)), target);
-      if (!best || iou > best.iou) best = { transform, rmsM, iou };
+      // Classified by the fitted map, not the guess: the affine refinement may flip.
+      const readRightWayRound = transform[0]! * transform[4]! - transform[1]! * transform[3]! < 0;
+      fits.push({ transform, rmsM, iou, score: readRightWayRound ? iou : iou - MIRROR_MARGIN });
     }
   }
-  return { matrix: multiply(frameToLonLat(frame), best!.transform), rmsM: best!.rmsM, iou: best!.iou };
+  fits.sort((left, right) => right.score - left.score);
+  const size = Math.sqrt(Math.abs(targetMoments.area));
+  const probes = resampleRing(shoreline, 24);
+  const distinct: typeof fits = [];
+  for (const fit of fits) {
+    const same = distinct.some((kept) => {
+      let total = 0;
+      for (const [x, y] of probes) {
+        const [ax, ay] = apply(fit.transform, x, y);
+        const [bx, by] = apply(kept.transform, x, y);
+        total += Math.hypot(ax - bx, ay - by);
+      }
+      return total / probes.length < size * SAME_PLACEMENT;
+    });
+    if (!same) distinct.push(fit);
+  }
+  const toLonLat = frameToLonLat(frame);
+  return distinct.map((fit) => ({ matrix: multiply(toLonLat, fit.transform), rmsM: fit.rmsM, iou: fit.iou }));
+}
+
+/**
+ * Places a chart by matching its traced shoreline to the lake's known outline:
+ * the best of `snapCandidates`. The best guess by overlap is returned whatever
+ * its score, so the caller can compare `iou` to SNAP_MIN_IOU and fall back to
+ * control points.
+ */
+export function snapToOutline(shoreline: readonly Point2[], outline: readonly Point2[]): SnapResult {
+  return snapCandidates(shoreline, outline)[0]!;
 }

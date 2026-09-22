@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { blank, fakeRecognizer, label, stroke } from "./fixtures/synthetic-scan.ts";
+import { blank, label, stroke } from "./fixtures/synthetic-scan.ts";
 import type { Point2 } from "./local-frame.ts";
 import { darkMask } from "./raster.ts";
-import { bulgeCandidates, labelCandidates, mergeCandidates, readLabels, uprightCrop, type LabelCandidate } from "./raster-labels.ts";
+import { bulgeCandidates, labelCandidates, mergeCandidates, type LabelCandidate } from "./raster-labels.ts";
 
 describe("labelCandidates", () => {
   it("groups nearby glyphs into one label read along their centres", () => {
@@ -46,37 +46,5 @@ describe("mergeCandidates", () => {
 
   it("keeps the first of overlapping candidates", () => {
     expect(mergeCandidates([box(0, 0, 10)], [box(2, 2, 10), box(40, 40, 10)])).toEqual([box(0, 0, 10), box(40, 40, 10)]);
-  });
-});
-
-describe("uprightCrop and readLabels", () => {
-  it("turns a rotated region upright and enlarges it", () => {
-    const image = blank(100, 100);
-    stroke(image, [[50, 30], [50, 70]], false, 3);
-    // Reading along the vertical bar makes it horizontal in the crop.
-    const crop = uprightCrop(image, 50, 50, 50, 10, Math.PI / 2, 2);
-    expect([crop.width, crop.height]).toEqual([100, 20]);
-    const middle = (x: number) => crop.data[(10 * crop.width + x) * 4]!;
-    expect(middle(50)).toBeLessThan(80);
-    expect(middle(95)).toBe(255);
-  });
-
-  it("reads each candidate both ways up and keeps confident, parseable readings", async () => {
-    const image = blank(240, 120);
-    label(image, 70, 60, 0.4, 2);
-    label(image, 170, 60, -2.5, 1);
-    // The lone glyph takes its direction from the contour it sits on.
-    const contour: Point2[] = [[170 - 40 * Math.cos(-2.5), 70 - 40 * Math.sin(-2.5)], [170 + 40 * Math.cos(-2.5), 70 + 40 * Math.sin(-2.5)]];
-    const candidates = labelCandidates(darkMask(image), [{ points: contour }], 6, 20);
-    const recognize = fakeRecognizer({ 1: "5'", 2: "10" });
-    const read = await readLabels(image, candidates, 1, recognize);
-    expect(recognize.calls).toBe(4);
-    expect(read.map((label) => label.value).sort((a, b) => a - b)).toEqual([5, 10]);
-    const ten = read.find((label) => label.value === 10)!;
-    expect(Math.cos(ten.angle - 0.4)).toBeGreaterThan(0.95);
-    expect(ten.length).toBeGreaterThan(ten.height);
-    // Unparseable or doubtful readings are dropped.
-    expect(await readLabels(image, candidates, 1, async () => ({ text: "Lake", confidence: 99 }))).toEqual([]);
-    expect(await readLabels(image, candidates, 1, async () => ({ text: "10", confidence: 30 }))).toEqual([]);
   });
 });

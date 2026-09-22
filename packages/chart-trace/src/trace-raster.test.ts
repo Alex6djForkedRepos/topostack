@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { blank, ellipse, fakeRecognizer, label, stroke } from "./fixtures/synthetic-scan.ts";
+import { blank, ellipse, label, stroke } from "./fixtures/synthetic-scan.ts";
 import type { Point2 } from "./local-frame.ts";
 import { darkMask, thin, type Mask } from "./raster.ts";
-import { heavyWidth, simplify, skeletonLines, traceRasterChart, traceScannedChart, withoutLines, type OcrWord } from "./trace-raster.ts";
+import { heavyWidth, simplify, skeletonLines, traceRasterChart, traceScannedChart, withoutLines, type ChartWord } from "./trace-raster.ts";
 
 function skeletonOf(width: number, height: number, lines: { points: Point2[]; closed?: boolean; width?: number }[]): Mask {
   const image = blank(width, height);
@@ -80,7 +80,7 @@ function lakeScan(bold = true) {
   return { image, rings };
 }
 
-function wordOn(ring: Point2[], at: number, text: string): OcrWord {
+function wordOn(ring: Point2[], at: number, text: string): ChartWord {
   const [x, y] = ring[Math.floor(at * ring.length)]!;
   return { text, left: x - 8, top: y - 6, right: x + 8, bottom: y + 6 };
 }
@@ -115,27 +115,29 @@ describe("traceRasterChart", () => {
 });
 
 describe("traceScannedChart", () => {
-  it("finds labels in the contour gaps, reads them upright, and levels the chart", async () => {
+  it("finds the labels printed in the contour gaps and traces the lines without them", async () => {
     const { image, rings } = lakeScan(false);
     const put = (ring: Point2[], at: number, count: number) => {
       const index = Math.floor(at * ring.length);
       const [x1, y1] = ring[index]!;
       const [x2, y2] = ring[index + 1]!;
       label(image, x1, y1, Math.atan2(y2 - y1, x2 - x1), count);
+      // The maker clicks the line a little way along from its printed number.
+      // A mark's reach also sets how wide a gap is bridged; 20 px is about what
+      // the studio's 12 screen pixels come to on an upload this size.
+      return ring[(index + 8) % ring.length]!;
     };
-    put(rings[1]!, 0.1, 1);
-    put(rings[2]!, 0.55, 2);
-    const recognize = fakeRecognizer({ 1: "5", 2: "10", 3: "15" });
-    const trace = await traceScannedChart(image, { labels: "depth", interval: 5, recognize, glyph: { min: 6, max: 20 } });
-    expect(trace.read.map((read) => read.value).sort((a, b) => a - b)).toEqual([5, 10]);
-    expect(recognize.calls).toBeGreaterThanOrEqual(4);
+    const five = put(rings[1]!, 0.1, 1);
+    const ten = put(rings[2]!, 0.55, 2);
+    const trace = traceScannedChart(image, { labels: "depth", interval: 5, glyph: { min: 6, max: 20 }, marks: [{ x: five[0], y: five[1], value: 5, reach: 20 }, { x: ten[0], y: ten[1], value: 10, reach: 20 }] });
+    // Both printed labels are found, and none of the digits traced as a line of its own.
+    expect(trace.candidates.length).toBeGreaterThanOrEqual(2);
     expect(trace.contours.map((contour) => contour.value).sort((a, b) => a - b)).toEqual([0, 5, 10, 15]);
   });
 
-  it("traces without OCR, using only the words given", async () => {
+  it("levels from the words given, as the batch places them", async () => {
     const { image, rings } = lakeScan(false);
-    const trace = await traceScannedChart(image, { labels: "depth", interval: 5, words: [wordOn(rings[2]!, 0.3, "10")] });
-    expect(trace.read).toEqual([]);
+    const trace = traceScannedChart(image, { labels: "depth", interval: 5, words: [wordOn(rings[2]!, 0.3, "10")] });
     expect(trace.contours.some((contour) => contour.value === 10)).toBe(true);
   });
 });
