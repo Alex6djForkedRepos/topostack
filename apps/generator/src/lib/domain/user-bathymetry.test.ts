@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { GeoBounds, WaterAreaV1 } from "@topostack/core";
 import { CHART_BATHYMETRY_SCHEMA, encodeChartDepths, type UserChartBathymetryV1 } from "@topostack/data-contracts/chart-bathymetry";
 import type { SurveyResult } from "$lib/domain/bathymetry";
-import { applyUserCharts, chartSpacingM, sampleChartDepths, type LoadedUserChart } from "$lib/domain/user-bathymetry";
+import { artworkToLonLat } from "$lib/domain/tile-math";
+import { applyUserCharts, chartsForAreas, chartSpacingM, sampleChartDepths, type LoadedUserChart } from "$lib/domain/user-bathymetry";
 
 const bounds: GeoBounds = { west: -94.08, south: 39.91, east: -94.06, north: 39.93 };
 const HASH = "a".repeat(64);
@@ -126,5 +127,47 @@ describe("applyUserCharts", () => {
   it("does nothing without charts", async () => {
     const before = surveyed([lake()]);
     expect(await applyUserCharts(before, new Map(), bounds, grid)).toBe(before);
+  });
+});
+
+describe("chartsForAreas", () => {
+  const dimensions = { widthMm: 100, heightMm: 100 };
+  const toLonLat = artworkToLonLat(bounds, dimensions.widthMm, dimensions.heightMm);
+  /** A square lake in artwork millimetres, centred on (x, y). */
+  const pond = (id: string, x: number, y: number, half: number, overrides: Partial<WaterAreaV1> = {}): WaterAreaV1 => ({
+    id, kind: "lake", outlineSource: "osm",
+    polygon: { outer: [{ x: x - half, y: y - half }, { x: x + half, y: y - half }, { x: x + half, y: y + half }, { x: x - half, y: y + half }], holes: [] },
+    ...overrides,
+  });
+  const charted = (area: WaterAreaV1, id = "pond-chart-0001"): LoadedUserChart => {
+    const outline = area.polygon.outer.map(toLonLat);
+    return { chart: rampChart({ id, lake: { name: "Pond", outline: [...outline, outline[0]!] } }), contentHash: HASH };
+  };
+
+  it("finds the lake an outline-keyed chart was traced for among lakes with no HydroLAKES id", () => {
+    const west = pond("osm-lake-0", -25, 0, 10);
+    const east = pond("osm-lake-1", 25, 0, 10);
+    const chosen = chartsForAreas([west, east], new Map([["outline:pond-chart-0001", charted(east)]]), bounds, dimensions);
+    expect([...chosen.keys()]).toEqual(["osm-lake-1"]);
+  });
+
+  it("matches a lake the map area cuts off, by the part inside the map", () => {
+    // The chart covers a lake twice the map's height; the map holds its middle.
+    const whole = pond("osm-lake-0", 0, 0, 90);
+    const inMap = pond("osm-lake-0", 0, 0, 50, { clipped: true });
+    const loaded = { chart: rampChart({ id: "big-chart-0001", lake: { name: "Big", outline: whole.polygon.outer.map((point) => [bounds.west + (bounds.east - bounds.west) * (point.x / 100 + 0.5), bounds.north - (bounds.north - bounds.south) * (point.y / 100 + 0.5)] as [number, number]) } }), contentHash: HASH };
+    expect(chartsForAreas([inMap], new Map([["outline:big-chart-0001", loaded]]), bounds, dimensions).has("osm-lake-0")).toBe(true);
+  });
+
+  it("leaves a lake alone when the outlines barely overlap, and keeps HydroLAKES charts first", () => {
+    const pondArea = pond("osm-lake-0", 0, 0, 10);
+    const elsewhere = pond("osm-lake-9", 30, 30, 10);
+    expect(chartsForAreas([pondArea], new Map([["outline:pond-chart-0001", charted(elsewhere)]]), bounds, dimensions).size).toBe(0);
+    const known = pond("lake-42-0", 0, 0, 10, { hylakId: 42, outlineSource: undefined });
+    const byId = charted(known, "known-chart-0001");
+    const chosen = chartsForAreas([known], new Map([["42", byId], ["outline:pond-chart-0001", charted(known)]]), bounds, dimensions);
+    expect(chosen.get("lake-42-0")).toBe(byId);
+    // Without the map's size there is no placing an outline, so only ids match.
+    expect(chartsForAreas([pondArea], new Map([["outline:pond-chart-0001", charted(pondArea)]]), bounds).size).toBe(0);
   });
 });

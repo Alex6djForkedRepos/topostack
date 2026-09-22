@@ -681,6 +681,15 @@
   }
 
   async function generate(): Promise<void> {
+    // A chart saved again since a lake took it (a project imported with a newer
+    // copy) carves as it is now, so the project says so before it is built:
+    // otherwise the design's fingerprint would name content that was not carved.
+    // This is bookkeeping, not an edit, so it is not an undo step.
+    if (project.userDepthCharts) {
+      const { currentChartReferences } = await import("$lib/storage/user-charts");
+      const current = await currentChartReferences(project.userDepthCharts);
+      if (current !== project.userDepthCharts) project = { ...project, userDepthCharts: current };
+    }
     invalidatePendingPreview();
     const revision = pipeline.revision;
     const controller = new AbortController(); generationAbort = controller;
@@ -709,6 +718,7 @@
       }
       if (loaded.fallback) next.warnings.push({ code: "DATA_FALLBACK", message: `The map service was unavailable, so this preview uses deterministic sample terrain.${loaded.fallbackReason ? ` (${loaded.fallbackReason})` : ""}` });
       if (loaded.waterWarning) next.warnings.push({ code: "LAKE_DATA_UNAVAILABLE", message: `Water outlines could not be applied, so the terrain has no water adjustment. (${loaded.waterWarning})` });
+      for (const lake of loaded.missingCharts ?? []) next.warnings.push({ code: "BATHYMETRY_FALLBACK", message: `The depth chart for ${lake} is not saved in this browser, so it is carved without it. Import the project file it was exported in to bring the chart here.` });
       // Cosmetic edits deliberately do not cancel expensive terrain work. Merge
       // their latest values instead of replacing them with the request snapshot.
       const completedProject = { ...builtProject, name: project.name, explodedPreview: project.explodedPreview };

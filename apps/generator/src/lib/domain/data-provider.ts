@@ -2,13 +2,13 @@ import { loadProviderOutlines, resolveLakeOutlines } from "$lib/domain/lake-outl
 import { mapTiles } from "$lib/domain/tile-requests";
 import { fitCutBounds } from "$lib/domain/selection-bounds";
 import { createFeatureBudget, yieldForCancellation } from "$lib/domain/feature-budget";
-import { sourceRequirements, createSyntheticSource, type GeoBounds, type MarkingFeature, type Polygon2D, type ProjectConfigV1, type SourceBundleV1, type TransportationClass, type WaterAreaV1 } from "@topostack/core";
+import { OUTLINE_CHART_KEY_PREFIX, sourceRequirements, createSyntheticSource, type GeoBounds, type MarkingFeature, type Polygon2D, type ProjectConfigV1, type SourceBundleV1, type TransportationClass, type WaterAreaV1 } from "@topostack/core";
 import { createArchive, networkSignal } from "$lib/domain/archive";
 import { classifyRings, VectorTile } from "@mapbox/vector-tile";
 import { PbfReader } from "pbf";
 import { MAP_DATA_ATTRIBUTION } from "$lib/domain/map-attribution";
 import { decodeTerrainPng } from "@topostack/data-contracts/terrain-png";
-import { loadLakeBathymetry, applySurveyProvenance } from "$lib/domain/bathymetry";
+import { loadLakeBathymetry, applySurveyProvenance, type SurveyResult } from "$lib/domain/bathymetry";
 import { applyPreferredTerrain } from "$lib/domain/terrain-sources";
 import { repairElevationSpikes } from "$lib/domain/elevation-cleanup";
 import { fittingTileWindow, groundWidthM, latToWorldY, lonToWorldX, tilePointProjector, TILE_SIZE, worldSize, worldXToLon, worldYToLat, type TileWindow } from "$lib/domain/tile-math";
@@ -392,12 +392,21 @@ async function loadHydroLakeAreas(bounds: GeoBounds, requestedZoom: number, conf
  * for one lake, so it answers a provider that is missing or wrong there. Charts
  * come from this browser only, so a project opened elsewhere keeps the survey.
  */
-export async function loadSurveyedLakeDepths(bounds: GeoBounds, elevation: SourceBundleV1["elevation"], zoom: number, areas: WaterAreaV1[], signal?: AbortSignal, config?: Pick<ProjectConfigV1, "widthMm" | "heightMm" | "userDepthCharts">) {
+export async function loadSurveyedLakeDepths(bounds: GeoBounds, elevation: SourceBundleV1["elevation"], zoom: number, areas: WaterAreaV1[], signal?: AbortSignal, config?: Pick<ProjectConfigV1, "widthMm" | "heightMm" | "userDepthCharts">): Promise<SurveyResult & { missingCharts?: string[] }> {
   const result = await loadLakeBathymetry(apiBase, bounds, elevation, zoom, areas, signal, config);
   if (!config?.userDepthCharts || !Object.keys(config.userDepthCharts).length) return result;
   const { loadUserCharts } = await import("$lib/storage/user-charts");
   const { applyUserCharts } = await import("$lib/domain/user-bathymetry");
-  return applyUserCharts(result, await loadUserCharts(config.userDepthCharts), bounds, elevation, signal, config);
+  const charts = await loadUserCharts(config.userDepthCharts);
+  // A chart the project uses but this browser does not hold (a shared link, a
+  // project opened on another machine) must be said, not silently replaced.
+  const missing = areas.filter((area) => area.hylakId !== undefined && config.userDepthCharts![String(area.hylakId)] && !charts.has(String(area.hylakId))).map((area) => area.name ?? "a lake in this map");
+  // A chart keyed by outline names no lake, so while it is missing there is no
+  // telling which lake it was for; say so when this map has such lakes at all.
+  const outlineMissing = Object.keys(config.userDepthCharts).some((key) => key.startsWith(OUTLINE_CHART_KEY_PREFIX) && !charts.has(key));
+  if (outlineMissing && areas.some((area) => area.kind === "lake" && area.hylakId === undefined)) missing.push("a lake HydroLAKES does not list");
+  const applied = await applyUserCharts(result, charts, bounds, elevation, signal, config);
+  return missing.length ? { ...applied, missingCharts: [...new Set(missing)] } : applied;
 }
 
 export interface TerrainLoadResult {
@@ -408,6 +417,8 @@ export interface TerrainLoadResult {
   fallbackReason?: string;
   /** Lake/ocean assembly failed after real elevation loaded; the terrain is kept without water adjustment. */
   waterWarning?: string;
+  /** Lakes whose depth chart the project uses but this browser does not hold. */
+  missingCharts?: string[];
 }
 
 const errorMessage = (error: unknown, fallback: string) => error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -484,7 +495,7 @@ export async function loadTerrain(config: ProjectConfigV1, signal?: AbortSignal,
         ? await loadSurveyedLakeDepths(bounds, elevation, zoom, areas, signal, config)
         : { areas, status: "not-covered" as const, datasetVersions: [], attribution: [] };
       const source = applySurveyProvenance({ ...base, lakeDataStatus: bathymetry.areas.length ? "available" : lakes.status }, bathymetry);
-      return { fallback: false, source: assembleWater(source, bathymetry.areas, vector.ocean, config) };
+      return { fallback: false, source: assembleWater(source, bathymetry.areas, vector.ocean, config), ...("missingCharts" in bathymetry && bathymetry.missingCharts ? { missingCharts: bathymetry.missingCharts } : {}) };
     } catch (error) {
       if (userSignal?.aborted) throw error;
       // Water assembly is an enhancement over good elevation; never trade real

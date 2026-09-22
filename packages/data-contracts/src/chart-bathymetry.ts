@@ -21,6 +21,8 @@ export const CHART_UNIT_METRES: Record<ChartUnit, number> = { m: 1, ft: 0.3048, 
 
 /** Grid depths are stored in decimetres; this marks a cell the chart does not cover. */
 export const CHART_NO_DEPTH = 0xffff;
+/** A record id: 8-64 lowercase letters, digits or dashes, starting with a letter or digit. */
+export const CHART_ID_PATTERN = /^[a-z0-9][a-z0-9-]{7,63}$/;
 
 export const CHART_BATHYMETRY_LIMITS = {
   maxDepthM: 1500,
@@ -210,7 +212,7 @@ export function parseUserChartBathymetry(value: unknown): UserChartBathymetryV1 
   const limits = CHART_BATHYMETRY_LIMITS;
   const r = record(value, "chart", ["schema", "id", "lake", "georef", "units", "labels", "intervalM", "contours", "spots", "grid", "provenance", "license"]);
   if (r.schema !== CHART_BATHYMETRY_SCHEMA) fail(`schema must be ${CHART_BATHYMETRY_SCHEMA}.`);
-  if (typeof r.id !== "string" || !/^[a-z0-9][a-z0-9-]{7,63}$/.test(r.id)) fail("id must be 8-64 lowercase letters, digits, or dashes.");
+  if (typeof r.id !== "string" || !CHART_ID_PATTERN.test(r.id)) fail("id must be 8-64 lowercase letters, digits, or dashes.");
 
   const lakeRecord = record(r.lake, "lake", ["name", "region", "hylakId", "outline"]);
   const outline = list(lakeRecord.outline, "lake outline", limits.maxOutlinePoints, 4).map((point, index) => lonLat(point, `lake outline point ${index}`));
