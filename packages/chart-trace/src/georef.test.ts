@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { apply, fitControlPoints, fitTransform, IDENTITY, invert, multiply, resampleRing, ringIou, SNAP_MIN_IOU, snapToOutline, type Matrix3 } from "./georef.ts";
+import { apply, fitControlPoints, fitTransform, IDENTITY, invert, multiply, resampleRing, ringIou, SNAP_MIN_IOU, snapCandidates, snapToOutline, type Matrix3 } from "./georef.ts";
 import { localFrame, type Point2 } from "./local-frame.ts";
 
 const frame = localFrame(-84.72, 44.63);
@@ -114,6 +114,48 @@ describe("snapToOutline", () => {
     expect(snap.iou).toBeGreaterThan(SNAP_MIN_IOU);
     expect(snap.rmsM).toBeLessThan(15);
     expect(groundErrorM(snap.matrix, toPixels)).toBeLessThan(40);
+  });
+
+  it("does not lay a symmetric lake down mirror-imaged when both ways overlap equally", () => {
+    // Symmetric about its long axis, but with a bay only on one end: the
+    // mirrored fit overlaps as well as the true one and puts every point wrong.
+    const symmetric: Point2[] = Array.from({ length: 180 }, (_, index) => {
+      const angle = (2 * Math.PI * index) / 180;
+      const radius = 900 + 280 * Math.cos(angle) - 120 * Math.cos(3 * angle);
+      return [radius * Math.cos(angle) * 1.6, radius * Math.sin(angle) + 200 * Math.sin(angle) * Math.cos(angle)];
+    });
+    const toPixels = chartOf(0.3, 0.7);
+    const shoreline = symmetric.map(([x, y]) => apply(toPixels, x, y));
+    const snap = snapToOutline(shoreline, symmetric.map(([x, y]) => frame.toLonLat(x, y)));
+    expect(snap.iou).toBeGreaterThan(SNAP_MIN_IOU);
+    let worst = 0;
+    for (const [x, y] of symmetric) {
+      const [px, py] = apply(toPixels, x, y);
+      const [gx, gy] = frame.toLocal(...(apply(snap.matrix, px, py) as [number, number]));
+      worst = Math.max(worst, Math.hypot(gx - x, gy - y));
+    }
+    expect(worst).toBeLessThan(40);
+  });
+
+  it("offers the other way round for a lake that looks the same turned half round", () => {
+    // An ellipse fits its own outline just as well turned 180 degrees, so the
+    // outline cannot choose; the true placement must be among the alternatives.
+    const ellipse: Point2[] = Array.from({ length: 180 }, (_, index) => {
+      const angle = (2 * Math.PI * index) / 180;
+      return [1440 * Math.cos(angle), 900 * Math.sin(angle)];
+    });
+    const toPixels = chartOf(2.5, 0.7);
+    const candidates = snapCandidates(ellipse.map(([x, y]) => apply(toPixels, x, y)), ellipse.map(([x, y]) => frame.toLonLat(x, y)));
+    const close = candidates.filter((candidate) => candidate.iou > candidates[0]!.iou - 0.05);
+    expect(close.length).toBeGreaterThan(1);
+    const worst = (matrix: Matrix3) => Math.max(...ellipse.map(([x, y]) => {
+      const [px, py] = apply(toPixels, x, y);
+      const [gx, gy] = frame.toLocal(...(apply(matrix, px, py) as [number, number]));
+      return Math.hypot(gx - x, gy - y);
+    }));
+    expect(Math.min(...close.map((candidate) => worst(candidate.matrix)))).toBeLessThan(40);
+    // Refinements that land on the same fit are one placement, not several.
+    expect(candidates.length).toBeLessThan(12);
   });
 
   it("reports a poor overlap instead of pretending a different lake fits", () => {

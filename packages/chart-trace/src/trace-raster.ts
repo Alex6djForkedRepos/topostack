@@ -1,28 +1,45 @@
 // A scanned chart to contours with levels. The scan is reduced to one-pixel
 // ink lines, the lines become paths with their stroke width, and from there
 // it is the vector route: chaining, label gaps, labels, and level inference.
-// Labels come from OCR the caller runs (tesseract in the studio's worker or
-// the batch build), so this package never bundles an OCR engine.
+// Depths come from the maker: words placed by hand in the batch manifest or
+// read from a vector PDF's text layer, and marks clicked in the studio. No
+// label is read by machine; see raster-labels.
 
 import type { Point2 } from "./local-frame.ts";
 import { close, colourMask, darkMask, downsample, eraseBoxes, inkDistance, otsu, removeSmall, thin, type Mask, type RgbaImage, type Rgb } from "./raster.ts";
-import { bulgeCandidates, labelCandidates, mergeCandidates, readLabels, type LabelCandidate, type ReadLabel, type Recognizer } from "./raster-labels.ts";
+import { bulgeCandidates, labelCandidates, mergeCandidates, type LabelCandidate } from "./raster-labels.ts";
 import { traceVectorChart, type VectorTrace } from "./trace-vector.ts";
 import { styleKey } from "./vector-chart.ts";
 import type { VectorPath, VectorText } from "./vector-page.ts";
 
-export interface OcrWord {
+/** A label and the box of ink it is printed in, which is erased before tracing. */
+export interface ChartWord {
   text: string;
   /** Box in original image pixels. */
   left: number;
   top: number;
   right: number;
   bottom: number;
-  /** Reading direction in radians, y down; 0 when the OCR read it upright. */
+  /** Reading direction in radians, y down; 0 for upright text, NaN when unknown. */
   angle?: number;
   /** Extent along and across the reading direction; the box alone overstates or understates both for turned text. */
   length?: number;
   height?: number;
+}
+
+/**
+ * A depth the maker placed by clicking the contour it belongs to, in original
+ * image pixels. Unlike a word it covers no ink, so nothing is erased under it:
+ * erasing a box around a point on the line cuts the line there, and on a
+ * diagonal the cut ends can fall out of reach. A mark has no reading direction
+ * and binds to the traced line nearest it within `reach`.
+ */
+export interface PlacedMark {
+  x: number;
+  y: number;
+  value: number;
+  /** How far from a line the click may land and still count, in original pixels. */
+  reach: number;
 }
 
 export interface SkeletonLine {
@@ -37,7 +54,9 @@ export interface SkeletonLine {
 export interface RasterTraceOptions {
   /** Ink to trace: chosen swatches, or everything darker than a threshold (Otsu when absent). */
   ink?: { colours: Rgb[]; tolerance?: number } | { threshold?: number };
-  words?: OcrWord[];
+  words?: ChartWord[];
+  /** Depths placed by clicking lines; see PlacedMark. */
+  marks?: PlacedMark[];
   labels: "depth" | "elevation";
   surface?: number;
   interval?: number;
@@ -321,17 +340,17 @@ export function traceRasterChart(image: RgbaImage, options: RasterTraceOptions):
 }
 
 export interface ScannedTraceOptions extends RasterTraceOptions {
-  /** Reads an upright crop; see raster-labels. Without it, only `words` label the chart. */
-  recognize?: Recognizer;
   /** Glyph size range in original pixels; defaults scale with the scan. */
   glyph?: { min: number; max: number };
 }
 
 /**
- * The full scanned-chart route: find label-sized ink, trace the lines with it
- * erased, read each label upright along its line, then infer levels.
+ * The scanned-chart route with its printed labels erased: find label-sized
+ * ink, then trace the lines without it, so numbers do not trace as scraps of
+ * line and gaps they sat in bridge cleanly. Levels come from `words` and
+ * `marks`, as in traceRasterChart; the labels found are returned, unread.
  */
-export async function traceScannedChart(image: RgbaImage, options: ScannedTraceOptions): Promise<RasterTrace & { read: ReadLabel[]; candidates: LabelCandidate[] }> {
+export function traceScannedChart(image: RgbaImage, options: ScannedTraceOptions): RasterTrace & { candidates: LabelCandidate[] } {
   const { scale, mask, side } = inkOf(image, options);
   const minGlyph = options.glyph ? options.glyph.min / scale : Math.max(4, side / 1000);
   const maxGlyph = options.glyph ? options.glyph.max / scale : Math.max(12, side / 120);
@@ -346,12 +365,10 @@ export async function traceScannedChart(image: RgbaImage, options: ScannedTraceO
   const traced = linesOf(mask, side, [...found, ...given]).lines;
   // Loose labels take their reading direction from lines traced without labels in them.
   const candidates = mergeCandidates(bulges, labelCandidates(residual, traced, minGlyph, maxGlyph));
-  const read = options.recognize ? await readLabels(image, candidates, scale, options.recognize) : [];
-  const words: OcrWord[] = [...(options.words ?? []), ...read.map((label) => ({ text: label.text, left: label.left, top: label.top, right: label.right, bottom: label.bottom, angle: label.angle, length: label.length, height: label.height }))];
-  return { ...finish(image, traced, scale, words, options), read, candidates };
+  return { ...finish(image, traced, scale, options.words ?? [], options), candidates };
 }
 
-function finish(image: RgbaImage, tracedPixels: readonly SkeletonLine[], scale: number, words: readonly OcrWord[], options: RasterTraceOptions): RasterTrace {
+function finish(image: RgbaImage, tracedPixels: readonly SkeletonLine[], scale: number, words: readonly ChartWord[], options: RasterTraceOptions): RasterTrace {
   const traced = tracedPixels.map((line) => ({ ...line, points: line.points.map(([x, y]): Point2 => [x * scale, y * scale]), width: line.width * scale }));
   const split = options.shoreline === undefined || options.shoreline === "none" ? undefined : options.shoreline === "auto" ? heavyWidth(traced) : options.shoreline.minWidth;
   const lines = traced.map((line) => ({ ...line, shoreline: split !== undefined && line.width > split }));
@@ -372,6 +389,11 @@ function finish(image: RgbaImage, tracedPixels: readonly SkeletonLine[], scale: 
       width: word.length ?? (upright ? boxWidth : boxHeight),
     };
   });
+  for (const mark of options.marks ?? []) {
+    // labelChains reaches 0.9 of a label's size from its centre.
+    const size = mark.reach / 0.9;
+    texts.push({ text: String(mark.value), x: mark.x, y: mark.y, angle: Number.NaN, size, width: size });
+  }
   const contourStyle = styleKey({ stroke: CONTOUR_INK, lineWidth: 1, dashed: false });
   const shoreStyle = styleKey({ stroke: SHORE_INK, lineWidth: 1, dashed: false });
   const trace = traceVectorChart({ width: image.width, height: image.height, paths, texts }, {
