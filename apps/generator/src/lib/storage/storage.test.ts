@@ -221,6 +221,21 @@ describe("project import validation", () => {
     });
   });
 
+  it("keeps usable depth chart references and drops the rest", () => {
+    const reference = { id: "round-lake-chart", contentHash: "a".repeat(64) };
+    const parsed = parseProject({ ...DEFAULT_PROJECT, userDepthCharts: {
+      "9092": reference,
+      "1": { id: "Round Lake", contentHash: "a".repeat(64) },
+      "2": { id: "round-lake-chart", contentHash: "short" },
+      "3": "round-lake-chart",
+      lake: reference,
+    } });
+    expect(parsed.userDepthCharts).toEqual({ "9092": reference });
+    // Absent stays absent, so projects saved before charts keep their fingerprint.
+    expect("userDepthCharts" in parseProject({ ...DEFAULT_PROJECT })).toBe(false);
+    expect("userDepthCharts" in parseProject({ ...DEFAULT_PROJECT, userDepthCharts: { "1": { id: "bad", contentHash: "" } } })).toBe(false);
+  });
+
   it("drops depth overrides that are not usable depths", () => {
     expect(parseProject({ ...DEFAULT_PROJECT, waterDepthOverrides: { "9092": 594, "1": -5, "2": "deep", "3": 99999, lake: 20 } })).toMatchObject({
       waterDepthOverrides: { "9092": 594 },

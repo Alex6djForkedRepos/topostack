@@ -387,8 +387,17 @@ async function loadHydroLakeAreas(bounds: GeoBounds, requestedZoom: number, conf
   return areas;
 }
 
-export function loadSurveyedLakeDepths(bounds: GeoBounds, elevation: SourceBundleV1["elevation"], zoom: number, areas: WaterAreaV1[], signal?: AbortSignal, dimensions?: Pick<ProjectConfigV1, "widthMm" | "heightMm">) {
-  return loadLakeBathymetry(apiBase, bounds, elevation, zoom, areas, signal, dimensions);
+/**
+ * Survey providers first, then the maker's own charts on top: a chart is chosen
+ * for one lake, so it answers a provider that is missing or wrong there. Charts
+ * come from this browser only, so a project opened elsewhere keeps the survey.
+ */
+export async function loadSurveyedLakeDepths(bounds: GeoBounds, elevation: SourceBundleV1["elevation"], zoom: number, areas: WaterAreaV1[], signal?: AbortSignal, config?: Pick<ProjectConfigV1, "widthMm" | "heightMm" | "userDepthCharts">) {
+  const result = await loadLakeBathymetry(apiBase, bounds, elevation, zoom, areas, signal, config);
+  if (!config?.userDepthCharts || !Object.keys(config.userDepthCharts).length) return result;
+  const { loadUserCharts } = await import("$lib/storage/user-charts");
+  const { applyUserCharts } = await import("$lib/domain/user-bathymetry");
+  return applyUserCharts(result, await loadUserCharts(config.userDepthCharts), bounds, elevation, signal, config);
 }
 
 export interface TerrainLoadResult {

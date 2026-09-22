@@ -1,5 +1,6 @@
 import { zip, type AsyncZippable } from "fflate";
 import type { FabricationPackageV1, ProjectConfigV1 } from "@topostack/core";
+import type { UserChartBathymetryV1 } from "@topostack/data-contracts/chart-bathymetry";
 
 export type DownloadOption = "all" | "master" | "panels" | "engravings" | "paint" | "assembly" | "project";
 
@@ -51,12 +52,16 @@ export function startBrowserDownload(download: PreparedDownload): void {
   window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
 }
 
-/** Settings can be saved before terrain has been generated, then imported later. */
-export function prepareProjectSettings(project: ProjectConfigV1): PreparedDownload {
+/**
+ * Settings can be saved before terrain has been generated, then imported later.
+ * Traced depth charts travel with the file: they live only in the browser that
+ * made them, so a project without them would open with plain survey depths.
+ */
+export function prepareProjectSettings(project: ProjectConfigV1, charts: readonly UserChartBathymetryV1[] = []): PreparedDownload {
   const base = project.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "topostack";
   return {
     filename: `${base}-project.json`,
-    blob: new Blob([JSON.stringify({ schemaVersion: 1, project }, null, 2)], { type: "application/json" }),
+    blob: new Blob([JSON.stringify({ schemaVersion: 1, project, ...(charts.length ? { charts } : {}) }, null, 2)], { type: "application/json" }),
     fileCount: 1,
   };
 }

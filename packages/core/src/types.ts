@@ -194,6 +194,14 @@ export interface GeoBounds {
   north: number;
 }
 
+/** Which traced depth chart a lake uses, and the exact content it was carved from. */
+export interface UserDepthChartRefV1 {
+  /** The chart record's id, as stored in the browser or exported beside the project. */
+  id: string;
+  /** SHA-256 of the record, so a changed chart is a changed project. */
+  contentHash: string;
+}
+
 export interface ProjectConfigV1 {
   schemaVersion: 1;
   id: string;
@@ -277,6 +285,14 @@ export interface ProjectConfigV1 {
   scaleBarPlacement?: NorthArrowPlacementV1;
   /** Optional engraved title. Absent in projects saved before titles existed, which keeps their fingerprints. */
   plaque?: PlaqueV1;
+  /**
+   * Depth charts the maker traced, one per lake, keyed by HydroLAKES id as
+   * `waterDepthOverrides` is. The chart itself lives in browser storage or
+   * beside the project in its exported file; this records which chart a lake
+   * uses and the content it was carved from. Absent in every project without
+   * one, which keeps their fingerprints.
+   */
+  userDepthCharts?: Record<string, UserDepthChartRefV1>;
   /** User-placed symbols, projected from geographic coordinates onto the artwork. */
   markers: MapMarkerV1[];
   /** User-authored geographic paths, independent of fetched map-detail toggles. */

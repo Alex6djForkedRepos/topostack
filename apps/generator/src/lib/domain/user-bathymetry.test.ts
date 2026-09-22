@@ -1,0 +1,130 @@
+import { describe, expect, it } from "vitest";
+import type { GeoBounds, WaterAreaV1 } from "@topostack/core";
+import { CHART_BATHYMETRY_SCHEMA, encodeChartDepths, type UserChartBathymetryV1 } from "@topostack/data-contracts/chart-bathymetry";
+import type { SurveyResult } from "$lib/domain/bathymetry";
+import { applyUserCharts, chartSpacingM, sampleChartDepths, type LoadedUserChart } from "$lib/domain/user-bathymetry";
+
+const bounds: GeoBounds = { west: -94.08, south: 39.91, east: -94.06, north: 39.93 };
+const HASH = "a".repeat(64);
+
+/** A chart whose depth rises west to east, so resampling errors show up as a shifted ramp. */
+function rampChart(overrides: Partial<UserChartBathymetryV1> = {}, gridBounds = bounds): UserChartBathymetryV1 {
+  const width = 8;
+  const height = 8;
+  const depths = new Float32Array(width * height);
+  for (let row = 0; row < height; row += 1) for (let column = 0; column < width; column += 1) depths[row * width + column] = column;
+  return {
+    schema: CHART_BATHYMETRY_SCHEMA,
+    id: "ramp-lake-chart",
+    lake: { name: "Ramp Lake", outline: [[gridBounds.west, gridBounds.south], [gridBounds.east, gridBounds.south], [gridBounds.east, gridBounds.north], [gridBounds.west, gridBounds.south]] },
+    georef: { method: "control-points", matrix: [1, 0, 0, 0, 1, 0, 0, 0, 1], rmsM: 1 },
+    units: "m",
+    labels: { kind: "depth" },
+    intervalM: 1,
+    contours: [{ depthM: 1, line: [[gridBounds.west, gridBounds.south], [gridBounds.east, gridBounds.north]], closed: false }],
+    spots: [],
+    grid: { bounds: gridBounds, width, height, method: "harmonic", depthsDm: encodeChartDepths(depths) },
+    provenance: { title: "Ramp Lake chart", fileSha256: HASH, tool: "chart-trace@test" },
+    license: { attestation: "own-work" },
+    ...overrides,
+  };
+}
+
+const lake = (overrides: Partial<WaterAreaV1> = {}): WaterAreaV1 => ({
+  id: "lake-1", kind: "lake", hylakId: 42,
+  // Wider than the 10 mm map, so the whole grid is inside this lake and the
+  // assertions below are about the chart, not about the pixel mask.
+  polygon: { outer: [{ x: -6, y: -6 }, { x: 6, y: -6 }, { x: 6, y: 6 }, { x: -6, y: 6 }], holes: [] },
+  ...overrides,
+});
+
+const grid = { width: 9, height: 9, values: new Float32Array(81), min: 0, max: 0 };
+const surveyed = (areas: WaterAreaV1[]): SurveyResult => ({ areas, status: "available", datasetVersions: ["mn-dnr-lakes-v1"], attribution: [{ name: "Minnesota DNR", url: "https://example.test/mn", license: "State licence" }] });
+const loaded = (chart: UserChartBathymetryV1, contentHash = "b".repeat(64)): LoadedUserChart => ({ chart, contentHash });
+
+describe("sampleChartDepths", () => {
+  it("keeps the chart's ramp in place across the terrain grid", () => {
+    const values = sampleChartDepths(rampChart(), bounds, grid);
+    // West edge reads the chart's shallow end, east edge its deep end, and the
+    // middle sits between them; rows all read alike, as the chart has no slope.
+    expect(values[0]!).toBeCloseTo(0, 5);
+    expect(values[8]!).toBeCloseTo(7, 5);
+    expect(values[4]!).toBeGreaterThan(3);
+    expect(values[4]!).toBeLessThan(4);
+    for (let row = 1; row < 9; row += 1) expect(values[row * 9 + 4]!).toBeCloseTo(values[4]!, 4);
+  });
+
+  it("leaves terrain outside the chart uncovered", () => {
+    // The map shifted half a lake west: its eastern half reads the chart, its western half nothing.
+    const shifted = { west: bounds.west - 0.01, south: bounds.south, east: bounds.east - 0.01, north: bounds.north };
+    const values = sampleChartDepths(rampChart(), shifted, grid);
+    expect(Number.isNaN(values[0]!)).toBe(true);
+    expect(values[8]!).toBeCloseTo(3.5, 1);
+  });
+
+  it("reports the chart's ground spacing", () => {
+    // 0.02 degrees of latitude over 8 rows is about 278 m.
+    expect(chartSpacingM(rampChart())).toBeCloseTo(278, 0);
+  });
+});
+
+describe("applyUserCharts", () => {
+  const dimensions = { widthMm: 10, heightMm: 10 };
+
+  it("replaces a lake's provider depths and records the chart", async () => {
+    const provider = new Float32Array(81).fill(99);
+    const result = await applyUserCharts(surveyed([lake({ bathymetry: { width: 9, height: 9, depthsM: provider, sampleSpacingM: 50 } })]),
+      new Map([["42", loaded(rampChart())]]), bounds, grid, undefined, dimensions);
+    const depths = result.areas[0]!.bathymetry!.depthsM;
+    expect(result.areas[0]!.bathymetryOrigin).toBe("chart");
+    expect(depths[0]!).toBeCloseTo(0, 5);
+    expect(depths[8]!).toBeCloseTo(7, 5);
+    expect(Array.from(depths).some((depth) => depth === 99)).toBe(false);
+    expect(result.datasetVersions).toEqual(["mn-dnr-lakes-v1", "userchart-bbbbbbbb"]);
+    // A chart of the maker's own has nobody else to credit.
+    expect(result.attribution).toHaveLength(1);
+  });
+
+  it("credits a chart traced from a published source", async () => {
+    const chart = rampChart({ provenance: { title: "Lake Viking 2019", publisher: "U.S. Geological Survey", sourceUrl: "https://example.test/sheet.pdf", fileSha256: HASH, tool: "chart-trace@test" }, license: { attestation: "public-domain" } });
+    const result = await applyUserCharts(surveyed([lake()]), new Map([["42", loaded(chart)]]), bounds, grid, undefined, dimensions);
+    expect(result.attribution.at(-1)).toEqual({ name: "Depth chart: Lake Viking 2019", url: "https://example.test/sheet.pdf", license: "U.S. Geological Survey; public-domain" });
+  });
+
+  it("leaves lakes without a chart, and charts for absent lakes, alone", async () => {
+    const other = lake({ id: "lake-2", hylakId: 7 });
+    const before = surveyed([other]);
+    expect(await applyUserCharts(before, new Map([["42", loaded(rampChart())]]), bounds, grid, undefined, dimensions)).toBe(before);
+    const unkeyed = surveyed([lake({ hylakId: undefined })]);
+    expect(await applyUserCharts(unkeyed, new Map([["42", loaded(rampChart())]]), bounds, grid, undefined, dimensions)).toBe(unkeyed);
+  });
+
+  it("ignores a chart that does not reach this map", async () => {
+    const elsewhere = rampChart({}, { west: 10, south: 50, east: 10.02, north: 50.02 });
+    const before = surveyed([lake()]);
+    expect(await applyUserCharts(before, new Map([["42", loaded(elsewhere)]]), bounds, grid, undefined, dimensions)).toBe(before);
+  });
+
+  it("keeps a provider's depths where the chart has none", async () => {
+    // A chart covering only the map's western quarter leaves the east surveyed.
+    const narrow = rampChart({}, { west: bounds.west, south: bounds.south, east: -94.075, north: bounds.north });
+    const provider = new Float32Array(81).fill(99);
+    const result = await applyUserCharts(surveyed([lake({ bathymetry: { width: 9, height: 9, depthsM: provider, sampleSpacingM: 50 } })]),
+      new Map([["42", loaded(narrow)]]), bounds, grid, undefined, dimensions);
+    const depths = result.areas[0]!.bathymetry!.depthsM;
+    expect(depths[0]!).not.toBe(99);
+    expect(depths[8]!).toBe(99);
+  });
+
+  it("carries a lake with no survey at all", async () => {
+    const none: SurveyResult = { areas: [lake()], status: "not-covered", datasetVersions: [], attribution: [] };
+    const result = await applyUserCharts(none, new Map([["42", loaded(rampChart())]]), bounds, grid, undefined, dimensions);
+    expect(result.status).toBe("available");
+    expect(result.areas[0]!.bathymetry!.depthsM[8]!).toBeCloseTo(7, 5);
+  });
+
+  it("does nothing without charts", async () => {
+    const before = surveyed([lake()]);
+    expect(await applyUserCharts(before, new Map(), bounds, grid)).toBe(before);
+  });
+});

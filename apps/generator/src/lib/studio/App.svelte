@@ -51,6 +51,8 @@
 
   const MENU_STATE_KEY = "topostack-menu-sections-v1";
   const MAX_PROJECT_FILE_BYTES = 2_000_000;
+  /** A project file carrying traced depth charts is mostly their depth grids. */
+  const MAX_PROJECT_BUNDLE_BYTES = 24_000_000;
   function previewFor(config: ProjectConfigV1, source: SourceBundleV1): GeometryIRV1 {
     const result = generateGeometry(config, source);
     addPreviewWarning(result, source);
@@ -750,8 +752,19 @@
     if (!file) return;
     // A rejected file leaves a running Generate alone: report it on the status line only.
     const reportImportError = (message: string) => { status = message; if (generationState !== "loading") generationState = "error"; };
-    if (file.size > MAX_PROJECT_FILE_BYTES) { reportImportError("Project file must be 2 MB or smaller."); return; }
-    try { const parsed: unknown = JSON.parse(await file.text()); const candidate = parsed && typeof parsed === "object" && "project" in parsed ? (parsed as { project: unknown }).project : parsed; const imported = parseProject(candidate); const source = createProjectPreviewSource(imported); invalidatePendingPreview(); projectHistory.push(project); dismissedWarnings = []; replaceSourceProject(imported, source); generationState = "ready"; status = "Project imported · generate to refresh its terrain"; }
+    if (file.size > MAX_PROJECT_BUNDLE_BYTES) { reportImportError("Project file must be 24 MB or smaller."); return; }
+    try {
+      const parsed: unknown = JSON.parse(await file.text());
+      const envelope = parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : undefined;
+      const charts = envelope && Array.isArray(envelope.charts) ? envelope.charts : [];
+      // Only a file carrying traced depth charts may be large; everything else keeps the old ceiling.
+      if (!charts.length && file.size > MAX_PROJECT_FILE_BYTES) { reportImportError("Project file must be 2 MB or smaller."); return; }
+      const candidate = envelope && "project" in envelope ? envelope.project : parsed;
+      const imported = parseProject(candidate);
+      const saved = charts.length ? await (await import("$lib/storage/user-charts")).saveProjectCharts(charts, imported) : { saved: 0, skipped: 0 };
+      const source = createProjectPreviewSource(imported); invalidatePendingPreview(); projectHistory.push(project); dismissedWarnings = []; replaceSourceProject(imported, source); generationState = "ready";
+      status = saved.saved ? `Project imported with ${saved.saved === 1 ? "its depth chart" : `${saved.saved} depth charts`} · generate to refresh its terrain` : "Project imported · generate to refresh its terrain";
+    }
     catch (error) { reportImportError(error instanceof Error ? error.message : "Could not import this project."); }
   }
 

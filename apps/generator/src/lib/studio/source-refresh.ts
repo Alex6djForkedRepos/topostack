@@ -11,7 +11,7 @@ import { changedProjectKeys, projectPatch } from "$lib/studio/project-patch";
 export interface SourceRefreshDependencies {
   loadVectorMarkings: (bounds: SourceBundleV1["bounds"], zoom: number, config: ProjectConfigV1, signal?: AbortSignal) => Promise<VectorData>;
   loadLakeAreas: (bounds: SourceBundleV1["bounds"], zoom: number, config: ProjectConfigV1, signal?: AbortSignal) => Promise<WaterAreaV1[]>;
-  loadSurveyedLakeDepths: (bounds: SourceBundleV1["bounds"], elevation: SourceBundleV1["elevation"], zoom: number, areas: WaterAreaV1[], signal?: AbortSignal, dimensions?: Pick<ProjectConfigV1, "widthMm" | "heightMm">) => Promise<SurveyResult>;
+  loadSurveyedLakeDepths: (bounds: SourceBundleV1["bounds"], elevation: SourceBundleV1["elevation"], zoom: number, areas: WaterAreaV1[], signal?: AbortSignal, config?: Pick<ProjectConfigV1, "widthMm" | "heightMm" | "userDepthCharts">) => Promise<SurveyResult>;
   applySurveyProvenance: (source: SourceBundleV1, result: SurveyResult) => SourceBundleV1;
   resolveLakeOutlines: (providers: WaterAreaV1[], hydro: WaterAreaV1[], inland: Polygon2D[]) => WaterAreaV1[];
   assembleWater: (source: SourceBundleV1, lakes: WaterAreaV1[], ocean: Polygon2D[], config: ProjectConfigV1) => SourceBundleV1;
