@@ -14,6 +14,7 @@ Many lakes have no digital survey but do have a published depth chart: a scanned
 | Batch tracing of curated charts into records (`trace-depth-charts.mjs`) | Done |
 | Records published as a survey archive (`community-charts-v1` in the survey build) | Builds; not registered in the catalog yet |
 | Loading saved charts in the studio, IndexedDB storage, project import and export | Done |
+| Tracing an uploaded chart in the browser (the engine and its worker) | Done |
 | Tracing wizard in the studio, with OCR loaded only when needed | Planned |
 | Reviewed catalog submissions through the map-api Worker | Planned |
 
@@ -150,6 +151,20 @@ It reads every record in `scripts/data/depth-charts/`, refuses any whose attesta
 - **`harmonic`** (the default). Contour cells are fixed at their depth, land is fixed at zero, and Laplace's equation is solved by coarse-to-fine red-black SOR. This follows the slope a chart implies and covers the whole lake, where a TIN leaves terraces between vertices of one contour and blanks outside their hull.
   - Laplace alone would leave a region enclosed by one ring perfectly flat, and pinning a single cell only makes a spike. So such a pool is filled with a smooth dome `d ± step·(2t − t²)` over its distance from the ring. It levels off half an interval past the ring, or at the deepest sounding inside it. Rings marked `inside: "shallower"` dome upward, as humps.
 - **`tin`** ports `survey_regions.contour_grid` line for line and is held to it by a fixture the Python generates. It exists so charts and published contour surveys can be gridded identically.
+
+## Tracing an upload in the browser
+
+`domain/chart-build.ts` is the whole engine the wizard will drive: pixels and a lake outline in, a finished record out. It is a plain function in no component, so it runs in `workers/chart-trace.worker.ts` and is tested without a DOM. `workers/chart-trace-client.ts` drives that worker, one request at a time, matching every reply by id so a cancelled trace cannot land on a later one; where workers are unavailable — jsdom, or a host frame whose policy forbids them — the same functions run on the main thread, because a slow trace beats no tracing.
+
+**Placing an upload needs no control points.** The maker picks the lake before uploading, so the chart's traced shore is snapped onto that lake's known outline. The shore is taken as the longest traced line that closes, falling back to the longest line of any kind: a chart's outer shore is its longest ink by a wide margin, which is steadier than a stroke-width rule. The report carries the overlap and flags a snap below `SNAP_MIN_IOU` as one to look at rather than refusing it.
+
+**The lake's own outline is the water**, not the traced shore: the chart was just matched to it, and it is the cleaner boundary.
+
+**Two labels, not one.** A single labelled ring cannot say which way is deeper — inward and outward both fit — so inference stops there and most lines stay unlevelled. With two, the direction is fixed and the rest follows from nesting. The wizard should ask for a second label rather than reporting poor coverage.
+
+**Assembly is shared with the batch.** `@topostack/chart-trace/record` turns any trace into a record: levels to depths, geometry to lon/lat, contours simplified until they fit the contract, then the grid. The batch build and the studio both end there, so a curated chart and an uploaded one mean the same thing.
+
+**What OCR will need.** The engine takes labels as given (`words`), which is also how the batch supplies hand-placed ones, and `chart-trace` never bundles a recognizer: the caller passes one in. Adding Tesseract to the wizard means self-hosting its worker, core and language data, and adding `'wasm-unsafe-eval'` to `script-src` in `static/_headers` — the current policy has no such source, so a WebAssembly engine cannot start under it.
 
 ## In the browser
 

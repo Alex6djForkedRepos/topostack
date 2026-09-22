@@ -1,0 +1,147 @@
+import { snapToOutline, SNAP_MIN_IOU } from "@topostack/chart-trace/georef";
+import type { Point2 } from "@topostack/chart-trace/local-frame";
+import type { Rgb } from "@topostack/chart-trace/raster";
+import { buildChartRecord, type ChartRecordReport } from "@topostack/chart-trace/record";
+import { traceRasterChart, type OcrWord } from "@topostack/chart-trace/trace-raster";
+import { CHART_UNIT_METRES, type ChartAttestation, type ChartUnit, type UserChartBathymetryV1 } from "@topostack/data-contracts/chart-bathymetry";
+
+/**
+ * One uploaded chart image to a finished depth chart record.
+ *
+ * This is the whole engine the studio's tracing wizard drives, kept out of any
+ * component so it can run in a worker and be tested without a DOM. It never
+ * touches storage or the network: the caller hands it pixels and the lake's
+ * known outline, and gets back a record to save.
+ *
+ * Placing the chart is done by snapping its traced shore onto that outline
+ * rather than by asking for control points, because the lake is already known:
+ * the maker picked it before uploading.
+ */
+
+export interface ChartImage {
+  width: number;
+  height: number;
+  /** RGBA, four bytes per pixel, row-major. */
+  data: Uint8ClampedArray;
+}
+
+export interface ChartBuildRequest {
+  image: ChartImage;
+  /** The lake being charted, with its outline in [lon, lat]. */
+  lake: { name?: string; region?: string; hylakId?: number; outline: Point2[] };
+  /** Which ink is contour line: chosen swatches, or everything darker than a threshold. */
+  ink?: { colours: Rgb[]; tolerance?: number } | { threshold?: number };
+  units: ChartUnit;
+  /** Whether the chart prints depths or elevations, and the surface for elevations. */
+  labels: "depth" | "elevation";
+  surface?: number;
+  /** Contour interval in chart units; inferred from the labels when absent. */
+  interval?: number;
+  /** Labels the maker placed or OCR read, in image pixels. */
+  words?: OcrWord[];
+  /** The map rectangle, so a legend or margin is not traced. */
+  mapArea?: { left: number; top: number; right: number; bottom: number };
+  resolutionM: number;
+  title: string;
+  attestation: ChartAttestation;
+  /** SHA-256 of the uploaded file, for the record's provenance. */
+  fileSha256: string;
+  tool: string;
+  /** Record id; one is generated from the lake's name when absent. */
+  id?: string;
+}
+
+export interface ChartBuildResult {
+  record: UserChartBathymetryV1;
+  report: ChartRecordReport & {
+    /** Share of traced contour length that ended with a level. */
+    coverage: number;
+    labelled: number;
+    inferred: number;
+    /** Overlap between the snapped chart shore and the lake outline. */
+    iou: number;
+    /** True when the snap is too poor to trust without the maker looking at it. */
+    snapUncertain: boolean;
+  };
+}
+
+const SLUG = /[^a-z0-9]+/g;
+
+/** A record id from the lake's name, unique enough that two traces never collide. */
+export function chartId(name: string | undefined, random: () => number = Math.random): string {
+  const base = (name ?? "lake").toLowerCase().replace(SLUG, "-").replace(/^-|-$/g, "").slice(0, 40) || "lake";
+  const suffix = Math.floor(random() * 0xffffffff).toString(16).padStart(8, "0");
+  return `${base}-chart-${suffix}`.slice(0, 64);
+}
+
+const ringLength = (ring: readonly Point2[]): number => {
+  let total = 0;
+  for (let index = 1; index < ring.length; index += 1) total += Math.hypot(ring[index]![0] - ring[index - 1]![0], ring[index]![1] - ring[index - 1]![1]);
+  return total;
+};
+
+/**
+ * The shore the snap is fitted from: the longest traced line that closes, or
+ * the longest line of all when nothing closed. A chart's outer shore is its
+ * longest ink by a wide margin, so this is steadier than a width rule.
+ */
+export function shorelineFor(trace: { shoreline: Point2[][]; contours: { points: Point2[]; closed: boolean }[]; lines?: { points: Point2[] }[] }): Point2[] | undefined {
+  const candidates = trace.shoreline.length ? trace.shoreline : trace.contours.filter((contour) => contour.closed).map((contour) => contour.points);
+  // Fall back to every traced line, including lines no level reached: the shore
+  // is usually one of them, and placing the chart must not wait on levelling.
+  const rings = candidates.length ? candidates : [...trace.contours, ...(trace.lines ?? [])].map((line) => line.points);
+  let best: Point2[] | undefined;
+  let bestLength = 0;
+  for (const ring of rings) {
+    if (ring.length < 3) continue;
+    const length = ringLength(ring);
+    if (length > bestLength) { best = ring; bestLength = length; }
+  }
+  return best;
+}
+
+export function buildChartFromImage(request: ChartBuildRequest, random: () => number = Math.random): ChartBuildResult {
+  if (request.lake.outline.length < 3) throw new Error("This lake has no outline to place the chart against.");
+  const trace = traceRasterChart(request.image, {
+    ...(request.ink ? { ink: request.ink } : {}),
+    labels: request.labels,
+    ...(request.surface === undefined ? {} : { surface: request.surface }),
+    ...(request.interval === undefined ? {} : { interval: request.interval }),
+    ...(request.words ? { words: request.words } : {}),
+    ...(request.mapArea ? { mapArea: request.mapArea } : {}),
+    // Frames, roads and lettering are often bold too, so the shore is not
+    // guessed from stroke width; it comes from the traced lines themselves.
+    shoreline: "none",
+  });
+  const shoreline = shorelineFor(trace);
+  if (!shoreline) throw new Error("No lines were traced from this image. Check which ink is contour line, or crop to the map.");
+
+  const snap = snapToOutline(shoreline, request.lake.outline);
+  const { record, report } = buildChartRecord({
+    id: request.id ?? chartId(request.lake.name, random),
+    lake: { ...(request.lake.name ? { name: request.lake.name } : {}), ...(request.lake.region ? { region: request.lake.region } : {}), ...(request.lake.hylakId ? { hylakId: request.lake.hylakId } : {}) },
+    georef: { matrix: snap.matrix, rmsM: snap.rmsM, method: "snap", iou: snap.iou },
+    units: request.units,
+    labels: request.labels === "depth" ? { kind: "depth" } : { kind: "elevation", surfaceElevationM: (request.surface ?? 0) * CHART_UNIT_METRES[request.units] },
+    interval: trace.interval,
+    contours: trace.contours.map((contour) => ({ points: contour.points, closed: contour.closed, value: contour.value })),
+    // The lake's own outline is the water: the chart was just snapped onto it,
+    // and it is a cleaner boundary than a shore traced from ink.
+    water: { lonLat: [request.lake.outline] },
+    resolutionM: request.resolutionM,
+    provenance: { title: request.title, fileSha256: request.fileSha256, tool: request.tool },
+    license: { attestation: request.attestation },
+  });
+
+  return {
+    record,
+    report: {
+      ...report,
+      coverage: Math.round(trace.diagnostics.coverage * 1000) / 1000,
+      labelled: trace.diagnostics.labelled,
+      inferred: trace.diagnostics.inferred,
+      iou: Math.round(snap.iou * 1000) / 1000,
+      snapUncertain: snap.iou < SNAP_MIN_IOU,
+    },
+  };
+}
