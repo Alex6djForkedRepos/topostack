@@ -1,5 +1,5 @@
 import { getContext, setContext } from "svelte";
-import type { GeometryIRV1, LineStyleV1, OperationPath, ProjectConfigV1, SourceBundleV1, TerrainStackPlan, UserDepthChartRefV1 } from "@topostack/core";
+import type { GeoPoint, GeometryIRV1, LineStyleV1, OperationPath, ProjectConfigV1, SourceBundleV1, TerrainStackPlan, UserDepthChartRefV1 } from "@topostack/core";
 import type { elevationUnit, lengthUnit, planSeamGrid } from "@topostack/core";
 import type { UserChartBathymetryV1 } from "@topostack/data-contracts/chart-bathymetry";
 import type { PlaceResult } from "$lib/domain/data-provider";
@@ -84,6 +84,7 @@ export interface StudioContext {
   readonly PlacementStage: typeof import("$lib/studio/placement/PlacementStage.svelte").default | undefined;
   readonly CustomDataView: typeof import("$lib/studio/customdata/CustomDataView.svelte").default | undefined;
   readonly customDataView: LazyComponent<typeof import("$lib/studio/customdata/CustomDataView.svelte").default>;
+  readonly mapCanvas: LazyComponent<typeof import("$lib/studio/MapCanvas.svelte").default>;
 
   // Placement mode
   /** The open placement session, or undefined outside placement mode. */
@@ -105,6 +106,8 @@ export interface StudioContext {
   resetOpen: boolean;
   mapAspectLocked: boolean;
   placingMarker: boolean;
+  /** The path being drawn by clicking the map, before it joins the project. */
+  readonly lineDraft: { points: GeoPoint[] } | undefined;
   lineworkOpen: boolean;
   locationTrigger: HTMLButtonElement | undefined;
 
@@ -128,15 +131,23 @@ export interface StudioContext {
   setLakeDepth(hylakId: number, shown: number): Promise<void> | undefined;
   setLineWidth(key: LineWidthKey, shown: number): Promise<void> | undefined;
   applyCustomDataEdit(patch: Partial<ProjectConfigV1> | undefined): void;
+  /** Names a marker or path. It records an undo step and leaves the preview alone. */
+  renameCustomData(patch: Partial<ProjectConfigV1> | undefined): void;
+  /** Arms drawing a path on the map; the next clicks are its points. */
+  startLineDraft(): void;
+  extendLineDraft(point: GeoPoint): void;
+  /** Adds the drawn path as one edit. Closed, it is a boundary; open, a trail. */
+  commitLineDraft(closed?: boolean): void;
+  cancelLineDraft(): void;
   /**
    * Keeps a traced chart in this browser's library. It changes no project:
    * tracing a chart and carving a lake with it are separate acts.
    */
   saveChartToLibrary(record: UserChartBathymetryV1): Promise<UserDepthChartRefV1>;
   /** Carves this lake from a saved chart, and marks the terrain for regeneration. */
-  useChartForLake(hylakId: number, reference: UserDepthChartRefV1): Promise<void>;
+  useChartForLake(lakeKey: string, reference: UserDepthChartRefV1): Promise<void>;
   /** Stops using a lake's chart; the chart stays in the library. */
-  clearDepthChart(hylakId: number): Promise<void>;
+  clearDepthChart(lakeKey: string): Promise<void>;
   choosePlace(place: PlaceResult): void;
   undo(): void;
   redo(): void;

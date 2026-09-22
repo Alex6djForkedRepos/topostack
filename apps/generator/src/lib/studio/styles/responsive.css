@@ -243,9 +243,16 @@
     width: 100%;
   }
 
+  /* Four views share the row evenly; a long label wraps inside its tab
+     rather than pushing the last tab off the screen. */
   .mode-switch .ldt-toggle-group__item {
+    flex: 1 1 0;
+    min-width: 0;
     gap: 4px;
-    padding-inline: 8px;
+    padding-inline: 6px;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.15;
   }
 
   .preview-toolbar {
@@ -379,5 +386,12 @@
   .app-shell {
     height: 600px;
     overflow: visible;
+  }
+}
+
+/* On the narrowest phones the view names alone fit; their icons do not. */
+@media (max-width: 420px) {
+  .mode-switch .ldt-toggle-group__item svg {
+    display: none;
   }
 }

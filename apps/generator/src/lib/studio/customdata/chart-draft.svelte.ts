@@ -17,6 +17,8 @@ export interface PlacedDepth {
   x: number;
   y: number;
   value: number;
+  /** How far from a line the click may have landed, in image pixels: a fixed distance on screen. */
+  reach: number;
 }
 
 export interface ChartDraft {
@@ -26,6 +28,11 @@ export interface ChartDraft {
   pixels: ImageData | undefined;
   imageName: string;
   fileSha256: string;
+  /**
+   * The uploaded file, kept for a PDF so another of its pages can be drawn,
+   * with how many pages it has and which one is showing.
+   */
+  pdf: { file: File; pages: number; page: number } | undefined;
   depths: PlacedDepth[];
   units: ChartUnit;
   reads: "depth" | "elevation";
@@ -33,7 +40,11 @@ export interface ChartDraft {
   interval: string;
   title: string;
   attestation: ChartAttestation;
+  /** Which of the chart's plausible placements on the lake to trace with; see ChartBuildRequest.placement. */
+  placement: number;
   result: ChartBuildResult | undefined;
+  /** What `result` was traced from, so a later change of inputs shows it is out of date. */
+  resultKey: string;
 }
 
 const empty = (): ChartDraft => ({
@@ -42,14 +53,17 @@ const empty = (): ChartDraft => ({
   pixels: undefined,
   imageName: "",
   fileSha256: "",
+  pdf: undefined,
   depths: [],
   units: "ft",
   reads: "depth",
-  surface: "0",
+  surface: "",
   interval: "5",
   title: "",
   attestation: "own-work",
+  placement: 0,
   result: undefined,
+  resultKey: "",
 });
 
 export const draft = $state<ChartDraft>(empty());

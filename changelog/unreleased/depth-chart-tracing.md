@@ -2,6 +2,6 @@
 type: feature
 title: Carve a lake from a depth chart you have
 ---
-A lake with no published survey is carved from a modeled basin, which is a guess at the bottom's shape. If you have a depth chart of it — a scan, a photo of a paper map, a screenshot — you can trace that instead. Open the new **Custom data** view beside Map and 3D stack, search for your lake, and load the picture.
+A lake with no survey is carved from a modeled basin, a guess at its bottom. If you have a depth chart of it (a scan, photo, screenshot or PDF), trace that instead; small lakes that only the map draws can take one too. Open the new **Custom data** view, open **Depth charts**, find your lake and load the chart.
 
-Type a depth, click the contour it belongs to, then do it again: two is the minimum, because one depth cannot say which way the lake deepens. You see the lake bed before keeping it. Charts stay in this browser, need no terrain, and are carved only when you use one for a lake and regenerate.
+Type a depth and click the contour it belongs to (or use the arrow keys and Enter), then do it again: one depth cannot say which way the lake deepens. Charts stay in this browser and carve a lake once you use one for it and regenerate.

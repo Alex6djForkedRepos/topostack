@@ -9,6 +9,7 @@
   import Switch from "$lib/studio/StudioSwitch.svelte";
   import LakeDepthHelp from "$lib/studio/panels/LakeDepthHelp.svelte";
   import { getStudio } from "$lib/studio/studio-context";
+  import { nav } from "$lib/studio/customdata/custom-data-nav.svelte";
   import { clampPlaqueSize, DEFAULT_PLAQUE_PLACEMENT, plaqueSettings, plaqueText, plaqueWithFont } from "$lib/studio/project-edits";
 
   let { openLakeDepthHelp }: { openLakeDepthHelp?: (trigger: HTMLButtonElement) => void } = $props();
@@ -101,10 +102,10 @@
                 <p class="depth-chart-row">
                   {#if charted(lake.hylakId)}
                     <span>Depth chart in use</span>
-                    <button type="button" onclick={() => void studio.clearDepthChart(lake.hylakId)}>Stop using it</button>
+                    <button type="button" onclick={() => void studio.clearDepthChart(String(lake.hylakId))}>Stop using it</button>
                   {:else}
                     <!-- Charts are built in their own view; this only points there. -->
-                    <button type="button" onclick={() => { studio.mode = "custom"; }}>Use a depth chart…</button>
+                    <button type="button" onclick={() => { nav.section = "charts"; studio.mode = "custom"; }}>Use a depth chart…</button>
                   {/if}
                 </p>
               {/each}

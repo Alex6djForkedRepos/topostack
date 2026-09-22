@@ -8,6 +8,7 @@ import {
   MARKER_SYMBOLS,
   DEPTH_CHART_ID_PATTERN,
   isDepthChartLakeKey,
+  MAX_CUSTOM_DATA_NAME_LENGTH,
   MAX_CUSTOM_DATA_POINTS,
   MAX_CUSTOM_LINE_POINTS,
   MAX_CUSTOM_LINES,
@@ -83,6 +84,7 @@ export function validateProject(config: ProjectConfigV1): void {
     const size = marker.sizeMm === undefined ? MAP_MARKER_SIZE_MM : marker.sizeMm;
     if (!Number.isFinite(size) || size < MAP_MARKER_MIN_SIZE_MM || size > MAP_MARKER_MAX_SIZE_MM) throw new Error(`Marker size must be between ${MAP_MARKER_MIN_SIZE_MM} and ${MAP_MARKER_MAX_SIZE_MM} mm.`);
     if (!MARKER_SYMBOLS.includes(marker.symbol)) throw new Error("Marker symbol is invalid.");
+    checkCustomDataName(marker.name, "Marker");
   }
   const customLineIds = new Set<string>();
   if (config.customLines.length > MAX_CUSTOM_LINES) throw new Error("A project may contain at most 250 custom lines.");
@@ -92,6 +94,7 @@ export function validateProject(config: ProjectConfigV1): void {
     if (customLineIds.has(line.id)) throw new Error("Custom line ids must be unique.");
     customLineIds.add(line.id);
     if (!CUSTOM_LINE_KINDS.includes(line.kind)) throw new Error("Custom line type must be trail or boundary.");
+    checkCustomDataName(line.name, "Custom line");
     if (!Array.isArray(line.points) || line.points.length < 2) throw new Error("Each custom line must contain at least two points.");
     if (line.points.length > MAX_CUSTOM_LINE_POINTS) throw new Error("Each custom line may contain at most 2000 points.");
     customPointCount += line.points.length;
@@ -146,6 +149,13 @@ export function validateProject(config: ProjectConfigV1): void {
   }
   const bounds = config.location.bounds;
   if (bounds) assertGeographicBounds(bounds, "Project");
+}
+
+/** A marker's or path's own name, which is optional and only ever bookkeeping. */
+function checkCustomDataName(name: unknown, label: "Marker" | "Custom line"): void {
+  if (name === undefined) return;
+  if (typeof name !== "string" || !name.trim()) throw new Error(`${label} name must be text, or absent.`);
+  if (name.length > MAX_CUSTOM_DATA_NAME_LENGTH) throw new Error(`${label} name must contain at most ${MAX_CUSTOM_DATA_NAME_LENGTH} characters.`);
 }
 
 function validatePlacement(placement: NorthArrowPlacementV1 | undefined, name: string): void {

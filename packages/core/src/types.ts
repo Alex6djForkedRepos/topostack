@@ -25,6 +25,11 @@ export interface MapMarkerV1 extends GeoPoint {
   symbol: MarkerSymbol;
   /** Nominal symbol size in millimeters; omitted legacy values use 8 mm. */
   sizeMm?: number;
+  /**
+   * What the maker calls this marker. It is for finding it again in a long
+   * list; nothing is engraved from it, and it is absent until one is typed.
+   */
+  name?: string;
 }
 
 export const MARKER_SYMBOLS: readonly MarkerSymbol[] = ["pin", "circle", "triangle", "star", "cross"];
@@ -39,6 +44,8 @@ export const MAX_MAP_MARKERS = 250;
 export const MAX_CUSTOM_LINES = 250;
 export const MAX_CUSTOM_LINE_POINTS = 2_000;
 export const MAX_CUSTOM_DATA_POINTS = 10_000;
+/** How long a marker or path name may be. Long enough to be a sentence, short enough to list. */
+export const MAX_CUSTOM_DATA_NAME_LENGTH = 60;
 
 /** A machine bed smaller than this cannot hold a piece worth cutting. */
 export const MIN_WORK_AREA_MM = 20;
@@ -53,6 +60,8 @@ export interface CustomLineFeatureV1 {
   id: string;
   kind: CustomLineKind;
   points: GeoPoint[];
+  /** What the maker calls this path. Bookkeeping, like a marker's name. */
+  name?: string;
 }
 
 export interface NorthArrowPlacementV1 {

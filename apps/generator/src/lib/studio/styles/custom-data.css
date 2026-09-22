@@ -40,9 +40,17 @@
   background: var(--loidolt-surface-alt);
 }
 
+/* In a narrow sidebar the two actions move below the label together rather
+   than stacking one above the other beside it. */
+.marker-editor .subgroup-heading--action,
+.custom-line-editor .subgroup-heading--action {
+  flex-wrap: wrap;
+  row-gap: var(--panel-space-1);
+}
+
 .marker-add-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
   gap: var(--panel-space-2);
 }
@@ -108,6 +116,39 @@
   font: var(--panel-font-micro) var(--loidolt-font-utility);
   text-transform: uppercase;
   letter-spacing: 0.08em;
+}
+
+/* The card's title is its name, typed in place. It keeps the header's shape
+   but not its uppercasing: a name should read the way it was written, while
+   the placeholder still reads as the label it replaces. */
+.custom-data-name {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 4px 2px 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--panel-font-label, 11px);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.custom-data-name::placeholder {
+  color: var(--loidolt-text-muted);
+  font-size: var(--panel-font-micro, 8px);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.custom-data-name:hover {
+  border-bottom-color: var(--loidolt-border);
+}
+
+.custom-data-name:focus {
+  outline: none;
+  border-bottom-color: var(--loidolt-accent);
 }
 
 .marker-card__header button {
