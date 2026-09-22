@@ -89,7 +89,7 @@ The adapter reads the page with pdf.js 6, which the caller passes in. 5.x carrie
 - the input kind: a vector PDF, a scanned PDF (rasterized with `pdftoppm` at a stated dpi), or a PNG
 - the contour and shoreline styles, how labels read, the surface and interval, and the map area
 - for scans with no readable labels, a few hand-placed labels as `trace.words`
-- where the water is: the chart's water fill styles, or the traced line at the shore level
+- where the water is: the chart's water fill styles, the traced shoreline itself (`water.fromShoreline`, for charts that draw a waterline instead of filling the lake), or the traced contour at a shore level
 - control points, in lon/lat or in a projected CRS with a proj4 definition (for charts printed with grid ticks)
 - the grid resolution
 
@@ -101,6 +101,13 @@ The adapter reads the page with pdf.js 6, which the caller passes in. 5.x carrie
 5. validates the result with `parseUserChartBathymetry`.
 
 Records whose attestation is publishable go to `scripts/data/depth-charts/<id>.json` for the survey archive build. All others stay in the gitignored work directory. `report.json` has a QA line per chart: georeferencing residual, contours and points, labelled and inferred counts, coverage, grid size, and deepest cell.
+
+**Lake Viking (USGS SIM 3486, sheet 7)** is the first published record, and the pattern to copy for more. USGS-authored work is in the [U.S. public domain](https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits); the sheet's only third-party material is the OpenStreetMap basemap in its location inset, outside the traced map area.
+- **Georeferencing.** The figure's latitude and longitude graticule is drawn as tick marks, not lines. Fitting a line through the ticks of each parallel and meridian, then intersecting them, gives control points to under a point; the affine fit's residual is **0.07 m**. The labels sit on their own lines, which is what identifies them. Any USGS bathymetric sheet can be georeferenced this way.
+- **Trace.** Index contours every 20 ft in black and intermediate contours every 5 ft in grey, 17 chains, **100%** of the contour length levelled from the sheet's own labels.
+- **Water.** The sheet draws a waterline (the average survey water surface, 863.8 ft) rather than filling the lake, so `water.fromShoreline` takes the outline from the traced shoreline. Its beige fill marks the multibeam survey extent, which stops short of the shallow arms.
+- **Grid.** 204×239 at 15 m, deepest 17.9 m (58.7 ft below the 863.8 ft surface, matching the sheet's deepest 805 ft contour). The old river channel reads deepest, running to the dam in the north-east.
+- **Check against OpenStreetMap.** Every edge is within about 80 m of OpenStreetMap's lake outline; the largest differences are at the tips of the upstream arms.
 
 **Cedar Creek (TWDB).**
 - **Georeferencing.** Six intersections of the chart's NAD83 Texas North Central grid lines (EPSG:2276, US feet) give an affine fit with a 6 m ground residual.

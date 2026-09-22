@@ -44,7 +44,8 @@ export function parseChartManifest(value) {
       if (![point.x, point.y, ...ground].every(Number.isFinite)) fail(id, projected ? "control points need x, y, easting, northing." : "control points need x, y, lon, lat.");
     }
     const water = chart.water ?? {};
-    if (!("fillStyles" in water) && !("shoreLevel" in water)) fail(id, "water needs fillStyles (vector) or shoreLevel (traced shore).");
+    if (!("fillStyles" in water) && !("shoreLevel" in water) && water.fromShoreline !== true) fail(id, "water needs fillStyles (vector), fromShoreline, or shoreLevel (traced shore).");
+    if (water.fromShoreline === true && !Array.isArray(trace.shorelineStyles)) fail(id, "water.fromShoreline needs trace.shorelineStyles.");
     if (!(chart.grid?.resolutionM > 0)) fail(id, "grid.resolutionM must be positive.");
   }
   return value.charts;
@@ -72,6 +73,9 @@ export function traceChart(chart, input) {
     const page = input.page;
     const words = (trace.words ?? []).map((word) => ({ text: word.text, x: (word.left + word.right) / 2, y: (word.top + word.bottom) / 2, angle: word.angle ?? Number.NaN, size: word.bottom - word.top, width: word.right - word.left }));
     const result = traceVectorChart({ ...page, texts: [...page.texts, ...words] }, { ...common, contourStyles: trace.contourStyles, ...(trace.shorelineStyles ? { shorelineStyles: trace.shorelineStyles } : {}) });
+    // Some charts draw the waterline itself (a "water surface elevation" line)
+    // rather than filling the lake; then the traced shoreline is the outline.
+    if (chart.water.fromShoreline) return { ...result, water: result.shoreline.filter((ring) => ring.length >= 3) };
     const fills = new Set(chart.water.fillStyles ?? []);
     const area = trace.mapArea;
     // The legend repeats the water fill as a swatch; only fills on the map count.
@@ -100,7 +104,9 @@ function ringArea(ring) {
  */
 export function chartRecord(chart, traced, { fileSha256, tool }) {
   const fit = fitControlPoints(controlPoints(chart.georef), chart.georef.model);
-  const toLonLat = ([x, y]) => apply(fit.matrix, x, y);
+  // Six decimals is about 0.1 m, far finer than any chart's line width, and
+  // keeps a record with tens of thousands of points to a sane file size.
+  const toLonLat = ([x, y]) => apply(fit.matrix, x, y).map((value) => Math.round(value * 1e6) / 1e6);
   // Ground metres per page unit near the page origin, to size simplification in ground terms.
   const [lon0, lat0] = toLonLat([0, 0]);
   const [lon1, lat1] = toLonLat([1, 0]);
@@ -122,7 +128,8 @@ export function chartRecord(chart, traced, { fileSha256, tool }) {
   contours = contours.filter((contour) => contour.line.length >= 2).slice(0, CHART_BATHYMETRY_LIMITS.maxContours);
 
   const surfaceLines = chart.water.shoreLevel === undefined ? [] : traced.contours.filter((contour) => contour.points.length >= 3 && Math.abs(contour.value - chart.water.shoreLevel) < 1e-9).map((contour) => contour.points);
-  const waterRings = (traced.water.length ? traced.water : surfaceLines).map((ring) => ring.map(toLonLat));
+  // The shore is drawn at the same scale as the contours, so it simplifies the same way.
+  const waterRings = (traced.water.length ? traced.water : surfaceLines).map((ring) => simplify(ring, tolerance).map(toLonLat)).filter((ring) => ring.length >= 3);
   if (!waterRings.length) throw new Error(`Depth chart ${chart.id}: no water outline; set water.fillStyles or water.shoreLevel.`);
   const grid = gridDepths({
     water: { rings: waterRings },

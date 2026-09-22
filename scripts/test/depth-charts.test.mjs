@@ -34,6 +34,8 @@ function vectorPage() {
   const fractions = [0.8, 0.55, 0.3];
   const paths = fractions.map((fraction) => ({ stroke: "#333333", lineWidth: 0.5, dashed: false, points: ring(fraction), closed: true }));
   paths.push({ fill: "#bee8ff", lineWidth: 0, dashed: false, points: ring(1), closed: true });
+  // A drawn waterline, as USGS sheets carry instead of a fill.
+  paths.push({ stroke: "#0065b7", lineWidth: 1, dashed: false, points: ring(0.95), closed: true });
   const labelOn = (fraction, text) => {
     const [x, y] = ring(fraction)[0];
     return { text, x, y, angle: Math.PI / 2, size: 8, width: 12 };
@@ -61,11 +63,13 @@ test("manifest validation names the chart and the problem", () => {
   assert.throws(() => parseChartManifest(broken({ georef: { controlPoints: [{ x: 0, y: 0, lon: 0, lat: 0 }] } })), /three control points/);
   assert.throws(() => parseChartManifest(broken({ georef: { crs: "EPSG:4326", controlPoints: [{ x: 0, y: 0, lon: 0, lat: 0 }, { x: 1, y: 0, lon: 0, lat: 0 }, { x: 0, y: 1, lon: 0, lat: 0 }] } })), /easting, northing/);
   assert.throws(() => parseChartManifest(broken({ water: {} })), /fillStyles/);
+  assert.throws(() => parseChartManifest(broken({ water: { fromShoreline: true } })), /shorelineStyles/);
   assert.throws(() => parseChartManifest(broken({ grid: { resolutionM: 0 } })), /resolutionM/);
 });
 
 test("projected control points convert to lon/lat, as for State Plane grid ticks", async () => {
-  const [cedarCreek] = parseChartManifest(JSON.parse(await readFile(manifestUrl, "utf8")));
+  const charts = parseChartManifest(JSON.parse(await readFile(manifestUrl, "utf8")));
+  const cedarCreek = charts.find((chart) => chart.id === "twdb-cedar-creek-2017");
   const [corner] = controlPoints(cedarCreek.georef);
   assert.ok(Math.abs(corner.lon - -96.19997) < 1e-4 && Math.abs(corner.lat - 32.1904) < 1e-4, JSON.stringify(corner));
   assert.deepEqual(controlPoints({ controlPoints: [{ x: 1, y: 2, lon: 3, lat: 4 }] }), [{ x: 1, y: 2, lon: 3, lat: 4 }]);
@@ -98,6 +102,20 @@ test("elevation labels become depths below the surface, and personal-use charts 
   assert.equal(record.labels.kind, "elevation");
   assert.deepEqual(record.contours.map((contour) => Math.round(contour.depthM / 0.3048)).sort((a, b) => a - b), [10, 20, 30]);
   assert.equal(report.publishable, false);
+});
+
+test("a chart that draws its waterline instead of filling the lake takes the outline from the shoreline", () => {
+  const chart = vectorChart({
+    trace: { contourStyles: ["#333333/0.50"], shorelineStyles: ["#0065b7/1.00"], labels: "depth", interval: 10 },
+    water: { fromShoreline: true },
+  });
+  const { record, report } = chartRecord(chart, traceChart(chart, { page: vectorPage() }), { fileSha256: "e".repeat(64), tool: "chart-trace@test" });
+  // The drawn waterline is 95 percent of the filled ring, so the lake is a little smaller.
+  const span = (points) => Math.max(...points.map(([lon]) => lon)) - Math.min(...points.map(([lon]) => lon));
+  const filled = chartRecord(vectorChart(), traceChart(vectorChart(), { page: vectorPage() }), { fileSha256: "f".repeat(64), tool: "t" }).record;
+  assert.ok(span(record.lake.outline) < span(filled.lake.outline), `${span(record.lake.outline)} vs ${span(filled.lake.outline)}`);
+  assert.ok(span(record.lake.outline) > 0.9 * span(filled.lake.outline));
+  assert.equal(report.publishable, true);
 });
 
 test("a chart with no levelled contour or no water outline says what to fix", () => {

@@ -2,6 +2,49 @@
   "$comment": "Curated lake depth charts traced by scripts/data-build/trace-depth-charts.mjs. Styles come from strokeStyles() on the page; control points are read off the chart (grid ticks or known features). Only charts whose licence attestation is publishable leave the local work directory. See docs/depth-chart-tracing.md.",
   "charts": [
     {
+      "id": "usgs-lake-viking-2019",
+      "title": "Bathymetric contour map for Lake Viking near Gallatin, Missouri, 2019",
+      "publisher": "U.S. Geological Survey",
+      "year": 2022,
+      "source": {
+        "$comment": "Scientific Investigations Map 3486, sheet 7 of 12.",
+        "url": "https://pubs.usgs.gov/sim/3486/sim3486_sheet07.pdf",
+        "sha256": "e345ee6736011a9475bc4d24c8b5dc55e5c33ed87fdc2ae59eb6ea5157a1fc65"
+      },
+      "license": {
+        "attestation": "public-domain",
+        "note": "USGS-authored work: https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits. The OpenStreetMap basemap on this sheet is in the location inset (figure 31), outside the traced map area."
+      },
+      "lake": { "name": "Lake Viking" },
+      "input": { "kind": "pdf-vector", "page": 1 },
+      "units": "ft",
+      "trace": {
+        "$comment": "Figure 32: index contours every 20 ft in black, intermediate every 5 ft in grey, waterline in blue.",
+        "contourStyles": ["#9b9c9f/0.70", "#2c2e35/1.00"],
+        "shorelineStyles": ["#0065b7/1.00"],
+        "labels": "elevation",
+        "surface": 863.8,
+        "$datum": "863.8 ft is the average water surface during the survey.",
+        "datum": "feet above NAVD 88 (chart legend)",
+        "interval": 5,
+        "mapArea": { "left": 1260, "top": 280, "right": 2380, "bottom": 1620 }
+      },
+      "water": { "fromShoreline": true },
+      "georef": {
+        "$comment": "Intersections of figure 32's latitude and longitude graticule, fitted from its tick marks.",
+        "model": "affine",
+        "controlPoints": [
+          { "x": 1413.32, "y": 335.98, "lon": -94.083333, "lat": 39.941667 },
+          { "x": 2141.12, "y": 344.68, "lon": -94.058333, "lat": 39.941667 },
+          { "x": 1405.77, "y": 966.24, "lon": -94.083333, "lat": 39.925 },
+          { "x": 2133.58, "y": 974.94, "lon": -94.058333, "lat": 39.925 },
+          { "x": 1398.22, "y": 1596.4, "lon": -94.083333, "lat": 39.908333 },
+          { "x": 2126.03, "y": 1605.11, "lon": -94.058333, "lat": 39.908333 }
+        ]
+      },
+      "grid": { "resolutionM": 15 }
+    },
+    {
       "id": "twdb-cedar-creek-2017",
       "title": "Cedar Creek Reservoir 5-foot contour map (2017 survey)",
       "publisher": "Texas Water Development Board",
