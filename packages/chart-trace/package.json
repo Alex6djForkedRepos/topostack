@@ -7,7 +7,12 @@
   "exports": {
     "./georef": "./src/georef.ts",
     "./grid": "./src/grid.ts",
-    "./local-frame": "./src/local-frame.ts"
+    "./levels": "./src/levels.ts",
+    "./local-frame": "./src/local-frame.ts",
+    "./pdf": "./src/pdf.ts",
+    "./trace-vector": "./src/trace-vector.ts",
+    "./vector-chart": "./src/vector-chart.ts",
+    "./vector-page": "./src/vector-page.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -17,5 +22,8 @@
   "sideEffects": false,
   "dependencies": {
     "delaunator": "^5.1.0"
+  },
+  "devDependencies": {
+    "pdfjs-dist": "^6.3.289"
   }
 }
