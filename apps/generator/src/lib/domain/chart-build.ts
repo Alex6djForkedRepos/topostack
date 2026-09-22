@@ -1,8 +1,8 @@
-import { snapToOutline, SNAP_MIN_IOU } from "@topostack/chart-trace/georef";
+import { snapCandidates, SNAP_MIN_IOU } from "@topostack/chart-trace/georef";
 import type { Point2 } from "@topostack/chart-trace/local-frame";
 import type { Rgb } from "@topostack/chart-trace/raster";
 import { buildChartRecord, type ChartRecordReport } from "@topostack/chart-trace/record";
-import { traceRasterChart, type OcrWord } from "@topostack/chart-trace/trace-raster";
+import { traceRasterChart, type ChartWord, type PlacedMark } from "@topostack/chart-trace/trace-raster";
 import { CHART_UNIT_METRES, type ChartAttestation, type ChartUnit, type UserChartBathymetryV1 } from "@topostack/data-contracts/chart-bathymetry";
 
 /**
@@ -37,8 +37,10 @@ export interface ChartBuildRequest {
   surface?: number;
   /** Contour interval in chart units; inferred from the labels when absent. */
   interval?: number;
-  /** Labels the maker placed or OCR read, in image pixels. */
-  words?: OcrWord[];
+  /** Labels with the box of ink they are printed in, in image pixels; the boxes are erased before tracing. */
+  words?: ChartWord[];
+  /** Depths the maker placed by clicking a contour, in image pixels. */
+  marks?: PlacedMark[];
   /** The map rectangle, so a legend or margin is not traced. */
   mapArea?: { left: number; top: number; right: number; bottom: number };
   resolutionM: number;
@@ -49,6 +51,12 @@ export interface ChartBuildRequest {
   tool: string;
   /** Record id; one is generated from the lake's name when absent. */
   id?: string;
+  /**
+   * Which of the chart's plausible placements on the lake to use, best first.
+   * A lake that looks the same turned half round fits both ways equally, so
+   * the maker steps through them while comparing the lake bed with the chart.
+   */
+  placement?: number;
 }
 
 export interface ChartBuildResult {
@@ -62,8 +70,16 @@ export interface ChartBuildResult {
     iou: number;
     /** True when the snap is too poor to trust without the maker looking at it. */
     snapUncertain: boolean;
+    /** Plausible placements there are to step through; the one used is `placement`. */
+    placements: number;
+    placement: number;
+    /** True when another placement fits about as well: the outline alone cannot choose. */
+    ambiguous: boolean;
   };
 }
+
+/** Placements this close in overlap to the best are as good a fit as it is. */
+const AMBIGUOUS_IOU = 0.05;
 
 const SLUG = /[^a-z0-9]+/g;
 
@@ -100,14 +116,29 @@ export function shorelineFor(trace: { shoreline: Point2[][]; contours: { points:
   return best;
 }
 
+/**
+ * Why no contour got a depth, in the maker's terms. The record's own error
+ * names ids and batch steps, which mean nothing in the studio.
+ */
+export function levellingFailure(diagnostics: { labels: number; labelled: number; labelDisagreements: number; contradictoryRegions: number }): string {
+  if (!diagnostics.labels) return "The placed depths could not be read. Type each as a number, such as 10 or 2.5.";
+  if (!diagnostics.labelled) return "None of the placed depths is on a traced line. Click on the contour line itself, a little away from its printed number.";
+  if (diagnostics.labelDisagreements || diagnostics.contradictoryRegions) return "The placed depths disagree with each other or with the contour interval. Check each depth, and that the interval matches the chart.";
+  return "The contours could not be given depths from these. Place depths on two neighbouring contours.";
+}
+
 export function buildChartFromImage(request: ChartBuildRequest, random: () => number = Math.random): ChartBuildResult {
   if (request.lake.outline.length < 3) throw new Error("This lake has no outline to place the chart against.");
+  // Without the surface every elevation becomes a negative depth, and the
+  // maker would be told no contour got a level instead of what is missing.
+  if (request.labels === "elevation" && !Number.isFinite(request.surface)) throw new Error("Enter the water surface elevation the chart's heights are measured against.");
   const trace = traceRasterChart(request.image, {
     ...(request.ink ? { ink: request.ink } : {}),
     labels: request.labels,
     ...(request.surface === undefined ? {} : { surface: request.surface }),
     ...(request.interval === undefined ? {} : { interval: request.interval }),
     ...(request.words ? { words: request.words } : {}),
+    ...(request.marks ? { marks: request.marks } : {}),
     ...(request.mapArea ? { mapArea: request.mapArea } : {}),
     // Frames, roads and lettering are often bold too, so the shore is not
     // guessed from stroke width; it comes from the traced lines themselves.
@@ -115,8 +146,12 @@ export function buildChartFromImage(request: ChartBuildRequest, random: () => nu
   });
   const shoreline = shorelineFor(trace);
   if (!shoreline) throw new Error("No lines were traced from this image. Check which ink is contour line, or crop to the map.");
+  if (!trace.contours.length) throw new Error(levellingFailure(trace.diagnostics));
 
-  const snap = snapToOutline(shoreline, request.lake.outline);
+  // The best placement, and after it only those good enough to be the right one.
+  const candidates = snapCandidates(shoreline, request.lake.outline).filter((candidate, index) => index === 0 || candidate.iou >= SNAP_MIN_IOU);
+  const placement = Math.max(0, Math.min(candidates.length - 1, Math.trunc(request.placement ?? 0)));
+  const snap = candidates[placement]!;
   const { record, report } = buildChartRecord({
     id: request.id ?? chartId(request.lake.name, random),
     lake: { ...(request.lake.name ? { name: request.lake.name } : {}), ...(request.lake.region ? { region: request.lake.region } : {}), ...(request.lake.hylakId ? { hylakId: request.lake.hylakId } : {}) },
@@ -142,6 +177,9 @@ export function buildChartFromImage(request: ChartBuildRequest, random: () => nu
       inferred: trace.diagnostics.inferred,
       iou: Math.round(snap.iou * 1000) / 1000,
       snapUncertain: snap.iou < SNAP_MIN_IOU,
+      placements: candidates.length,
+      placement,
+      ambiguous: candidates.filter((candidate) => candidate.iou >= candidates[0]!.iou - AMBIGUOUS_IOU).length > 1,
     },
   };
 }

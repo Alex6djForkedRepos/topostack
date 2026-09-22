@@ -65,6 +65,13 @@ function ringArea(ring: readonly Point2[]): number {
   return Math.abs(area) / 2;
 }
 
+/** At most `limit` contours, the longest, in the order they came. */
+function longestContours<T extends { points: readonly unknown[] }>(contours: T[], limit: number): T[] {
+  if (contours.length <= limit) return contours;
+  const kept = new Set([...contours].sort((left, right) => right.points.length - left.points.length).slice(0, limit));
+  return contours.filter((contour) => kept.has(contour));
+}
+
 /**
  * Builds and validates the record. Throws with what the maker should fix when
  * no contour carries a level or the chart has no water outline, because
@@ -81,9 +88,12 @@ export function buildChartRecord(request: ChartRecordRequest): { record: UserCha
   if (!(metresPerUnit > 0)) throw new Error(`Depth chart ${request.id}: the georeferencing collapses the chart to a point.`);
 
   const unit = CHART_UNIT_METRES[request.units];
-  const levelled = request.contours
+  // Keep the longest lines, in their own order, when a noisy scan yields more
+  // than a record holds. Capping first also bounds the loop below: every line
+  // keeps at least two points, and the cap's two points each fit the budget.
+  const levelled = longestContours(request.contours
     .map((contour) => ({ ...contour, depthM: chartLabelDepthM(request.labels, contour.value * unit) }))
-    .filter((contour) => contour.depthM >= 0 && contour.points.length >= 2);
+    .filter((contour) => contour.depthM >= 0 && contour.points.length >= 2), CHART_BATHYMETRY_LIMITS.maxContours);
   if (!levelled.length) throw new Error(`Depth chart ${request.id}: no contour got a level; add labels or check which lines are contours.`);
 
   // Simplify until the contours fit the contract's point budget.
@@ -94,7 +104,7 @@ export function buildChartRecord(request: ChartRecordRequest): { record: UserCha
     if (contours.reduce((sum, contour) => sum + contour.line.length, 0) <= CHART_BATHYMETRY_LIMITS.maxContourPoints) break;
     tolerance *= 1.5;
   }
-  contours = contours.filter((contour) => contour.line.length >= 2).slice(0, CHART_BATHYMETRY_LIMITS.maxContours);
+  contours = contours.filter((contour) => contour.line.length >= 2);
 
   // A shore the chart drew is at the chart's scale, so it simplifies the same
   // way; a known lake outline is already in ground terms and is used as given.
