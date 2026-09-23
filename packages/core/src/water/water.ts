@@ -446,12 +446,14 @@ export function carveWaterDepth(
 
     if (area.bathymetry && area.kind === "lake") {
       const survey = area.bathymetry;
+      const chart = area.bathymetryOrigin === "chart";
+      const surveyNoun = chart ? "depth chart" : "survey";
       // A misaligned survey cannot be placed, but it is one lake's data, not the
       // map's: model this lake instead of failing the whole generation.
       const aligned = survey.width === grid.width && survey.height === grid.height && survey.depthsM.length === values.length;
       if (!aligned) warnings.push({
         code: "BATHYMETRY_FALLBACK",
-        message: `${area.name ?? "A lake"} has survey data that does not match the terrain grid, so its floor uses existing terrain or a modeled basin instead.`,
+        message: `${area.name ?? "A lake"} has ${surveyNoun} data that does not match the terrain grid, so its floor uses existing terrain or a modeled basin instead.`,
       });
       let surveyedCount = 0;
       if (aligned) for (const index of cells) {
@@ -500,11 +502,13 @@ export function carveWaterDepth(
           id: area.id, kind: area.kind, name: area.name, hylakId: area.hylakId,
           polygons: [area.polygon], surfaceElevationM, bedElevationM,
           ...(fallbackCount && area.maxDepthM ? { maxDepthM: area.maxDepthM } : {}),
-          layerIndex: 0, depthSource: fallbackCount ? "mixed" : "surveyed",
+          // A traced chart is the maker's own depth source, gaps or not.
+          layerIndex: 0, depthSource: chart ? "user" : fallbackCount ? "mixed" : "surveyed",
+          ...(chart ? { bathymetryOrigin: "chart" as const } : {}),
         }, areaIndexes);
         if (fallbackCount) warnings.push({
           code: "BATHYMETRY_FALLBACK",
-          message: `${area.name ?? "A lake"} has incomplete survey coverage. Uncovered cells use existing terrain, modeled depths, or estimates near surveyed shores; cells without enough information remain at the waterline.`,
+          message: `${area.name ?? "A lake"} has incomplete ${surveyNoun} coverage. Uncovered cells use existing terrain, modeled depths, or estimates near surveyed shores; cells without enough information remain at the waterline.`,
         });
         continue;
       }

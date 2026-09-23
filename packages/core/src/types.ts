@@ -159,6 +159,8 @@ export const BATHYMETRIC_RELIEF_M = 5;
 
 export type WaterKind = "ocean" | "lake";
 export type DepthSource = "surveyed" | "mixed" | "modeled" | "user";
+/** Where a lake's depth grid came from: a published survey, or a depth chart someone traced into a grid. */
+export type BathymetryOrigin = "survey" | "chart";
 
 /**
  * Physical consequences of a config plus its terrain relief. Layer count is a
@@ -339,6 +341,8 @@ export interface WaterAreaV1 {
   clipped?: boolean;
   /** Set to "user" once a per-lake override has replaced `maxDepthM`. */
   depthSource?: DepthSource;
+  /** Absent means a published survey. A traced chart carves as a user-supplied depth. */
+  bathymetryOrigin?: BathymetryOrigin;
   /** Surveyed depths below the dataset reference waterline, aligned to the terrain grid. NaN means no coverage. */
   bathymetry?: {
     width: number;
@@ -394,6 +398,8 @@ export interface WaterSurfaceIR {
   /** Layer whose top face the surface sits on. */
   layerIndex: number;
   depthSource: DepthSource;
+  /** Set when the floor was carved from a traced depth chart. */
+  bathymetryOrigin?: "chart";
 }
 
 export interface TerrainSelection {
@@ -551,7 +557,7 @@ export interface FabricationPanelV1 {
 }
 
 export interface GeometryWarning {
-  code: "TERRAIN_SOURCE_FALLBACK" | "ELEVATION_REPAIRED" | "LOW_RELIEF" | "EMPTY_LAYER" | "SMALL_FEATURES" | "DATA_FALLBACK" | "VECTOR_DATA_PARTIAL" | "VECTOR_DATA_UNAVAILABLE" | "LAKE_DATA_UNAVAILABLE" | "BATHYMETRY_FALLBACK" | "LAKE_DEPTH_PREDICTED" | "LABEL_OMITTED" | "WATER_DEPTH_CLAMPED" | "WORK_AREA_OVERSIZE" | "WORK_AREA_UNSPLIT";
+  code: "TERRAIN_SOURCE_FALLBACK" | "ELEVATION_REPAIRED" | "LOW_RELIEF" | "EMPTY_LAYER" | "SMALL_FEATURES" | "DATA_FALLBACK" | "VECTOR_DATA_PARTIAL" | "VECTOR_DATA_UNAVAILABLE" | "LAKE_DATA_UNAVAILABLE" | "BATHYMETRY_FALLBACK" | "LAKE_DEPTH_PREDICTED" | "LAKE_DEPTH_FROM_CHART" | "LABEL_OMITTED" | "WATER_DEPTH_CLAMPED" | "WORK_AREA_OVERSIZE" | "WORK_AREA_UNSPLIT";
   message: string;
   action?: "fit-lake-depth";
 }
