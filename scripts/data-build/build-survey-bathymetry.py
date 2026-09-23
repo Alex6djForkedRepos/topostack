@@ -311,11 +311,21 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--cache',type=Path,required=True)
     parser.add_argument('--out-dir',type=Path,required=True)
-    parser.add_argument('--dataset',default='all',choices=['all']+[x['id'] for x in CATALOG if x['id']!='noaa-great-lakes-v1'])
+    from chart_records import SOURCE as CHART_SOURCE
+    # The chart archive is built from the committed records, so it is buildable
+    # before it is registered in the catalog; the catalog copy wins once added.
+    sources=CATALOG+([CHART_SOURCE] if not any(x['id']==CHART_SOURCE['id'] for x in CATALOG) else [])
+    parser.add_argument('--dataset',default='all',choices=['all']+[x['id'] for x in sources if x['id']!='noaa-great-lakes-v1'])
     args=parser.parse_args()
     args.cache.mkdir(parents=True,exist_ok=True);args.out_dir.mkdir(parents=True,exist_ok=True)
-    for source in CATALOG:
+    for source in sources:
         if source['id']=='noaa-great-lakes-v1' or args.dataset not in ('all',source['id']):
+            continue
+        if source['id']==CHART_SOURCE['id']:
+            # Its sources are the committed chart records, not pinned downloads.
+            from chart_records import charts
+            writer=TileWriter(args.out_dir/f"{source['id']}.pmtiles",source)
+            writer.finish(charts(source,args.cache,writer,write_grid))
             continue
         pins=[p for p in PINS if p['dataset']==source['id']]
         if not pins:

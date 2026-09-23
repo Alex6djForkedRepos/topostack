@@ -17,7 +17,7 @@ function chart(): UserChartBathymetryV1 {
   return {
     schema: CHART_BATHYMETRY_SCHEMA,
     id: "lake-chart-0001",
-    lake: { name: " Round Lake ", hylakId: 42, outline: [[-80, 45], [-79.99, 45], [-79.99, 45.01], [-80, 45]] },
+    lake: { name: " Round Lake ", region: "Ontario, Canada", hylakId: 42, outline: [[-80, 45], [-79.99, 45], [-79.99, 45.01], [-80, 45]] },
     georef: { method: "snap", matrix: [1e-5, 0, -80, 0, -1e-5, 45.01, 0, 0, 1], rmsM: 3.2, iou: 0.94 },
     units: "ft",
     labels: { kind: "depth" },
