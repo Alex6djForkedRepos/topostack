@@ -1,17 +1,17 @@
 <script lang="ts">
   import FeedbackButton from "$lib/site/FeedbackButton.svelte";
   import { base } from "$app/paths";
-  import { ArrowRight, ArrowUpRight, Heart } from "@lucide/svelte";
+  import { ArrowRight, ArrowUpRight, Heart, Star } from "@lucide/svelte";
   import { Brand, ThemeToggle, Topbar } from "@loidolt/theme-svelte";
   import { theme } from "$lib/site/theme";
   import { donationUrl } from "$lib/site/support";
+  import { REPOSITORY_URL } from "$lib/site/site";
   import { MAP_DATA_ATTRIBUTION } from "$lib/domain/map-attribution";
   import TerrainIllustration from "$lib/studio/TerrainIllustration.svelte";
 
   const atommBuild = import.meta.env.VITE_SITE_ENV === "atomm";
 
   const studioUrl = `${base}/studio`;
-  const repositoryUrl = "https://github.com/Echo-Foxtrot-Works/topostack";
 </script>
 
 {#if atommBuild}
@@ -24,6 +24,7 @@
     {#snippet actions()}
       <a class="header-guide" href="#how-it-works">How it works</a>
       <a class="header-guide" href={`${base}/guides`}>Guides</a>
+      <a class="header-guide star-link" href={REPOSITORY_URL} target="_blank" rel="noopener noreferrer"><Star size={13} aria-hidden="true" /> Star on GitHub<span class="ldt-visually-hidden"> (opens in a new tab)</span></a>
       <a class="primary-link header-cta" href={studioUrl}>Start creating <ArrowRight size={16} aria-hidden="true" /></a>
       <ThemeToggle {theme} label="Color scheme" />
     {/snippet}
@@ -135,8 +136,8 @@
         <p>The code is open source, so you can explore how it works, follow its development, and help make it better.</p>
         <p>Found a bug or have an idea? I’d love to hear it.</p>
         <div class="source-actions">
-          <a class="support-link" href={repositoryUrl} target="_blank" rel="noopener noreferrer">Explore the code on GitHub <ArrowUpRight size={16} aria-hidden="true" /><span class="ldt-visually-hidden"> (opens in a new tab)</span></a>
-          <a class="secondary-link" href={`${repositoryUrl}/issues`} target="_blank" rel="noopener noreferrer">Report a bug or share an idea<span class="ldt-visually-hidden"> (opens in a new tab)</span></a>
+          <a class="support-link star-link" href={REPOSITORY_URL} target="_blank" rel="noopener noreferrer"><Star size={16} aria-hidden="true" /> Star TopoStack on GitHub <ArrowUpRight size={16} aria-hidden="true" /><span class="ldt-visually-hidden"> (opens in a new tab)</span></a>
+          <a class="secondary-link" href={`${REPOSITORY_URL}/issues`} target="_blank" rel="noopener noreferrer">Report a bug or share an idea<span class="ldt-visually-hidden"> (opens in a new tab)</span></a>
         </div>
       </div>
     </section>
@@ -160,7 +161,7 @@
     </section>
   </main>
 
-  <footer><span>TopoStack <span class="footer-note">/ Terrain studio</span></span><a href={`${base}/guides`}>Guides</a><a href={`${base}/lakes`}>Lake depth maps</a><a href={`${base}/attribution`}>Sources and attribution</a><a href={`${base}/privacy`}>Privacy</a><a href={`${base}/changelog`}>Changelog</a><FeedbackButton /><a href={studioUrl}>Open terrain studio <ArrowUpRight size={14} aria-hidden="true" /></a></footer>
+  <footer><span>TopoStack <span class="footer-note">/ Terrain studio</span></span><a href={`${base}/guides`}>Guides</a><a href={`${base}/lakes`}>Lake depth maps</a><a href={`${base}/attribution`}>Sources and attribution</a><a href={`${base}/privacy`}>Privacy</a><a href={`${base}/changelog`}>Changelog</a><a href={REPOSITORY_URL} target="_blank" rel="noopener noreferrer">GitHub<span class="ldt-visually-hidden"> (opens in a new tab)</span></a><FeedbackButton /><a href={studioUrl}>Open terrain studio <ArrowUpRight size={14} aria-hidden="true" /></a></footer>
 </div>
 
 {/if}
@@ -171,6 +172,9 @@
   .landing-page :global(.landing-topbar) { padding-inline: clamp(20px, 5vw, 80px); }
   .secondary-link, .primary-link, .support-link, footer a { display: inline-flex; align-items: center; justify-content: center; gap: 10px; text-decoration: none; }
   .header-guide { color: var(--loidolt-text-muted); font: 12px var(--loidolt-font-utility); text-decoration: none; }
+  .header-guide.star-link { display: inline-flex; align-items: center; gap: 6px; }
+  .star-link :global(svg:first-child) { transition: fill 160ms ease, color 160ms ease; }
+  .star-link:hover :global(svg:first-child), .star-link:focus-visible :global(svg:first-child) { color: var(--loidolt-text-accent); fill: currentColor; }
   .landing-page :global(.landing-topbar) { position: sticky; top: 0; z-index: 20; border-bottom: 1px solid var(--loidolt-border); }
   #how-it-works, #assembly-guide, #open-source { scroll-margin-top: 100px; }
   .hero-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 16px 24px; }
@@ -246,7 +250,7 @@
     .section-art { max-width: 340px; margin-top: 24px; }
     .support { flex-direction: column; align-items: flex-start; gap: 24px; padding: 24px; margin-bottom: 36px; }
     footer { flex-wrap: wrap; }
-    .header-guide { display: none; }
+    .header-guide, .header-guide.star-link { display: none; }
     .header-cta { font-size: 12px; padding-inline: 12px; gap: 8px; }
     .start-panel { flex-direction: column; align-items: flex-start; padding: 28px 24px; gap: 24px; }
     .hero-actions .primary-link, .start-panel .primary-link { width: 100%; }
