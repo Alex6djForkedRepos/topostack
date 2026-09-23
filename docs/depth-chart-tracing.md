@@ -11,7 +11,8 @@ Many lakes have no digital survey but do have a published depth chart: a scanned
 | `@topostack/chart-trace`: vector PDF extraction (paths and text layer) and level inference | Done |
 | `@topostack/chart-trace`: colour segmentation, line tracing, label reading for scans | Done (labels best-effort; see below) |
 | `@topostack/chart-trace`: level inference that survives leaky scans (a facing graph beside raster regions) | Done |
-| Batch pipeline for curated public charts, published as a survey archive | Planned |
+| Batch tracing of curated charts into records (`trace-depth-charts.mjs`) | Done |
+| Records published as a survey archive (a `chart` provider in the survey build) | Planned |
 | Loading saved charts in the studio, IndexedDB storage, project import and export | Planned |
 | Tracing wizard in the studio, with OCR loaded only when needed | Planned |
 | Reviewed catalog submissions through the map-api Worker | Planned |
@@ -79,6 +80,43 @@ A scan becomes the same kind of page as a vector chart: traced lines stand in fo
 - **OCR on Lake Margrethe.** Tesseract with a digit whitelist reads loose labels. It reads the italic labels set into the lines poorly, because pieces of the contour inside the crop confuse it. Dash marks and symbols also produce stray digits; with the interval known, labels off the chart's ladder are dropped, which removes most of them. On scans like this, the dependable route is the wizard's: the maker clicks a few lines and types their depth, and inference fills in the rest for the maker to confirm.
 
 The adapter reads the page with pdf.js 6, which the caller passes in. 5.x carries a high-severity advisory, so it is not supported.
+
+## Batch tracing
+
+`scripts/data/depth-charts.json` lists curated charts. Each entry records everything a curator decided, so a trace can be repeated:
+- the source URL and its sha256 pin
+- the licence attestation
+- the input kind: a vector PDF, a scanned PDF (rasterized with `pdftoppm` at a stated dpi), or a PNG
+- the contour and shoreline styles, how labels read, the surface and interval, and the map area
+- for scans with no readable labels, a few hand-placed labels as `trace.words`
+- where the water is: the chart's water fill styles, the traced shoreline itself (`water.fromShoreline`, for charts that draw a waterline instead of filling the lake), or the traced contour at a shore level
+- control points, in lon/lat or in a projected CRS with a proj4 definition (for charts printed with grid ticks)
+- the grid resolution
+
+`node scripts/data-build/trace-depth-charts.mjs` runs `lib/depth-charts.mjs` on each entry. It downloads once into `.topostack/depth-charts/` and checks the pin every run. For each chart it:
+1. traces the chart and georeferences the contours and water,
+2. converts labels to depths in metres,
+3. simplifies the contours until they fit the record's point budget,
+4. grids the depths,
+5. validates the result with `parseUserChartBathymetry`.
+
+Records whose attestation is publishable go to `scripts/data/depth-charts/<id>.json` for the survey archive build. All others stay in the gitignored work directory. `report.json` has a QA line per chart: georeferencing residual, contours and points, labelled and inferred counts, coverage, grid size, and deepest cell.
+
+**Lake Viking (USGS SIM 3486, sheet 7)** is the first published record, and the pattern to copy for more. USGS-authored work is in the [U.S. public domain](https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits); the sheet's only third-party material is the OpenStreetMap basemap in its location inset, outside the traced map area.
+- **Georeferencing.** The figure's latitude and longitude graticule is drawn as tick marks, not lines. Fitting a line through the ticks of each parallel and meridian, then intersecting them, gives control points to under a point; the affine fit's residual is **0.07 m**. The labels sit on their own lines, which is what identifies them. Any USGS bathymetric sheet can be georeferenced this way.
+- **Trace.** Index contours every 20 ft in black and intermediate contours every 5 ft in grey, 17 chains, **100%** of the contour length levelled from the sheet's own labels.
+- **Water.** The sheet draws a waterline (the average survey water surface, 863.8 ft) rather than filling the lake, so `water.fromShoreline` takes the outline from the traced shoreline. Its beige fill marks the multibeam survey extent, which stops short of the shallow arms.
+- **Grid.** 204×239 at 15 m, deepest 17.9 m (58.7 ft below the 863.8 ft surface, matching the sheet's deepest 805 ft contour). The old river channel reads deepest, running to the dam in the north-east.
+- **Check against OpenStreetMap.** Every edge is within about 80 m of OpenStreetMap's lake outline; the largest differences are at the tips of the upstream arms.
+
+**Cedar Creek (TWDB).**
+- **Georeferencing.** Six intersections of the chart's NAD83 Texas North Central grid lines (EPSG:2276, US feet) give an affine fit with a 6 m ground residual.
+- **Trace.** 58 contour chains, 87% of the contour length levelled.
+- **Grid.** 890×1024 at 27 m, deepest 16.6 m (54.5 ft; the deepest contour is 270 ft under a 322 ft pool). North is up, the deepest water lies by the dam, and the large island in the north basin is left dry.
+- **Check against OpenStreetMap.** The southern edge, the dam, matches OpenStreetMap's reservoir outline to 0.0001°. The other edges differ by up to 0.016° at creek tips, where the two sources end the water at different points.
+- **Status.** The chart's redistribution terms are not confirmed, so the manifest marks it `personal-use` and its record stays local.
+
+Lake Margrethe is not in the manifest yet. Its sheet has no grid ticks, so control points would have to come from the public land survey section corners it shows, or from snapping to a lake outline.
 
 ## Georeferencing and gridding
 

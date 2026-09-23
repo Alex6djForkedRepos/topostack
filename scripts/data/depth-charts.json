@@ -1,0 +1,89 @@
+{
+  "$comment": "Curated lake depth charts traced by scripts/data-build/trace-depth-charts.mjs. Styles come from strokeStyles() on the page; control points are read off the chart (grid ticks or known features). Only charts whose licence attestation is publishable leave the local work directory. See docs/depth-chart-tracing.md.",
+  "charts": [
+    {
+      "id": "usgs-lake-viking-2019",
+      "title": "Bathymetric contour map for Lake Viking near Gallatin, Missouri, 2019",
+      "publisher": "U.S. Geological Survey",
+      "year": 2022,
+      "source": {
+        "$comment": "Scientific Investigations Map 3486, sheet 7 of 12.",
+        "url": "https://pubs.usgs.gov/sim/3486/sim3486_sheet07.pdf",
+        "sha256": "e345ee6736011a9475bc4d24c8b5dc55e5c33ed87fdc2ae59eb6ea5157a1fc65"
+      },
+      "license": {
+        "attestation": "public-domain",
+        "note": "USGS-authored work: https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits. The OpenStreetMap basemap on this sheet is in the location inset (figure 31), outside the traced map area."
+      },
+      "lake": { "name": "Lake Viking" },
+      "input": { "kind": "pdf-vector", "page": 1 },
+      "units": "ft",
+      "trace": {
+        "$comment": "Figure 32: index contours every 20 ft in black, intermediate every 5 ft in grey, waterline in blue.",
+        "contourStyles": ["#9b9c9f/0.70", "#2c2e35/1.00"],
+        "shorelineStyles": ["#0065b7/1.00"],
+        "labels": "elevation",
+        "surface": 863.8,
+        "$datum": "863.8 ft is the average water surface during the survey.",
+        "datum": "feet above NAVD 88 (chart legend)",
+        "interval": 5,
+        "mapArea": { "left": 1260, "top": 280, "right": 2380, "bottom": 1620 }
+      },
+      "water": { "fromShoreline": true },
+      "georef": {
+        "$comment": "Intersections of figure 32's latitude and longitude graticule, fitted from its tick marks.",
+        "model": "affine",
+        "controlPoints": [
+          { "x": 1413.32, "y": 335.98, "lon": -94.083333, "lat": 39.941667 },
+          { "x": 2141.12, "y": 344.68, "lon": -94.058333, "lat": 39.941667 },
+          { "x": 1405.77, "y": 966.24, "lon": -94.083333, "lat": 39.925 },
+          { "x": 2133.58, "y": 974.94, "lon": -94.058333, "lat": 39.925 },
+          { "x": 1398.22, "y": 1596.4, "lon": -94.083333, "lat": 39.908333 },
+          { "x": 2126.03, "y": 1605.11, "lon": -94.058333, "lat": 39.908333 }
+        ]
+      },
+      "grid": { "resolutionM": 15 }
+    },
+    {
+      "id": "twdb-cedar-creek-2017",
+      "title": "Cedar Creek Reservoir 5-foot contour map (2017 survey)",
+      "publisher": "Texas Water Development Board",
+      "year": 2017,
+      "source": {
+        "url": "https://www.twdb.texas.gov/hydro_survey/cedarcreek/2017-10/CC17_ContourMap.pdf",
+        "sha256": "4166313cb59742da491bf16724fb55afd878ad93097db6f1024f2972826fae4f"
+      },
+      "license": {
+        "attestation": "personal-use",
+        "note": "TWDB volumetric survey figure. Redistribution terms are not yet confirmed, so the record stays in the local work directory."
+      },
+      "lake": { "name": "Cedar Creek Reservoir" },
+      "input": { "kind": "pdf-vector", "page": 1 },
+      "units": "ft",
+      "trace": {
+        "contourStyles": ["#9c9c9c/0.48", "#9ebbd7/0.48", "#4e4e4e/0.48", "#000000/0.48", "#444f89/0.48", "#686868/0.48", "#000000/0.72"],
+        "shorelineStyles": ["#73dfff/0.72"],
+        "labels": "elevation",
+        "surface": 322,
+        "datum": "feet above mean sea level (chart legend)",
+        "interval": 5,
+        "mapArea": { "left": 420, "top": 100, "right": 2140, "bottom": 2400 }
+      },
+      "water": { "fillStyles": ["#bee8ff"] },
+      "georef": {
+        "$comment": "Intersections of the chart's NAD83 Texas North Central (ftUS, EPSG:2276) grid lines.",
+        "crs": "+proj=lcc +lat_1=33.96666666666667 +lat_2=32.13333333333333 +lat_0=31.66666666666667 +lon_0=-98.5 +x_0=600000 +y_0=2000000.0001016 +ellps=GRS80 +datum=NAD83 +units=us-ft +no_defs",
+        "model": "affine",
+        "controlPoints": [
+          { "x": 502.31, "y": 2209.95, "easting": 2680000, "northing": 6760000 },
+          { "x": 1366.3, "y": 2209.95, "easting": 2720000, "northing": 6760000 },
+          { "x": 502.31, "y": 1345.94, "easting": 2680000, "northing": 6800000 },
+          { "x": 1366.3, "y": 1345.94, "easting": 2720000, "northing": 6800000 },
+          { "x": 502.31, "y": 481.93, "easting": 2680000, "northing": 6840000 },
+          { "x": 1366.3, "y": 481.93, "easting": 2720000, "northing": 6840000 }
+        ]
+      },
+      "grid": { "resolutionM": 20 }
+    }
+  ]
+}
