@@ -2,7 +2,21 @@
 
 Sheet nesting arranges a project's cut parts on as few stock sheets as possible. Parts are moved and, if the settings allow it, rotated. This differs from the *material nests* that generation already plans (see [architecture.md](architecture.md)). A material nest cuts a smaller layer from the waste of a lower layer at the same position, and nothing moves. Sheet nesting runs after that step and treats each nest family as a single rigid part.
 
-Status: the packing engine is in place (`packages/nest-wasm`). The multi-sheet planner, the export output and the studio step are still being built; [the plan](plans/sheet-nesting.md) lists the phases.
+Status: the packing engine (`packages/nest-wasm`) and the multi-sheet planner (`packages/core/src/export/sheet-nest/`) are in place. The export output and the studio step are still being built; [the plan](plans/sheet-nesting.md) lists the phases.
+
+## Planner
+
+1. **Settings** (`resolve.ts`): `ProjectConfigV1.sheetNesting` holds the sheet size, margin, spacing, rotation mode, time budget and seed. A sheet axis left at 0 takes the machine work area on that axis. The fingerprint ignores this field, so changing it never forces a regenerate.
+2. **Parts** (`parts.ts`): each root polygon of a nest family is one rigid part, together with every polygon cut out of it. Seam pieces are already one polygon each. The outline sent to the packer is the kerf envelope of the root's outer ring, thinned to at most 400 vertices. The thinning only ever grows the outline: Douglas-Peucker first, then an outward offset by the same tolerance.
+3. **Sheets** (`plan-sheets.ts`): the planner first emits a bounding-box skyline layout (`rectangles.ts`), so a valid plan exists immediately. It then fills one sheet at a time. For each sheet it:
+   - picks the largest remaining parts up to a target share of the sheet's area (85%, then lower);
+   - asks sparrow to fit them into a strip as tall as the usable sheet, stopping as soon as the strip is no wider than the sheet;
+   - commits the sheet, after one top-up attempt with a few more parts.
+   Any time left merges the last sheet into the one before it and shortens the last sheet to leave the largest offcut. The result never uses more sheets than the bounding-box layout.
+4. **Checking** (`verify.ts`): every layout the engine returns is checked independently before it is used. Each part must be placed once, inside the margin, and at least the spacing from every other part (Clipper offsets, 0.02 mm tolerance). A layout that fails is treated as not fitting.
+5. **Identity** (`job-key.ts`): a plan records a hash of the part outlines and layout settings. Regenerating an unchanged design gives the same key, so a saved plan stays usable. A changed design or sheet setting makes it stale.
+
+Layouts stop on time, so the same job can come out differently on a faster machine. The saved plan, not a rerun, is what an export reproduces.
 
 ## Engine
 

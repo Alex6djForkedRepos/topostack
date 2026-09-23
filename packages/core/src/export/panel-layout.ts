@@ -9,7 +9,7 @@ export interface FabricationPanel extends FabricationPanelV1 {
 }
 
 /** A nest family: the root layer plus everything cut out of it, transitively. */
-function nestFamilies(ir: GeometryIRV1): Array<{ rootLayerIndex: number; layerIndexes: number[] }> {
+export function nestFamilies(ir: GeometryIRV1): Array<{ rootLayerIndex: number; layerIndexes: number[] }> {
   const parentByLayer = new Map(ir.fabricationNests.map((nest) => [nest.nestedLayerIndex, nest.donorLayerIndex]));
   const childrenByLayer = new Map<number, number[]>();
   ir.fabricationNests.forEach((nest) => childrenByLayer.set(nest.donorLayerIndex, [...(childrenByLayer.get(nest.donorLayerIndex) ?? []), nest.nestedLayerIndex]));
@@ -25,7 +25,7 @@ function nestFamilies(ir: GeometryIRV1): Array<{ rootLayerIndex: number; layerIn
  * whatever its own layer's seam grid says. Walks each cavity back to the
  * family root and answers with that root polygon's index.
  */
-function rootPolygonByPolygon(ir: GeometryIRV1, family: { rootLayerIndex: number; layerIndexes: number[] }): Map<number, Map<number, number>> {
+export function rootPolygonByPolygon(ir: GeometryIRV1, family: { rootLayerIndex: number; layerIndexes: number[] }): Map<number, Map<number, number>> {
   const roots = new Map<number, Map<number, number>>();
   const root = ir.layers[family.rootLayerIndex];
   roots.set(family.rootLayerIndex, new Map(root?.polygons.map((_, index) => [index, index] as const) ?? []));

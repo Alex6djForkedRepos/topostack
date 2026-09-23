@@ -535,7 +535,8 @@
     };
   });
 
-  const COSMETIC_KEYS: ReadonlySet<string> = new Set(["name", "explodedPreview"]);
+  // Sheet nesting only arranges finished parts at export, so it never touches generation.
+  const COSMETIC_KEYS: ReadonlySet<string> = new Set(["name", "explodedPreview", "sheetNesting"]);
   /** Keys whose edits refresh the preview as custom data rather than a fabrication change. */
   const CUSTOM_DATA_KEYS: ReadonlySet<string> = new Set(["markers", "markerIcons", "customLines", "customGraphics", "placedGraphics"]);
   // Stroke and text styling never changes the terrain request, so a running

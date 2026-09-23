@@ -13,5 +13,8 @@
     "test": "node scripts/build.mjs --check && vitest run",
     "coverage": "vitest run --coverage"
   },
-  "sideEffects": false
+  "sideEffects": false,
+  "devDependencies": {
+    "@topostack/core": "*"
+  }
 }
