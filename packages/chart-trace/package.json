@@ -10,6 +10,9 @@
     "./levels": "./src/levels.ts",
     "./local-frame": "./src/local-frame.ts",
     "./pdf": "./src/pdf.ts",
+    "./raster": "./src/raster.ts",
+    "./raster-labels": "./src/raster-labels.ts",
+    "./trace-raster": "./src/trace-raster.ts",
     "./trace-vector": "./src/trace-vector.ts",
     "./vector-chart": "./src/vector-chart.ts",
     "./vector-page": "./src/vector-page.ts"
