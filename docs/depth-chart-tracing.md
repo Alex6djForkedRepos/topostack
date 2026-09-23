@@ -10,7 +10,7 @@ Many lakes have no digital survey but do have a published depth chart: a scanned
 | `@topostack/chart-trace`: georeferencing and gridding | Done |
 | `@topostack/chart-trace`: vector PDF extraction (paths and text layer) and level inference | Done |
 | `@topostack/chart-trace`: colour segmentation, line tracing, label reading for scans | Done (labels best-effort; see below) |
-| `@topostack/chart-trace`: level inference that survives leaky scans (line-adjacency bands instead of raster regions) | Planned |
+| `@topostack/chart-trace`: level inference that survives leaky scans (a facing graph beside raster regions) | Done |
 | Batch pipeline for curated public charts, published as a survey archive | Planned |
 | Loading saved charts in the studio, IndexedDB storage, project import and export | Planned |
 | Tracing wizard in the studio, with OCR loaded only when needed | Planned |
@@ -55,7 +55,7 @@ A GIS-exported PDF already holds the contours as paths and the labels as text, s
   - A contour parts the band below its level from the band above it, so one known side gives the other.
 
   Real sheets leak: lines crowd closer than a raster cell, and gaps at the map edge join bands that should be separate. So each unlabelled line also votes along its length: rays sideways to the nearest known line on each side name the single rung between them.
-- **Result on the TWDB sheet.** 32 labels on 10 chains lead to 47 more inferred, covering **86%** of the contour length. The inferred levels nest in order from 320 at the shore to 270 at the dam. The rest is mostly small closed loops and scraps that bound no band.
+- **Result on the TWDB sheet.** 32 labels on 10 chains lead to 48 more inferred, covering **86%** of the contour length. The inferred levels nest in order from 320 at the shore to 270 at the dam. The rest is mostly small closed loops and scraps that bound no band.
 
 ## Reading scanned charts
 
@@ -69,11 +69,14 @@ A scan becomes the same kind of page as a vector chart: traced lines stand in fo
   - **Label gaps.** They are bridged more readily where a label sits in the gap.
   - **The shore.** It is inferred as depth 0 from the band beside it, with no depth allowed shallower than that. "Auto" shoreline detection by stroke width exists, but Lake Margrethe draws its shore no bolder than its contours; there, the heavy lines are the frame, roads and lettering.
 - **Finding labels.** Loose labels are digit-sized ink clusters. At tracing resolution, a label that fills its contour's gap fuses into one blob, and the skeleton runs straight through it. What gives it away is the stroke swelling to two or three times the line's width for about a label's length. Each candidate is cropped from the full-resolution scan, turned upright along its line, and read both ways up by the OCR engine the caller passes in.
-- **Result on Lake Margrethe.** Tracing works: each contour comes out as one long chain through crossings and label gaps. Two things do not work yet:
-  - **OCR.** Tesseract with a digit whitelist reads loose labels, but the italic labels set into the lines are read poorly, because pieces of the contour inside the crop confuse it. Dash marks and symbols also produce stray digits. With the interval known, labels off the chart's ladder are dropped, which removes most of them.
-  - **Levels.** Even with three correct labels given by hand, only about 4% of the length gets a level. Leaks through unbridged gaps join the raster regions into a few huge contradictory ones, so the band rules have nothing to hold on to.
+- **Levels on scans.** Raster regions alone fail on a scan. Every unbridged gap joins two bands, and on Lake Margrethe the regions merged into a few huge contradictory ones: three hand-given labels levelled about 4% of the length. `levels` therefore also builds a facing graph. Rays cast left and right from samples along each line record which line each side faces across open water, and then three rules run:
+  - **Between.** A line whose two sides, sample by sample, face known levels one rung apart on either side takes the rung between.
+  - **Orientation.** A known line learns which of its sides is higher from neighbours one rung away.
+  - **Propagation.** An oriented line gives the next rung up to lines facing its higher side, and the next rung down to lines facing its lower side.
 
-  The next step is to build bands from a line-adjacency graph (which lines face each other across open water) instead of raster regions. Until then, the wizard's plan of a maker clicking a line and typing its depth, then confirming what inference fills in, is the dependable route for scans.
+  Every rule needs a clear majority of samples, and orientation and propagation count only lines that see each other both ways. A frame or road collects rays that slip through gaps in the contours, but it does not see the far contour back. Whatever the shore faces on its land side is marked land and never takes a level. That covers frames, roads and the legend box, though not the land beyond them, since spreading further would leak back into the lake through the same gaps.
+- **Result on Lake Margrethe.** Tracing works: each contour comes out as one long chain through crossings and label gaps. With three labels given by hand (10, 20 and 35 ft on one slope), inference levels the lake from the shore at 0 ft down to its 55 ft holes, in nested order. That is **55%** of all traced length. The total includes the frame, legend and lettering, which correctly stay unlevelled. A few road stubs by the shore still get levels, which is harmless because gridding uses only cells inside the georeferenced water outline.
+- **OCR on Lake Margrethe.** Tesseract with a digit whitelist reads loose labels. It reads the italic labels set into the lines poorly, because pieces of the contour inside the crop confuse it. Dash marks and symbols also produce stray digits; with the interval known, labels off the chart's ladder are dropped, which removes most of them. On scans like this, the dependable route is the wizard's: the maker clicks a few lines and types their depth, and inference fills in the rest for the maker to confirm.
 
 The adapter reads the page with pdf.js 6, which the caller passes in. 5.x carries a high-severity advisory, so it is not supported.
 
