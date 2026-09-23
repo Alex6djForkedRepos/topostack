@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { markerIconPolygons, MAX_MARKER_ICON_POINTS, type Point2D, type Polygon2D } from "@topostack/core";
-import { iconNameFromFile, importSvgIcon, parseTransform, svgIconFromText } from "$lib/domain/svg-icon-import";
+import { markerIconPointCount, markerIconPolygons, MAX_CUSTOM_GRAPHIC_POINTS, MAX_MARKER_ICON_POINTS, type Point2D, type Polygon2D } from "@topostack/core";
+import { iconNameFromFile, importSvgGraphic, importSvgIcon, parseTransform, svgIconFromText } from "$lib/domain/svg-icon-import";
 
 const options = { id: "icon-0001", name: "Test" };
 const signedArea = (ring: Point2D[]) => ring.reduce((sum, point, index) => { const next = ring[(index + 1) % ring.length]!; return sum + point.x * next.y - next.x * point.y; }, 0) / 2;
@@ -77,5 +77,19 @@ describe("SVG marker icons", () => {
     expect(a * 1 + c * 0 + e).toBeCloseTo(10);
     expect(b * 1 + d * 0 + f).toBeCloseTo(1);
     expect(parseTransform("rotate(180 5 5)").map((value) => Math.round(value * 1e9) / 1e9)).toEqual([-1, 0, -0, -1, 10, 10]);
+  });
+
+  it("reads graphics with a logo's point budget, keeping detail a marker would lose", async () => {
+    // 300 separate dots: past a marker's budget however far it simplifies, inside a graphic's.
+    const dots = Array.from({ length: 300 }, (_, index) => `<rect x="${index % 20 * 3}" y="${Math.floor(index / 20) * 3}" width="1" height="1"/>`).join("");
+    const text = svg(dots, `viewBox="0 0 60 45"`);
+    expect(() => svgIconFromText(text, options)).toThrow(/too detailed for a marker/);
+    const { graphic } = await importSvgGraphic({ size: text.length, name: "dot-grid.svg", text: async () => text }, "graphic-0001");
+    expect(graphic).toMatchObject({ id: "graphic-0001", name: "dot grid" });
+    expect(graphic).not.toHaveProperty("anchor");
+    expect(markerIconPointCount(graphic)).toBeGreaterThan(MAX_MARKER_ICON_POINTS);
+    expect(markerIconPointCount(graphic)).toBeLessThanOrEqual(MAX_CUSTOM_GRAPHIC_POINTS);
+    await expect(importSvgGraphic({ size: 2_000_000, name: "big.svg", text: async () => "" }, "graphic-0002")).rejects.toThrow(/1 MB/);
+    expect(iconNameFromFile(".svg", "Graphic")).toBe("Graphic");
   });
 });

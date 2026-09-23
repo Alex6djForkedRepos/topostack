@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_PROJECT, MAX_CUSTOM_DATA_NAME_LENGTH, MAX_CUSTOM_DATA_POINTS, projectFingerprint, MAX_CUSTOM_LINE_POINTS, MAX_MAP_MARKERS, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, type CustomLineFeatureV1, type ProjectConfigV1 } from "@topostack/core";
-import { addMarkerIcon, removeMarkerIcon, renameMarkerIcon, setMarkerIconAnchor, addCustomLine, addCustomLinePoint, addDrawnCustomLine, canExtendDrawnLine, renameCustomLine, renameMarker, addMarker, addMarkerAt, appendCustomData, canAddCustomLine, clampPlaqueSize, customDataCapacity, plaqueSettings, plaqueText, plaqueWithFont, northArrowMaximumMm, removeCustomLine, removeCustomLinePoint, removeMarker, updateCustomLine, updateCustomLinePoint, updateMarker, withLiveNames } from "$lib/studio/project-edits";
+import { addCustomGraphic, addPlacedGraphic, graphicMaximumMm, removeCustomGraphic, removePlacedGraphic, renameCustomGraphic, updatePlacedGraphic, addMarkerIcon, removeMarkerIcon, renameMarkerIcon, setMarkerIconAnchor, addCustomLine, addCustomLinePoint, addDrawnCustomLine, canExtendDrawnLine, renameCustomLine, renameMarker, addMarker, addMarkerAt, appendCustomData, canAddCustomLine, clampPlaqueSize, customDataCapacity, plaqueSettings, plaqueText, plaqueWithFont, northArrowMaximumMm, removeCustomLine, removeCustomLinePoint, removeMarker, updateCustomLine, updateCustomLinePoint, updateMarker, withLiveNames } from "$lib/studio/project-edits";
 
 const line = (id: string, count = 2): CustomLineFeatureV1 => ({ id, kind: "trail", points: Array.from({ length: count }, (_, index) => ({ lat: 40, lon: -105 + index * 0.01 })) });
 const withData = (patch: Partial<ProjectConfigV1>): ProjectConfigV1 => ({ ...DEFAULT_PROJECT, ...patch });
@@ -214,5 +214,32 @@ describe("names typed during a generation", () => {
     expect(withLiveNames(built, live)).toEqual([{ id: "a", name: "New" }, { id: "b", name: "Added" }, { id: "c" }]);
     // Something removed since keeps what it was built with, minus a name.
     expect(withLiveNames([{ id: "x", name: "Kept" }], [])).toEqual([{ id: "x" }]);
+  });
+});
+
+describe("custom graphic edits", () => {
+  const graphic = { id: "graphic-0001", name: "Logo", shapes: [{ outer: [-500, -500, 500, -500, 0, 500] }] };
+  const project: ProjectConfigV1 = { ...DEFAULT_PROJECT, cropShape: "rectangle", widthMm: 200, heightMm: 120 };
+
+  it("adds graphics once each and renames them without blanking", () => {
+    const added = addCustomGraphic(project, graphic)!;
+    expect(added.graphicId).toBe(graphic.id);
+    const withGraphic = { ...project, ...added.patch };
+    expect(addCustomGraphic(withGraphic, { ...graphic, id: "graphic-0002" })?.graphicId).toBe(graphic.id);
+    expect(renameCustomGraphic(withGraphic, graphic.id, "  ")).toBeUndefined();
+    expect(renameCustomGraphic(withGraphic, graphic.id, "Badge")?.customGraphics?.[0]!.name).toBe("Badge");
+  });
+
+  it("places a graphic centered at a quarter of the shorter side, then edits and removes it", () => {
+    const withGraphic = { ...project, customGraphics: [graphic] };
+    expect(addPlacedGraphic(project, graphic.id, "placed-0001")).toBeUndefined();
+    const placed = { ...withGraphic, ...addPlacedGraphic(withGraphic, graphic.id, "placed-0001")! };
+    expect(placed.placedGraphics).toEqual([{ id: "placed-0001", graphicId: graphic.id, placement: { anchor: "center", offset: { x: 0, y: 0 } }, sizeMm: 30, rotationDeg: 0, operation: "engrave" }]);
+    expect(updatePlacedGraphic(placed, "placed-0001", { operation: "cut", rotationDeg: -15 })?.placedGraphics?.[0]).toMatchObject({ operation: "cut", rotationDeg: 345 });
+    expect(updatePlacedGraphic(placed, "placed-0001", { sizeMm: 1000 })?.placedGraphics?.[0]!.sizeMm).toBe(graphicMaximumMm(200, 120));
+    expect(removePlacedGraphic(placed, "placed-0001")).toEqual({ placedGraphics: undefined });
+    // Removing artwork removes its uses, and empty lists leave no fields.
+    expect(removeCustomGraphic(placed, graphic.id)).toEqual({ customGraphics: undefined, placedGraphics: undefined });
+    expect(projectFingerprint({ ...placed, ...removeCustomGraphic(placed, graphic.id) })).toBe(projectFingerprint(project));
   });
 });

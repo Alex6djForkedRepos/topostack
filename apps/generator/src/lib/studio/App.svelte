@@ -25,7 +25,7 @@
   import * as edits from "$lib/studio/project-edits";
   import { isAbortError, PreviewPipeline } from "$lib/studio/preview-pipeline";
   import { LazyComponent } from "$lib/studio/lazy-component";
-  import { availablePlaceables, hiddenMarkingPrefixes, placementPatch, PLACEABLES, type PlaceableId, type PlacementSession } from "$lib/studio/placement/placeables";
+  import { addGraphicToSession, canPlace, draftProject, graphicPlaceableId, hiddenMarkingPrefixes, placeableFor, placementPatch, type PlaceableId, type PlacementSession } from "$lib/studio/placement/placeables";
   import { placementMarginMm } from "$lib/studio/placement/viewport";
   import { createProjectPreviewSource } from "$lib/studio/project-preview";
   import { restoreStartupProject } from "$lib/studio/startup-restore";
@@ -200,16 +200,33 @@
   const placementMargin = $derived(placementMarginMm(geometry.widthMm, geometry.heightMm));
   const placementHiddenPrefixes = $derived(placement ? hiddenMarkingPrefixes(project) : []);
   function startPlacement(id: PlaceableId): void {
-    if (!PLACEABLES[id].available(project)) return;
     if (placement) {
       // A second Move button while placing only switches the selection.
-      if (placementPhase === "editing") placement = { ...placement, selected: id };
+      if (placementPhase === "editing" && placeableFor(id).available(draftProject(project, placement))) placement = { ...placement, selected: id };
       return;
     }
-    placement = { selected: id, draft: {} };
+    if (!placeableFor(id).available(project)) return;
+    openPlacement({ selected: id, draft: {} });
+  }
+  function openPlacement(session: PlacementSession): void {
+    placement = session;
     placementPhase = "editing";
     placementStage.load();
     pulsePlacementFade();
+  }
+  /** Adds a use of an uploaded graphic to the piece as a draft, opening placement mode on it. */
+  function placeGraphic(graphicId: string): void {
+    if (placement && placementPhase !== "editing") return;
+    const next = addGraphicToSession(project, placement, graphicId, crypto.randomUUID());
+    if (!next) { status = "The piece already holds as many graphics as it can. Remove one before adding another."; return; }
+    if (placement) placement = next;
+    else openPlacement(next);
+  }
+  /** Opens placement on the first placed graphic, or places the first uploaded one. */
+  function placeGraphics(): void {
+    const first = project.placedGraphics?.find((placed) => placeableFor(graphicPlaceableId(placed.id)).available(project));
+    if (first) startPlacement(graphicPlaceableId(first.id));
+    else if (project.customGraphics?.[0]) placeGraphic(project.customGraphics[0].id);
   }
   function closePlacement(): void {
     const closingSession = placement;
@@ -232,9 +249,9 @@
   function cancelPlacement(): void {
     if (placement && placementPhase === "editing") closePlacement();
   }
-  // Turning every placeable off leaves nothing to place.
+  // Turning every placeable off, with no graphic left to add, leaves nothing to place.
   $effect(() => {
-    if (placement && !availablePlaceables(project).length) untrack(cancelPlacement);
+    if (placement && !canPlace(draftProject(project, placement))) untrack(cancelPlacement);
   });
 
   $effect(() => {
@@ -255,7 +272,13 @@
     if (searchOpen) locationDialog.load();
     if (mode === "custom") { customDataView.load(); customDataNav.load(); }
     // Markers, paths and imported files are placed on the same map as map view.
-    if (mode === "map" || (mode === "custom" && nav.section !== "charts")) mapCanvas.load();
+    if (mode === "map" || (mode === "custom" && nav.section !== "charts" && nav.section !== "graphics")) mapCanvas.load();
+    // Graphics are shown on the piece, in the view the output uses.
+    else if (mode === "custom" && nav.section === "graphics") {
+      if (project.outputMode === "engraving") engravingPreview.ensure();
+      else if (threeUnavailable) twoDPreview.ensure();
+      else threePreview.load();
+    }
     else if (mode === "engraving") engravingPreview.ensure();
     else if (mode === "2d") twoDPreview.ensure();
     else if (mode === "3d") threePreview.load();
@@ -499,6 +522,8 @@
   });
 
   const COSMETIC_KEYS: ReadonlySet<string> = new Set(["name", "explodedPreview"]);
+  /** Keys whose edits refresh the preview as custom data rather than a fabrication change. */
+  const CUSTOM_DATA_KEYS: ReadonlySet<string> = new Set(["markers", "markerIcons", "customLines", "customGraphics", "placedGraphics"]);
   // Stroke and text styling never changes the terrain request, so a running
   // Generate keeps going and re-renders with the latest style when it finishes.
   const GENERATION_STYLE_KEYS: ReadonlySet<string> = new Set(["lineStyle", "textStyle"]);
@@ -603,7 +628,7 @@
     status = `${action} applied`;
     // A cosmetic change leaves any pending refresh to finish on its own.
     if (keepsWork || !sourceChanged.some((key) => !COSMETIC_KEYS.has(key))) return;
-    const kind: PreviewUpdateKind = sourceChanged.some((key) => key.startsWith("show")) ? "details" : sourceChanged.every((key) => key === "markers" || key === "markerIcons" || key === "customLines") ? "customData" : "fabrication";
+    const kind: PreviewUpdateKind = sourceChanged.some((key) => key.startsWith("show")) ? "details" : sourceChanged.every((key) => CUSTOM_DATA_KEYS.has(key)) ? "customData" : "fabrication";
     void refreshPreview(kind, 0);
   }
   function resetProject(): void {
@@ -688,7 +713,7 @@
   }
 
   function updateFabrication(patch: Partial<ProjectConfigV1>, delayMs = PREVIEW_REFRESH_DELAY_MS): Promise<void> {
-    const updatesCustomData = patch.markers !== undefined || patch.customLines !== undefined;
+    const updatesCustomData = patch.markers !== undefined || patch.customLines !== undefined || "customGraphics" in patch || "placedGraphics" in patch;
     const nextWidth = patch.widthMm ?? project.widthMm;
     const nextHeight = patch.heightMm ?? project.heightMm;
     const maximumNorthArrowSize = edits.northArrowMaximumMm(nextWidth, nextHeight);
@@ -921,7 +946,7 @@
     saveChartToLibrary: (record) => customData.saveChartToLibrary(record),
     useChartForLake: (key, reference) => customData.useChartForLake(key, reference),
     clearDepthChart: (key) => customData.clearDepthChart(key),
-    importMarkerIcon: (file, markerId) => customData.importMarkerIcon(file, markerId), choosePlace, startPlacement, commitPlacement, cancelPlacement, undo, redo, importProject, copyShareLink, importCustomData, generate, cancelGeneration, toggleSection, setAllSections, sectionSummary, navigateChoice, dismissPreviewWarning, previewMarkingPath, trailPatternDash, getFeedbackContext,
+    importMarkerIcon: (file, markerId) => customData.importMarkerIcon(file, markerId), importGraphic: (file) => customData.importGraphic(file), choosePlace, startPlacement, placeGraphic, placeGraphics, commitPlacement, cancelPlacement, undo, redo, importProject, copyShareLink, importCustomData, generate, cancelGeneration, toggleSection, setAllSections, sectionSummary, navigateChoice, dismissPreviewWarning, previewMarkingPath, trailPatternDash, getFeedbackContext,
   });
 </script>
 

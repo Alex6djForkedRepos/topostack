@@ -1,5 +1,5 @@
 import { addMaterialNests, polygonCenter } from "./nesting.js";
-import { CONTOUR_SIMPLIFICATION_FACTOR, clipContours, contourToMm, layerForElevation, roundContourRing, sampleElevation, simplify } from "./contours.js";
+import { CONTOUR_SIMPLIFICATION_FACTOR, clipContours, removeTinyRing, contourToMm, layerForElevation, roundContourRing, sampleElevation, simplify } from "./contours.js";
 import { groundWidthMFor, horizontalScaleFor, planTerrainStack } from "./stack-plan.js";
 import { coordinateGridMarkings } from "./coordinate-grid.js";
 import { fabricationLabel, junctionRing, longestPath, polylineLength, styledTransportationPaths, transportationJunctions, transportationOutlines } from "./transportation.js";
@@ -28,6 +28,7 @@ import { labelDimensions, labelGeometry } from "../annotate/labels.js";
 import { addLabelObstacles, indexLabelLayer, placeElevationLabelStack, placeLabel, placeLinearLabel } from "../annotate/label-placement.js";
 import { geoPointToMapPoint, longitudeInBounds, markerCenterForAnchor, markerPolygons } from "../annotate/markers.js";
 import { markerLayerPolygons } from "../annotate/marker-placement.js";
+import { GRAPHIC_CLEARANCE_MM, placedGraphicMarkingPrefix, placedGraphicPolygons } from "../annotate/graphics.js";
 import { offsetClosedRing } from "../primitives/offset.js";
 import { northArrowMarkings } from "../annotate/north-arrow.js";
 import { scaleBarMarkings } from "../annotate/scale-bar.js";
@@ -909,6 +910,99 @@ function placeMarkers({ config, source, flatEngraving }: GenerationContext, clip
   });
 }
 
+/** Whether every point of a graphic keeps the annotation line inside the crop; warns naming it when not. */
+function graphicFits({ config, clip, warnings }: GenerationContext, polygons: Polygon2D[], placedIndex: number): boolean {
+  const inset = config.lineStyle.annotationMm / 2;
+  const fits = polygons.length > 0 && polygons.every(({ outer }) => outer.every(({ x, y }) => [[-inset, -inset], [inset, -inset], [inset, inset], [-inset, inset]].every(([dx, dy]) => pointInRing({ x: x + dx!, y: y + dy! }, clip))));
+  if (!fits && polygons.length) warnings.push({ code: "LABEL_OMITTED", message: `Graphic ${placedIndex + 1} was omitted because it does not fit the material. Make it smaller or move it inward.` });
+  return fits;
+}
+
+/**
+ * Cut graphics remove their shape from whichever sheet is exposed under each
+ * part of it, revealing the sheet below. This runs on the raw layers, before
+ * work-area seams and material nests: both index into the final material, and
+ * nesting already refuses a cavity under a covering sheet's hole, so a cut can
+ * never reveal one.
+ */
+function cutPlacedGraphics(context: GenerationContext, layers: LayerIR[]): void {
+  const { config, flatEngraving, warnings } = context;
+  const cutLayers = flatEngraving ? layers.slice(0, 1) : layers;
+  let loosePieces = false;
+  (config.placedGraphics ?? []).forEach((placed, placedIndex) => {
+    if (placed.operation !== "cut") return;
+    const polygons = placedGraphicPolygons(config, placed);
+    if (!graphicFits(context, polygons, placedIndex)) return;
+    // Recomputed per graphic: an earlier cut may already have opened this area.
+    const materials = cutLayers.map((layer) => preparePolygons(layer.polygons));
+    const cutsByLayer = new Map<number, Polygon2D[]>();
+    for (const { outer, holes } of polygons) {
+      for (const { layerIndex, polygon } of markerLayerPolygons(outer, materials, holes)) {
+        cutsByLayer.set(layerIndex, [...(cutsByLayer.get(layerIndex) ?? []), polygon]);
+        // Islands left inside a cut through the bottom sheet have nothing to rest on.
+        if (layerIndex === 0 && polygon.holes.length) loosePieces = true;
+      }
+    }
+    for (const [layerIndex, cuts] of cutsByLayer) {
+      const layer = cutLayers[layerIndex]!;
+      const multi = (polygons: Polygon2D[]): MultiPolygon => polygons.map(({ outer, holes }) => [toRing(outer), ...holes.map(toRing)]);
+      layer.polygons = normalizeMultiPolygon(
+        polygonClipping.difference(multi(layer.polygons), multi(cuts)) as MultiPolygon,
+        (ring) => (removeTinyRing(ring, config.minimumFeatureMm) ? undefined : ring),
+      );
+    }
+  });
+  if (loosePieces) warnings.push({
+    code: "GRAPHIC_LOOSE_PIECES",
+    message: "A cut graphic goes through the bottom sheet, so the islands inside its shape fall out. Engrave or score it instead, or keep them to glue back by hand.",
+  });
+}
+
+/**
+ * Engraved and scored graphics follow the exposed surface like markers. They
+ * are placed after the title and before markers, so a marker still reads on
+ * top of a graphic.
+ */
+function placeGraphics(context: GenerationContext, clips: LayerClip[]): void {
+  const { config, flatEngraving } = context;
+  const surface = flatEngraving ? clips.slice(0, 1) : clips;
+  const materials = surface.map((clip) => clip.material);
+  (config.placedGraphics ?? []).forEach((placed, placedIndex) => {
+    if (placed.operation === "cut") return;
+    const polygons = placedGraphicPolygons(config, placed);
+    if (!graphicFits(context, polygons, placedIndex)) return;
+    const prefix = placedGraphicMarkingPrefix(placed.id);
+    if (placed.operation === "score") {
+      polygons.forEach(({ outer, holes }, index) => [outer, ...holes].forEach((ring, ringIndex) => {
+        for (const { layer, material, covering } of surface) {
+          clipPolyline(ring, material, flatEngraving ? undefined : covering).forEach((points, clipIndex) => layer.markings.push({
+            id: `${prefix}score-${index}-${ringIndex}-${layer.index}-${clipIndex}`,
+            operation: "score",
+            kind: "marker",
+            points,
+          }));
+        }
+      }));
+      return;
+    }
+    const place = (path: Point2D[], id: string, holes: Point2D[][], knockout = false) => {
+      markerLayerPolygons(path, materials, holes).forEach(({ layerIndex, polygon }, pieceIndex) => clips[layerIndex]!.layer.markings.push({
+        id: `${prefix}${id}-${layerIndex}-${pieceIndex}`,
+        operation: "engrave",
+        kind: "marker",
+        points: polygon.outer,
+        ...(polygon.holes.length ? { holes: polygon.holes } : {}),
+        filled: true,
+        ...(knockout ? { knockout: true } : {}),
+      }));
+    };
+    polygons.forEach(({ outer }, index) => {
+      offsetClosedRing(outer, GRAPHIC_CLEARANCE_MM, "round").forEach((halo, haloIndex) => place(halo, `halo-${index}-${haloIndex}`, [], true));
+    });
+    polygons.forEach(({ outer, holes }, index) => place(outer, String(index), holes));
+  });
+}
+
 /**
  * External vector archives are allowed to repeat source IDs. Preserve stable
  * human-readable prefixes while guaranteeing valid keyed previews and unique
@@ -951,6 +1045,7 @@ export function generateGeometry(config: ProjectConfigV1, source: SourceBundleV1
   const { waterAreas, carved } = carveWater(context, grid);
   const ladder = buildLadder(context, carved, waterAreas);
   const layers = contourLayers(context, ladder);
+  cutPlacedGraphics(context, layers);
   const { waterSurfaces, waterPatternAreas } = waterOutputs(context, ladder);
 
   // Before nesting: cavities record indices into a donor's polygons and holes
@@ -973,6 +1068,7 @@ export function generateGeometry(config: ProjectConfigV1, source: SourceBundleV1
   });
   if (config.showElevationLabels) placeElevationLabels(context, layers);
   placePlaque(context, clips);
+  placeGraphics(context, clips);
   placeMarkers(context, clips);
   dedupeMarkingIds(layers);
 

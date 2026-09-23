@@ -97,6 +97,10 @@ export interface StudioContext {
   readonly placementMargin: number;
   readonly placementHiddenPrefixes: readonly string[];
   startPlacement(id: PlaceableId): void;
+  /** Adds a use of an uploaded graphic as a placement draft, opening placement mode when it is closed. */
+  placeGraphic(graphicId: string): void;
+  /** Opens placement mode for graphics: on the first placed one, or placing the first uploaded one. */
+  placeGraphics(): void;
   commitPlacement(): void;
   cancelPlacement(): void;
 
@@ -157,6 +161,8 @@ export interface StudioContext {
   importCustomData(file: File | undefined): Promise<void>;
   /** Adds an SVG as a marker icon, and gives it to `markerId` when one is named. */
   importMarkerIcon(file: File | undefined, markerId?: string): Promise<void>;
+  /** Adds an SVG to the project's graphics library. */
+  importGraphic(file: File | undefined): Promise<void>;
 
   // Generation
   generate(): Promise<void>;

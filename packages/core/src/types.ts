@@ -73,6 +73,43 @@ export const MAX_MARKER_ICONS = 24;
 export const MAX_MARKER_ICON_POINTS = 800;
 /** Same shape as a depth chart id: 8-64 lowercase letters, digits or dashes. */
 export const MARKER_ICON_ID_PATTERN = /^[a-z0-9][a-z0-9-]{7,63}$/;
+
+/**
+ * Artwork the maker uploaded to place freely on the piece: a logo, a badge, a
+ * decoration. Stored exactly as a marker icon is (integer rings fitted so the
+ * longer side spans MARKER_ICON_UNITS about 0), with a larger point budget.
+ */
+export interface CustomGraphicV1 {
+  id: string;
+  name: string;
+  shapes: MarkerIconShapeV1[];
+}
+
+/** What the laser does with a placed graphic: engrave its filled shape, score its outline, or cut it out of the sheet it lands on. */
+export type GraphicOperation = "engrave" | "score" | "cut";
+export const GRAPHIC_OPERATIONS: readonly GraphicOperation[] = ["engrave", "score", "cut"];
+
+/**
+ * One use of a custom graphic on the piece. Anchored like the north arrow, so
+ * it stays where the maker put it when the crop or output size changes.
+ */
+export interface PlacedGraphicV1 {
+  id: string;
+  graphicId: string;
+  placement: NorthArrowPlacementV1;
+  /** The graphic's longer side before rotation, in millimeters. */
+  sizeMm: number;
+  /** Clockwise on the artwork (y down), in degrees from 0 up to 360. */
+  rotationDeg: number;
+  operation: GraphicOperation;
+}
+
+export const MAX_CUSTOM_GRAPHICS = 24;
+export const MAX_PLACED_GRAPHICS = 50;
+/** Points across every ring of one graphic. Detailed enough for a logo; large projects share as a file rather than a link. */
+export const MAX_CUSTOM_GRAPHIC_POINTS = 3_000;
+export const GRAPHIC_MIN_SIZE_MM = 3;
+export const GRAPHIC_MAX_SIZE_MM = 400;
 export const CUSTOM_LINE_KINDS: readonly CustomLineKind[] = ["trail", "boundary"];
 export const MAX_PROJECT_NAME_LENGTH = 120;
 export const MAX_PROJECT_DIMENSION_MM = 10_000;
@@ -374,6 +411,10 @@ export interface ProjectConfigV1 {
    * project without one, which keeps their fingerprints.
    */
   markerIcons?: MarkerIconV1[];
+  /** Artwork uploaded for free placement on the piece. Absent in every project without one, which keeps their fingerprints. */
+  customGraphics?: CustomGraphicV1[];
+  /** Where each custom graphic is used on the piece. Absent when none is placed. */
+  placedGraphics?: PlacedGraphicV1[];
   /** User-authored geographic paths, independent of fetched map-detail toggles. */
   customLines: CustomLineFeatureV1[];
   explodedPreview: number;
@@ -652,7 +693,7 @@ export interface FabricationPanelV1 {
 }
 
 export interface GeometryWarning {
-  code: "TERRAIN_SOURCE_FALLBACK" | "ELEVATION_REPAIRED" | "LOW_RELIEF" | "EMPTY_LAYER" | "SMALL_FEATURES" | "DATA_FALLBACK" | "VECTOR_DATA_PARTIAL" | "VECTOR_DATA_UNAVAILABLE" | "LAKE_DATA_UNAVAILABLE" | "BATHYMETRY_FALLBACK" | "LAKE_DEPTH_PREDICTED" | "LAKE_DEPTH_FROM_CHART" | "LABEL_OMITTED" | "WATER_DEPTH_CLAMPED" | "WORK_AREA_OVERSIZE" | "WORK_AREA_UNSPLIT";
+  code: "TERRAIN_SOURCE_FALLBACK" | "ELEVATION_REPAIRED" | "LOW_RELIEF" | "EMPTY_LAYER" | "SMALL_FEATURES" | "DATA_FALLBACK" | "VECTOR_DATA_PARTIAL" | "VECTOR_DATA_UNAVAILABLE" | "LAKE_DATA_UNAVAILABLE" | "BATHYMETRY_FALLBACK" | "LAKE_DEPTH_PREDICTED" | "LAKE_DEPTH_FROM_CHART" | "LABEL_OMITTED" | "WATER_DEPTH_CLAMPED" | "WORK_AREA_OVERSIZE" | "WORK_AREA_UNSPLIT" | "GRAPHIC_LOOSE_PIECES";
   message: string;
   action?: "fit-lake-depth";
 }

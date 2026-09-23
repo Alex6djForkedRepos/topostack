@@ -1,4 +1,4 @@
-import { buildMarkerIcon, flattenSvgPath, MAX_CUSTOM_DATA_NAME_LENGTH, type MarkerIconPaint, type MarkerIconV1, type PathPolyline } from "@topostack/core";
+import { buildMarkerIcon, flattenSvgPath, MAX_CUSTOM_DATA_NAME_LENGTH, MAX_CUSTOM_GRAPHIC_POINTS, type CustomGraphicV1, type MarkerIconPaint, type MarkerIconV1, type PathPolyline } from "@topostack/core";
 
 /**
  * Reading an SVG the maker uploads as a marker icon. The file is parsed as
@@ -164,8 +164,11 @@ function drawingExtent(root: Element): number {
   return size > 0 ? size : 24;
 }
 
-/** Reads SVG text into a marker icon, or throws with a message for the maker. */
-export function svgIconFromText(text: string, options: { id: string; name: string }): SvgIconImport {
+/**
+ * Reads SVG text into a marker icon, or throws with a message for the maker.
+ * `maxPoints` and `noun` let custom graphics share the reader with a larger budget.
+ */
+export function svgIconFromText(text: string, options: { id: string; name: string; maxPoints?: number; noun?: string }): SvgIconImport {
   const document = new DOMParser().parseFromString(text, "image/svg+xml");
   const root = document.documentElement;
   if (!root || root.localName !== "svg" || document.getElementsByTagName("parsererror").length) throw new Error("This file is not a readable SVG.");
@@ -278,13 +281,25 @@ export function svgIconFromText(text: string, options: { id: string; name: strin
 }
 
 /** The name an icon gets from its file: the file name without its extension. */
-export function iconNameFromFile(fileName: string): string {
+export function iconNameFromFile(fileName: string, fallback = "Icon"): string {
   const base = fileName.replace(/\.[^.]*$/, "").replace(/[-_]+/g, " ").trim();
-  return (base || "Icon").slice(0, MAX_CUSTOM_DATA_NAME_LENGTH);
+  return (base || fallback).slice(0, MAX_CUSTOM_DATA_NAME_LENGTH);
 }
 
 /** Reads an uploaded file into a marker icon, or throws with a message for the maker. */
 export async function importSvgIcon(file: Pick<File, "size" | "name" | "text">, id: string): Promise<SvgIconImport> {
   if (file.size > MAX_SVG_ICON_BYTES) throw new Error("SVG icons must be 1 MB or smaller.");
   return svgIconFromText(await file.text(), { id, name: iconNameFromFile(file.name) });
+}
+
+export interface SvgGraphicImport {
+  graphic: CustomGraphicV1;
+  warnings: string[];
+}
+
+/** Reads an uploaded file into a custom graphic: the same reading as an icon, with a logo's point budget. */
+export async function importSvgGraphic(file: Pick<File, "size" | "name" | "text">, id: string): Promise<SvgGraphicImport> {
+  if (file.size > MAX_SVG_ICON_BYTES) throw new Error("SVG graphics must be 1 MB or smaller.");
+  const { icon, warnings } = svgIconFromText(await file.text(), { id, name: iconNameFromFile(file.name, "Graphic"), maxPoints: MAX_CUSTOM_GRAPHIC_POINTS, noun: "a graphic" });
+  return { graphic: { id: icon.id, name: icon.name, shapes: icon.shapes }, warnings };
 }

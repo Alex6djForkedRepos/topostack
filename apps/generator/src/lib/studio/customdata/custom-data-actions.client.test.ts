@@ -32,6 +32,20 @@ describe("custom data actions", () => {
     expect(host.updateFabrication).toHaveBeenCalledTimes(1);
   });
 
+  it("adds an uploaded SVG to the graphics library as one edit, once per drawing", async () => {
+    const { actions, host, current } = studio();
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/></svg>`;
+    await actions.importGraphic(new File([svg], "club-logo.svg", { type: "image/svg+xml" }));
+    expect(host.updateFabrication).toHaveBeenCalledTimes(1);
+    expect(current().customGraphics).toEqual([expect.objectContaining({ name: "club logo" })]);
+    expect(current().placedGraphics).toBeUndefined();
+    expect(host.setStatus).toHaveBeenLastCalledWith(expect.stringMatching(/Graphic “club logo” added · Place it on the piece/));
+    await actions.importGraphic(new File([svg], "again.svg", { type: "image/svg+xml" }));
+    expect(current().customGraphics).toHaveLength(1);
+    await actions.importGraphic(new File(["nope"], "broken.svg"));
+    expect(host.setStatus).toHaveBeenLastCalledWith(expect.stringMatching(/not a readable SVG/));
+  });
+
   it("keeps each armed tool to the view and section that shows its controls", () => {
     const { actions } = studio();
     actions.setPlacingMarker(true);
