@@ -120,7 +120,18 @@ test("traces an image in the worker, saves it, applies it, and restores the libr
   await expect(page.locator(".chart-result")).toBeVisible({ timeout: 60_000 });
   await expect(page.locator(".chart-report")).toContainText("100%");
   await expect(page.getByRole("button", { name: "Keep this chart", exact: true })).toBeEnabled();
+  await expect(page.locator(".depth-3d canvas")).toBeVisible();
+  await page.locator(".depth-controls").getByRole("button", { name: "Rotate", exact: true }).click();
+  await page.locator(".depth-controls").getByRole("button", { name: "Zoom in", exact: true }).click();
+  await page.getByLabel("Vertical exaggeration", { exact: true }).selectOption("10");
+  await page.locator(".depth-controls").getByRole("button", { name: "Reset view", exact: true }).click();
+  await page.locator(".depth-3d").scrollIntoViewIfNeeded();
   await page.screenshot({ path: testInfo.outputPath("depth-chart-result.png") });
+  await page.getByRole("button", { name: "2D depth map", exact: true }).click();
+  await expect(page.locator(".chart-preview")).toBeVisible();
+  await expect(page.locator(".chart-preview-legend")).toContainText("Shallow");
+  await page.getByRole("button", { name: "3D lake bed", exact: true }).click();
+  await expect(page.locator(".depth-3d canvas")).toBeVisible();
   await page.getByRole("button", { name: "Review and save chart", exact: true }).click();
   await expect(page.locator("#chart-save-heading")).toBeFocused();
   await page.getByRole("button", { name: "Keep this chart", exact: true }).click();
