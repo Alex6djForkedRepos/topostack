@@ -3,7 +3,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
 const root = new URL("../../", import.meta.url);
-const workspaces = ["apps/generator", "packages/core", "packages/data-contracts", "workers/map-api"];
+const workspaces = ["apps/generator", "packages/chart-trace", "packages/core", "packages/data-contracts", "workers/map-api"];
 const numeric = "(?:0|[1-9]\\d*)";
 const identifier = `(?:${numeric}|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)`;
 const semver = new RegExp(`^${numeric}\\.${numeric}\\.${numeric}(?:-${identifier}(?:\\.${identifier})*)?$`);

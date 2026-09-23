@@ -116,6 +116,7 @@ Explicitly selected busy ports cause an error. The individual `dev:web` and `dev
 | Path | Responsibility |
 | --- | --- |
 | [`apps/generator`](apps/generator) | Svelte 5/SvelteKit homepage and studio, previews, browser storage, downloads, and Atomm integration |
+| [`packages/chart-trace`](packages/chart-trace) | Source-only lake depth chart tracing: georeferencing a chart against a lake outline, and gridding its contours into bathymetry |
 | [`packages/core`](packages/core) | Portable TypeScript geometry engine, fabrication planning, and SVG generation |
 | [`packages/data-contracts`](packages/data-contracts) | Source-only contracts shared by the studio, the Worker, and scripts: catalog validation, archive releases, terrain PNG decoding, usage events |
 | [`workers/map-api`](workers/map-api) | Cloudflare Worker for terrain, map archives, geocoding, caching, and readiness checks |

@@ -11,7 +11,7 @@ import {
 } from "../release/changelog.mjs";
 import { nextVersion, readVersions } from "../release/versions.mjs";
 
-const VERSION_FILES = ["package.json", "package-lock.json", "apps/generator/package.json", "packages/core/package.json", "packages/data-contracts/package.json", "workers/map-api/package.json", "atomm/version.json"];
+const VERSION_FILES = ["package.json", "package-lock.json", "apps/generator/package.json", "packages/chart-trace/package.json", "packages/core/package.json", "packages/data-contracts/package.json", "workers/map-api/package.json", "atomm/version.json"];
 const fragment = (type, title, body = "Something a maker notices.") => `---\ntype: ${type}\ntitle: ${title}\n---\n${body}\n`;
 
 /** A throwaway git repository with the real version files and a one-release changelog. */
@@ -20,7 +20,7 @@ async function fixture(t) {
   t.after(() => rm(directory, { recursive: true, force: true }));
   const base = pathToFileURL(directory + "/");
   const git = (...args) => execFileSync("git", args, { cwd: directory, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
-  for (const path of ["apps/generator", "packages/core", "packages/data-contracts", "workers/map-api", "atomm", "changelog/unreleased"]) await mkdir(new URL(path, base), { recursive: true });
+  for (const path of ["apps/generator", "packages/chart-trace", "packages/core", "packages/data-contracts", "workers/map-api", "atomm", "changelog/unreleased"]) await mkdir(new URL(path, base), { recursive: true });
   for (const path of VERSION_FILES) await writeFile(new URL(path, base), await readFile(new URL(`../../${path}`, import.meta.url)));
   const { version } = await readVersions(base);
   await writeFile(new URL("changelog/unreleased/.gitkeep", base), "");

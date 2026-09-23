@@ -7,7 +7,7 @@ Many lakes have no digital survey but do have a published depth chart: a scanned
 | Stage | State |
 | --- | --- |
 | Record contract (`@topostack/data-contracts/chart-bathymetry`) and core carving with `bathymetryOrigin: "chart"` | Done |
-| `@topostack/chart-trace`: georeferencing and gridding | Planned |
+| `@topostack/chart-trace`: georeferencing and gridding | Done |
 | `@topostack/chart-trace`: vector PDF extraction (paths and text layer) | Planned |
 | `@topostack/chart-trace`: colour segmentation, line tracing, label reading | Planned |
 | Batch pipeline for curated public charts, published as a survey archive | Planned |
@@ -40,6 +40,19 @@ Three public charts were chosen as reference inputs, one for each style the trac
 | TWDB, [Cedar Creek Reservoir](https://www.twdb.texas.gov/hydro_survey/cedarcreek/2017-10/CC17_ContourMap.pdf) (2017) | Vector GIS PDF with a text layer | Contours are elevations above mean sea level (pool at 322 ft). Its paths, labels and State Plane grid ticks can be read directly from the PDF, with no OCR or raster tracing. | None archived |
 
 The TWDB case moves **vector PDF extraction** ahead of raster tracing. For modern GIS charts it gives exact lines and labels, and possibly georeferencing from the grid ticks.
+
+## Georeferencing and gridding
+
+`@topostack/chart-trace` does both in a lake-centred metre frame, so residuals are ground distances and grids are square in metres and aligned to lon/lat.
+
+**Georeferencing** has two routes:
+- **Control points.** Three clicks give an affine fit; four or more give a homography, which also absorbs a phone photo's perspective.
+- **Snapping.** A traced shoreline is matched to the known lake outline. Starting guesses come from area moments, trying each principal-axis orientation with and without a mirror (pixel rows run down), and a full turn of guesses for a near-round lake. Symmetric ICP then refines each guess to an affine map, and the best is kept by IoU. Below `SNAP_MIN_IOU` (0.9), the maker is asked for control points instead. Affine snapping can make a wrong but similar lake overlap quite well, so the studio shows the snapped chart over the map before accepting it.
+
+**Gridding** has two methods:
+- **`harmonic`** (the default). Contour cells are fixed at their depth, land is fixed at zero, and Laplace's equation is solved by coarse-to-fine red-black SOR. This follows the slope a chart implies and covers the whole lake, where a TIN leaves terraces between vertices of one contour and blanks outside their hull.
+  - Laplace alone would leave a region enclosed by one ring perfectly flat, and pinning a single cell only makes a spike. So such a pool is filled with a smooth dome `d ± step·(2t − t²)` over its distance from the ring. It levels off half an interval past the ring, or at the deepest sounding inside it. Rings marked `inside: "shallower"` dome upward, as humps.
+- **`tin`** ports `survey_regions.contour_grid` line for line and is held to it by a fixture the Python generates. It exists so charts and published contour surveys can be gridded identically.
 
 ## How it carves
 
