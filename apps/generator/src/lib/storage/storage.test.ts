@@ -280,4 +280,23 @@ describe("project import validation", () => {
       waterDepthOverrides: { "9092": 594 },
     });
   });
+  it("restores custom graphics and their placements, dropping what is malformed", () => {
+    const graphic = { id: "graphic-0001", name: "Logo", shapes: [{ outer: [-500, -500, 500, -500, 0, 500] }] };
+    const placed = { id: "placed-0001", graphicId: graphic.id, placement: { anchor: "top-left" as const, offset: { x: 0.25, y: 0 } }, sizeMm: 30, rotationDeg: 45, operation: "cut" as const };
+    const project = parseProject({ ...DEFAULT_PROJECT, customGraphics: [graphic], placedGraphics: [placed] });
+    expect(parseProject(JSON.parse(JSON.stringify(project)))).toMatchObject({ customGraphics: [graphic], placedGraphics: [placed] });
+    expect(parseProject(DEFAULT_PROJECT)).not.toHaveProperty("customGraphics");
+    expect(parseProject(DEFAULT_PROJECT)).not.toHaveProperty("placedGraphics");
+    // A broken graphic takes its placements with it.
+    const orphaned = parseProject({ ...DEFAULT_PROJECT, customGraphics: [{ ...graphic, shapes: [] }], placedGraphics: [placed] });
+    expect(orphaned).not.toHaveProperty("customGraphics");
+    expect(orphaned).not.toHaveProperty("placedGraphics");
+    for (const broken of [{ ...placed, graphicId: "graphic-9999" }, { ...placed, sizeMm: 1 }, { ...placed, placement: { anchor: "middle", offset: { x: 0, y: 0 } } }, { ...placed, placement: { anchor: "top", offset: { x: 3, y: 0 } } }, { ...placed, id: "X" }]) {
+      expect(parseProject({ ...DEFAULT_PROJECT, customGraphics: [graphic], placedGraphics: [broken] })).not.toHaveProperty("placedGraphics");
+    }
+    // Rotation wraps into range and an unknown operation engraves.
+    expect(parseProject({ ...DEFAULT_PROJECT, customGraphics: [graphic], placedGraphics: [{ ...placed, rotationDeg: -90, operation: "etch" }] }).placedGraphics?.[0]).toMatchObject({ rotationDeg: 270, operation: "engrave" });
+    expect(parseProject({ ...DEFAULT_PROJECT, customGraphics: [{ ...graphic, name: "" }] }).customGraphics?.[0]!.name).toBe("Graphic");
+  });
 });
+

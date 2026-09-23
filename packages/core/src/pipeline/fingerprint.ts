@@ -12,6 +12,7 @@ function stableProjectValue(config: ProjectConfigV1): unknown {
     customLines: config.customLines.map(({ name: _label, ...line }) => line),
     // Likewise an uploaded icon's name; its shapes are the design.
     markerIcons: config.markerIcons?.map(({ name: _label, ...icon }) => icon),
+    customGraphics: config.customGraphics?.map(({ name: _label, ...graphic }) => graphic),
     location: { ...config.location, bounds: config.location.bounds ? { ...config.location.bounds } : undefined },
   };
 }

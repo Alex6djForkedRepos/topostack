@@ -78,4 +78,10 @@ describe("building a marker icon", () => {
     const specks = Array.from({ length: 400 }, (_, index) => `M${index % 20 * 10} ${Math.floor(index / 20) * 10} h4 v4 h-4 Z`).join(" ");
     expect(() => buildMarkerIcon([fill(specks)], options)).toThrow(/too detailed/);
   });
+
+  it("keeps detail a larger budget allows, naming what it builds when even that is exceeded", () => {
+    const specks = Array.from({ length: 400 }, (_, index) => `M${index % 20 * 10} ${Math.floor(index / 20) * 10} h4 v4 h-4 Z`).join(" ");
+    expect(markerIconPointCount(buildMarkerIcon([fill(specks)], { ...options, maxPoints: 3000 }))).toBe(1600);
+    expect(() => buildMarkerIcon([fill(specks)], { ...options, maxPoints: 1000, noun: "a graphic" })).toThrow(/too detailed for a graphic; simplify it to fewer than 1000/);
+  });
 });

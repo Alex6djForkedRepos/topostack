@@ -23,8 +23,8 @@ export const DOCS_SECTIONS: readonly { id: string; title: string; summary: strin
   {
     id: "customize",
     title: "Customize",
-    summary: "Choose map details, labels and line widths, and engrave your own markers and routes.",
-    paths: ["/guides/map-details", "/guides/custom-markers-and-paths"],
+    summary: "Choose map details, labels and line widths, and engrave your own markers, routes and graphics.",
+    paths: ["/guides/map-details", "/guides/custom-markers-and-paths", "/guides/custom-graphics"],
   },
   {
     id: "lakes",

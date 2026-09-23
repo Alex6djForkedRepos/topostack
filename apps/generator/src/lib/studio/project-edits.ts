@@ -1,4 +1,4 @@
-import { DEFAULT_PLAQUE_SIZE_MM, PLAQUE_MAX_LINE_LENGTH, PLAQUE_MAX_LINES, PLAQUE_MAX_SIZE_MM, PLAQUE_MIN_SIZE_MM, type PlaqueV1, type TextFont, MAP_MARKER_SIZE_MM, MAP_MARKER_MIN_SIZE_MM, MAP_MARKER_MAX_SIZE_MM, MAX_CUSTOM_DATA_NAME_LENGTH, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, type CustomLineFeatureV1, type GeoPoint, type MapMarkerV1, type MarkerIconV1, MAX_MARKER_ICONS, type ProjectConfigV1 } from "@topostack/core";
+import { DEFAULT_PLAQUE_SIZE_MM, PLAQUE_MAX_LINE_LENGTH, PLAQUE_MAX_LINES, PLAQUE_MAX_SIZE_MM, PLAQUE_MIN_SIZE_MM, type PlaqueV1, type TextFont, MAP_MARKER_SIZE_MM, MAP_MARKER_MIN_SIZE_MM, MAP_MARKER_MAX_SIZE_MM, MAX_CUSTOM_DATA_NAME_LENGTH, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, type CustomLineFeatureV1, type GeoPoint, type MapMarkerV1, type MarkerIconV1, MAX_MARKER_ICONS, type ProjectConfigV1, GRAPHIC_MAX_SIZE_MM, GRAPHIC_MIN_SIZE_MM, MAX_CUSTOM_GRAPHICS, MAX_PLACED_GRAPHICS, type CustomGraphicV1, type PlacedGraphicV1 } from "@topostack/core";
 import { clampLongitude, isSupportedCoordinate } from "$lib/domain/coordinates";
 
 /**
@@ -125,6 +125,74 @@ export function removeMarkerIcon(project: Pick<ProjectConfigV1, "markers" | "mar
     // No icons left means no field, as in a project that never had one.
     markerIcons: markerIcons.length ? markerIcons : undefined,
   };
+}
+
+type GraphicsPatch = Pick<ProjectConfigV1, "customGraphics" | "placedGraphics">;
+type GraphicsProject = Pick<ProjectConfigV1, "customGraphics" | "placedGraphics" | "widthMm" | "heightMm">;
+
+/** Room the core keeps between an anchored annotation and the crop edge, on both sides. */
+const GRAPHIC_EDGE_ROOM_MM = 6;
+
+/** The largest graphic that fits a piece of this size. */
+export function graphicMaximumMm(widthMm: number, heightMm: number): number {
+  return Math.min(GRAPHIC_MAX_SIZE_MM, Math.max(GRAPHIC_MIN_SIZE_MM, Math.min(widthMm, heightMm) - GRAPHIC_EDGE_ROOM_MM));
+}
+
+export const canAddCustomGraphic = (project: Pick<ProjectConfigV1, "customGraphics">): boolean => (project.customGraphics?.length ?? 0) < MAX_CUSTOM_GRAPHICS;
+export const canPlaceGraphic = (project: Pick<ProjectConfigV1, "customGraphics" | "placedGraphics">): boolean =>
+  Boolean(project.customGraphics?.length) && (project.placedGraphics?.length ?? 0) < MAX_PLACED_GRAPHICS;
+
+/** Adds an uploaded graphic, or finds the same drawing already in the library, and returns the id to place. */
+export function addCustomGraphic(project: Pick<ProjectConfigV1, "customGraphics" | "placedGraphics">, graphic: CustomGraphicV1): { patch: GraphicsPatch; graphicId: string } | undefined {
+  const existing = project.customGraphics?.find((candidate) => JSON.stringify(candidate.shapes) === JSON.stringify(graphic.shapes));
+  if (existing) return { patch: { customGraphics: project.customGraphics, placedGraphics: project.placedGraphics }, graphicId: existing.id };
+  if (!canAddCustomGraphic(project)) return undefined;
+  const name = storedName(graphic.name) ?? "Graphic";
+  return { patch: { customGraphics: [...project.customGraphics ?? [], { ...graphic, name }], placedGraphics: project.placedGraphics }, graphicId: graphic.id };
+}
+
+/** Renames a graphic; a blank name keeps the old one, since the library lists graphics by name. */
+export function renameCustomGraphic(project: Pick<ProjectConfigV1, "customGraphics" | "placedGraphics">, id: string, name: string): GraphicsPatch | undefined {
+  const next = storedName(name);
+  if (!next || !project.customGraphics?.some((graphic) => graphic.id === id)) return undefined;
+  return { customGraphics: project.customGraphics.map((graphic) => graphic.id === id ? { ...graphic, name: next } : graphic), placedGraphics: project.placedGraphics };
+}
+
+/** Removes a graphic from the library, and every place it was used. */
+export function removeCustomGraphic(project: Pick<ProjectConfigV1, "customGraphics" | "placedGraphics">, id: string): GraphicsPatch {
+  const customGraphics = (project.customGraphics ?? []).filter((graphic) => graphic.id !== id);
+  const placedGraphics = (project.placedGraphics ?? []).filter((placed) => placed.graphicId !== id);
+  // Empty lists become absent fields, as in a project that never had one.
+  return { customGraphics: customGraphics.length ? customGraphics : undefined, placedGraphics: placedGraphics.length ? placedGraphics : undefined };
+}
+
+/** A new, centered, engraved use of a graphic, about a quarter of the piece's shorter side. */
+export function newPlacedGraphic(project: Pick<ProjectConfigV1, "widthMm" | "heightMm">, graphicId: string, id: string): PlacedGraphicV1 {
+  const sizeMm = Math.round(Math.min(graphicMaximumMm(project.widthMm, project.heightMm), Math.max(GRAPHIC_MIN_SIZE_MM, Math.min(project.widthMm, project.heightMm) / 4)));
+  return { id, graphicId, placement: { anchor: "center", offset: { x: 0, y: 0 } }, sizeMm, rotationDeg: 0, operation: "engrave" };
+}
+
+export function addPlacedGraphic(project: GraphicsProject, graphicId: string, id: string): Pick<ProjectConfigV1, "placedGraphics"> | undefined {
+  if (!canPlaceGraphic(project) || !project.customGraphics?.some((graphic) => graphic.id === graphicId)) return undefined;
+  return { placedGraphics: [...project.placedGraphics ?? [], newPlacedGraphic(project, graphicId, id)] };
+}
+
+/** Changes how a placed graphic is made or sized; position and rotation change in placement mode. */
+export function updatePlacedGraphic(project: GraphicsProject, id: string, patch: Partial<Pick<PlacedGraphicV1, "operation" | "sizeMm" | "rotationDeg">>): Pick<ProjectConfigV1, "placedGraphics"> | undefined {
+  if (!project.placedGraphics?.some((placed) => placed.id === id)) return undefined;
+  const maximum = graphicMaximumMm(project.widthMm, project.heightMm);
+  return {
+    placedGraphics: project.placedGraphics.map((placed) => {
+      if (placed.id !== id) return placed;
+      const next = { ...placed, ...patch };
+      return { ...next, sizeMm: Math.min(maximum, Math.max(GRAPHIC_MIN_SIZE_MM, next.sizeMm)), rotationDeg: ((next.rotationDeg % 360) + 360) % 360 };
+    }),
+  };
+}
+
+export function removePlacedGraphic(project: Pick<ProjectConfigV1, "placedGraphics">, id: string): Pick<ProjectConfigV1, "placedGraphics"> {
+  const placedGraphics = (project.placedGraphics ?? []).filter((placed) => placed.id !== id);
+  return { placedGraphics: placedGraphics.length ? placedGraphics : undefined };
 }
 
 export function addCustomLine(project: Project, id: string): CustomLinesPatch | undefined {

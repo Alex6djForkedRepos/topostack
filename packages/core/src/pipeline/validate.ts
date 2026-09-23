@@ -10,6 +10,12 @@ import {
   MARKER_ICON_UNITS,
   MAX_MARKER_ICONS,
   MAX_MARKER_ICON_POINTS,
+  GRAPHIC_MAX_SIZE_MM,
+  GRAPHIC_MIN_SIZE_MM,
+  GRAPHIC_OPERATIONS,
+  MAX_CUSTOM_GRAPHIC_POINTS,
+  MAX_CUSTOM_GRAPHICS,
+  MAX_PLACED_GRAPHICS,
   DEPTH_CHART_ID_PATTERN,
   isDepthChartLakeKey,
   MAX_CUSTOM_DATA_NAME_LENGTH,
@@ -35,7 +41,7 @@ import {
   NORTH_ARROW_MIN_SIZE_MM,
   NORTH_ARROW_STYLES,
 } from "../types.js";
-import type { GeoBounds, NorthArrowPlacementV1, PlaqueV1, ProjectConfigV1 } from "../types.js";
+import type { GeoBounds, MarkerIconShapeV1, NorthArrowPlacementV1, PlaqueV1, ProjectConfigV1 } from "../types.js";
 
 
 export function assertGeographicBounds(bounds: GeoBounds, label: "Project" | "Source"): void {
@@ -78,6 +84,7 @@ export function validateProject(config: ProjectConfigV1): void {
   if (config.location.lat < -85.0511 || config.location.lat > 85.0511) throw new Error("This version supports Web Mercator latitudes only.");
   if (config.location.lon < -180 || config.location.lon > 180) throw new Error("Longitude must be between -180 and 180 degrees.");
   const iconIds = validateMarkerIcons(config.markerIcons);
+  validatePlacedGraphics(config.placedGraphics, validateCustomGraphics(config.customGraphics));
   const markerIds = new Set<string>();
   if (config.markers.length > MAX_MAP_MARKERS) throw new Error("A project may contain at most 250 markers.");
   for (const marker of config.markers) {
@@ -167,24 +174,63 @@ function validateMarkerIcons(icons: ProjectConfigV1["markerIcons"]): Set<string>
   if (icons === undefined) return ids;
   if (!Array.isArray(icons)) throw new Error("Marker icons must be a list.");
   if (icons.length > MAX_MARKER_ICONS) throw new Error(`A project may contain at most ${MAX_MARKER_ICONS} marker icons.`);
-  const half = MARKER_ICON_UNITS / 2;
-  const validRing = (ring: unknown): ring is number[] => Array.isArray(ring) && ring.length >= 6 && ring.length % 2 === 0 && ring.every((value) => Number.isSafeInteger(value) && Math.abs(value) <= half);
   for (const icon of icons) {
     if (!icon || typeof icon !== "object" || typeof icon.id !== "string" || !MARKER_ICON_ID_PATTERN.test(icon.id)) throw new Error("Each marker icon id must be 8-64 lowercase letters, digits, or dashes.");
     if (ids.has(icon.id)) throw new Error("Marker icon ids must be unique.");
     ids.add(icon.id);
     if (typeof icon.name !== "string" || !icon.name.trim() || icon.name.length > MAX_CUSTOM_DATA_NAME_LENGTH) throw new Error(`Marker icon name must contain 1-${MAX_CUSTOM_DATA_NAME_LENGTH} characters.`);
     if (icon.anchor !== undefined && icon.anchor !== "bottom") throw new Error("Marker icon anchor must be bottom, or absent.");
-    if (!Array.isArray(icon.shapes) || !icon.shapes.length) throw new Error("Each marker icon must contain at least one shape.");
-    let points = 0;
-    for (const shape of icon.shapes) {
-      if (!shape || typeof shape !== "object" || !validRing(shape.outer)) throw new Error(`Marker icon rings must be at least three whole-number points within ±${half}.`);
-      if (shape.holes !== undefined && (!Array.isArray(shape.holes) || !shape.holes.every(validRing))) throw new Error(`Marker icon rings must be at least three whole-number points within ±${half}.`);
-      points += (shape.outer.length + (shape.holes ?? []).reduce((sum, hole) => sum + hole.length, 0)) / 2;
-    }
-    if (points > MAX_MARKER_ICON_POINTS) throw new Error(`Each marker icon may contain at most ${MAX_MARKER_ICON_POINTS} points.`);
+    validateIconShapes(icon.shapes, "marker icon", MAX_MARKER_ICON_POINTS);
   }
   return ids;
+}
+
+/** Stored integer rings, shared by marker icons and custom graphics. */
+function validateIconShapes(shapes: MarkerIconShapeV1[], label: string, maxPoints: number): void {
+  const half = MARKER_ICON_UNITS / 2;
+  const validRing = (ring: unknown): ring is number[] => Array.isArray(ring) && ring.length >= 6 && ring.length % 2 === 0 && ring.every((value) => Number.isSafeInteger(value) && Math.abs(value) <= half);
+  const capitalized = label[0]!.toUpperCase() + label.slice(1);
+  if (!Array.isArray(shapes) || !shapes.length) throw new Error(`Each ${label} must contain at least one shape.`);
+  let points = 0;
+  for (const shape of shapes) {
+    if (!shape || typeof shape !== "object" || !validRing(shape.outer)) throw new Error(`${capitalized} rings must be at least three whole-number points within ±${half}.`);
+    if (shape.holes !== undefined && (!Array.isArray(shape.holes) || !shape.holes.every(validRing))) throw new Error(`${capitalized} rings must be at least three whole-number points within ±${half}.`);
+    points += (shape.outer.length + (shape.holes ?? []).reduce((sum, hole) => sum + hole.length, 0)) / 2;
+  }
+  if (points > maxPoints) throw new Error(`Each ${label} may contain at most ${maxPoints} points.`);
+}
+
+/** The project's uploaded graphics; returns their ids for placements to reference. */
+function validateCustomGraphics(graphics: ProjectConfigV1["customGraphics"]): Set<string> {
+  const ids = new Set<string>();
+  if (graphics === undefined) return ids;
+  if (!Array.isArray(graphics)) throw new Error("Custom graphics must be a list.");
+  if (graphics.length > MAX_CUSTOM_GRAPHICS) throw new Error(`A project may contain at most ${MAX_CUSTOM_GRAPHICS} custom graphics.`);
+  for (const graphic of graphics) {
+    if (!graphic || typeof graphic !== "object" || typeof graphic.id !== "string" || !MARKER_ICON_ID_PATTERN.test(graphic.id)) throw new Error("Each custom graphic id must be 8-64 lowercase letters, digits, or dashes.");
+    if (ids.has(graphic.id)) throw new Error("Custom graphic ids must be unique.");
+    ids.add(graphic.id);
+    if (typeof graphic.name !== "string" || !graphic.name.trim() || graphic.name.length > MAX_CUSTOM_DATA_NAME_LENGTH) throw new Error(`Custom graphic name must contain 1-${MAX_CUSTOM_DATA_NAME_LENGTH} characters.`);
+    validateIconShapes(graphic.shapes, "custom graphic", MAX_CUSTOM_GRAPHIC_POINTS);
+  }
+  return ids;
+}
+
+function validatePlacedGraphics(placedGraphics: ProjectConfigV1["placedGraphics"], graphicIds: Set<string>): void {
+  if (placedGraphics === undefined) return;
+  if (!Array.isArray(placedGraphics)) throw new Error("Placed graphics must be a list.");
+  if (placedGraphics.length > MAX_PLACED_GRAPHICS) throw new Error(`A project may place at most ${MAX_PLACED_GRAPHICS} graphics.`);
+  const ids = new Set<string>();
+  for (const placed of placedGraphics) {
+    if (!placed || typeof placed !== "object" || typeof placed.id !== "string" || !MARKER_ICON_ID_PATTERN.test(placed.id)) throw new Error("Each placed graphic id must be 8-64 lowercase letters, digits, or dashes.");
+    if (ids.has(placed.id)) throw new Error("Placed graphic ids must be unique.");
+    ids.add(placed.id);
+    if (typeof placed.graphicId !== "string" || !graphicIds.has(placed.graphicId)) throw new Error("A placed graphic must name one of the project's custom graphics.");
+    validatePlacement(placed.placement, "Graphic");
+    if (!Number.isFinite(placed.sizeMm) || placed.sizeMm < GRAPHIC_MIN_SIZE_MM || placed.sizeMm > GRAPHIC_MAX_SIZE_MM) throw new Error(`Graphic size must be between ${GRAPHIC_MIN_SIZE_MM} and ${GRAPHIC_MAX_SIZE_MM} mm.`);
+    if (!Number.isFinite(placed.rotationDeg) || placed.rotationDeg < 0 || placed.rotationDeg >= 360) throw new Error("Graphic rotation must be at least 0 and under 360 degrees.");
+    if (!GRAPHIC_OPERATIONS.includes(placed.operation)) throw new Error("Graphic operation must be engrave, score, or cut.");
+  }
 }
 
 /** A marker's or path's own name, which is optional and only ever bookkeeping. */

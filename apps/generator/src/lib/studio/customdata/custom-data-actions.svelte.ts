@@ -1,4 +1,4 @@
-import type { GeoPoint, ProjectConfigV1, UserDepthChartRefV1 } from "@topostack/core";
+import { MAX_CUSTOM_GRAPHICS, type GeoPoint, type ProjectConfigV1, type UserDepthChartRefV1 } from "@topostack/core";
 import type { UserChartBathymetryV1 } from "@topostack/data-contracts/chart-bathymetry";
 import { isSupportedCoordinate } from "$lib/domain/coordinates";
 import * as edits from "$lib/studio/project-edits";
@@ -71,6 +71,27 @@ export class CustomDataActions {
       await this.host.updateFabrication({ ...added.patch, ...assigned });
       const name = withIcon.markerIcons?.find(({ id }) => id === added.iconId)?.name ?? icon.name;
       this.host.setStatus([`Marker icon “${name}” added`, ...warnings].join(" · "));
+    } catch (error) {
+      this.host.setStatus(error instanceof Error ? error.message : "Could not read this SVG.");
+    }
+  }
+
+  /**
+   * Reads an uploaded SVG into the project's graphics library as one undo
+   * step. Placing it is a separate step, on the preview. The reader is shared
+   * with marker icons and loaded on first use.
+   */
+  async importGraphic(file: File | undefined): Promise<void> {
+    if (!file) return;
+    try {
+      const { importSvgGraphic } = await import("$lib/domain/svg-icon-import");
+      const { graphic, warnings } = await importSvgGraphic(file, crypto.randomUUID());
+      const project = this.host.project();
+      const added = edits.addCustomGraphic(project, graphic);
+      if (!added) { this.host.setStatus(`A project holds at most ${MAX_CUSTOM_GRAPHICS} graphics. Remove one before adding another.`); return; }
+      await this.host.updateFabrication(added.patch);
+      const name = added.patch.customGraphics?.find(({ id }) => id === added.graphicId)?.name ?? graphic.name;
+      this.host.setStatus([`Graphic “${name}” added · Place it on the piece`, ...warnings].join(" · "));
     } catch (error) {
       this.host.setStatus(error instanceof Error ? error.message : "Could not read this SVG.");
     }

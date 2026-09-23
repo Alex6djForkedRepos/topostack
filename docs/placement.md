@@ -1,9 +1,9 @@
 # Placement mode
 
 Placement mode is how the studio lets a maker position, and where it makes
-sense resize, something on the piece by hand. It serves the north arrow, the
-title and the scale bar; markers, the preferred elevation-label position and
-custom-line points are meant to join it. The code lives in `apps/generator/src/lib/studio/placement/`.
+sense resize or turn, something on the piece by hand. It serves the north
+arrow, the title, the scale bar and every placed custom graphic; markers, the
+preferred elevation-label position and custom-line points are meant to join it. The code lives in `apps/generator/src/lib/studio/placement/`.
 
 ## The flow
 
@@ -23,8 +23,8 @@ custom-line points are meant to join it. The code lives in `apps/generator/src/l
    components retain their path data while a draft moves.
 3. `PlacementLayer` draws every available placeable above everything, from the
    draft. A placeable cannot disappear under a sheet, because it is not on one yet.
-   Dragging, arrow-key nudges, the resize grip, + and −, and Tab only change
-   the draft. Placement gestures do not save or regenerate; sidebar edits
+   Dragging, arrow-key nudges, the resize and rotation grips, + and −, [ and ],
+   adding or deleting a graphic, and Tab only change the draft. Placement gestures do not save or regenerate; sidebar edits
    still use the normal update flow. Undo/redo are paused.
 4. **Done** merges the placement-owned fields into the current project and hands
    that patch to `updateFabrication` as one edit. The normal
@@ -51,9 +51,30 @@ Interaction lives in SVG rather than WebGL picking for four reasons:
 - the same layer works over both backdrops
 - jsdom client tests exercise it without a GPU
 
+## Graphics: placeables by instance
+
+The fixed annotations are one entry each in `PLACEABLES`. Placed graphics are
+many, so `placeableFor(id)` builds one per `graphic:<placed id>` on demand, and
+`availablePlaceables` lists them after the fixed items in project order. A
+graphic's position, size, angle and laser operation all live on its entry in
+`placedGraphics`, so its draft is that whole list: adding, removing, turning or
+switching a graphic to Cut are ordinary draft edits, and Done is still one
+edit and one undo step. `placementPatch` drops drafts whose artwork was removed
+from the library meanwhile. A session stays open with nothing selected while
+the library still has a graphic to add.
+
+While placing, every generated `graphic-` marking is hidden and the drafts are
+drawn instead, layered as generation layers them: after the title, before
+markers, each masked by later halos. A **cut** graphic changes sheet outlines,
+not markings, and those regenerate only on Done; until then the backdrop keeps
+the old opening and the draft shows the new one as a dashed cut-colored
+outline.
+
 ## Adding a placeable
 
-Add an entry to `PLACEABLES` in `placeables.ts` and to `PLACEABLE_ORDER`.
+Add an entry to `PLACEABLES` in `placeables.ts` and to `PLACEABLE_ORDER`
+(or, for items the maker creates many of, build them in `placeableFor` as
+graphics are).
 Every function receives the project and a `PlacementContext`, which holds facts
 from the generated preview, such as the ground width that sets the scale bar's
 length:
@@ -66,6 +87,9 @@ length:
 - `outline(project)`: the closed ring used as the hit and focus target.
 - `markings(project)`: the real output from the core function generation
   uses, so the draft looks exactly like the result.
+- `name` (optional): the maker's own name for it, when it has one.
+- `rotate`, `operation`, `remove` (optional): turning, the laser operation and
+  deletion in place, as graphics offer.
 - `resize` (optional): which size it has, its range, a keyboard step and the
   patch that sets it. `resizePlaceable` clamps to the range and keeps the
   center where it is, recomputing the placement for the new size, because

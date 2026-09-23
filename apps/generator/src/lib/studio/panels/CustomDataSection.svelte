@@ -1,6 +1,7 @@
 <script lang="ts">
   import { ChevronDown } from "@lucide/svelte";
   import { Section } from "@loidolt/theme-svelte";
+  import GraphicTools from "$lib/studio/customdata/GraphicTools.svelte";
   import ImportTools from "$lib/studio/customdata/ImportTools.svelte";
   import MarkerTools from "$lib/studio/customdata/MarkerTools.svelte";
   import PathTools from "$lib/studio/customdata/PathTools.svelte";
@@ -29,5 +30,6 @@
     <ImportTools />
     <MarkerTools />
     <PathTools />
+    <GraphicTools />
   </div>
 </Section>

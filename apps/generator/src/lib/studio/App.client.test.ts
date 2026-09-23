@@ -109,6 +109,38 @@ describe("TopoStack Svelte shell", () => {
     window.dispatchEvent(new Event("pagehide"));
     expect(vi.mocked(saveProject).mock.lastCall![0].plaque?.text).toBe("Updated title");
   });
+  it("uploads a graphic, then places, turns and cuts it on the preview as one edit", async () => {
+    const { saveProject } = await import("$lib/storage/storage");
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await tick();
+    await openCustomData(target, "Graphics");
+    const input = target.querySelector<HTMLInputElement>("input[data-graphic-import]")!;
+    const file = new File([`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 10"><rect width="20" height="10"/></svg>`], "badge.svg", { type: "image/svg+xml" });
+    Object.defineProperty(input, "files", { value: [file], configurable: true });
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    await vi.waitFor(() => expect(target.querySelector('[aria-label="Uploaded graphics"]')?.textContent).toBeDefined());
+    await vi.waitFor(() => expect(target.querySelector<HTMLInputElement>('[aria-label="Name for graphic badge"]')).not.toBeNull());
+    [...target.querySelectorAll<HTMLButtonElement>(".graphic-place")].find((button) => button.textContent?.includes("Place"))!.click();
+    await vi.waitFor(() => expect(target.querySelector('[data-placeable^="graphic:"]')).not.toBeNull(), { timeout: 5_000 });
+    // Nothing is saved until Done.
+    window.dispatchEvent(new Event("pagehide"));
+    expect(vi.mocked(saveProject).mock.lastCall![0].placedGraphics).toBeUndefined();
+    const handle = target.querySelector('[data-placeable^="graphic:"]')!;
+    handle.dispatchEvent(new KeyboardEvent("keydown", { key: "]", bubbles: true }));
+    await tick();
+    expect(target.querySelector(".placement-toolbar")?.textContent).toContain("15°");
+    [...target.querySelectorAll<HTMLButtonElement>('.placement-operation [role="radio"]')].find((button) => button.textContent === "Cut")!.click();
+    await tick();
+    expect(target.querySelector(".placement-cut-draft")).not.toBeNull();
+    [...target.querySelectorAll<HTMLButtonElement>(".placement-toolbar button")].find((button) => button.textContent?.trim() === "Done")!.click();
+    await vi.waitFor(() => expect(target.querySelector("[data-placement-layer]")).toBeNull(), { timeout: 6_000 });
+    window.dispatchEvent(new Event("pagehide"));
+    const saved = vi.mocked(saveProject).mock.lastCall![0];
+    expect(saved.placedGraphics).toEqual([expect.objectContaining({ graphicId: saved.customGraphics![0]!.id, rotationDeg: 15, operation: "cut" })]);
+    expect(target.querySelector('[aria-label="Graphics on the piece"]')?.textContent).toContain("15°");
+  });
+
   it("toolbar undo is paused during placement", async () => {
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
@@ -1523,6 +1555,7 @@ describe("TopoStack Svelte shell", () => {
       "Depth chartsTrace a printed chart",
       "MarkersNone yet",
       "Trails & boundariesNone yet",
+      "GraphicsLogos and artwork",
       "ImportGPX, KML or GeoJSON",
     ]);
     // Depth charts opens first, and its tools are in the sidebar beside the
@@ -1532,7 +1565,7 @@ describe("TopoStack Svelte shell", () => {
     expect(target.querySelector("#custom-data-charts")?.textContent).toContain("Search for the lake this chart shows");
     expect(target.querySelector(".chart-stage")?.textContent).toContain("search for the lake this chart shows");
 
-    headers()[3]!.click();
+    headers()[4]!.click();
     await tick();
     expect(headers()[0]!.getAttribute("aria-expanded")).toBe("false");
     expect(target.querySelector<HTMLElement>("#custom-data-import")?.hidden).toBe(false);

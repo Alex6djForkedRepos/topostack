@@ -35,6 +35,7 @@
     <li>Text, embedded images, clipping paths and masks are left out; the status line says when something was. Convert text to outlines before uploading.</li>
   </ul>
   <p>An icon is sized by its longer side, like the built-in symbols. Under <strong>Icons</strong>, choose <strong>Base</strong> to rest the icon's lowest point on the marker's position, as a pin's tip does, or <strong>Center</strong> to centre it there. Removing an icon turns the markers that used it into pins. Keep detail coarser than your laser can draw: at an 8 mm marker, a gap narrower than a few tenths of a millimetre fills in.</p>
+  <p>To put a logo or artwork on the piece itself rather than at a place on the map, see <a href={`${base}/guides/custom-graphics`}>custom graphics</a>.</p>
 
   <h2>2. Add a trail or boundary</h2>
   <ol>

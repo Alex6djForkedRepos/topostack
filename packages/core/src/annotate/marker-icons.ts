@@ -74,7 +74,8 @@ function decodeRing(flat: number[]): Point2D[] {
  * as the point budget needs. Throws MarkerIconError when nothing is painted or
  * the drawing stays too detailed at the coarsest tolerance.
  */
-export function buildMarkerIcon(paints: MarkerIconPaint[], options: { id: string; name: string; anchor?: "bottom" }): MarkerIconV1 {
+export function buildMarkerIcon(paints: MarkerIconPaint[], options: { id: string; name: string; anchor?: "bottom"; maxPoints?: number; noun?: string }): MarkerIconV1 {
+  const maxPoints = options.maxPoints ?? MAX_MARKER_ICON_POINTS;
   const region = paintedRegion(paints);
   if (!region.length) throw new MarkerIconError("The SVG draws no filled or stroked shapes.");
   const bounds = region.map(({ outer }) => ringBounds(outer)).reduce((all, next) => ({
@@ -98,11 +99,11 @@ export function buildMarkerIcon(paints: MarkerIconPaint[], options: { id: string
         return [{ outer, ...(holes.length ? { holes } : {}) }];
       });
     if (!shapes.length) throw new MarkerIconError("The SVG's shapes are too thin to engrave.");
-    if (pointCount(shapes) <= MAX_MARKER_ICON_POINTS) {
+    if (pointCount(shapes) <= maxPoints) {
       return { id: options.id, name: options.name, ...(options.anchor ? { anchor: options.anchor } : {}), shapes };
     }
   }
-  throw new MarkerIconError(`The SVG is too detailed for a marker; simplify it to fewer than ${MAX_MARKER_ICON_POINTS} points.`);
+  throw new MarkerIconError(`The SVG is too detailed for ${options.noun ?? "a marker"}; simplify it to fewer than ${maxPoints} points.`);
 }
 
 /** Every point of an icon, for budget checks. */
@@ -119,9 +120,23 @@ export function markerIconBottom(icon: Pick<MarkerIconV1, "shapes">): number {
   return bottom;
 }
 
+/**
+ * Stored shapes drawn `size` across their longer side, turned `rotationRad`
+ * clockwise on the artwork (y down) about their center, then centered on
+ * `center`, as filled polygons.
+ */
+export function iconShapePolygons(shapes: MarkerIconShapeV1[], center: Point2D, size: number, rotationRad = 0): Polygon2D[] {
+  const scale = size / MARKER_ICON_UNITS;
+  const cos = Math.cos(rotationRad) * scale;
+  const sin = Math.sin(rotationRad) * scale;
+  // Unrotated shapes skip the matrix so markers draw exactly as they always have.
+  const place = rotationRad === 0
+    ? (flat: number[]) => decodeRing(flat).map(({ x, y }) => ({ x: center.x + x * scale, y: center.y + y * scale }))
+    : (flat: number[]) => decodeRing(flat).map(({ x, y }) => ({ x: center.x + x * cos - y * sin, y: center.y + x * sin + y * cos }));
+  return shapes.map((shape) => ({ outer: place(shape.outer), holes: (shape.holes ?? []).map(place) }));
+}
+
 /** An icon drawn `size` across its longer side, centered on `center`, as filled polygons. */
 export function markerIconPolygons(icon: Pick<MarkerIconV1, "shapes">, center: Point2D, size: number): Polygon2D[] {
-  const scale = size / MARKER_ICON_UNITS;
-  const place = (flat: number[]) => decodeRing(flat).map(({ x, y }) => ({ x: center.x + x * scale, y: center.y + y * scale }));
-  return icon.shapes.map((shape) => ({ outer: place(shape.outer), holes: (shape.holes ?? []).map(place) }));
+  return iconShapePolygons(icon.shapes, center, size);
 }

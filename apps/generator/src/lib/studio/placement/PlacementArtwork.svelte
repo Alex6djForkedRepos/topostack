@@ -29,7 +29,12 @@
   });
   const halos = $derived(markers.flatMap(group => group.paths.filter(marking => marking.knockout)));
   const footprint = $derived(plaqueFootprint(project));
-  const drafts = $derived(availablePlaceables(project).map(placeable => ({ id: placeable.id, markings: placeable.markings(project, context) })));
+  const allDrafts = $derived(availablePlaceables(project).map(placeable => ({ id: placeable.id, markings: placeable.markings(project, context) })));
+  const drafts = $derived(allDrafts.filter(item => !item.id.startsWith("graphic:")));
+  // Generation places graphics after the title and before markers: their halos
+  // clear everything drawn earlier, and markers' halos clear them.
+  const graphics = $derived(allDrafts.filter(item => item.id.startsWith("graphic:")));
+  const graphicHalos = $derived(graphics.flatMap(item => item.markings.filter(marking => marking.knockout)));
 </script>
 
 {#snippet white()}
@@ -42,11 +47,16 @@
   <mask id={`${id}-before-title`} maskUnits="userSpaceOnUse" x={-geometry.widthMm} y={-geometry.heightMm} width={geometry.widthMm * 2} height={geometry.heightMm * 2}>
     {@render white()}
     {#if footprint}<path data-placement-knockout="plaque" d={`${pointsToPath(footprint)} Z`} fill="black" />{/if}
-    {@render holes(halos)}
+    {@render holes(halos)}{@render holes(graphicHalos)}
   </mask>
   <mask id={`${id}-before-markers`} maskUnits="userSpaceOnUse" x={-geometry.widthMm} y={-geometry.heightMm} width={geometry.widthMm * 2} height={geometry.heightMm * 2}>
-    {@render white()}{@render holes(halos)}
+    {@render white()}{@render holes(halos)}{@render holes(graphicHalos)}
   </mask>
+  {#each graphics as graphic, index (graphic.id)}
+    <mask id={`${id}-${graphic.id.replace(":", "-")}`} maskUnits="userSpaceOnUse" x={-geometry.widthMm} y={-geometry.heightMm} width={geometry.widthMm * 2} height={geometry.heightMm * 2}>
+      {@render white()}{@render holes(halos)}{@render holes(graphics.slice(index + 1).flatMap(later => later.markings.filter(marking => marking.knockout)))}
+    </mask>
+  {/each}
   {#each markers as group, index (group.key)}
     <mask id={`${id}-marker-${group.key}`} maskUnits="userSpaceOnUse" x={-geometry.widthMm} y={-geometry.heightMm} width={geometry.widthMm * 2} height={geometry.heightMm * 2}>
       {@render white()}{@render holes(markers.slice(index + 1).flatMap(later => later.paths.filter(marking => marking.knockout)))}
@@ -72,6 +82,14 @@
       {#each item.markings as marking (marking.id)}<PlacementMarking {marking} lineStyle={project.lineStyle} />{/each}
     {/each}
   </g>
+  {#each graphics as graphic (graphic.id)}
+    <g data-placement-graphic={graphic.id} mask={`url(#${id}-${graphic.id.replace(":", "-")})`}>
+      {#each graphic.markings.filter(marking => !marking.knockout) as marking (marking.id)}
+        {#if marking.kind === "guide"}<path class="placement-cut-draft" d={markingPath(marking)} />
+        {:else}<PlacementMarking {marking} lineStyle={project.lineStyle} />{/if}
+      {/each}
+    </g>
+  {/each}
   {#each markers as group (group.key)}
     <g data-placement-marker={group.key} mask={`url(#${id}-marker-${group.key})`}>
       {#each group.paths.filter(marking => !marking.knockout) as marking (marking.id)}<PlacementMarking {marking} lineStyle={geometry.lineStyle} />{/each}
