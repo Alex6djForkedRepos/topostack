@@ -17,6 +17,7 @@ Run by `npm run build` in the generator or by CI after a build.
 | `finalize-static-headers.mjs` | Rewrite `_headers` for the selected site environment after a build | generator `build`; generator `build:e2e` |
 | `generate-icons.mjs` | Regenerate favicons and app icons from `static/favicon.svg` | `npm run assets:icons` |
 | `write-build-version.mjs` | Record git metadata for the About page in the built site | generator `build`; generator `build:e2e` |
+| `write-third-party-licenses.mjs` | Write the licence notices for redistributed compiled code (the sheet-nesting engine) to `dist/licenses/third-party.txt` | generator `build`; generator `build:e2e` |
 | `packages/nest-wasm/scripts/build.mjs` | Compile the sparrow nesting engine to WebAssembly into the committed `packages/nest-wasm/pkg/` (needs Rust, wasm-bindgen-cli and wasm-opt; see the [package README](../packages/nest-wasm/README.md)). With `--check`, it verifies `pkg/` was built from the current sources without needing Rust | `npm run build:nest-wasm` (manual); `--check` from the package `test` script; `nest-wasm.yml` workflow |
 
 ## Development and media capture (`dev/`)

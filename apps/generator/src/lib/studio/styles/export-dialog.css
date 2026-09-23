@@ -115,3 +115,25 @@
   .export-support-icon { display: none; }
   .export-donate { grid-column: 1; }
 }
+
+/* Sheet layout: nesting pieces onto stock sheets */
+.sheet-layout { display: grid; gap: 12px; padding: 14px; border: 1px solid var(--loidolt-border); border-radius: var(--loidolt-border-radius); background: var(--loidolt-surface); }
+.sheet-layout-header { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; align-items: start; }
+.sheet-layout-header h3 { margin: 0; font-size: 13px; font-weight: 600; }
+.sheet-layout-header p { margin: 4px 0 0; color: var(--loidolt-text-muted); font-size: 12px; line-height: 1.5; }
+.sheet-layout-choice { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; }
+.sheet-layout-choice label { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; }
+.sheet-layout-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px 16px; }
+.sheet-layout-select { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12px; }
+.sheet-layout-select select { min-height: 32px; padding: 4px 8px; font: inherit; color: var(--loidolt-text); background: var(--loidolt-surface-alt); border: 1px solid var(--loidolt-border); border-radius: var(--loidolt-border-radius); }
+.sheet-layout-note { margin: 0; color: var(--loidolt-text-muted); font-size: 12px; }
+.sheet-layout-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.sheet-layout-status { display: grid; gap: 6px; font-size: 12px; color: var(--loidolt-text-muted); }
+.sheet-layout-status progress { width: 100%; height: 6px; accent-color: var(--loidolt-accent); }
+.sheet-layout-error { color: var(--loidolt-text); border-left: 3px solid var(--loidolt-accent); padding-left: 10px; }
+.sheet-previews { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
+.sheet-previews li { display: grid; gap: 4px; font: 10px var(--loidolt-font-utility); letter-spacing: 0.06em; color: var(--loidolt-text-muted); }
+.sheet-previews svg { display: block; width: 100%; height: auto; }
+.sheet-previews .sheet-preview-stock { fill: var(--loidolt-surface-alt); stroke: var(--loidolt-border); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.sheet-previews path { fill: color-mix(in srgb, var(--loidolt-accent) 22%, var(--loidolt-surface)); stroke: var(--loidolt-accent); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.sheet-previews .sheet-preview--provisional path { fill: none; stroke-dasharray: 3 2; }

@@ -21,6 +21,9 @@ test("many prerendered pages stay under deployment limits with page-specific has
  assert.match(output, /object-src 'none'/);
  assert.match(output, /frame-ancestors 'self'/);
  assert.doesNotMatch(output, /script-src[^;]*unsafe-inline/);
+ // The sheet-nesting engine is WebAssembly; compiling it needs wasm-unsafe-eval, which still forbids JavaScript eval.
+ assert.match(pageSecurityPolicy(output, "/studio"), /script-src[^;]*'wasm-unsafe-eval'/);
+ assert.doesNotMatch(output, /script-src[^;]*'unsafe-eval'/);
 });
 test("pages without scripts of their own fall back to the site policy instead of adding rules", () => {
  const staticPages = new Map([...pages, ...Array.from({length: 120}, (_, i) => [`lakes/page-${i}.html`, `<script>home()</script><script type="application/ld+json">{"page":${i}}</script>`])]);

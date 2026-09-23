@@ -79,9 +79,9 @@ function sheetNestingText(nested: NestedLayout, shownLength: (valueMm: number) =
   const ids = omitted.length
     ? `${omitted.length} piece${omitted.length === 1 ? " has" : "s have"} no covered room for an id (${omitted.slice(0, 4).join(", ")}${omitted.length > 4 ? ", ..." : ""}); find ${omitted.length === 1 ? "it" : "them"} on the sheet maps in the assembly guide.`
     : "Pieces without an engraved id are named on the sheet maps in the assembly guide.";
-  const solver = engine.name === "sparrow"
+  const solver = nested.plan.sheets.some((sheet) => sheet.method === "sparrow")
     ? "Layouts were packed with sparrow (MIT, Jeroen Gardeyn, KU Leuven; https://github.com/JeroenGar/sparrow) on the jagua-rs collision engine (MPL-2.0; https://github.com/JeroenGar/jagua-rs)."
-    : "Layouts were packed by bounding boxes.";
+    : engine.name === "sparrow" ? "sparrow found no tighter layout than packing the pieces by their bounding boxes, so that layout was kept." : "Layouts were packed by bounding boxes.";
   return `Sheet nesting laid the ${parts} pieces out on ${nested.sheets.length} stock sheet${nested.sheets.length === 1 ? "" : "s"} of ${shownLength(settings.sheetWidthMm)} x ${shownLength(settings.sheetHeightMm)}, keeping ${shownLength(settings.marginMm)} clear along every edge and at least ${shownLength(settings.spacingMm)} of material between pieces. Pieces were moved and ${rotation}, never mirrored. Pieces from different layers share a sheet, so each carries its id (layer number, plus island number or seam cell) engraved in green where the layer above hides it. ${ids} A smaller piece cut from inside a larger one stays in place inside it. ${solver}\n\n`;
 }
 

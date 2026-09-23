@@ -15,8 +15,10 @@
   import { connectAtomm } from "$lib/atomm/atomm-bridge";
   import type { DownloadOption } from "$lib/studio/native-export";
   import { downloadProject as downloadWithNotice, ExportNotice } from "$lib/studio/export-notice";
+  import { SheetNesting } from "$lib/studio/sheet-nesting.svelte";
   import { studioFeedbackContext } from "$lib/site/feedback";
   import ExportDialog from "$lib/studio/ExportDialog.svelte";
+  import SheetLayoutSection from "$lib/studio/panels/SheetLayoutSection.svelte";
   import ResetProjectDialog from "$lib/studio/ResetProjectDialog.svelte";
   import { readAtommLocale } from "$lib/atomm/atomm-locale";
   import { ProjectHistory } from "$lib/studio/history";
@@ -118,6 +120,9 @@
   let exportOpen = $state(false);
   let resetOpen = $state(false);
   const exportNotice = new ExportNotice((message) => { status = message; });
+  const sheetNesting = new SheetNesting();
+  // A nested layout only fits the geometry and sheet settings it was made for.
+  $effect(() => { void sheetNesting.refresh(geometry, project); });
   const exportPhase = $derived(exportNotice.phase);
   const exportTitle = $derived(exportNotice.title);
   const exportDetail = $derived(exportNotice.detail);
@@ -296,7 +301,7 @@
   const previewBusy = $derived(generationState === "loading" || detailsUpdating);
   const previewBusyLabel = $derived(generationState === "loading" ? "Building your terrain" : "Refreshing preview");
   const contourInterval = $derived(geometry.landReliefM / (project.engravingContourCount + 1));
-  const fabricationPanelCount = $derived(geometry.layers.length - geometry.fabricationNests.length);
+  const fabricationPanelCount = $derived(sheetNesting.exportPlan?.sheets.length ?? geometry.layers.length - geometry.fabricationNests.length);
   const getFeedbackContext = () => studioFeedbackContext(project, activeSource, geometry, !sameMapArea(sourceProject, project));
   const terrainDataStale = $derived(!sameMapArea(sourceProject, project));
   const verticalExaggerationStale = $derived(project.outputMode === "stack" && sourceProject.verticalExaggeration !== project.verticalExaggeration);
@@ -428,7 +433,7 @@
     menuStateReady = true;
     embeddedInPlatform = window.parent !== window;
     if (embeddedInPlatform) void import("$lib/atomm/AtommWorkbench.svelte").then((module) => { if (!cancelled) AtommWorkbench = module.default; }).catch(() => { if (!cancelled) atommLayoutFailed = true; });
-    const disconnectAtomm = connectAtomm(() => ({ geometry, project }), () => {
+    const disconnectAtomm = connectAtomm(() => ({ geometry, project, sheetPlan: sheetNesting.exportPlan }), () => {
       atommReady = true;
       if (embeddedInPlatform && window.atomm) void readAtommLocale(window.atomm).then((locale) => { if (!cancelled) document.documentElement.lang = locale; });
     }, (update) => {
@@ -482,7 +487,7 @@
       // unless it would overwrite a saved project that could not be backed up.
       if (!cancelled && autosave) booted = true;
     });
-    return () => { cancelled = true; disconnectAtomm(); exportNotice.dispose(); generationAbort?.abort(); pipeline.dispose(); };
+    return () => { cancelled = true; disconnectAtomm(); exportNotice.dispose(); sheetNesting.dispose(); generationAbort?.abort(); pipeline.dispose(); };
   });
 
   $effect(() => {
@@ -821,7 +826,7 @@
   }
 
   function downloadProject(option: DownloadOption): Promise<void> {
-    return downloadWithNotice({ option, geometry, project, notice: exportNotice, track: (event) => trackUsage(event, project.outputMode, "browser") });
+    return downloadWithNotice({ option, geometry, project, sheetPlan: sheetNesting.exportPlan, notice: exportNotice, track: (event) => trackUsage(event, project.outputMode, "browser") });
   }
   async function importProject(file: File | undefined): Promise<void> {
     if (!file) return;
@@ -903,6 +908,7 @@
     get exportPhase() { return exportPhase; },
     get exportBlockedBy() { return exportBlockedBy; },
     get exportReady() { return exportReady; },
+    sheetNesting,
     get outputSummary() { return outputSummary; },
     get booted() { return booted; },
     get historyAvailability() { return historyAvailability; },
@@ -1048,7 +1054,9 @@
 
     <PreviewPanel />
   </Workspace>
-  <ExportDialog open={exportOpen} {project} summary={outputSummary.join(" · ")} panelCount={fabricationPanelCount} blockedReason={exportBlockedBy} preparing={exportPhase === "preparing"} phase={exportPhase} title={exportTitle} detail={exportDetail} onDownload={(option) => void downloadProject(option)} onClose={() => exportOpen = false} />
+  <ExportDialog open={exportOpen} {project} summary={outputSummary.join(" · ")} panelCount={fabricationPanelCount} nested={Boolean(sheetNesting.exportPlan)} blockedReason={exportBlockedBy} preparing={exportPhase === "preparing"} phase={exportPhase} title={exportTitle} detail={exportDetail} onDownload={(option) => void downloadProject(option)} onClose={() => exportOpen = false}>
+    {#snippet sheetLayout()}<SheetLayoutSection disabled={Boolean(exportBlockedBy)} />{/snippet}
+  </ExportDialog>
   {@render locationSearch()}
 </AppShell>
 

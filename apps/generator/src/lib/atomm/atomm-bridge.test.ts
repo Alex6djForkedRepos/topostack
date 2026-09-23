@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_PROJECT, createSyntheticSource, generateGeometry } from "@topostack/core";
+import { DEFAULT_PROJECT, createSyntheticSource, generateGeometry, type SheetNestPlanV1 } from "@topostack/core";
 import { createAtommExport } from "$lib/studio/export-policy";
 
 vi.mock("$lib/studio/export-policy", () => ({ createAtommExport: vi.fn(() => []), loadGuideFonts: vi.fn(async () => []) }));
@@ -37,16 +37,19 @@ describe("Atomm bridge", () => {
     const ready = vi.fn();
     const exportUpdate = vi.fn();
     const { connectAtomm } = await import("$lib/atomm/atomm-bridge");
-    const disconnect = connectAtomm(() => ({ geometry, project }), ready, exportUpdate);
+    let sheetPlan: SheetNestPlanV1 | undefined;
+    const disconnect = connectAtomm(() => ({ geometry, project, sheetPlan }), ready, exportUpdate);
     window.atomm = { lifecycle: { on }, ui: { toast: vi.fn(), closeToast: vi.fn() }, app: { getLocale: vi.fn() } } as unknown as AtommSdk;
     await vi.advanceTimersByTimeAsync(250);
     expect(on).toHaveBeenCalledTimes(1);
     expect(ready).toHaveBeenCalledTimes(1);
     project = { ...DEFAULT_PROJECT, name: "Latest project" };
+    // A nested layout chosen in the export dialog travels with the handoff.
+    sheetPlan = { jobKey: "nest1-x" } as SheetNestPlanV1;
     const exported = handler?.({ intent: "download" });
     await vi.advanceTimersByTimeAsync(20);
     await exported;
-    expect(createAtommExport).toHaveBeenCalledWith(geometry, project, "download", []);
+    expect(createAtommExport).toHaveBeenCalledWith(geometry, project, "download", [], sheetPlan);
     expect(exportUpdate).toHaveBeenNthCalledWith(1, { phase: "preparing", intent: "download" });
     expect(exportUpdate).toHaveBeenNthCalledWith(2, { phase: "ready", intent: "download", fileCount: 0 });
     vi.mocked(createAtommExport).mockImplementationOnce(() => { throw new Error("Package could not be built"); });
