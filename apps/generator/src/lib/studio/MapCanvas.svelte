@@ -75,6 +75,10 @@
    * not the same question: it also reads false while tiles are still coming
    * in, which would silently drop an overlay update and leave the map showing
    * something the project no longer holds.
+   *
+   * It is set on the map's `load`, not `style.load`: overlays added between
+   * the two, while the first tiles are still arriving, left WebKit on Linux
+   * without the repaint that shows them, so the map stayed blank until moved.
    */
   let styleReady = $state(false);
   let resizing = $state(false);
@@ -380,12 +384,14 @@
       onFinishDraw?.(false);
     });
     let reportedFailure = false;
-    map.once("style.load", () => { styleReady = true; });
+    // Only a style that never loaded is a failure; this is earlier than `load`.
+    let styleLoaded = false;
+    map.once("style.load", () => { styleLoaded = true; });
     map.on("error", (event) => {
       // Individual tiles fail routinely (offline pans, rate limits) and MapLibre
       // retries them; only a style that never loaded leaves a blank canvas.
       const detail = event as unknown as { sourceId?: string; tile?: unknown; error?: unknown };
-      if (reportedFailure || styleReady || detail.sourceId !== undefined || detail.tile !== undefined) return;
+      if (reportedFailure || styleLoaded || styleReady || detail.sourceId !== undefined || detail.tile !== undefined) return;
       reportedFailure = true;
       console.warn("TopoStack map style could not load.", detail.error);
       onUnavailable?.("load-failed");
