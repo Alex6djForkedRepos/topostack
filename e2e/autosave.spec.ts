@@ -21,6 +21,10 @@ async function waitForAutosave(page: Page): Promise<void> {
 async function openStudio(page: Page): Promise<void> {
   await page.route("**/v1/**", route => route.abort("internetdisconnected"));
   await page.route("https://static-res.makextool.com/**", route => route.abort("internetdisconnected"));
+  // Autosave does not depend on live basemap fonts or tiles.
+  await page.route("https://tiles.openfreemap.org/styles/**", route => route.fulfill({ json: {
+    version: 8, sources: {}, layers: [{ id: "background", type: "background", paint: { "background-color": "#e9e5da" } }],
+  } }));
   await page.goto("/studio");
 }
 
