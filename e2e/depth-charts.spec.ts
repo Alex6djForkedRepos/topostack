@@ -37,7 +37,11 @@ async function openCharts(page: Page, fromMap = false, withoutSearch = false): P
     }).toPass({ timeout: 15_000 });
     // Inspect a rendered fill pixel: cursor feedback alone does not prove feature-state styling works.
     await expect.poll(async () => {
-      const png = (await canvas.screenshot()).toString("base64");
+      // Element screenshots scroll into view, which can clear hover in Linux WebKit.
+      const clip = await canvas.boundingBox();
+      if (!clip) throw new Error("Lake map missing");
+      const png = (await page.screenshot({ clip })).toString("base64");
+      await expect(canvas).toHaveCSS("cursor", "pointer");
       return page.evaluate(async (base64) => {
         const image = new Image(); image.src = `data:image/png;base64,${base64}`; await image.decode();
         const copy = document.createElement("canvas"); copy.width = image.width; copy.height = image.height;
