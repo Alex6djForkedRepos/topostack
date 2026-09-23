@@ -5,9 +5,9 @@
   import * as maplibregl from "maplibre-gl";
   import mapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
   import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
-  import { MAX_PROJECT_DIMENSION_MM, markerSymbolCenterForAnchor, markerSymbolPaths, unwrapLongitude, type CustomLineFeatureV1, type GeoBounds, type GeoPoint, type MapMarkerV1, type MarkerSymbol, type ProjectConfigV1 } from "@topostack/core";
+  import { MAX_PROJECT_DIMENSION_MM, markerCenterForAnchor, markerIcon, markerPolygons, unwrapLongitude, type CustomLineFeatureV1, type GeoBounds, type GeoPoint, type MapMarkerV1, type ProjectConfigV1 } from "@topostack/core";
   import { boundsForProject } from "$lib/domain/data-provider";
-  import { symbolPath } from "$lib/studio/svg-path";
+  import { polygonsPath } from "$lib/studio/svg-path";
   let { project, aspectLocked = $bindable(false), placingMarker = false, drawingLine = false, draftPoints = [], framing = true, hint = "Drag the map to choose your terrain", onLocationChange, onSelectionResize, onUnavailable, onPlaceMarker, onMoveMarker, onStopPlacing, onDrawPoint, onFinishDraw, onCancelDraw }: {
     aspectLocked?: boolean; project: ProjectConfigV1; onSelectionResize: (widthMm: number, heightMm: number, bounds: GeoBounds) => void; onUnavailable?: (reason?: "unsupported" | "load-failed") => void; onLocationChange: (lat: number, lon: number, zoom: number, bounds: GeoBounds) => void;
     /** While true, a click on the map places a marker there. */
@@ -141,19 +141,26 @@
       { west: nw.lng + shift, east: se.lng + shift, north: nw.lat, south: se.lat });
   }
 
-  function markerPixelOffset(symbol: MarkerSymbol): [number, number] {
-    const center = markerSymbolCenterForAnchor(symbol, { x: 0, y: 0 }, MARKER_SYMBOL_SIZE);
+  function markerPixelOffset(marker: MapMarkerV1): [number, number] {
+    const center = markerCenterForAnchor(marker, project.markerIcons, { x: 0, y: 0 }, MARKER_SYMBOL_SIZE);
     const scale = MARKER_ELEMENT_SIZE_PX / MARKER_VIEWBOX_SIZE;
     return [center.x * scale, center.y * scale];
   }
 
   const markerLabel = (marker: MapMarkerV1): string =>
-    `${marker.name ? `${marker.name}, ` : ""}${marker.symbol} marker at ${marker.lat.toFixed(5)}, ${marker.lon.toFixed(5)}`;
+    `${marker.name ? `${marker.name}, ` : ""}${markerIcon(marker, project.markerIcons)?.name ?? marker.symbol} marker at ${marker.lat.toFixed(5)}, ${marker.lon.toFixed(5)}`;
+
+  /** What a marker's element draws; a change to it redraws the element. */
+  function markerDrawingKey(marker: MapMarkerV1): string {
+    const icon = markerIcon(marker, project.markerIcons);
+    return icon ? `custom:${icon.id}:${icon.anchor ?? "center"}` : marker.symbol;
+  }
 
   function markerElement(marker: MapMarkerV1): HTMLDivElement {
     const element = document.createElement("div");
     element.className = "topostack-map-marker";
     element.dataset.symbol = marker.symbol;
+    element.dataset.drawing = markerDrawingKey(marker);
     element.setAttribute("role", "img");
     element.setAttribute("aria-label", markerLabel(marker));
     // Hovering a crowded map is the quickest way to tell markers apart.
@@ -162,7 +169,7 @@
     svg.setAttribute("viewBox", "-13 -13 26 26");
     svg.setAttribute("aria-hidden", "true");
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("d", symbolPath(markerSymbolPaths(marker.symbol, { x: 0, y: 0 }, MARKER_SYMBOL_SIZE)));
+    path.setAttribute("d", polygonsPath(markerPolygons(marker, project.markerIcons, { x: 0, y: 0 }, MARKER_SYMBOL_SIZE)));
     path.setAttribute("fill-rule", "evenodd");
     svg.append(path);
     element.append(svg);
@@ -175,7 +182,7 @@
 
   function addRenderedMarker(marker: MapMarkerV1, target: MapLibreMap): maplibregl.Marker {
     const draggable = Boolean(onMoveMarker);
-    const rendered = new maplibregl.Marker({ element: markerElement(marker), anchor: "center", offset: markerPixelOffset(marker.symbol), draggable }).setLngLat([marker.lon, marker.lat]).addTo(target);
+    const rendered = new maplibregl.Marker({ element: markerElement(marker), anchor: "center", offset: markerPixelOffset(marker), draggable }).setLngLat([marker.lon, marker.lat]).addTo(target);
     if (draggable) {
       rendered.getElement().classList.add("topostack-map-marker--draggable");
       rendered.on("dragend", () => {
@@ -432,6 +439,7 @@
   const widthMm = $derived(project.widthMm);
   const heightMm = $derived(project.heightMm);
   const markers = $derived(project.markers);
+  const markerIcons = $derived(project.markerIcons);
   const customLines = $derived(project.customLines);
 
   $effect(() => {
@@ -444,6 +452,7 @@
 
   $effect(() => {
     const configuredMarkers = markers;
+    void markerIcons;
     if (!map) return;
     const activeIds = new Set(configuredMarkers.map((marker) => marker.id));
     for (const [id, rendered] of mapMarkers) {
@@ -451,7 +460,7 @@
     }
     for (const marker of configuredMarkers) {
       let rendered = mapMarkers.get(marker.id);
-      if (rendered?.getElement().dataset.symbol !== marker.symbol) {
+      if (rendered?.getElement().dataset.drawing !== untrack(() => markerDrawingKey(marker))) {
         rendered?.remove();
         rendered = undefined;
       }

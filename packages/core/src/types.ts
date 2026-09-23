@@ -16,7 +16,9 @@ export const TEXT_FONTS = ["technical", "rounded", "stencil", "hershey-sans", "h
 export type TextFont = typeof TEXT_FONTS[number];
 export type TransportationClass = "major-road" | "local-road" | "trail";
 export type NorthArrowStyle = "minimal" | "classic" | "mariner";
-export type MarkerSymbol = "pin" | "circle" | "triangle" | "star" | "cross";
+export type BuiltInMarkerSymbol = "pin" | "circle" | "triangle" | "star" | "cross";
+/** A built-in marker shape, or `custom` for one of the project's own icons (see MarkerIconV1). */
+export type MarkerSymbol = BuiltInMarkerSymbol | "custom";
 export type CustomLineKind = "trail" | "boundary";
 export type NorthArrowAnchor = "top-left" | "top" | "top-right" | "left" | "center" | "right" | "bottom-left" | "bottom" | "bottom-right";
 
@@ -30,13 +32,47 @@ export interface MapMarkerV1 extends GeoPoint {
    * list; nothing is engraved from it, and it is absent until one is typed.
    */
   name?: string;
+  /** The project icon a `custom` marker draws; absent for built-in symbols. */
+  iconId?: string;
 }
 
-export const MARKER_SYMBOLS: readonly MarkerSymbol[] = ["pin", "circle", "triangle", "star", "cross"];
+/**
+ * One filled region of a marker icon: rings as flat `[x0, y0, x1, y1, …]`
+ * integers, open (the closing point is implied), y down. Holes are cut out of
+ * the outer ring.
+ */
+export interface MarkerIconShapeV1 {
+  outer: number[];
+  holes?: number[][];
+}
+
+/**
+ * A marker symbol the maker supplied as an SVG. It is stored as the filled
+ * region the SVG paints, already flattened, simplified, and fitted so its
+ * longer side spans MARKER_ICON_UNITS centered on 0, so a marker scales it
+ * like any built-in symbol and nothing about the SVG is kept.
+ */
+export interface MarkerIconV1 {
+  id: string;
+  name: string;
+  /** `bottom` puts the icon's lowest point on the marker's position, as a pin's tip; absent centers it. */
+  anchor?: "bottom";
+  shapes: MarkerIconShapeV1[];
+}
+
+/** The built-in symbols, in picker order. `custom` markers name an icon instead. */
+export const MARKER_SYMBOLS: readonly BuiltInMarkerSymbol[] = ["pin", "circle", "triangle", "star", "cross"];
 export const MAP_MARKER_SIZE_MM = 8;
 export const MAP_MARKER_MIN_SIZE_MM = 1;
 export const MAP_MARKER_MAX_SIZE_MM = 200;
 export const MAP_MARKER_CLEARANCE_MM = 1.2;
+/** An icon's longer side in stored units; coordinates run from -500 to 500. */
+export const MARKER_ICON_UNITS = 1000;
+export const MAX_MARKER_ICONS = 24;
+/** Points across every ring of one icon. Keeps a project with a few icons shareable as a link. */
+export const MAX_MARKER_ICON_POINTS = 800;
+/** Same shape as a depth chart id: 8-64 lowercase letters, digits or dashes. */
+export const MARKER_ICON_ID_PATTERN = /^[a-z0-9][a-z0-9-]{7,63}$/;
 export const CUSTOM_LINE_KINDS: readonly CustomLineKind[] = ["trail", "boundary"];
 export const MAX_PROJECT_NAME_LENGTH = 120;
 export const MAX_PROJECT_DIMENSION_MM = 10_000;
@@ -333,6 +369,11 @@ export interface ProjectConfigV1 {
   userDepthCharts?: Record<string, UserDepthChartRefV1>;
   /** User-placed symbols, projected from geographic coordinates onto the artwork. */
   markers: MapMarkerV1[];
+  /**
+   * Symbols the maker uploaded, which `custom` markers draw. Absent in every
+   * project without one, which keeps their fingerprints.
+   */
+  markerIcons?: MarkerIconV1[];
   /** User-authored geographic paths, independent of fetched map-detail toggles. */
   customLines: CustomLineFeatureV1[];
   explodedPreview: number;

@@ -1,12 +1,13 @@
-import { DEFAULT_PLAQUE_SIZE_MM, PLAQUE_MAX_LINE_LENGTH, PLAQUE_MAX_LINES, PLAQUE_MAX_SIZE_MM, PLAQUE_MIN_SIZE_MM, type PlaqueV1, type TextFont, MAP_MARKER_SIZE_MM, MAP_MARKER_MIN_SIZE_MM, MAP_MARKER_MAX_SIZE_MM, MAX_CUSTOM_DATA_NAME_LENGTH, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, type CustomLineFeatureV1, type GeoPoint, type MapMarkerV1, type ProjectConfigV1 } from "@topostack/core";
+import { DEFAULT_PLAQUE_SIZE_MM, PLAQUE_MAX_LINE_LENGTH, PLAQUE_MAX_LINES, PLAQUE_MAX_SIZE_MM, PLAQUE_MIN_SIZE_MM, type PlaqueV1, type TextFont, MAP_MARKER_SIZE_MM, MAP_MARKER_MIN_SIZE_MM, MAP_MARKER_MAX_SIZE_MM, MAX_CUSTOM_DATA_NAME_LENGTH, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, type CustomLineFeatureV1, type GeoPoint, type MapMarkerV1, type MarkerIconV1, MAX_MARKER_ICONS, type ProjectConfigV1 } from "@topostack/core";
 import { clampLongitude, isSupportedCoordinate } from "$lib/domain/coordinates";
 
 /**
  * Pure edits for user-authored markers and paths. Each returns the project
  * patch to apply, or `undefined` when the edit is not allowed.
  */
-type Project = Pick<ProjectConfigV1, "location" | "markers" | "customLines">;
+type Project = Pick<ProjectConfigV1, "location" | "markers" | "customLines" | "markerIcons">;
 type MarkersPatch = Pick<ProjectConfigV1, "markers">;
+type MarkerIconsPatch = Pick<ProjectConfigV1, "markers" | "markerIcons">;
 type CustomLinesPatch = Pick<ProjectConfigV1, "customLines">;
 
 /** The largest north arrow that fits a map of this size. */
@@ -39,7 +40,11 @@ export function addMarkerAt(project: Project, id: string, point: GeoPoint): Mark
 export function updateMarker(project: Project, id: string, patch: Partial<MapMarkerV1>): MarkersPatch | undefined {
   const current = project.markers.find((marker) => marker.id === id);
   if (!current) return undefined;
-  const next = { ...current, ...patch };
+  const { iconId: _previousIcon, ...rest } = { ...current, ...patch };
+  // Only a custom marker names an icon, and only one the project has.
+  const iconId = rest.symbol === "custom" ? patch.iconId ?? current.iconId : undefined;
+  if (rest.symbol === "custom" && !project.markerIcons?.some((icon) => icon.id === iconId)) return undefined;
+  const next: MapMarkerV1 = iconId === undefined ? rest : { ...rest, iconId };
   if (!isSupportedCoordinate(next.lat, next.lon)) return undefined;
   const size = next.sizeMm === undefined ? MAP_MARKER_SIZE_MM : next.sizeMm;
   if (!Number.isFinite(size) || size < MAP_MARKER_MIN_SIZE_MM || size > MAP_MARKER_MAX_SIZE_MM) return undefined;
@@ -70,6 +75,56 @@ export function renameMarker(project: Project, id: string, name: string): Marker
 
 export function removeMarker(project: Project, id: string): MarkersPatch {
   return { markers: project.markers.filter((marker) => marker.id !== id) };
+}
+
+export const canAddMarkerIcon = (project: Pick<ProjectConfigV1, "markerIcons">): boolean => (project.markerIcons?.length ?? 0) < MAX_MARKER_ICONS;
+
+const sameShapes = (left: MarkerIconV1, right: MarkerIconV1) => JSON.stringify(left.shapes) === JSON.stringify(right.shapes);
+
+/**
+ * Adds an uploaded icon, or finds the same drawing already in the project,
+ * and returns the patch with the id markers should use.
+ */
+export function addMarkerIcon(project: Pick<ProjectConfigV1, "markers" | "markerIcons">, icon: MarkerIconV1): { patch: MarkerIconsPatch; iconId: string } | undefined {
+  const existing = project.markerIcons?.find((candidate) => sameShapes(candidate, icon) && (candidate.anchor ?? "center") === (icon.anchor ?? "center"));
+  if (existing) return { patch: { markers: project.markers, markerIcons: project.markerIcons }, iconId: existing.id };
+  if (!canAddMarkerIcon(project)) return undefined;
+  const name = storedName(icon.name) ?? "Icon";
+  return { patch: { markers: project.markers, markerIcons: [...project.markerIcons ?? [], { ...icon, name }] }, iconId: icon.id };
+}
+
+/** Renames an icon; a blank name keeps the old one, since every icon needs a label in the picker. */
+export function renameMarkerIcon(project: Pick<ProjectConfigV1, "markers" | "markerIcons">, id: string, name: string): MarkerIconsPatch | undefined {
+  const next = storedName(name);
+  if (!next || !project.markerIcons?.some((icon) => icon.id === id)) return undefined;
+  return { markers: project.markers, markerIcons: project.markerIcons.map((icon) => icon.id === id ? { ...icon, name: next } : icon) };
+}
+
+/** Whether an icon's lowest point or its middle sits on the marker's position. */
+export function setMarkerIconAnchor(project: Pick<ProjectConfigV1, "markers" | "markerIcons">, id: string, anchor: "center" | "bottom"): MarkerIconsPatch | undefined {
+  if (!project.markerIcons?.some((icon) => icon.id === id)) return undefined;
+  return {
+    markers: project.markers,
+    markerIcons: project.markerIcons.map((icon) => {
+      if (icon.id !== id) return icon;
+      const { anchor: _previous, ...rest } = icon;
+      return anchor === "bottom" ? { ...rest, anchor } : rest;
+    }),
+  };
+}
+
+/** Removes an icon; markers that drew it become pins where they stand. */
+export function removeMarkerIcon(project: Pick<ProjectConfigV1, "markers" | "markerIcons">, id: string): MarkerIconsPatch {
+  const markerIcons = (project.markerIcons ?? []).filter((icon) => icon.id !== id);
+  return {
+    markers: project.markers.map((marker) => {
+      if (marker.iconId !== id) return marker;
+      const { iconId: _removed, ...rest } = marker;
+      return { ...rest, symbol: "pin" };
+    }),
+    // No icons left means no field, as in a project that never had one.
+    markerIcons: markerIcons.length ? markerIcons : undefined,
+  };
 }
 
 export function addCustomLine(project: Project, id: string): CustomLinesPatch | undefined {
