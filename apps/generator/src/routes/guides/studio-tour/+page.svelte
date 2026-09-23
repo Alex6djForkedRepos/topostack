@@ -45,9 +45,8 @@
       <tr><td>03 Cut size / Artwork size</td><td>Metric or imperial units, rectangle or circle, finished width and height.</td></tr>
       <tr><td>04 Terrain layers / Contour design</td><td>Vertical exaggeration and material thickness, or contour density and index contours.</td></tr>
       <tr><td>05 Map details</td><td>Roads, trails, water, boundaries, grid, water depth, assembly guides, labels, north arrow, scale bar and text. See <a href={`${base}/guides/map-details`}>map details and linework</a>.</td></tr>
-      <tr><td>06 Custom Data</td><td>Your own markers, trails and boundaries. See <a href={`${base}/guides/custom-markers-and-paths`}>custom markers and paths</a>.</td></tr>
-      <tr><td>07 Linework</td><td>Line width presets and individual stroke widths.</td></tr>
-      <tr><td>08 Fabrication settings / Artwork settings</td><td>Nesting, glue margin, kerf, contour smoothing and minimum feature size.</td></tr>
+      <tr><td>06 Linework</td><td>Line width presets and individual stroke widths.</td></tr>
+      <tr><td>07 Fabrication settings / Artwork settings</td><td>Nesting, glue margin, kerf, contour smoothing and minimum feature size.</td></tr>
     </tbody>
   </table>
   <p>Every control, with its range and default, is listed in the <a href={`${base}/guides/settings-reference`}>settings reference</a>.</p>
@@ -60,6 +59,7 @@
     <li><strong>Cut layers</strong> (layered): one sheet at a time. Use the layer slider below the preview to step through elevations.</li>
     <li><strong>3D stack</strong> (layered): the assembled model. Drag the Stack–Exploded slider to separate the layers.</li>
     <li><strong>Engraving</strong> (flat): the finished engraving.</li>
+    <li><strong>Custom data</strong>: depth charts, markers, trails and boundaries, graphics and file import, each with its own sidebar section. See <a href={`${base}/guides/custom-data`}>bring your own data</a>.</li>
   </ul>
   <p>Warnings appear over the preview. Dismiss each once you have read it; see <a href={`${base}/guides/troubleshooting`}>troubleshooting</a> for what they mean.</p>
 

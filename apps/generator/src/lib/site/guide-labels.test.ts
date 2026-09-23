@@ -21,14 +21,15 @@ const decode = (text: string): string => text.replaceAll("&amp;", "&").replace(/
  */
 function studioStrings(): Set<string> {
   const components = (directory: string): string[] => readdirSync(join(src, directory)).filter((file) => file.endsWith(".svelte")).map((file) => `${directory}/${file}`);
-  const files = ["lib/studio/App.svelte", ...components("lib/studio/panels"), ...components("lib/studio/customdata"), "lib/studio/customdata/custom-data-nav.svelte.ts", "lib/studio/ExportDialog.svelte", "lib/studio/LocationDialog.svelte", "lib/studio/MapCanvas.svelte", "lib/studio/MapStage.svelte", "lib/studio/TwoDPreview.svelte", "lib/studio/placement/PlacementLayer.svelte", "lib/studio/options.ts", "lib/site/FeedbackButton.svelte"];
+  const files = ["lib/studio/App.svelte", ...components("lib/studio/panels"), ...components("lib/studio/customdata"), "lib/studio/customdata/custom-data-nav.svelte.ts", "lib/studio/customdata/chart-tracing.svelte.ts", "lib/studio/ExportDialog.svelte", "lib/studio/LocationDialog.svelte", "lib/studio/MapCanvas.svelte", "lib/studio/MapStage.svelte", "lib/studio/TwoDPreview.svelte", "lib/studio/placement/PlacementLayer.svelte", "lib/studio/options.ts", "lib/site/FeedbackButton.svelte"];
   const strings = new Set<string>();
   for (const file of files) {
     const source = readFileSync(join(src, file), "utf8");
     const patterns = [/>([^<>{}]+)[<{]/g, /}([^<>{}]+)</g, /(?:label|title|placeholder)\s*[=:]\s*["']([^"'\n]+)["']/g, /"([A-Z][^"\n]*)"/g];
     for (const pattern of patterns) {
       for (const match of source.matchAll(pattern)) {
-        const text = decode(match[1]!).replace(/[.:]$/, "");
+        // A label followed by a count, as in "Try another placement (1 of 2)", is still the label.
+        const text = decode(match[1]!).replace(/[.:]$/, "").replace(/\s*\($/, "");
         if (text) strings.add(text);
       }
     }
@@ -52,6 +53,7 @@ const NOT_STUDIO_LABELS = new Set([
   "“Some lake depths are estimated rather than surveyed”", "Real surveys, with different levels of detail.",
   "Prepare the published data.", "Fill between measured contours.", "Match your map.", "Keep track of gaps.",
   "Open in studio", "Turn off kerf compensation",
+  "Traced from your chart:", "“Some lake floors come from a traced depth chart”",
 ]);
 
 function boldText(page: string): string[] {
