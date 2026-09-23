@@ -1,5 +1,5 @@
 import { get, set } from "idb-keyval";
-import { PAINT_REGION_KINDS, DEFAULT_PROJECT, DEPTH_CHART_ID_PATTERN, isDepthChartLakeKey, MAP_MARKER_SIZE_MM, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, NORTH_ARROW_ANCHORS, isTextFont, validateProject, type CustomLineFeatureV1, type CustomLineKind, type MapMarkerV1, type MarkerSymbol, type NorthArrowAnchor, type NorthArrowStyle, type PlaqueV1, type ProjectConfigV1, type UserDepthChartRefV1 } from "@topostack/core";
+import { PAINT_REGION_KINDS, DEFAULT_PROJECT, DEPTH_CHART_ID_PATTERN, isDepthChartLakeKey, MAP_MARKER_SIZE_MM, MAX_CUSTOM_DATA_NAME_LENGTH, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, NORTH_ARROW_ANCHORS, isTextFont, validateProject, type CustomLineFeatureV1, type CustomLineKind, type MapMarkerV1, type MarkerSymbol, type NorthArrowAnchor, type NorthArrowStyle, type PlaqueV1, type ProjectConfigV1, type UserDepthChartRefV1 } from "@topostack/core";
 
 const PROJECT_KEY = "topostack:project:v1";
 /** Where an unreadable saved project is copied before autosave replaces it. */
@@ -107,6 +107,17 @@ function markerSymbolValue(value: unknown): MarkerSymbol {
   throw new Error("Marker symbol is invalid.");
 }
 
+/**
+ * A marker's or path's own name, kept only when it is usable. Names are
+ * bookkeeping, never geometry, so one that is blank or too long is dropped
+ * rather than refusing the whole project.
+ */
+function customDataName(value: unknown): { name?: string } {
+  if (typeof value !== "string") return {};
+  const name = value.trim();
+  return name && name.length <= MAX_CUSTOM_DATA_NAME_LENGTH ? { name } : {};
+}
+
 function markersValue(value: unknown): MapMarkerV1[] {
   if (value === undefined) return [];
   if (!Array.isArray(value)) throw new Error("Project markers must be a list.");
@@ -115,7 +126,7 @@ function markersValue(value: unknown): MapMarkerV1[] {
     if (!item || typeof item !== "object") throw new Error("Each marker must be an object.");
     const marker = item as Record<string, unknown>;
     if (typeof marker.id !== "string") throw new Error("Each marker must have an id.");
-    return { id: marker.id, lat: numberValue(marker.lat), lon: numberValue(marker.lon), symbol: markerSymbolValue(marker.symbol), sizeMm: marker.sizeMm === undefined ? MAP_MARKER_SIZE_MM : numberValue(marker.sizeMm) };
+    return { id: marker.id, lat: numberValue(marker.lat), lon: numberValue(marker.lon), symbol: markerSymbolValue(marker.symbol), sizeMm: marker.sizeMm === undefined ? MAP_MARKER_SIZE_MM : numberValue(marker.sizeMm), ...customDataName(marker.name) };
   });
 }
 
@@ -140,6 +151,7 @@ function customLinesValue(value: unknown): CustomLineFeatureV1[] {
     return {
       id: line.id,
       kind: customLineKindValue(line.kind),
+      ...customDataName(line.name),
       points: line.points.map((point) => {
         if (!point || typeof point !== "object") throw new Error("Each custom line point must be an object.");
         const coordinate = point as Record<string, unknown>;

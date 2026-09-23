@@ -9,13 +9,19 @@ Many lakes have no digital survey but do have a published depth chart: a scanned
 | Record contract (`@topostack/data-contracts/chart-bathymetry`) and core carving with `bathymetryOrigin: "chart"` | Done |
 | `@topostack/chart-trace`: georeferencing and gridding | Done |
 | `@topostack/chart-trace`: vector PDF extraction (paths and text layer) and level inference | Done |
-| `@topostack/chart-trace`: colour segmentation, line tracing, label reading for scans | Done (labels best-effort; see below) |
+| `@topostack/chart-trace`: colour segmentation, line tracing, finding printed labels on scans | Done |
 | `@topostack/chart-trace`: level inference that survives leaky scans (a facing graph beside raster regions) | Done |
 | Batch tracing of curated charts into records (`trace-depth-charts.mjs`) | Done |
 | Records published as a survey archive (`community-charts-v1` in the survey build) | Builds; not registered in the catalog yet |
 | Loading saved charts in the studio, IndexedDB storage, project import and export | Done |
 | Tracing an uploaded chart in the browser (the engine and its worker) | Done |
-| Tracing wizard in the studio, with OCR loaded only when needed | Planned |
+| Custom data view in the studio, where charts are traced and kept, and its sidebar sections | Done |
+| Markers, trails and file import moved into the custom data view | Done |
+| PDF charts in the studio (a page drawn as a picture) | Done |
+| Charts for lakes HydroLAKES does not list, found by outline | Done |
+| Stepping through placements when a lake fits its chart more than one way | Done |
+| Placing depths from the keyboard | Done |
+| Reading printed depths by machine (OCR) | Dropped: depths are typed; see "Depths are typed, never read" |
 | Reviewed catalog submissions through the map-api Worker | Planned |
 
 ## The record
@@ -39,7 +45,7 @@ Three public charts were chosen as reference inputs, one for each style the trac
 | Chart | Style | What it demands | Ground truth |
 | --- | --- | --- | --- |
 | Michigan DNR, [Lake Margrethe](https://www2.dnr.state.mi.us/Publications/pdfs/ForestsLandWater/_Archived/Inland_Lake_Maps/CRAWFORD/LAKE_MARGRETHE.PDF) (1938–39) | Clean hand-drawn ink, 1-bit CCITT scan inside a PDF | Rotated north arrow, so snapping must try every rotation, not only flips. Depths are in feet on a 5 ft interval with primed labels (`10'`). Section lines cross the lake, and soundings, symbols and a legend box share the sheet. | The state's digitized Inland Lake Contours layer |
-| Minnesota DNR, [Ten Mile Lake](https://files.dnr.state.mn.us/lakefind/data/lakemaps/b0290010.tif) | Degraded scan served as a CCITT G4 TIFF, 10800×7200 | Browsers cannot decode G4 TIFF, so the wizard needs a small lazy decoder. The sheet has heavy blotches, crowded labels, contours that merge on steep slopes, and neighbouring lakes. | `mn-dnr-lakes-v1` |
+| Minnesota DNR, [Ten Mile Lake](https://files.dnr.state.mn.us/lakefind/data/lakemaps/b0290010.tif) | Degraded scan served as a CCITT G4 TIFF, 10800×7200 | Browsers cannot decode G4 TIFF, so the studio needs a small lazy decoder. The sheet has heavy blotches, crowded labels, contours that merge on steep slopes, and neighbouring lakes. | `mn-dnr-lakes-v1` |
 | TWDB, [Cedar Creek Reservoir](https://www.twdb.texas.gov/hydro_survey/cedarcreek/2017-10/CC17_ContourMap.pdf) (2017) | Vector GIS PDF with a text layer | Contours are elevations above mean sea level (pool at 322 ft). Its paths, labels and State Plane grid ticks can be read directly from the PDF, with no OCR or raster tracing. | None archived |
 
 The TWDB case moves **vector PDF extraction** ahead of raster tracing. For modern GIS charts it gives exact lines and labels, and possibly georeferencing from the grid ticks.
@@ -78,7 +84,7 @@ A scan becomes the same kind of page as a vector chart: traced lines stand in fo
 
   Every rule needs a clear majority of samples, and orientation and propagation count only lines that see each other both ways. A frame or road collects rays that slip through gaps in the contours, but it does not see the far contour back. Whatever the shore faces on its land side is marked land and never takes a level. That covers frames, roads and the legend box, though not the land beyond them, since spreading further would leak back into the lake through the same gaps.
 - **Result on Lake Margrethe.** Tracing works: each contour comes out as one long chain through crossings and label gaps. With three labels given by hand (10, 20 and 35 ft on one slope), inference levels the lake from the shore at 0 ft down to its 55 ft holes, in nested order. That is **55%** of all traced length. The total includes the frame, legend and lettering, which correctly stay unlevelled. A few road stubs by the shore still get levels, which is harmless because gridding uses only cells inside the georeferenced water outline.
-- **OCR on Lake Margrethe.** Tesseract with a digit whitelist reads loose labels. It reads the italic labels set into the lines poorly, because pieces of the contour inside the crop confuse it. Dash marks and symbols also produce stray digits; with the interval known, labels off the chart's ladder are dropped, which removes most of them. On scans like this, the dependable route is the wizard's: the maker clicks a few lines and types their depth, and inference fills in the rest for the maker to confirm.
+- **OCR on Lake Margrethe.** Tesseract with a digit whitelist read loose labels, but read the italic labels set into the lines poorly, because pieces of the contour inside the crop confused it, and dash marks and symbols produced stray digits. This experiment is why OCR was dropped: on scans like this the dependable route is the maker clicking a few lines and typing their depth, and inference filling in the rest.
 
 The adapter reads the page with pdf.js 6, which the caller passes in. 5.x carries a high-severity advisory, so it is not supported.
 
@@ -154,17 +160,55 @@ It reads every record in `scripts/data/depth-charts/`, refuses any whose attesta
 
 ## Tracing an upload in the browser
 
-`domain/chart-build.ts` is the whole engine the wizard will drive: pixels and a lake outline in, a finished record out. It is a plain function in no component, so it runs in `workers/chart-trace.worker.ts` and is tested without a DOM. `workers/chart-trace-client.ts` drives that worker, one request at a time, matching every reply by id so a cancelled trace cannot land on a later one; where workers are unavailable — jsdom, or a host frame whose policy forbids them — the same functions run on the main thread, because a slow trace beats no tracing.
+`domain/chart-build.ts` is the whole engine the custom data view drives: pixels and a lake outline in, a finished record out. It is a plain function in no component, so it runs in `workers/chart-trace.worker.ts` and is tested without a DOM. `workers/chart-trace-client.ts` drives that worker, one request at a time, matching every reply by id so a cancelled trace cannot land on a later one; where workers are unavailable — jsdom, or a host frame whose policy forbids them — the same functions run on the main thread, because a slow trace beats no tracing.
 
 **Placing an upload needs no control points.** The maker picks the lake before uploading, so the chart's traced shore is snapped onto that lake's known outline. The shore is taken as the longest traced line that closes, falling back to the longest line of any kind: a chart's outer shore is its longest ink by a wide margin, which is steadier than a stroke-width rule. The report carries the overlap and flags a snap below `SNAP_MIN_IOU` as one to look at rather than refusing it.
 
 **The lake's own outline is the water**, not the traced shore: the chart was just matched to it, and it is the cleaner boundary.
 
-**Two labels, not one.** A single labelled ring cannot say which way is deeper — inward and outward both fit — so inference stops there and most lines stay unlevelled. With two, the direction is fixed and the rest follows from nesting. The wizard should ask for a second label rather than reporting poor coverage.
+**Two labels, not one.** A single labelled ring cannot say which way is deeper — inward and outward both fit — so inference stops there and most lines stay unlevelled. With two, the direction is fixed and the rest follows from nesting. The studio asks for a second depth up front rather than reporting poor coverage.
+
+**A clicked depth is a mark, not a word.** An OCR word is a box of glyph ink with a reading direction: its box is erased before tracing and it binds only to a line running along it. A click is neither. Sent as a word, a click on the steep side of a contour was rejected for reading across the line, and the box erased around a point on a diagonal cut the line where it was clicked. Every depth failed on a clean synthetic chart. Marks (`RasterTraceOptions.marks`) erase nothing, have no direction, and bind to the nearest traced line within a reach the canvas sets at 12 screen pixels, however large the chart.
+
+**A lake is picked whole.** The lake search loads a window around the place, and a big lake runs past it. Picking a lake the window cut off loads it again over its own extent (`wholeLake`), because a chart snapped onto part of a shore is placed wrongly with nothing to show it. A lake in several parts is listed once, by its largest part. Lakes known only from a published survey have no HydroLAKES id to key a chart by; the picker names them as already surveyed rather than leaving them out without a word.
+
+**Snapping prefers the chart read the right way round.** Pixel rows run down and northings up, so a correct placement has exactly one flip. A reflected fit wins only if it overlaps clearly better (`MIRROR_MARGIN`), which keeps mirror-printed charts working. A lake that is symmetric under a half turn still fits equally well either way up, and the outline alone cannot settle that. `snapCandidates` therefore returns every distinct placement, best first, and the build takes a `placement` index. When another placement fits about as well (`report.ambiguous`), the studio says so and offers "Try another placement", which traces again with the next one; the maker compares the lake bed with the chart.
 
 **Assembly is shared with the batch.** `@topostack/chart-trace/record` turns any trace into a record: levels to depths, geometry to lon/lat, contours simplified until they fit the contract, then the grid. The batch build and the studio both end there, so a curated chart and an uploaded one mean the same thing.
 
-**What OCR will need.** The engine takes labels as given (`words`), which is also how the batch supplies hand-placed ones, and `chart-trace` never bundles a recognizer: the caller passes one in. Adding Tesseract to the wizard means self-hosting its worker, core and language data, and adding `'wasm-unsafe-eval'` to `script-src` in `static/_headers` — the current policy has no such source, so a WebAssembly engine cannot start under it.
+**Depths are typed, never read.** Reading printed depths by machine was tried and dropped (September 2026). A recognizer reads labels set into contour lines poorly, and a wrong depth is worse than none: it carves a lake bed that looks right. It would also have needed `'wasm-unsafe-eval'` in the site's script policy and several megabytes of self-hosted engine and language data. So the engine takes depths only from people: `words` (labels placed by hand in the batch manifest, with the ink box they are printed in) and `marks` (depths clicked in the studio). `raster-labels` still finds printed labels, but only so `traceScannedChart` can erase them before tracing.
+
+**Lakes HydroLAKES does not list.** Small lakes are often drawn only in OpenStreetMap, with no depth source, so they carve flat; a chart is their only depth. Their outlines carry no lasting id (`osm-lake-3` is a list position), so the chart names the lake instead: its project key is `outline:<chart id>` (`OUTLINE_CHART_KEY_PREFIX`, and `depthChartLakeKey` for either kind). When depths load, `chartsForAreas` gives such a chart the one lake its own outline overlaps best, at an IoU of at least `OUTLINE_MATCH_MIN_IOU`, after cutting the chart's outline to the map area the way the lake was cut. HydroLAKES keys match first. The lake picker loads the map's water beside the lake datasets and resolves them as generation does, so map-only lakes are listed ("Lake from the map"). Picking one the window cut off finds it again in a wider load by overlap. The key form is additive: projects without it are unchanged, and older releases reject projects that use it.
+
+**PDF charts.** A PDF is drawn as a picture (`domain/chart-pdf.ts`, pdf.js loaded only when a PDF is chosen) and traced like any other. A file with several pages offers a page number. pdf.js 6 has no `eval`, and WebAssembly is turned off, so it runs under the site's policy. The cost is that JBIG2 and JPEG 2000 images, whose decoders want WebAssembly, draw blank; a blank page says so and asks for another page or a PNG. Reading a vector PDF's own paths and text, as the batch does, would be more exact for GIS exports, but it would give the studio a second tracing route to explain.
+
+## The custom data view
+
+Tracing a chart is its own job, not a step inside making a relief, so it has its own view: "Custom data" sits beside Map, Cut layers and 3D stack, and is loaded only when opened. It holds everything a maker brings to a project: depth charts, markers, trails and boundaries, and imported files.
+
+**The sidebar becomes the view's own.** While it is open, the project's size, terrain, details and linework controls are put away: none of them shapes a chart or a marker. In their place are four disclosures drawn exactly like the project's — depth charts, markers, trails and boundaries, file import — each holding that kind's tools. Markers, trails and import moved here out of the project sidebar; the same components are what the platform embed still renders in its own rail.
+
+**One section is open, and it is also what the viewport shows.** Depth charts put the chart being clicked there; the other three put the map, which is the same `MapStage` map view uses, so a marker is placed and dragged exactly as before without leaving the view. It is shown with `framing` off: a marker or a path needs no map area, so the selection box, its handles and the crosshair are put away and panning commits nothing. The guide element stays in the layout, because the bounds a pan would report are measured from it.
+
+**A marker or a path can be named.** `name` is optional on `MapMarkerV1` and `CustomLineFeatureV1`, at most `MAX_CUSTOM_DATA_NAME_LENGTH`, and absent rather than empty when it is blanked. It is the maker's bookkeeping: nothing is engraved from it, so `projectFingerprint` strips it, which also means a project with no names hashes exactly as it did before names existed and no saved design is restated. Renaming goes through `renameCustomData`, which records an undo step and leaves the preview alone, rather than `applyCustomDataEdit`, which would refresh a picture that cannot change.
+
+**A path is drawn by clicking, like a marker is placed.** `Draw on map` arms `lineDraft` in `customdata/custom-data-actions.svelte.ts` (the studio's custom-data edits, kept out of `App.svelte` so they can be tested alone), and each map click appends a point to it. The draft is held outside the project because a custom line needs two points to be valid and because a path of twenty clicks should be one undo step, not twenty; `addDrawnCustomLine` commits it as a single edit. Clicking the first point again (within `CLOSE_RADIUS_PX`) closes the shape: geometry draws the points it is given and closes nothing itself, so the first point is repeated at the end and the line is a boundary. Anything else is a trail. Enter finishes, Escape abandons. The draft is drawn on the map as its own GeoJSON source: a dashed line with a dot on every point, a larger one on the first, and a paler segment running from the last point to the pointer, so the line a click would add is visible before it is placed. That segment snaps to the first point, with the cursor, wherever clicking would close the shape.
+
+**Both overlays wait on `styleReady`, not `isStyleLoaded()`.** MapLibre reports a style as not loaded while tiles are still arriving, so a guard on `isStyleLoaded()` silently dropped whichever update happened to land in that window: closing a boundary left the finished draft drawn over the map, where its orange line read as a stray trail. The flag is set from the map's own `load`, not `style.load`: overlays added between the two, while the first tiles were arriving, left WebKit on Linux without the repaint that shows them. It is reactive, so a sync skipped before the style was ready runs again the moment it is. The choice lives in `customdata/custom-data-nav.svelte.ts`, beside the draft and for the same reason: switching views unmounts both halves, and coming back somewhere else would lose the maker's place. The open section cannot be closed, because closing it would leave the viewport showing something with no controls beside it.
+
+**The chart's tools and the chart are apart.** `customdata/chart-tracing.svelte.ts` holds the work — reading the upload, placing depths, calling the worker, keeping the record — because neither half can own it: `ChartTools` is the sidebar section and `ChartCanvas` is the picture. Both read the same draft, so the split changes nothing about what survives a view switch.
+
+**The sidebar carries a lazy chunk.** The tools reach the trace worker, the lake lookup and IndexedDB, so the menu is imported with the view rather than waited for on the studio's first paint; the map chunk loads only for the three sections that show it.
+
+**It needs no terrain and no map area.** A lake is found by name through the same place search the studio already uses, and `domain/lake-lookup.ts` then reads the lakes around that place straight from the water data. Many are unnamed in HydroLAKES, so each is listed with how big it is and how far it lies from the place searched. A maker can therefore build charts long before framing anything.
+
+**Depths are placed by the maker.** The maker types a depth and clicks the contour it is printed on, or focuses the chart, steers a crosshair onto the contour with the arrow keys and presses Enter. Each becomes a mark at that point, with a reach of 12 screen pixels, and the same levelling runs as for the batch. Two depths are required before tracing can start: the view says so rather than reporting poor coverage afterwards.
+
+**Keeping is not carving.** "Keep this chart" only adds it to the library in this browser. A separate "Use for" attaches it to the project under its lake's key and marks the terrain stale, so the two jobs stay apart. A chart whose lake is outside the current map area says so rather than claiming to carve, and a chart the project names but this browser lacks is listed with a way to stop using it. The library lists from a small summary kept beside each chart, so listing does not decode every grid. When Generate starts, `currentChartReferences` brings each reference's content hash up to the chart as saved now, so the design's fingerprint never names content that was not carved.
+
+**The work in progress outlives the view.** Switching to another view and back unmounts the chart canvas and its tools, so the half-traced chart lives in `customdata/chart-draft.svelte.ts` instead of in the component. It is deliberately not part of the project: nothing is saved until the maker keeps it.
+
+**A lake with a chart stops taking a maximum-depth override**, because that control only shapes a modeled basin; Map details shows the chart is in use and points at this view.
 
 ## In the browser
 
@@ -184,4 +228,4 @@ A chart reaches geometry as `WaterAreaV1.bathymetry` with `bathymetryOrigin: "ch
 - It carves exactly like a survey. It is anchored to the terrain waterline, and uncovered cells fall back to existing terrain or the modeled basin.
 - The surface reports `depthSource: "user"` and `bathymetryOrigin: "chart"`, whether or not the chart has gaps.
 - The map warns once with `LAKE_DEPTH_FROM_CHART` rather than `LAKE_DEPTH_PREDICTED`. Gaps and misaligned grids raise the usual per-lake `BATHYMETRY_FALLBACK`, naming the depth chart.
-- A per-lake maximum-depth override still applies, but it only shapes the modeled depths in the chart's gaps.
+- Using a chart for a lake clears that lake's maximum-depth override, since a charted lake does not offer one. Chart gaps take the modeled depths unscaled.

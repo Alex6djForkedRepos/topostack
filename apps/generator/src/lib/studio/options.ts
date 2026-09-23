@@ -10,8 +10,11 @@ export const PRESETS: PlaceResult[] = [
 ];
 export const UNIT_OPTIONS = [{ value: "metric", label: "Metric" }, { value: "imperial", label: "Imperial" }];
 export const SHAPE_OPTIONS = [{ value: "rectangle", label: "Rectangle" }, { value: "circle", label: "Circle" }];
-export const STACK_MODE_OPTIONS = [{ value: "map", label: "Map" }, { value: "2d", label: "Cut layers" }, { value: "3d", label: "3D stack" }];
-export const ENGRAVING_MODE_OPTIONS = [{ value: "map", label: "Map" }, { value: "engraving", label: "Engraving" }];
+// "Custom data" is the workspace for data the maker brings: depth charts
+// today, and the markers and paths that still live in the sidebar later. It is
+// absent from engraving output, which carries no lake bed to replace.
+export const STACK_MODE_OPTIONS = [{ value: "map", label: "Map" }, { value: "2d", label: "Cut layers" }, { value: "3d", label: "3D stack" }, { value: "custom", label: "Custom data" }];
+export const ENGRAVING_MODE_OPTIONS = [{ value: "map", label: "Map" }, { value: "engraving", label: "Engraving" }, { value: "custom", label: "Custom data" }];
 /** The engraving fonts, grouped by how a laser runs them. */
 export const FONT_GROUPS: Array<{ kind: FontKind; label: string; hint: string; fonts: FontCatalogEntry[] }> = ([
   { kind: "bitmap", label: "Built-in", hint: "Compact capitals drawn as short strokes." },

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_PROJECT, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_MAP_MARKERS, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, type CustomLineFeatureV1, type ProjectConfigV1 } from "@topostack/core";
-import { addCustomLine, addCustomLinePoint, addMarker, addMarkerAt, appendCustomData, canAddCustomLine, clampPlaqueSize, customDataCapacity, plaqueSettings, plaqueText, plaqueWithFont, northArrowMaximumMm, removeCustomLine, removeCustomLinePoint, removeMarker, updateCustomLine, updateCustomLinePoint, updateMarker } from "$lib/studio/project-edits";
+import { DEFAULT_PROJECT, MAX_CUSTOM_DATA_NAME_LENGTH, MAX_CUSTOM_DATA_POINTS, projectFingerprint, MAX_CUSTOM_LINE_POINTS, MAX_MAP_MARKERS, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, type CustomLineFeatureV1, type ProjectConfigV1 } from "@topostack/core";
+import { addCustomLine, addCustomLinePoint, addDrawnCustomLine, canExtendDrawnLine, renameCustomLine, renameMarker, addMarker, addMarkerAt, appendCustomData, canAddCustomLine, clampPlaqueSize, customDataCapacity, plaqueSettings, plaqueText, plaqueWithFont, northArrowMaximumMm, removeCustomLine, removeCustomLinePoint, removeMarker, updateCustomLine, updateCustomLinePoint, updateMarker, withLiveNames } from "$lib/studio/project-edits";
 
 const line = (id: string, count = 2): CustomLineFeatureV1 => ({ id, kind: "trail", points: Array.from({ length: count }, (_, index) => ({ lat: 40, lon: -105 + index * 0.01 })) });
 const withData = (patch: Partial<ProjectConfigV1>): ProjectConfigV1 => ({ ...DEFAULT_PROJECT, ...patch });
@@ -101,5 +101,79 @@ describe("placing markers on the map", () => {
     expect(addMarkerAt(DEFAULT_PROJECT, "polar", { lat: 89, lon: 0 })).toBeUndefined();
     const full = { ...DEFAULT_PROJECT, markers: Array.from({ length: MAX_MAP_MARKERS }, (_, index) => ({ id: String(index), lat: 1, lon: 1, symbol: "pin" as const, sizeMm: 8 })) };
     expect(addMarkerAt(full, "extra", { lat: 1, lon: 1 })).toBeUndefined();
+  });
+});
+
+describe("drawing a path on the map", () => {
+  const drawn = [{ lat: 42.95, lon: -122.1 }, { lat: 42.96, lon: -122.09 }, { lat: 42.96, lon: -122.11 }];
+
+  it("adds an open path as a trail", () => {
+    const patch = addDrawnCustomLine(DEFAULT_PROJECT, "drawn", drawn.slice(0, 2), false);
+    expect(patch?.customLines).toEqual([{ id: "drawn", kind: "trail", points: drawn.slice(0, 2) }]);
+  });
+
+  it("closes a path back to where it started, as a boundary", () => {
+    const patch = addDrawnCustomLine(DEFAULT_PROJECT, "drawn", drawn, true);
+    // Geometry draws the points it is given and closes nothing itself.
+    expect(patch?.customLines[0]).toEqual({ id: "drawn", kind: "boundary", points: [...drawn, drawn[0]] });
+  });
+
+  it("refuses a path too short to be one, or off the supported map", () => {
+    expect(addDrawnCustomLine(DEFAULT_PROJECT, "drawn", drawn.slice(0, 1), false), "a trail needs two points").toBeUndefined();
+    expect(addDrawnCustomLine(DEFAULT_PROJECT, "drawn", drawn.slice(0, 2), true), "a boundary needs three").toBeUndefined();
+    expect(addDrawnCustomLine(DEFAULT_PROJECT, "drawn", [{ lat: 89, lon: 0 }, { lat: 88, lon: 0 }], false)).toBeUndefined();
+  });
+
+  it("stops the drawing at the point limits, counting the draft that is not in the project yet", () => {
+    expect(canExtendDrawnLine(DEFAULT_PROJECT, 2)).toBe(true);
+    // One point is held back so a full-length drawing can still be closed.
+    expect(canExtendDrawnLine(DEFAULT_PROJECT, MAX_CUSTOM_LINE_POINTS - 2)).toBe(true);
+    expect(canExtendDrawnLine(DEFAULT_PROJECT, MAX_CUSTOM_LINE_POINTS - 1)).toBe(false);
+    expect(addDrawnCustomLine(DEFAULT_PROJECT, "full", Array.from({ length: MAX_CUSTOM_LINE_POINTS - 1 }, (_, index) => ({ lat: 40, lon: -105 + index * 1e-4 })), true), "the most a drawing can hold still closes").toBeDefined();
+    const nearlyFull = withData({ customLines: [line("existing", MAX_CUSTOM_DATA_POINTS - 4)] });
+    expect(canExtendDrawnLine(nearlyFull, 2)).toBe(true);
+    expect(canExtendDrawnLine(nearlyFull, 3)).toBe(false);
+  });
+});
+
+describe("naming markers and paths", () => {
+  const named = withData({
+    markers: [{ id: "m1", lat: 40, lon: -105, symbol: "pin" as const, sizeMm: 8 }],
+    customLines: [line("l1")],
+  });
+
+  it("stores a trimmed name, and drops it again when it is blanked", () => {
+    expect(renameMarker(named, "m1", "  Trailhead  ")?.markers[0]).toEqual({ id: "m1", lat: 40, lon: -105, symbol: "pin", sizeMm: 8, name: "Trailhead" });
+    const cleared = renameMarker(withData({ markers: [{ ...named.markers[0]!, name: "Trailhead" }] }), "m1", "   ");
+    expect(cleared?.markers[0], "an empty name is no name, not an empty one").toEqual({ id: "m1", lat: 40, lon: -105, symbol: "pin", sizeMm: 8 });
+    expect(cleared?.markers[0]).not.toHaveProperty("name");
+  });
+
+  it("keeps a name within the contract's limit", () => {
+    const long = "x".repeat(MAX_CUSTOM_DATA_NAME_LENGTH + 20);
+    expect(renameMarker(named, "m1", long)?.markers[0]?.name).toHaveLength(MAX_CUSTOM_DATA_NAME_LENGTH);
+    expect(renameCustomLine(named, "l1", long)?.customLines[0]?.name).toHaveLength(MAX_CUSTOM_DATA_NAME_LENGTH);
+  });
+
+  it("names a path and leaves everything else about it alone", () => {
+    const patch = renameCustomLine(named, "l1", "North boundary");
+    expect(patch?.customLines[0]).toEqual({ ...named.customLines[0], name: "North boundary" });
+    expect(renameCustomLine(named, "missing", "Nowhere")).toBeUndefined();
+    expect(renameMarker(named, "missing", "Nowhere")).toBeUndefined();
+  });
+
+  it("leaves the fingerprint alone, because a name carves nothing", () => {
+    const renamed = { ...named, ...renameMarker(named, "m1", "Trailhead")!, ...renameCustomLine(named, "l1", "North boundary")! };
+    expect(projectFingerprint(renamed)).toBe(projectFingerprint(named));
+  });
+});
+
+describe("names typed during a generation", () => {
+  it("puts the names typed since onto what the run was built from", () => {
+    const built = [{ id: "a", name: "Old" }, { id: "b" }, { id: "c", name: "Gone" }];
+    const live = [{ id: "a", name: "New" }, { id: "b", name: "Added" }, { id: "c" }];
+    expect(withLiveNames(built, live)).toEqual([{ id: "a", name: "New" }, { id: "b", name: "Added" }, { id: "c" }]);
+    // Something removed since keeps what it was built with, minus a name.
+    expect(withLiveNames([{ id: "x", name: "Kept" }], [])).toEqual([{ id: "x" }]);
   });
 });

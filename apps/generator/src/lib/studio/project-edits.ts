@@ -1,4 +1,4 @@
-import { DEFAULT_PLAQUE_SIZE_MM, PLAQUE_MAX_LINE_LENGTH, PLAQUE_MAX_LINES, PLAQUE_MAX_SIZE_MM, PLAQUE_MIN_SIZE_MM, type PlaqueV1, type TextFont, MAP_MARKER_SIZE_MM, MAP_MARKER_MIN_SIZE_MM, MAP_MARKER_MAX_SIZE_MM, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, type CustomLineFeatureV1, type GeoPoint, type MapMarkerV1, type ProjectConfigV1 } from "@topostack/core";
+import { DEFAULT_PLAQUE_SIZE_MM, PLAQUE_MAX_LINE_LENGTH, PLAQUE_MAX_LINES, PLAQUE_MAX_SIZE_MM, PLAQUE_MIN_SIZE_MM, type PlaqueV1, type TextFont, MAP_MARKER_SIZE_MM, MAP_MARKER_MIN_SIZE_MM, MAP_MARKER_MAX_SIZE_MM, MAX_CUSTOM_DATA_NAME_LENGTH, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, type CustomLineFeatureV1, type GeoPoint, type MapMarkerV1, type ProjectConfigV1 } from "@topostack/core";
 import { clampLongitude, isSupportedCoordinate } from "$lib/domain/coordinates";
 
 /**
@@ -46,6 +46,28 @@ export function updateMarker(project: Project, id: string, patch: Partial<MapMar
   return { markers: project.markers.map((marker) => marker.id === id ? next : marker) };
 }
 
+/**
+ * A name as it is stored: trimmed, within the contract's limit, and dropped
+ * entirely when it is blank. An empty name is no name, not an empty one.
+ */
+function storedName(name: string): string | undefined {
+  const trimmed = name.trim().slice(0, MAX_CUSTOM_DATA_NAME_LENGTH);
+  return trimmed || undefined;
+}
+
+/** Names a marker, so a long list can be read. Nothing is engraved from it. */
+export function renameMarker(project: Project, id: string, name: string): MarkersPatch | undefined {
+  if (!project.markers.some((marker) => marker.id === id)) return undefined;
+  return {
+    markers: project.markers.map((marker) => {
+      if (marker.id !== id) return marker;
+      const { name: _previous, ...rest } = marker;
+      const next = storedName(name);
+      return next === undefined ? rest : { ...rest, name: next };
+    }),
+  };
+}
+
 export function removeMarker(project: Project, id: string): MarkersPatch {
   return { markers: project.markers.filter((marker) => marker.id !== id) };
 }
@@ -61,6 +83,32 @@ export function addCustomLine(project: Project, id: string): CustomLinesPatch | 
       { lat: project.location.lat, lon: clampLongitude(project.location.lon + longitudeDelta) },
     ],
   };
+  return { customLines: [...project.customLines, line] };
+}
+
+/**
+ * Whether one more click may be added to a path being drawn on the map. The
+ * draft is not in the project yet, so its points are counted alongside it.
+ */
+export const canExtendDrawnLine = (project: Pick<ProjectConfigV1, "customLines">, drawnPoints: number): boolean =>
+  // One point is held back so the shape can still be closed, which repeats the first.
+  drawnPoints + 2 <= MAX_CUSTOM_LINE_POINTS && customDataPointCount(project) + drawnPoints + 2 <= MAX_CUSTOM_DATA_POINTS;
+
+/**
+ * A path drawn by clicking the map, added as one edit so it is one undo step.
+ *
+ * A closed shape is a boundary and returns to where it started: geometry draws
+ * a line through the points it is given and closes nothing itself, so the
+ * first point is repeated at the end. Anything else is a trail.
+ */
+export function addDrawnCustomLine(project: Project, id: string, points: readonly GeoPoint[], closed: boolean): CustomLinesPatch | undefined {
+  const drawn = points.map((point) => ({ lat: point.lat, lon: point.lon }));
+  if (!canAddCustomLine(project) || drawn.length < (closed ? 3 : 2)) return undefined;
+  if (drawn.some((point) => !isSupportedCoordinate(point.lat, point.lon))) return undefined;
+  const line: CustomLineFeatureV1 = closed
+    ? { id, kind: "boundary", points: [...drawn, { ...drawn[0]! }] }
+    : { id, kind: "trail", points: drawn };
+  if (line.points.length > MAX_CUSTOM_LINE_POINTS || customDataPointCount(project) + line.points.length > MAX_CUSTOM_DATA_POINTS) return undefined;
   return { customLines: [...project.customLines, line] };
 }
 
@@ -88,6 +136,19 @@ export function removeCustomLinePoint(project: Project, id: string, pointIndex: 
   const line = project.customLines.find((item) => item.id === id);
   if (!line || line.points.length <= 2) return undefined;
   return updateCustomLine(project, id, { points: line.points.filter((_, index) => index !== pointIndex) });
+}
+
+/** Names a path, the same way a marker is named. */
+export function renameCustomLine(project: Project, id: string, name: string): CustomLinesPatch | undefined {
+  if (!project.customLines.some((line) => line.id === id)) return undefined;
+  return {
+    customLines: project.customLines.map((line) => {
+      if (line.id !== id) return line;
+      const { name: _previous, ...rest } = line;
+      const next = storedName(name);
+      return next === undefined ? rest : { ...rest, name: next };
+    }),
+  };
 }
 
 export function removeCustomLine(project: Project, id: string): CustomLinesPatch {
@@ -136,4 +197,19 @@ export function appendCustomData(
     markers: [...project.markers, ...data.markers.map((point): MapMarkerV1 => ({ id: makeId(), lat: point.lat, lon: point.lon, symbol: "pin", sizeMm: MAP_MARKER_SIZE_MM }))],
     customLines: [...project.customLines, ...data.lines.map((line): CustomLineFeatureV1 => ({ id: makeId(), kind: line.kind, points: line.points }))],
   };
+}
+
+/**
+ * The markers or paths a generation was built from, named as the maker has
+ * named them since. A rename does not cancel a run, so the run's own snapshot
+ * would otherwise put the old names back when it lands.
+ */
+export function withLiveNames<T extends { id: string; name?: string }>(built: readonly T[], live: readonly T[]): T[] {
+  const names = new Map(live.map((item) => [item.id, item.name]));
+  return built.map((item) => {
+    const next = { ...item };
+    delete next.name;
+    const name = names.get(item.id);
+    return name ? { ...next, name } : next;
+  });
 }

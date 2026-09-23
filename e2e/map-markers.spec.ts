@@ -6,7 +6,9 @@ test.beforeEach(async ({ page }) => {
     version: 8, sources: {}, layers: [{ id: "background", type: "background", paint: { "background-color": "#2468ac" } }],
   } }));
   await page.goto("/studio");
-  await page.getByRole("button", { name: "Expand all" }).click();
+  // Markers are placed in the custom data view, on its own map.
+  await page.getByRole("radio", { name: "Custom data", exact: true }).click();
+  await page.locator("#custom-data-markers-title").click();
 });
 
 test("markers are placed by clicking the map and moved by dragging", async ({ page }) => {
@@ -14,11 +16,11 @@ test("markers are placed by clicking the map and moved by dragging", async ({ pa
   page.on("pageerror", (error) => errors.push(error.message));
   const place = page.getByRole("button", { name: "Place on map" });
   await place.click();
-  await expect(page.getByRole("radio", { name: "Map", exact: true })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByRole("radio", { name: "Custom data", exact: true }), "placing stays in the custom data view").toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("button", { name: "Done placing" })).toHaveAttribute("aria-pressed", "true");
   const canvas = page.locator(".map-canvas canvas");
   await expect(canvas).toBeVisible();
-  const box = (await page.locator(".crop-guide").boundingBox())!;
+  const box = (await page.locator(".map-canvas").boundingBox())!;
   await page.mouse.click(box.x + box.width * 0.3, box.y + box.height * 0.4);
   await page.mouse.click(box.x + box.width * 0.7, box.y + box.height * 0.6);
   await expect(page.locator(".marker-card")).toHaveCount(2);
@@ -28,6 +30,8 @@ test("markers are placed by clicking the map and moved by dragging", async ({ pa
 
   await page.keyboard.press("Escape");
   await expect(page.getByRole("button", { name: "Place on map" })).toHaveAttribute("aria-pressed", "false");
+  await page.locator("#custom-data-paths-title").click();
+  await page.locator("#custom-data-markers-title").click();
   // With placement off, a click pans nothing and adds nothing.
   await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5);
   await expect(page.locator(".marker-card")).toHaveCount(2);

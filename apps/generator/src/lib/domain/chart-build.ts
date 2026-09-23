@@ -8,7 +8,7 @@ import { CHART_UNIT_METRES, type ChartAttestation, type ChartUnit, type UserChar
 /**
  * One uploaded chart image to a finished depth chart record.
  *
- * This is the whole engine the studio's tracing wizard drives, kept out of any
+ * This is the whole engine the custom data view drives, kept out of any
  * component so it can run in a worker and be tested without a DOM. It never
  * touches storage or the network: the caller hands it pixels and the lake's
  * known outline, and gets back a record to save.

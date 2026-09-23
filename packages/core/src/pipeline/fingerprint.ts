@@ -5,6 +5,11 @@ function stableProjectValue(config: ProjectConfigV1): unknown {
   const { explodedPreview: _previewOnly, name: _packageMetadata, ...fabricationConfig } = config;
   return {
     ...fabricationConfig,
+    // A marker's or path's name is what the maker calls it, never anything the
+    // geometry reads, so renaming one must not restate the design. Projects
+    // without names hash exactly as they did before names existed.
+    markers: config.markers.map(({ name: _label, ...marker }) => marker),
+    customLines: config.customLines.map(({ name: _label, ...line }) => line),
     location: { ...config.location, bounds: config.location.bounds ? { ...config.location.bounds } : undefined },
   };
 }

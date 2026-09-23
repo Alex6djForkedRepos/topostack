@@ -8,7 +8,7 @@
   <p>Coordinates in decimal degrees, such as <code>42.9446, -122.1090</code>. Latitudes south of the equator and longitudes west of Greenwich are negative. You can copy coordinates from most online maps, or from a GPS track exported by your hiking app.</p>
 
   <h2>Import a GPS track or map file</h2>
-  <p>Select <strong>Import GPX, KML or GeoJSON</strong> in <strong>Custom Data</strong> and choose a file exported from your hiking app, GPS watch, Google Earth or a mapping tool (up to 20 MB). TopoStack adds everything it finds in one step, and <strong>Undo</strong> removes the whole import:</p>
+  <p>Select <strong>Import GPX, KML or GeoJSON</strong> under <strong>Import</strong> in the <strong>Custom data</strong> view and choose a file exported from your hiking app, GPS watch, Google Earth or a mapping tool (up to 20 MB). TopoStack adds everything it finds in one step, and <strong>Undo</strong> removes the whole import:</p>
   <ul>
     <li>GPX tracks and routes, KML line strings and Google Earth tracks, and GeoJSON lines become <strong>Trails</strong>. Each GPX track segment becomes its own path.</li>
     <li>KML and GeoJSON polygon outlines become <strong>Boundaries</strong>. Holes inside a polygon are left out.</li>
@@ -18,8 +18,9 @@
 
   <h2>1. Add a marker</h2>
   <ol>
-    <li>Open <strong>Custom Data</strong> and select <strong>Add marker</strong>. The marker starts at the center of your map.</li>
-    <li>Enter its <strong>Latitude</strong> and <strong>Longitude</strong>.</li>
+    <li>Open the <strong>Custom data</strong> view beside <strong>Map</strong> and <strong>3D stack</strong>, then open <strong>Markers</strong>.</li>
+    <li>Select <strong>Place on map</strong> and click where the marker belongs, or select <strong>Add marker</strong> and enter its <strong>Latitude</strong> and <strong>Longitude</strong>.</li>
+    <li>Give it a name if you like, by typing over the number at the top of its card. Names are for finding a marker again in a long list; nothing is engraved from them.</li>
     <li>Choose a symbol: <strong>Pin</strong>, <strong>Circle</strong>, <strong>Triangle</strong>, <strong>Star</strong> or <strong>Cross</strong>.</li>
   </ol>
   <p>Markers are engraved about 8 mm across. Lines beneath a marker are cleared for about 1.2 mm around it so the symbol stays readable. In layered output, a marker is engraved on the highest sheet that covers its location, so it appears on the visible surface after assembly.</p>
@@ -28,9 +29,9 @@
 
   <h2>2. Add a trail or boundary</h2>
   <ol>
-    <li>Select <strong>Add path</strong>. A new path starts as a short <strong>Trail</strong> at the map center; choose <strong>Boundary</strong> instead if you prefer.</li>
-    <li>Enter the <strong>Latitude</strong> and <strong>Longitude</strong> of each point along the route, in order.</li>
-    <li>Select <strong>Add point</strong> for each further point. A new point starts at the previous point's location. A path needs at least two points.</li>
+    <li>Open <strong>Trails &amp; boundaries</strong> and select <strong>Draw on map</strong>, then click along the route. The next stretch follows your cursor. Press Enter to finish it as a <strong>Trail</strong>, or click the first point again to close the shape into a <strong>Boundary</strong>.</li>
+    <li>Or select <strong>Add path</strong> and type the <strong>Latitude</strong> and <strong>Longitude</strong> of each point along the route, in order. Select <strong>Add point</strong> for each further point; a path needs at least two.</li>
+    <li>Switch any path between <strong>Trail</strong> and <strong>Boundary</strong>, and name it the same way you name a marker.</li>
   </ol>
   <p>Trails use the trail width and <strong>Trail pattern</strong> from <strong>Linework</strong>; boundaries use the boundary width and are dashed. Custom paths are engraved even when the built-in <strong>Trails</strong> or <strong>State / province boundaries</strong> are turned off, so you can show only your own route.</p>
 

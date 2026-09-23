@@ -6,6 +6,7 @@
   import { assembleWater, boundsForProject, loadLakeAreas, loadSurveyedLakeDepths, loadTerrain, loadVectorMarkings, type PlaceResult } from "$lib/domain/data-provider";
   import { applySurveyProvenance } from "$lib/domain/bathymetry";
   import { resolveLakeOutlines } from "$lib/domain/lake-outlines";
+  import { CustomDataActions } from "$lib/studio/customdata/custom-data-actions.svelte";
   import { theme } from "$lib/site/theme";
   import { trackUsage } from "$lib/site/usage";
   import { createSamplePreviewSource } from "$lib/domain/sample-preview";
@@ -35,6 +36,7 @@
   import { changedProjectKeys, projectPatch } from "$lib/studio/project-patch";
   import type { SourcePreparationCache } from "$lib/studio/source-refresh";
   import { generationStatus, generationToast, previewPendingStatus, previewUpdatedStatus, type PreviewUpdateKind } from "$lib/studio/status-messages";
+  import { nav } from "$lib/studio/customdata/custom-data-nav.svelte";
   import { provideStudio, type PlacementPhase, type GenerateState, type LineWidthKey, type PreviewMode } from "$lib/studio/studio-context";
   import ProjectControls from "$lib/studio/panels/ProjectControls.svelte";
   import StudioMenu from "$lib/studio/panels/StudioMenu.svelte";
@@ -87,9 +89,15 @@
   let explodedDrag = $state.raw<number | undefined>(undefined);
   let searchOpen = $state(false);
   let mapAspectLocked = $state(false);
-  /** Map clicks place markers while on; any other preview mode ends it. */
-  let placingMarker = $state(false);
-  $effect(() => { if (mode !== "map") placingMarker = false; });
+  // Placing markers, drawing paths, names and depth charts: the maker's own data.
+  const customData = new CustomDataActions({
+    project: () => project,
+    replaceProject: (next) => { project = next; },
+    recordHistory: (from, keys) => projectHistory.record(from, keys),
+    updateFabrication: (patch) => updateFabrication(patch),
+    setStatus: (message) => { status = message; },
+  });
+  $effect(() => { customData.disarmOutside(mode, nav.section); });
   let locationTrigger: HTMLButtonElement;
   let lineworkOpen = $state(false);
   let menuStateReady = $state(false);
@@ -152,7 +160,18 @@
   const placementStage = new LazyComponent(() => import("$lib/studio/placement/PlacementStage.svelte"), (error) => {
     console.error("TopoStack could not load placement mode.", error); placement = undefined; status = "Placement could not load · reload to update TopoStack";
   });
+  const customDataView = new LazyComponent(() => import("$lib/studio/customdata/CustomDataView.svelte"), (error) => {
+    console.error("TopoStack could not load the custom data view.", error);
+    if (mode === "custom") { mode = project.outputMode === "engraving" ? "engraving" : threeUnavailable ? "2d" : "3d"; previewNotice = "Custom data could not load · reload to update TopoStack"; }
+  });
+  // The custom data sidebar carries every tool for tracing a chart, so it is
+  // loaded with that view rather than waited for on the studio's first paint.
+  const customDataNav = new LazyComponent(() => import("$lib/studio/customdata/CustomDataNav.svelte"), (error) => {
+    console.error("TopoStack could not load the custom data controls.", error);
+  });
   const LocationDialog = $derived(locationDialog.component);
+  const CustomDataView = $derived(customDataView.component);
+  const CustomDataNav = $derived(customDataNav.component);
   const MapCanvas = $derived(mapCanvas.component);
   const EngravingPreview = $derived(engravingPreview.component);
   const TwoDPreview = $derived(twoDPreview.component);
@@ -220,7 +239,7 @@
 
   $effect(() => {
     const outputMode = project.outputMode;
-    if (outputMode === "engraving" && mode !== "map" && mode !== "engraving") mode = "engraving";
+    if (outputMode === "engraving" && mode !== "map" && mode !== "engraving" && mode !== "custom") mode = "engraving";
     else if (outputMode === "stack" && mode === "engraving") mode = threeUnavailable ? "2d" : "3d";
   });
 
@@ -234,7 +253,9 @@
   // no fallback view, so they wait for the Retry button instead of looping.
   $effect(() => {
     if (searchOpen) locationDialog.load();
-    if (mode === "map") mapCanvas.load();
+    if (mode === "custom") { customDataView.load(); customDataNav.load(); }
+    // Markers, paths and imported files are placed on the same map as map view.
+    if (mode === "map" || (mode === "custom" && nav.section !== "charts")) mapCanvas.load();
     else if (mode === "engraving") engravingPreview.ensure();
     else if (mode === "2d") twoDPreview.ensure();
     else if (mode === "3d") threePreview.load();
@@ -333,10 +354,7 @@
     return updateFabrication({ lineStyle: { ...project.lineStyle, [key]: storedLength(shown) } });
   }
 
-  /** Apply a marker or path edit from `project-edits`; `undefined` means the edit was rejected. */
-  function applyCustomDataEdit(patch: Partial<ProjectConfigV1> | undefined): void {
-    if (patch) void updateFabrication(patch);
-  }
+  const applyCustomDataEdit = (patch: Partial<ProjectConfigV1> | undefined) => customData.applyEdit(patch);
 
   function trailPatternDash(style: LineStyleV1): string | undefined {
     if (style.trailPattern === "solid") return undefined;
@@ -363,8 +381,11 @@
     openSections = { ...openSections, [section]: !openSections[section] };
   }
 
+  /** Sidebar sections on screen: markers and paths live in the custom data view outside the Atomm embed. */
+  const shownSections = $derived(embeddedInPlatform ? CONFIG_SECTION_IDS : CONFIG_SECTION_IDS.filter((section) => section !== "customData"));
+
   function setAllSections(open: boolean): void {
-    openSections = Object.fromEntries(CONFIG_SECTION_IDS.map((section) => [section, open])) as Record<ConfigSectionId, boolean>;
+    openSections = { ...openSections, ...Object.fromEntries(shownSections.map((section) => [section, open])) };
   }
 
   function sectionSummary(section: ConfigSectionId): string {
@@ -547,7 +568,7 @@
     project = { ...project, location: { ...project.location, ...patch, ...(("lat" in patch || "lon" in patch || "zoom" in patch) && !("bounds" in patch) ? { bounds: undefined } : {}) } };
     status = "Map area changed · regenerate terrain data";
   }
-  function closeLocationDialog(): void {
+    function closeLocationDialog(): void {
     searchOpen = false;
     window.requestAnimationFrame(() => locationTrigger?.focus());
   }
@@ -721,11 +742,15 @@
       for (const lake of loaded.missingCharts ?? []) next.warnings.push({ code: "BATHYMETRY_FALLBACK", message: `The depth chart for ${lake} is not saved in this browser, so it is carved without it. Import the project file it was exported in to bring the chart here.` });
       // Cosmetic edits deliberately do not cancel expensive terrain work. Merge
       // their latest values instead of replacing them with the request snapshot.
-      const completedProject = { ...builtProject, name: project.name, explodedPreview: project.explodedPreview };
+      // Names are bookkeeping and do not cancel a run either; keep the ones typed meanwhile.
+      const completedProject = { ...builtProject, name: project.name, explodedPreview: project.explodedPreview, markers: edits.withLiveNames(builtProject.markers, project.markers), customLines: edits.withLiveNames(builtProject.customLines, project.customLines) };
       const completedGeometry = { ...next, projectName: completedProject.name };
       dismissedWarnings = [];
       void sourcePreparation?.then((cache) => cache.clear(), () => undefined);
-      geometry = completedGeometry; project = completedProject; activeSource = loaded.source; sourceProject = completedProject; selectedLayer = featuredLayerIndex(completedGeometry); mode = completedProject.outputMode === "engraving" ? "engraving" : threeUnavailable ? "2d" : "3d"; generationState = "ready";
+      geometry = completedGeometry; project = completedProject; activeSource = loaded.source; sourceProject = completedProject; selectedLayer = featuredLayerIndex(completedGeometry);
+      // Show the result, unless the maker is at work in the custom data view.
+      if (mode !== "custom") mode = completedProject.outputMode === "engraving" ? "engraving" : threeUnavailable ? "2d" : "3d";
+      generationState = "ready";
       trackUsage(exportBlockReason(completedGeometry, completedProject) ? "generation_failed" : "generation_succeeded", completedProject.outputMode);
       const outcome = {
         fallback: loaded.fallback, fallbackReason: loaded.fallbackReason, waterWarning: loaded.waterWarning,
@@ -851,6 +876,9 @@
     get engravingPreview() { return engravingPreview; },
     get twoDPreview() { return twoDPreview; },
     get PlacementStage() { return PlacementStage; },
+    get CustomDataView() { return CustomDataView; },
+    get customDataView() { return customDataView; },
+    get mapCanvas() { return mapCanvas; },
     get placement() { return placement; },
     set placement(value) { placement = value; },
     get placementBackdrop() { return placementBackdrop; },
@@ -877,13 +905,22 @@
     set resetOpen(value) { resetOpen = value; },
     get mapAspectLocked() { return mapAspectLocked; },
     set mapAspectLocked(value) { mapAspectLocked = value; },
-    get placingMarker() { return placingMarker; },
-    set placingMarker(value) { placingMarker = value; },
+    get placingMarker() { return customData.placingMarker; },
+    set placingMarker(value) { customData.setPlacingMarker(value); },
+    get lineDraft() { return customData.lineDraft; },
     get lineworkOpen() { return lineworkOpen; },
     set lineworkOpen(value) { lineworkOpen = value; },
     get locationTrigger() { return locationTrigger; },
     set locationTrigger(value) { locationTrigger = value; },
-    shownLength, shownDepth, shownLineWidth, shownTextSize, storedLength, workAreaLength, updateProject, updateFabrication, updateMapDetails, updateLocation, updateVerticalExaggeration, updateDepthLayerLimit, setLakeDepth, setLineWidth, applyCustomDataEdit, choosePlace, startPlacement, commitPlacement, cancelPlacement, undo, redo, importProject, copyShareLink, importCustomData, generate, cancelGeneration, toggleSection, setAllSections, sectionSummary, navigateChoice, dismissPreviewWarning, previewMarkingPath, trailPatternDash, getFeedbackContext,
+    shownLength, shownDepth, shownLineWidth, shownTextSize, storedLength, workAreaLength, updateProject, updateFabrication, updateMapDetails, updateLocation, updateVerticalExaggeration, updateDepthLayerLimit, setLakeDepth, setLineWidth, applyCustomDataEdit,
+    renameCustomData: (patch) => customData.rename(patch),
+    startLineDraft: () => customData.startLineDraft(),
+    extendLineDraft: (point) => customData.extendLineDraft(point),
+    commitLineDraft: (closed) => customData.commitLineDraft(closed),
+    cancelLineDraft: () => customData.cancelLineDraft(),
+    saveChartToLibrary: (record) => customData.saveChartToLibrary(record),
+    useChartForLake: (key, reference) => customData.useChartForLake(key, reference),
+    clearDepthChart: (key) => customData.clearDepthChart(key), choosePlace, startPlacement, commitPlacement, cancelPlacement, undo, redo, importProject, copyShareLink, importCustomData, generate, cancelGeneration, toggleSection, setAllSections, sectionSummary, navigateChoice, dismissPreviewWarning, previewMarkingPath, trailPatternDash, getFeedbackContext,
   });
 </script>
 
@@ -902,7 +939,7 @@
 {#if embeddedInPlatform}
   {#if AtommWorkbench}<AtommWorkbench ready={atommReady} blockedReason={exportBlockedBy} preparing={exportPhase === "preparing"} {exportPhase} {exportTitle} {exportDetail}>
     {#snippet leadHeader()}<ProjectControls />{/snippet}
-    {#snippet lead()}<OutputSwitch /><SetupSection /><CustomDataSection />{/snippet}
+    {#snippet lead()}<OutputSwitch />{#if mode === "custom"}{#if CustomDataNav}<CustomDataNav />{:else if customDataNav.failed}<p class="panel-loading" role="alert">Custom data tools could not load. <button type="button" class="btn btn-secondary" onclick={() => customDataNav.load()}>Retry</button></p>{:else}<p class="panel-loading" role="status">Loading custom data tools…</p>{/if}{:else}<SetupSection /><CustomDataSection />{/if}{/snippet}
     {#snippet generate()}<GenerationDock />{/snippet}
     {#snippet parameterHeader()}
       <UnitSwitch />
@@ -939,18 +976,30 @@
     {#snippet sidebar()}
     <Sidebar class="config-panel">
       <div class="panel-scroll">
-        <div class="panel-intro">
-          <span class="section-kicker panel-eyebrow">Project controls</span>
-          <h1>{project.outputMode === "engraving" ? "Draw the landscape." : "Build the landscape."}</h1>
-          <p>Work through the essentials, then open details only when you need them.</p>
-          <div class="section-tools" aria-label="Section display controls">
-            <button type="button" onclick={() => setAllSections(true)} disabled={CONFIG_SECTION_IDS.every((section) => openSections[section])}>Expand all</button>
-            <button type="button" onclick={() => setAllSections(false)} disabled={CONFIG_SECTION_IDS.every((section) => !openSections[section])}>Collapse all</button>
+        {#if mode === "custom"}
+          <!-- The custom data view is its own job. The project's size, terrain
+               and linework controls have nothing to say about tracing a chart,
+               so the sidebar becomes a menu over what that view shows. -->
+          <div class="panel-intro">
+            <span class="section-kicker panel-eyebrow">Custom data</span>
+            <h1>Bring your own data.</h1>
+            <p>Charts you trace, points you place, routes you import. Markers and paths join the project as you add them; a chart carves a lake only when you say so.</p>
           </div>
-        </div>
-        <SetupSection />
+          {#if CustomDataNav}<CustomDataNav />{:else if customDataNav.failed}<p class="panel-loading" role="alert">Custom data tools could not load. <button type="button" class="btn btn-secondary" onclick={() => customDataNav.load()}>Retry</button></p>{:else}<p class="panel-loading" role="status">Loading custom data tools…</p>{/if}
+        {:else}
+          <div class="panel-intro">
+            <span class="section-kicker panel-eyebrow">Project controls</span>
+            <h1>{project.outputMode === "engraving" ? "Draw the landscape." : "Build the landscape."}</h1>
+            <p>Work through the essentials, then open details only when you need them.</p>
+            <div class="section-tools" aria-label="Section display controls">
+              <button type="button" onclick={() => setAllSections(true)} disabled={shownSections.every((section) => openSections[section])}>Expand all</button>
+              <button type="button" onclick={() => setAllSections(false)} disabled={shownSections.every((section) => !openSections[section])}>Collapse all</button>
+            </div>
+          </div>
+          <SetupSection />
 
-        <ParameterSections />
+          <ParameterSections />
+        {/if}
       </div>
       <GenerationDock />
     </Sidebar>

@@ -24,6 +24,19 @@ describe("project import validation", () => {
       expect(() => parseProject({ ...DEFAULT_PROJECT, markers: [{ ...marker, sizeMm }] })).toThrow(/marker size/i);
     }
   });
+  it("keeps marker and path names through a save and load, and drops unusable ones", () => {
+    const marker = { id: "named", lat: 43, lon: -122, symbol: "pin", sizeMm: 8, name: "Trailhead" };
+    const line = { id: "loop", kind: "trail" as const, points: [{ lat: 42.9, lon: -122.1 }, { lat: 43, lon: -122 }], name: "Rim loop" };
+    const project = parseProject({ ...DEFAULT_PROJECT, markers: [marker], customLines: [line] });
+    const reloaded = parseProject(JSON.parse(JSON.stringify(project)));
+    expect(reloaded.markers).toEqual([marker]);
+    expect(reloaded.customLines).toEqual([line]);
+    // A name is only bookkeeping, so a bad one is dropped rather than refusing the project.
+    for (const name of ["   ", 42, "x".repeat(61)]) {
+      expect(parseProject({ ...DEFAULT_PROJECT, markers: [{ ...marker, name }] }).markers[0]).not.toHaveProperty("name");
+    }
+    expect(parseProject({ ...DEFAULT_PROJECT, markers: [{ ...marker, name: "  Dock  " }] }).markers[0]!.name).toBe("Dock");
+  });
   it("restores custom trails and boundaries and defaults legacy projects to no paths", () => {
     const customLines = [
       { id: "trail-1", kind: "trail" as const, points: [{ lat: 42.9, lon: -122.1 }, { lat: 43, lon: -122 }] },

@@ -12,7 +12,7 @@
 
 <Section class="config-section linework-section" aria-labelledby="atomm-linework-title">
   <button type="button" class="section-disclosure" id="atomm-linework-title" aria-expanded={studio.openSections.linework} aria-controls="section-linework" onclick={() => toggleSection("linework")}>
-    <span class="section-number">07</span>
+    <span class="section-number">06</span>
     <span class="section-title">Linework<small>{sectionSummary("linework")}</small></span>
     <ChevronDown size={16} class={studio.openSections.linework ? "kicker-chevron kicker-chevron--open" : "kicker-chevron"} />
   </button>

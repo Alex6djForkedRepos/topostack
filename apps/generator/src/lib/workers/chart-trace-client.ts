@@ -2,10 +2,10 @@ import { buildChartFromImage, type ChartBuildRequest, type ChartBuildResult } fr
 import { palette, type Swatch } from "@topostack/chart-trace/raster";
 
 /**
- * Drives the chart-tracing worker for the studio's wizard.
+ * Drives the chart-tracing worker for the custom data view.
  *
  * Tracing is one-shot work the maker waits for, not a stream of edits, so this
- * is simpler than the geometry client: one worker for the dialog's lifetime,
+ * is simpler than the geometry client: one worker while the custom data view is open,
  * one request at a time, and every reply matched by id so a cancelled trace
  * cannot land on a later one. Where workers are unavailable — jsdom in tests,
  * or a host frame whose policy blocks them — the same functions run on the

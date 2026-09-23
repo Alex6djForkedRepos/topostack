@@ -11,6 +11,19 @@ describe("project validation", () => {
     expect(() => validateProject({ ...DEFAULT_PROJECT, customLines: [{ id: "long", kind: "trail", points: Array.from({ length: 2_001 }, () => point) }] })).toThrow(/2000 points/i);
   });
 
+  it("takes a name on a marker or a path, or none at all", () => {
+    const marker = { id: "marker", lat: DEFAULT_PROJECT.location.lat, lon: DEFAULT_PROJECT.location.lon, symbol: "pin" as const };
+    const point = { lat: DEFAULT_PROJECT.location.lat, lon: DEFAULT_PROJECT.location.lon };
+    const path = { id: "path", kind: "trail" as const, points: [point, point] };
+    expect(() => validateProject({ ...DEFAULT_PROJECT, markers: [{ ...marker, name: "Trailhead" }] })).not.toThrow();
+    expect(() => validateProject({ ...DEFAULT_PROJECT, customLines: [{ ...path, name: "North boundary" }] })).not.toThrow();
+    expect(() => validateProject({ ...DEFAULT_PROJECT, markers: [{ ...marker, name: "x".repeat(61) }] })).toThrow(/marker name/i);
+    expect(() => validateProject({ ...DEFAULT_PROJECT, customLines: [{ ...path, name: "x".repeat(61) }] })).toThrow(/custom line name/i);
+    // A stored empty name would be a name that says nothing; there is no such thing.
+    expect(() => validateProject({ ...DEFAULT_PROJECT, markers: [{ ...marker, name: "  " }] })).toThrow(/marker name/i);
+    expect(() => validateProject({ ...DEFAULT_PROJECT, markers: [{ ...marker, name: 7 as never }] })).toThrow(/marker name/i);
+  });
+
   it("accepts bounded positive fabrication sizes", () => {
     expect(() => validateProject({ ...DEFAULT_PROJECT, widthMm: 2_400, heightMm: 1_200 })).not.toThrow();
     expect(() => validateProject({ ...DEFAULT_PROJECT, widthMm: 0 })).toThrow(/greater than zero/i);
