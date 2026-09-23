@@ -11,7 +11,7 @@ import { changedProjectKeys, projectPatch } from "$lib/studio/project-patch";
 export interface SourceRefreshDependencies {
   loadVectorMarkings: (bounds: SourceBundleV1["bounds"], zoom: number, config: ProjectConfigV1, signal?: AbortSignal) => Promise<VectorData>;
   loadLakeAreas: (bounds: SourceBundleV1["bounds"], zoom: number, config: ProjectConfigV1, signal?: AbortSignal) => Promise<WaterAreaV1[]>;
-  loadSurveyedLakeDepths: (bounds: SourceBundleV1["bounds"], elevation: SourceBundleV1["elevation"], zoom: number, areas: WaterAreaV1[], signal?: AbortSignal, dimensions?: Pick<ProjectConfigV1, "widthMm" | "heightMm">) => Promise<SurveyResult>;
+  loadSurveyedLakeDepths: (bounds: SourceBundleV1["bounds"], elevation: SourceBundleV1["elevation"], zoom: number, areas: WaterAreaV1[], signal?: AbortSignal, config?: Pick<ProjectConfigV1, "widthMm" | "heightMm" | "userDepthCharts">) => Promise<SurveyResult>;
   applySurveyProvenance: (source: SourceBundleV1, result: SurveyResult) => SourceBundleV1;
   resolveLakeOutlines: (providers: WaterAreaV1[], hydro: WaterAreaV1[], inland: Polygon2D[]) => WaterAreaV1[];
   assembleWater: (source: SourceBundleV1, lakes: WaterAreaV1[], ocean: Polygon2D[], config: ProjectConfigV1) => SourceBundleV1;
@@ -48,6 +48,9 @@ export function markStaleSourceData(source: SourceBundleV1, patch: Partial<Proje
   if (patch.showWaterDepth === true || enablesPaintWater) next = { ...next, lakeDataStatus: "not-requested" };
   const enablesDepthByMode = nextProject.outputMode === "stack" && nextProject.showWaterDepth && sourceProject.outputMode !== "stack";
   if (enablesDepthByMode) next = { ...next, ...(!sourceProject.showWater ? { vectorStatus: "not-requested" as const } : {}), lakeDataStatus: "not-requested" };
+  // Using or dropping a depth chart changes which depths a lake carves, so the
+  // lake depths are loaded again rather than reused from before the change.
+  if ("userDepthCharts" in patch) next = { ...next, bathymetryStatus: undefined };
   return next;
 }
 
@@ -116,7 +119,7 @@ export async function refreshRequiredMapData(source: SourceBundleV1, config: Pro
 
 /** Only the settings that change what `refreshRequiredMapData` loads or assembles. */
 function preparationKey(config: ProjectConfigV1): string {
-  return JSON.stringify([sourceRequirements(config), config.showWater, config.showRoads, config.showTrails, config.showBoundaries, config.minimumFeatureMm, config.widthMm, config.heightMm, config.location.zoom]);
+  return JSON.stringify([sourceRequirements(config), config.showWater, config.showRoads, config.showTrails, config.showBoundaries, config.minimumFeatureMm, config.widthMm, config.heightMm, config.location.zoom, config.userDepthCharts ?? null]);
 }
 
 /**

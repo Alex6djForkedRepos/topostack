@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_PROJECT, validateProject, type ProjectConfigV1 } from "../index.js";
+import { DEFAULT_PROJECT, depthChartLakeKey, validateProject, type ProjectConfigV1 } from "../index.js";
 
 describe("project validation", () => {
   it("bounds project metadata, dimensions, and custom-data complexity", () => {
@@ -35,5 +35,21 @@ describe("project validation", () => {
     expect(() => validateProject({ ...DEFAULT_PROJECT, cropShape: "hexagon" as ProjectConfigV1["cropShape"] })).toThrow(/rectangle or circle/i);
     expect(() => validateProject({ ...DEFAULT_PROJECT, textStyle: { font: "serif" as ProjectConfigV1["textStyle"]["font"], sizeMm: 3 } })).toThrow(/text font/i);
     expect(() => validateProject({ ...DEFAULT_PROJECT, textStyle: { font: "technical", sizeMm: 10.1 } })).toThrow(/text size/i);
+  });
+
+  it("rejects depth chart references that name no lake, chart, or content", () => {
+    const reference = { id: "round-lake-chart", contentHash: "a".repeat(64) };
+    expect(() => validateProject({ ...DEFAULT_PROJECT, userDepthCharts: { "9092": reference } })).not.toThrow();
+    expect(() => validateProject({ ...DEFAULT_PROJECT, userDepthCharts: undefined })).not.toThrow();
+    expect(() => validateProject({ ...DEFAULT_PROJECT, userDepthCharts: { lake: reference } })).toThrow(/HydroLAKES id/i);
+    // A lake HydroLAKES does not know is named by the chart itself.
+    expect(() => validateProject({ ...DEFAULT_PROJECT, userDepthCharts: { "outline:round-lake-chart": reference } })).not.toThrow();
+    expect(() => validateProject({ ...DEFAULT_PROJECT, userDepthCharts: { "outline:other-lake-chart": reference } }), "an outline key names its own chart").toThrow(/outline:/);
+    expect(depthChartLakeKey({ id: "round-lake-chart", hylakId: 9092 })).toBe("9092");
+    expect(depthChartLakeKey({ id: "round-lake-chart" })).toBe("outline:round-lake-chart");
+    expect(() => validateProject({ ...DEFAULT_PROJECT, userDepthCharts: { "1": { ...reference, id: "Round Lake" } } })).toThrow(/depth chart id/i);
+    expect(() => validateProject({ ...DEFAULT_PROJECT, userDepthCharts: { "1": { ...reference, contentHash: "short" } } })).toThrow(/content hash/i);
+    expect(() => validateProject({ ...DEFAULT_PROJECT, userDepthCharts: { "1": "round-lake-chart" } as never })).toThrow(/must be an object/i);
+    expect(() => validateProject({ ...DEFAULT_PROJECT, userDepthCharts: [] as never })).toThrow(/must be an object/i);
   });
 });

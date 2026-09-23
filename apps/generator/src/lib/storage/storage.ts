@@ -1,5 +1,5 @@
 import { get, set } from "idb-keyval";
-import { PAINT_REGION_KINDS, DEFAULT_PROJECT, MAP_MARKER_SIZE_MM, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, NORTH_ARROW_ANCHORS, isTextFont, validateProject, type CustomLineFeatureV1, type CustomLineKind, type MapMarkerV1, type MarkerSymbol, type NorthArrowAnchor, type NorthArrowStyle, type PlaqueV1, type ProjectConfigV1 } from "@topostack/core";
+import { PAINT_REGION_KINDS, DEFAULT_PROJECT, DEPTH_CHART_ID_PATTERN, isDepthChartLakeKey, MAP_MARKER_SIZE_MM, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, NORTH_ARROW_ANCHORS, isTextFont, validateProject, type CustomLineFeatureV1, type CustomLineKind, type MapMarkerV1, type MarkerSymbol, type NorthArrowAnchor, type NorthArrowStyle, type PlaqueV1, type ProjectConfigV1, type UserDepthChartRefV1 } from "@topostack/core";
 
 const PROJECT_KEY = "topostack:project:v1";
 /** Where an unreadable saved project is copied before autosave replaces it. */
@@ -187,6 +187,25 @@ function waterDepthOverridesValue(value: unknown): Record<string, number> {
   return result;
 }
 
+/**
+ * Chart references are keyed by HydroLAKES id like the overrides above, or by
+ * `outline:<chart id>` for a lake without one, and a malformed entry is dropped rather than thrown on: the lake then falls back to
+ * the survey providers instead of the whole project failing to open. Absent
+ * stays absent, which keeps older projects' fingerprints.
+ */
+function userDepthChartsValue(value: unknown): { userDepthCharts?: Record<string, UserDepthChartRefV1> } {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const charts: Record<string, UserDepthChartRefV1> = {};
+  for (const [lake, reference] of Object.entries(value as Record<string, unknown>)) {
+    if (!reference || typeof reference !== "object") continue;
+    const { id, contentHash } = reference as Record<string, unknown>;
+    if (typeof id !== "string" || !DEPTH_CHART_ID_PATTERN.test(id) || !isDepthChartLakeKey(lake, { id })) continue;
+    if (typeof contentHash !== "string" || !/^[a-f0-9]{64}$/.test(contentHash)) continue;
+    charts[lake] = { id, contentHash };
+  }
+  return Object.keys(charts).length ? { userDepthCharts: charts } : {};
+}
+
 export function parseProject(value: unknown): ProjectConfigV1 {
   if (!value || typeof value !== "object") throw new Error("Project must be a JSON object.");
   const record = value as Record<string, unknown>;
@@ -278,6 +297,7 @@ export function parseProject(value: unknown): ProjectConfigV1 {
     } : { anchor: DEFAULT_PROJECT.northArrowPlacement.anchor, offset: { ...DEFAULT_PROJECT.northArrowPlacement.offset } },
     // Absent keeps the bar's original spot and the project's fingerprint.
     ...(record.scaleBarPlacement === undefined ? {} : { scaleBarPlacement: scaleBarPlacementValue(record.scaleBarPlacement) }),
+    ...userDepthChartsValue(record.userDepthCharts),
     ...(record.plaque === undefined ? {} : { plaque: plaqueValue(record.plaque) }),
     markers: markersValue(record.markers),
     customLines: customLinesValue(record.customLines),

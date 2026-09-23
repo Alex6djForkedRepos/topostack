@@ -13,7 +13,7 @@ Many lakes have no digital survey but do have a published depth chart: a scanned
 | `@topostack/chart-trace`: level inference that survives leaky scans (a facing graph beside raster regions) | Done |
 | Batch tracing of curated charts into records (`trace-depth-charts.mjs`) | Done |
 | Records published as a survey archive (`community-charts-v1` in the survey build) | Builds; not registered in the catalog yet |
-| Loading saved charts in the studio, IndexedDB storage, project import and export | Planned |
+| Loading saved charts in the studio, IndexedDB storage, project import and export | Done |
 | Tracing wizard in the studio, with OCR loaded only when needed | Planned |
 | Reviewed catalog submissions through the map-api Worker | Planned |
 
@@ -150,6 +150,17 @@ It reads every record in `scripts/data/depth-charts/`, refuses any whose attesta
 - **`harmonic`** (the default). Contour cells are fixed at their depth, land is fixed at zero, and Laplace's equation is solved by coarse-to-fine red-black SOR. This follows the slope a chart implies and covers the whole lake, where a TIN leaves terraces between vertices of one contour and blanks outside their hull.
   - Laplace alone would leave a region enclosed by one ring perfectly flat, and pinning a single cell only makes a spike. So such a pool is filled with a smooth dome `d ± step·(2t − t²)` over its distance from the ring. It levels off half an interval past the ring, or at the deepest sounding inside it. Rings marked `inside: "shallower"` dome upward, as humps.
 - **`tin`** ports `survey_regions.contour_grid` line for line and is held to it by a fixture the Python generates. It exists so charts and published contour surveys can be gridded identically.
+
+## In the browser
+
+A chart the maker traced stays on their device. Nothing is uploaded, and no chart is ever fetched from a server.
+
+- **Where it lives.** One IndexedDB entry per chart, `topostack:chart:v1:<id>` (`storage/user-charts.ts`), holding the validated record and the SHA-256 of its JSON.
+- **What the project stores.** `ProjectConfigV1.userDepthCharts` maps a HydroLAKES id to `{ id, contentHash }`, keyed exactly like `waterDepthOverrides`. The hash is in the fingerprint, so re-tracing a chart re-carves the stack; the field is absent in every project without a chart, so no existing fingerprint moves.
+- **When it loads.** `loadSurveyedLakeDepths` runs the survey providers first, then `applyUserCharts` on top. A chart is chosen for one named lake, so it answers a provider that is missing or wrong there, and it wins. Where the chart has no sample, the provider's depths stay, so an uncharted arm keeps its survey.
+- **How it resamples.** Terrain grid columns are evenly spaced in longitude and rows in Web Mercator, matching the survey raster sampler; a chart grid is even in longitude and latitude, so only the rows are converted. Samples are bilinear, the outer half-cell at each chart edge takes the edge cell's value, and the lake's pixel mask keeps depths off islands and neighbouring lakes.
+- **A missing chart is not an error.** A project opened in another browser, or one whose chart was deleted, simply loads its survey depths. The lake then warns like any other predicted lake.
+- **Project files carry their charts.** An exported project includes the charts it references (`{ schemaVersion, project, charts }`), which is what lets it open on another machine. On import only the referenced charts are saved, so a file cannot fill a browser with charts nothing uses, and an unreadable one is skipped rather than failing the import. A file with charts may be up to 24 MB; one without keeps the old 2 MB ceiling. Share links never carry charts: they have a 2 MB ceiling of their own, and the recipient gets survey depths.
 
 ## How it carves
 

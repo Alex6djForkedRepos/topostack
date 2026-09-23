@@ -87,5 +87,25 @@ describe("export choices", () => {
     expect(download.filename).toBe("my-mountain-project.json");
     const data = JSON.parse(await download.blob.text());
     expect(parseProject(data.project)).toEqual({ ...DEFAULT_PROJECT, name: "My / mountain" });
+    expect("charts" in data).toBe(false);
+  });
+
+  it("carries the traced depth charts a project needs to open elsewhere", async () => {
+    const chart = { id: "round-lake-chart", lake: { name: "Round Lake" } } as never;
+    const charted = { ...DEFAULT_PROJECT, userDepthCharts: { "9092": { id: "round-lake-chart", contentHash: "a".repeat(64) } } };
+    const data = JSON.parse(await prepareProjectSettings(charted, [chart]).blob.text());
+    expect(data.charts).toHaveLength(1);
+    expect(data.charts[0].id).toBe("round-lake-chart");
+    expect(data.project.userDepthCharts).toEqual(charted.userDepthCharts);
+  });
+
+  it("writes each chart on one line so large charts stay importable", async () => {
+    const chart = { id: "round-lake-chart", contours: [{ depthM: 5, line: Array.from({ length: 500 }, (_, index) => [-80 + index * 1e-5, 45]) }] } as never;
+    const charted = { ...DEFAULT_PROJECT, userDepthCharts: { "9092": { id: "round-lake-chart", contentHash: "a".repeat(64) } } };
+    const text = await prepareProjectSettings(charted, [chart, chart]).blob.text();
+    expect(JSON.parse(text)).toEqual({ schemaVersion: 1, project: charted, charts: [chart, chart] });
+    // The project stays indented; the thousand coordinates do not add a line each.
+    expect(text).toContain('\n    "name": ');
+    expect(text.split("\n").length).toBeLessThan(JSON.stringify(charted, null, 2).split("\n").length + 10);
   });
 });
