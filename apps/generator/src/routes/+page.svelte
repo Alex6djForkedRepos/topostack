@@ -172,7 +172,8 @@
   .landing-page :global(.landing-topbar) { padding-inline: clamp(20px, 5vw, 80px); }
   .secondary-link, .primary-link, .support-link, footer a { display: inline-flex; align-items: center; justify-content: center; gap: 10px; text-decoration: none; }
   .header-guide { color: var(--loidolt-text-muted); font: 12px var(--loidolt-font-utility); text-decoration: none; }
-  .header-guide.star-link { display: inline-flex; align-items: center; gap: 6px; }
+  .header-guide.star-link { display: none; align-items: center; gap: 6px; }
+  @media (min-width: 1100px) { .header-guide.star-link { display: inline-flex; } }
   .star-link :global(svg:first-child) { transition: fill 160ms ease, color 160ms ease; }
   .star-link:hover :global(svg:first-child), .star-link:focus-visible :global(svg:first-child) { color: var(--loidolt-text-accent); fill: currentColor; }
   .landing-page :global(.landing-topbar) { position: sticky; top: 0; z-index: 20; border-bottom: 1px solid var(--loidolt-border); }
@@ -250,7 +251,7 @@
     .section-art { max-width: 340px; margin-top: 24px; }
     .support { flex-direction: column; align-items: flex-start; gap: 24px; padding: 24px; margin-bottom: 36px; }
     footer { flex-wrap: wrap; }
-    .header-guide, .header-guide.star-link { display: none; }
+    .header-guide { display: none; }
     .header-cta { font-size: 12px; padding-inline: 12px; gap: 8px; }
     .start-panel { flex-direction: column; align-items: flex-start; padding: 28px 24px; gap: 24px; }
     .hero-actions .primary-link, .start-panel .primary-link { width: 100%; }
