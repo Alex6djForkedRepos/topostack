@@ -3,6 +3,16 @@ import { expect, test, type Page } from "@playwright/test";
 import { chartPdf, chartRings, lakeArchive, lakeCentre } from "./fixtures/depth-chart";
 
 async function openCharts(page: Page, fromMap = false, withoutSearch = false): Promise<void> {
+  // Linux WebKit can capture a stale WebGL frame after buffer swaps. Preserve
+  // test drawing buffers so screenshot assertions observe the current hover.
+  await page.addInitScript(() => {
+    const getContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (type: string, options?: object) {
+      return Reflect.apply(getContext, this, [type,
+        type === "webgl" || type === "webgl2" ? { ...options, preserveDrawingBuffer: true } : options,
+      ]);
+    };
+  });
   const archive = lakeArchive(withoutSearch ? DEFAULT_PROJECT.location : lakeCentre);
   await page.route("**/v1/**", async route => {
     const url = route.request().url();
@@ -35,9 +45,9 @@ async function openCharts(page: Page, fromMap = false, withoutSearch = false): P
       await canvas.hover();
       await expect(canvas).toHaveCSS("cursor", "pointer");
     }).toPass({ timeout: 15_000 });
-    // Inspect a rendered fill pixel: cursor feedback alone does not prove feature-state styling works.
+    // Inspect a rendered fill pixel: cursor feedback alone does not prove the hover highlight renders.
     await expect.poll(async () => {
-      // Element screenshots scroll into view, which can clear hover in Linux WebKit.
+      // Capture without scrolling the map or moving the pointer.
       const clip = await canvas.boundingBox();
       if (!clip) throw new Error("Lake map missing");
       const png = (await page.screenshot({ clip })).toString("base64");
