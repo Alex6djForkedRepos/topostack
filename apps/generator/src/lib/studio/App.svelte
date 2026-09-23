@@ -121,8 +121,22 @@
   let resetOpen = $state(false);
   const exportNotice = new ExportNotice((message) => { status = message; });
   const sheetNesting = new SheetNesting();
-  // A nested layout only fits the geometry and sheet settings it was made for.
-  $effect(() => { void sheetNesting.refresh(geometry, project); });
+  // A nested layout depends only on the geometry and the sheet settings, so
+  // other edits (a rename, a style tweak) must not re-extract every part.
+  // A string compares by value, so an unrelated edit leaves it unchanged.
+  const nestSettingsKey = $derived(JSON.stringify([project.sheetNesting ?? null, project.workAreaWidthMm, project.workAreaHeightMm]));
+  const usesSheetNesting = $derived(Boolean(project.sheetNesting));
+  $effect(() => {
+    const nestGeometry = geometry;
+    void nestSettingsKey;
+    const restore = usesSheetNesting && nestGeometry.sourceKind === "real";
+    untrack(() => {
+      void sheetNesting.refresh(nestGeometry, project);
+      // A layout saved before a reload comes back once the same design is generated again.
+      // Only projects that ever used sheet nesting pay for loading the planner.
+      if (restore) void sheetNesting.restore(nestGeometry, project);
+    });
+  });
   const exportPhase = $derived(exportNotice.phase);
   const exportTitle = $derived(exportNotice.title);
   const exportDetail = $derived(exportNotice.detail);

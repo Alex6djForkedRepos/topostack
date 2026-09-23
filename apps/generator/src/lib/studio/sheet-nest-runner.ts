@@ -47,6 +47,11 @@ export function sheetPreviews(plan: SheetNestPlanV1, parts: NestPartV1[]): Sheet
   }));
 }
 
+/** The key a plan for this job is saved under. */
+export function jobKeyOf(job: Extract<NestJob, { ok: true }>): string {
+  return sheetNestJobKey(job.parts, job.settings);
+}
+
 /** Whether a plan still fits this geometry and these sheet settings. */
 export function planIsCurrent(plan: SheetNestPlanV1, geometry: GeometryIRV1, project: ProjectConfigV1): boolean {
   const job = prepareNestJob(geometry, project);

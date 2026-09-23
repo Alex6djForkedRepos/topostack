@@ -5,6 +5,7 @@ import type { NestClient } from "$lib/workers/nest-client";
 export type SheetNestStatus = "idle" | "running" | "done" | "error";
 
 type Runner = typeof import("$lib/studio/sheet-nest-runner");
+type Cache = typeof import("$lib/storage/nest-cache");
 
 /**
  * Sheet nesting for the export dialog: the search in progress, the layout it
@@ -29,11 +30,17 @@ export class SheetNesting {
   useSheets = $state(false);
 
   #runner: Promise<Runner> | undefined;
+  #cache: Promise<Cache> | undefined;
+  #restoring: string | undefined;
   #client: NestClient | undefined;
   #parts: NestPartV1[] = [];
   #previewsOf: Runner["sheetPreviews"] | undefined;
 
-  constructor(private readonly loadRunner: () => Promise<Runner> = () => import("$lib/studio/sheet-nest-runner"), private readonly now: () => number = () => performance.now()) {}
+  constructor(
+    private readonly loadRunner: () => Promise<Runner> = () => import("$lib/studio/sheet-nest-runner"),
+    private readonly now: () => number = () => performance.now(),
+    private readonly loadCache: () => Promise<Cache> = () => import("$lib/storage/nest-cache"),
+  ) {}
 
   /** The plan to export with: only when chosen and still current. */
   get exportPlan(): SheetNestPlanV1 | undefined {
@@ -65,6 +72,7 @@ export class SheetNesting {
       this.#show(plan);
       this.useSheets = true;
       this.status = "done";
+      void this.#storage().then((cache) => cache.saveNestPlan(plan, true));
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
         // Cancelled, or stopped before any layout existed.
@@ -74,6 +82,36 @@ export class SheetNesting {
       this.status = "error";
       this.error = error instanceof Error ? error.message : "Sheet nesting failed.";
     }
+  }
+
+  /** Choose between nested sheets and the original panels, remembered with a saved layout. */
+  setUseSheets(useSheets: boolean): void {
+    this.useSheets = useSheets;
+    const plan = this.plan;
+    if (plan && this.status === "done") void this.#storage().then((cache) => cache.setNestPlanChoice(plan.jobKey, useSheets));
+  }
+
+  /**
+   * Bring back a layout saved for this exact design and these sheet
+   * settings, after a reload. Does nothing while a layout is already shown.
+   */
+  async restore(geometry: GeometryIRV1, project: ProjectConfigV1): Promise<void> {
+    if (this.#busy()) return;
+    const runner = await this.#load();
+    const job = runner.prepareNestJob(geometry, project);
+    if (!job.ok) return;
+    const key = runner.jobKeyOf(job);
+    // One lookup per job, however often the studio asks.
+    if (this.#restoring === key) return;
+    this.#restoring = key;
+    const saved = await (await this.#storage()).loadNestPlan(key);
+    // A search, or another restore, may have produced a layout meanwhile.
+    if (!saved || this.#busy()) return;
+    this.#parts = job.parts;
+    this.#previewsOf = runner.sheetPreviews;
+    this.#show(saved.plan);
+    this.useSheets = saved.useSheets;
+    this.status = "done";
   }
 
   /** Keep the best layout found so far. */
@@ -107,6 +145,15 @@ export class SheetNesting {
     this.plan = plan;
     this.current = true;
     this.previews = this.#previewsOf?.(plan, this.#parts) ?? [];
+  }
+
+  #busy(): boolean {
+    return Boolean(this.plan) || this.status === "running";
+  }
+
+  #storage(): Promise<Cache> {
+    this.#cache ??= this.loadCache();
+    return this.#cache;
   }
 
   #load(): Promise<Runner> {

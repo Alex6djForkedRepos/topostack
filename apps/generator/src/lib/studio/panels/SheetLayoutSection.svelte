@@ -48,8 +48,8 @@
     </div>
   </header>
   <div class="sheet-layout-choice" role="radiogroup" aria-label="Sheet layout">
-    <label><input type="radio" name="sheet-layout" checked={!nesting.useSheets} onchange={() => { nesting.useSheets = false; }} /> Original panels</label>
-    <label><input type="radio" name="sheet-layout" checked={nesting.useSheets} onchange={() => { nesting.useSheets = true; }} /> Nested sheets</label>
+    <label><input type="radio" name="sheet-layout" checked={!nesting.useSheets} onchange={() => nesting.setUseSheets(false)} /> Original panels</label>
+    <label><input type="radio" name="sheet-layout" checked={nesting.useSheets} onchange={() => nesting.setUseSheets(true)} /> Nested sheets</label>
   </div>
   {#if nesting.useSheets}
     <div class="sheet-layout-fields">

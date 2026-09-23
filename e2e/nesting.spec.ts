@@ -48,5 +48,15 @@ test("nests the parts onto stock sheets with sparrow and exports one file per sh
   expect(sheet).toMatch(/<g id="part-1-CUT" data-part="[^"]+" data-layers="[^"]+" transform="matrix\(/);
   const readme = Buffer.from(files["README.txt"]!).toString("utf8");
   expect(readme).toContain("sparrow");
+
+  // After a reload the same design finds its saved layout; no second search.
+  const summary = (await status.textContent())?.trim();
+  await page.reload();
+  await page.getByRole("button", { name: /generate terrain/i }).first().click();
+  await expect(page.locator(".status-line")).toContainText("Real terrain ready", { timeout: 60_000 });
+  await page.getByRole("button", { name: "Export", exact: true }).click();
+  await expect(page.getByRole("radio", { name: "Nested sheets" })).toBeChecked();
+  await expect(page.locator(".sheet-layout-status")).toHaveText(summary!);
+  await expect(page.locator(".export-hero")).toContainText("nested sheet");
   expect(browserErrors).toEqual([]);
 });
