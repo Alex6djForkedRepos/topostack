@@ -56,6 +56,13 @@ const request = {
   tool: "chart-trace@test",
 };
 
+/**
+ * Each of these traces, snaps and grids a whole chart, some more than once.
+ * That is a second or two here and several times that under CI's coverage
+ * instrumentation, past vitest's default of five seconds.
+ */
+const SLOW_TRACE_MS = 60_000;
+
 describe("buildChartFromImage", () => {
   it("traces, places and grids an uploaded chart", () => {
     const { record, report } = buildChartFromImage(request, () => 0.5);
@@ -75,7 +82,7 @@ describe("buildChartFromImage", () => {
     expect(covered.length).toBeGreaterThan(50);
     expect(Math.max(...covered)).toBeGreaterThanOrEqual(depths.at(-1)!);
     expect(report.waterCells).toBe(covered.length);
-  });
+  }, SLOW_TRACE_MS);
 
   it("levels a chart from depths clicked on the steep sides of its contours", () => {
     // Clicks carry no reading direction, and a box erased around a point on a
@@ -87,7 +94,7 @@ describe("buildChartFromImage", () => {
     });
     expect(report.coverage).toBe(1);
     expect(record.contours.map((contour) => contour.depthM).sort((a, b) => a - b)).toEqual([0, 5, 10]);
-  });
+  }, SLOW_TRACE_MS);
 
   it("offers another placement for a lake that fits its chart more than one way", () => {
     // Round Lake is an ellipse: turned half round it fits just as well.
@@ -100,7 +107,7 @@ describe("buildChartFromImage", () => {
     expect(second.record.georef.matrix).not.toEqual(first.record.georef.matrix);
     // Asking past the end takes the last placement rather than failing.
     expect(buildChartFromImage({ ...request, placement: 99 }).report.placement).toBe(first.report.placements - 1);
-  });
+  }, SLOW_TRACE_MS);
 
   it("asks for the surface elevation rather than failing on negative depths", () => {
     expect(() => buildChartFromImage({ ...request, labels: "elevation", surface: Number.NaN })).toThrow(/surface elevation/);
@@ -123,7 +130,7 @@ describe("buildChartFromImage", () => {
     // One label leaves the direction open: deeper inward and outward both fit.
     const single = buildChartFromImage({ ...request, words: [request.words[0]!] }, () => 0.5);
     expect(single.report.coverage).toBeLessThan(0.5);
-  });
+  }, SLOW_TRACE_MS);
 });
 
 describe("shorelineFor", () => {
