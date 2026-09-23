@@ -7,11 +7,11 @@ async function openCharts(page: Page, fromMap = false, withoutSearch = false): P
   // test drawing buffers so screenshot assertions observe the current hover.
   await page.addInitScript(() => {
     const getContext = HTMLCanvasElement.prototype.getContext;
-    HTMLCanvasElement.prototype.getContext = function (type: string, options?: object) {
+    HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, type: string, options?: object) {
       return Reflect.apply(getContext, this, [type,
         type === "webgl" || type === "webgl2" ? { ...options, preserveDrawingBuffer: true } : options,
       ]);
-    };
+    } as typeof getContext;
   });
   const archive = lakeArchive(withoutSearch ? DEFAULT_PROJECT.location : lakeCentre);
   await page.route("**/v1/**", async route => {
