@@ -1,7 +1,9 @@
 /* Placement mode: the top-down stage, the draft layer over it, and its toolbar.
    The layer's SVG and every backdrop share one meet-fitted viewBox, so all of
    them fill the stage box exactly; see lib/studio/placement/viewport.ts. */
-.preview-stage:has(.placement-stage) {
+/* Set on the stage whether or not placement is open, so the 3D preview can
+   read it as it starts easing overhead, before the placement stage mounts. */
+.preview-stage {
   --placement-toolbar-space: 96px;
 }
 
@@ -37,9 +39,9 @@
   height: 100%;
 }
 
-/* Keep the shared drawing viewport below the controls, including in 3D.
-   A millimeter margin alone cannot protect handles from a pixel-sized toolbar. */
-.preview-stage:has(.placement-stage) .three-stage,
+/* Keep the shared drawing viewport below the controls. A millimeter margin
+   alone cannot protect handles from a pixel-sized toolbar. The 3D canvas stays
+   full size and shifts its camera instead; see ThreePreview's viewOffset. */
 .placement-stage .stack-top-view,
 .placement-layer > svg {
   top: var(--placement-toolbar-space);
@@ -230,7 +232,7 @@
 }
 
 @container terrain-preview (max-width: 560px) {
-  .preview-stage:has(.placement-stage) {
+  .preview-stage {
     --placement-toolbar-space: 112px;
   }
 
