@@ -1,3 +1,7 @@
+import { parseReviewDraft, type ChartReviewDraftFile } from "$lib/domain/chart-review-draft";
+import { reviewGeometryIssues, reviewAlignment } from "$lib/domain/chart-review";
+import { styleKey } from "@topostack/chart-trace/vector-chart";
+import type { ChartBuildRequest } from "$lib/domain/chart-build";
 import type { ChartContour } from "$lib/domain/chart-contours";
 import { CHART_BATHYMETRY_LIMITS, decodeChartDepths, type ChartAttestation, type ChartUnit, type UserChartBathymetryV1 } from "@topostack/data-contracts/chart-bathymetry";
 import type { ChartImage } from "$lib/domain/chart-build";
@@ -50,7 +54,7 @@ export const session = $state({ pendingDepth: "" as string | number, point: unde
 /** The guided flow needs three confirmed samples before tracing. */
 export function traceHint(): string {
   if (session.point) return "Confirm or cancel the selected point before tracing.";
-  if (draft.depths.length < MIN_CHART_DEPTH_POINTS) return `Confirm at least ${MIN_CHART_DEPTH_POINTS} points on different contour lines to trace the lake bed.`;
+  if (!draft.vectorStyles.length && draft.depths.length < MIN_CHART_DEPTH_POINTS) return `Confirm at least ${MIN_CHART_DEPTH_POINTS} points on different contour lines to trace the lake bed.`;
   if (draft.reads === "elevation" && !Number.isFinite(typedNumber(draft.surface))) return "Enter the water surface elevation in the same units as the chart.";
   if (String(draft.interval).trim() && (!Number.isFinite(typedNumber(draft.interval)) || typedNumber(draft.interval) <= 0)) return "Enter a positive contour interval, or leave it blank to infer it from your depths.";
   return "";
@@ -136,6 +140,7 @@ export async function chooseChartFile(file: File | undefined, page = 1): Promise
     const { image, pixels } = "pages" in read ? asChartImage(read.pixels) : read;
     resetChartImage();
     draft.image = image;
+    draft.vectorPage = "vectors" in read ? read.vectors : undefined;
     draft.pixels = pixels;
     draft.imageName = "pages" in read && read.pages > 1 ? `${file.name}, page ${read.page}` : file.name;
     draft.pdf = "pages" in read ? { file, pages: read.pages, page: read.page } : undefined;
@@ -287,8 +292,12 @@ export function removeDepth(index: number): void {
  * date: it must not be kept, and a trace that finishes after the inputs moved
  * on must not land on the new draft.
  */
+export function reviewSourceKey(): string {
+  return JSON.stringify([draft.lake?.id, draft.lake?.outline, draft.lake?.spanKm, draft.image?.width, draft.image?.height, draft.fileSha256, draft.pdf?.page ?? 0, draft.placement, draft.depths.map(({ x, y, value, reach }) => [x, y, value, reach]), draft.units, draft.reads, draft.reads === "elevation" ? draft.surface : "", draft.interval, draft.vectorStyles]);
+}
+
 export function traceInputsKey(): string {
-  return JSON.stringify([draft.lake?.id, draft.fileSha256, draft.pdf?.page ?? 0, draft.placement, draft.depths.map(({ x, y, value }) => [x, y, value]), draft.units, draft.reads, draft.reads === "elevation" ? draft.surface : "", draft.interval]);
+  return JSON.stringify([reviewSourceKey(), draft.review]);
 }
 
 /** Whether the traced result still matches what is on screen. */
@@ -298,45 +307,67 @@ export function resultIsCurrent(): boolean {
 
 const typedNumber = (text: string): number => (String(text).trim() === "" ? Number.NaN : Number(text));
 
+function buildRequest(): ChartBuildRequest {
+  const image = draft.image!, lake = draft.lake!;
+  return {
+    image: { width: image.width, height: image.height, data: image.data },
+    lake: { name: lake.name, ...(lake.hylakId === undefined ? {} : { hylakId: lake.hylakId }), outline: lake.outline.map(([lon, lat]) => [lon, lat]) },
+    units: draft.units, labels: draft.reads,
+    ...(draft.reads === "elevation" ? { surface: typedNumber(draft.surface) } : {}),
+    interval: typedNumber(draft.interval),
+    marks: draft.depths.map(({ x, y, value, reach }) => ({ x, y, value, reach })),
+    ...(draft.vectorPage && draft.vectorStyles.length ? { sourceContours: draft.vectorPage.paths.filter(p => p.stroke && draft.vectorStyles.includes(styleKey(p))).map(p => ({ points: p.points.map(([x, y]) => [x, y] as [number, number]), closed: p.closed })) } : {}),
+    resolutionM: Math.max(5, ...lake.spanKm.map(km => km * 1000 / 512)), title: chartTitle(), attestation: draft.attestation, fileSha256: draft.fileSha256, tool: "chart-trace", placement: draft.placement,
+  };
+}
+
+/** Extract proposed geometry only; no depth grid is generated before review. */
 export async function traceChart(): Promise<void> {
-  const image = draft.image;
-  const lake = draft.lake;
-  if (!image || !lake || !canTrace() || session.busy) return;
-  const mine = ++operation;
-  const revision = draftRevision();
-  session.busy = true;
-  session.error = "";
+  if (!draft.image || !draft.lake || !canTrace() || session.busy || session.keeping) return;
+  const mine = ++operation, revision = draftRevision(), key = reviewSourceKey();
+  session.busy = true; session.error = "";
   client ??= new ChartTraceClient();
-  const key = traceInputsKey();
   try {
-    const result = await client.build({
-      // The draft is reactive state, and a worker cannot clone its proxies:
-      // everything crossing the wire is copied out plainly first.
-      image: { width: image.width, height: image.height, data: image.data },
-      lake: { name: lake.name, ...(lake.hylakId === undefined ? {} : { hylakId: lake.hylakId }), outline: lake.outline.map(([lon, lat]) => [lon, lat] as [number, number]) },
-      units: draft.units,
-      labels: draft.reads,
-      ...(draft.reads === "elevation" ? { surface: typedNumber(draft.surface) } : {}),
-      interval: typedNumber(draft.interval) > 0 ? typedNumber(draft.interval) : undefined,
-      marks: draft.depths.map(({ x, y, value, reach }) => ({ x, y, value, reach })),
-      resolutionM: 20,
-      title: chartTitle(),
-      attestation: draft.attestation,
-      fileSha256: draft.fileSha256,
-      tool: "chart-trace",
-      placement: draft.placement,
-    });
-    // The maker may have placed a depth or changed a setting while this ran.
-    if (mine !== operation || revision !== draftRevision() || key !== traceInputsKey()) return;
-    draft.result = result;
-    draft.resultKey = key;
+    const review = await client.prepare(buildRequest());
+    if (mine !== operation || revision !== draftRevision() || key !== reviewSourceKey()) return;
+    draft.reviewRevision += 1; draft.review = review; draft.reviewSourceKey = key;
+    draft.result = undefined; draft.resultKey = ""; draft.layersReviewedKey = "";
   } catch (cause) {
-    // Leaving the view cancels a trace; that is not something that went wrong.
     if (cause instanceof DOMException && cause.name === "AbortError") return;
-    if (mine === operation && revision === draftRevision() && key === traceInputsKey()) session.error = cause instanceof Error ? cause.message : "This chart could not be traced.";
-  } finally {
-    if (mine === operation) session.busy = false;
-  }
+    if (mine === operation && revision === draftRevision() && key === reviewSourceKey()) session.error = cause instanceof Error ? cause.message : "Contours could not be prepared.";
+  } finally { if (mine === operation) session.busy = false; }
+}
+
+export function generationIssues(): string[] {
+  if (!draft.review || !draft.image || !draft.lake) return ["Prepare and review the contours first."];
+  if (draft.reviewSourceKey !== reviewSourceKey()) return ["Chart settings changed. Prepare the contours again before generating depths."];
+  const request = buildRequest();
+  const messages = reviewGeometryIssues(draft.review, request).map(i => i.message);
+  try { reviewAlignment(draft.review, request.lake.outline); }
+  catch (error) { messages.push(error instanceof Error ? error.message : "Check the alignment."); }
+  if (!draft.review.alignmentConfirmed) messages.push("Confirm the aligned map outline against the source chart.");
+  return [...new Set(messages)];
+}
+
+export async function generateReviewedDepths(): Promise<void> {
+  if (session.busy || session.keeping) return;
+  const issues = generationIssues();
+  if (issues.length) { session.error = issues[0]!; return; }
+  const mine = ++operation, revision = draftRevision(), key = traceInputsKey();
+  session.busy = true; session.error = ""; draft.layersReviewedKey = "";
+  client ??= new ChartTraceClient();
+  try {
+    const result = await client.build({ ...buildRequest(), review: JSON.parse(JSON.stringify(draft.review)) });
+    if (mine !== operation || revision !== draftRevision() || key !== traceInputsKey()) return;
+    draft.result = result; draft.resultKey = key;
+  } catch (cause) {
+    if (cause instanceof DOMException && cause.name === "AbortError") return;
+    if (mine === operation && revision === draftRevision() && key === traceInputsKey()) session.error = cause instanceof Error ? cause.message : "Depth generation failed.";
+  } finally { if (mine === operation) session.busy = false; }
+}
+
+export function canKeepChart(): boolean {
+  return resultIsCurrent() && !!draft.review && draft.layersReviewedKey === draft.resultKey && !generationIssues().length && !session.busy && !session.keeping;
 }
 
 /**
@@ -345,13 +376,14 @@ export async function traceChart(): Promise<void> {
  */
 export async function keepChart(save: (record: UserChartBathymetryV1) => Promise<UserDepthChartRefV1>): Promise<boolean> {
   const traced = draft.result?.record;
-  if (!traced || !resultIsCurrent() || session.keeping) return false;
+  if (!traced || !canKeepChart()) return false;
   session.keeping = true;
   session.error = "";
   // The name and where the chart came from are asked for after the trace, so
   // they are applied here rather than baked in when it was traced.
   const record: UserChartBathymetryV1 = {
     ...traced,
+    review: { version: 1, profile: "closed-contours-v1", reviewedAt: new Date().toISOString(), contours: true, alignment: true, layers: true },
     provenance: { ...traced.provenance, title: chartTitle() },
     license: { ...traced.license, attestation: draft.attestation },
   };
@@ -386,4 +418,29 @@ export function resetSession(): void {
   session.busy = false;
   session.keeping = false;
   session.error = "";
+}
+
+export function exportReviewDraft(): ChartReviewDraftFile | undefined {
+  if (!draft.review || !draft.image || draft.reviewSourceKey !== reviewSourceKey()) return undefined;
+  return {
+    schema: "chart-review-draft-v1",
+    source: { sha256: draft.fileSha256, page: draft.pdf?.page ?? 0, width: draft.image.width, height: draft.image.height, units: draft.units, reads: draft.reads, surface: String(draft.surface), interval: String(draft.interval) },
+    review: JSON.parse(JSON.stringify(draft.review)),
+  };
+}
+
+export async function restoreReviewDraft(file: File | undefined): Promise<void> {
+  if (!file || !draft.image || session.busy || session.keeping) return;
+  const revision = draftRevision(), key = reviewSourceKey();
+  try {
+    if (file.size > 10_000_000) throw new Error("Review draft exceeds the 10 MB limit.");
+    const restored = parseReviewDraft(await file.text(), { sha256: draft.fileSha256, page: draft.pdf?.page ?? 0, width: draft.image.width, height: draft.image.height });
+    if (revision !== draftRevision() || key !== reviewSourceKey()) return;
+    draft.units = restored.source.units; draft.reads = restored.source.reads;
+    draft.surface = restored.source.surface; draft.interval = restored.source.interval;
+    draft.depths = []; draft.reviewRevision += 1; draft.review = restored.review; draft.reviewSourceKey = reviewSourceKey();
+    draft.result = undefined; draft.resultKey = ""; draft.layersReviewedKey = ""; session.error = "";
+  } catch (cause) {
+    if (revision === draftRevision() && key === reviewSourceKey()) session.error = cause instanceof Error ? cause.message : "Review draft could not be restored.";
+  }
 }

@@ -5,6 +5,7 @@
   import { openCustomDataSection } from "$lib/studio/customdata/custom-data-nav.svelte";
   import { ImageUp, MapPin } from "@lucide/svelte";
   import { CHART_UNIT_METRES } from "@topostack/data-contracts/chart-bathymetry";
+  import ChartContourReview from "./ChartContourReview.svelte";
   import ChartDepthWizard from "$lib/studio/customdata/ChartDepthWizard.svelte";
   import { draft } from "$lib/studio/customdata/chart-draft.svelte";
   import { paintChart, paintDepthPreview, selectDepthPoint, resultIsCurrent, session, unitLabel } from "$lib/studio/customdata/chart-tracing.svelte";
@@ -153,6 +154,9 @@
   {:else}
     <div class="chart-workspace">
     <section class="chart-editor" aria-label="Chart editor">
+    {#if draft.review}
+      {#key draft.reviewRevision}<ChartContourReview />{/key}
+    {:else}
     <h3 class="chart-result__title">Chart editor</h3>
     <ChartDepthWizard {canvas} />
     <figure class="chart-figure">
@@ -171,6 +175,7 @@
       </figcaption>
     </figure>
 
+    {/if}
     {#if session.error && !session.point}<p class="chart-error" role="alert">{session.error}</p>{/if}
 
     </section>
@@ -178,7 +183,7 @@
       <section class="chart-result__visual chart-result__3d" aria-label="3D lake bed">
         <h3 class="chart-result__title">3D lake bed</h3>
         {#if draft.result && !resultIsCurrent()}
-          <p class="chart-warning" role="status">Preview out of date. Trace again to update it.</p>
+          <p class="chart-warning" role="status">Preview out of date. Correct any review issues, then generate reviewed depths again.</p>
         {/if}
         <div class="chart-3d-slot">
         {#if draft.result}
@@ -196,7 +201,7 @@
             <p class="chart-preview-placeholder" role="status">3D preview is unavailable. Inspect the flat DEM below.</p>
           {/if}
         {:else}
-          <p class="chart-preview-placeholder">Trace your chart to inspect the lake bed in 3D.</p>
+          <p class="chart-preview-placeholder">Review contours and alignment, then generate depths to inspect the lake bed.</p>
         {/if}
         </div>
       </section>
@@ -221,7 +226,7 @@
             <div><dt>Fit to the lake's shape</dt><dd>{Math.round(draft.result.report.iou * 100)}%</dd></div>
           </dl>
           {#if !resultIsCurrent()}
-            <p class="chart-warning" role="status">Changed since this trace. Trace again to see the lake bed these depths give.</p>
+            <p class="chart-warning" role="status">Changed since generation. Resolve review issues and generate reviewed depths again.</p>
           {/if}
           {#if resultIsCurrent() && draft.result.report.ambiguous}
             <p class="chart-warning" role="status">This lake fits the chart more than one way. Compare the lake bed with the chart; if it is turned, choose Try another placement.</p>

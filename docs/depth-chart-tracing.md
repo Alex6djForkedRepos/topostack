@@ -2,6 +2,12 @@
 
 Many lakes have no digital survey but do have a published depth chart: a scanned or PDF contour map with depth labels. Tracing a chart turns it into the same depth grid a survey provides, so `carveWaterDepth` carves it with no new geometry code.
 
+## First production profile
+
+Browser uploads now require contour correction and confirmation, explicit geographic calibration, and a separate generated-layer review. Preparation cannot generate depths. Native PDF paths are available by selected line style; raster tracing proposes geometry only. The first profile requires closed, noncrossing contours in a single lake without islands or underwater rises. Legacy unreviewed user charts remain exportable but cannot be applied to new generations. See the [release workflow and measured evidence](reports/chart-first-release-2026-09-23.md).
+
+The engine and curated batch capabilities below include diagnostic inference and automatic placement; those are not automatic approval for the browser production workflow.
+
 ## Status
 
 | Stage | State |
@@ -24,6 +30,8 @@ Many lakes have no digital survey but do have a published depth chart: a scanned
 | Reading printed depths by machine (OCR) | Dropped: depths are typed; see "Depths are typed, never read" |
 | Reviewed catalog submissions through the map-api Worker | Planned |
 
+The [real-chart stress review (2026-09-23)](reports/real-depth-chart-stress-2026-09-23.md) now covers three public-domain USGS charts and eight browser input variants. It found substantial raster/shoreline limitations; successful workflow completion is not an accuracy claim.
+
 ## The record
 
 `UserChartBathymetryV1` is JSON-safe, so one record serves IndexedDB, project files, submission bodies, and the files the batch build commits.
@@ -40,7 +48,7 @@ Many lakes have no digital survey but do have a published depth chart: a scanned
 
 ## What real charts look like
 
-Three public charts were chosen as reference inputs, one for each style the tracer must handle. They are **not committed**. Their publishers' terms do not clearly allow redistribution, and Minnesota's sheet carries a state copyright. Tests that use them should fetch each chart by URL and check it against a SHA-256 pin. Only synthetic fixtures belong in the repo.
+Three public charts were chosen as reference inputs, one for each style the tracer must handle. They are **not committed**. Their publishers' terms do not clearly allow redistribution, and Minnesota's sheet carries a state copyright. Tests that use them should fetch each chart by URL and check it against a SHA-256 pin. These restricted source images remain external; separately documented public-domain USGS derived fixtures are committed for regression checks.
 
 | Chart | Style | What it demands | Ground truth |
 | --- | --- | --- | --- |
@@ -235,3 +243,5 @@ A chart reaches geometry as `WaterAreaV1.bathymetry` with `bathymetryOrigin: "ch
 - The surface reports `depthSource: "user"` and `bathymetryOrigin: "chart"`, whether or not the chart has gaps.
 - The map warns once with `LAKE_DEPTH_FROM_CHART` rather than `LAKE_DEPTH_PREDICTED`. Gaps and misaligned grids raise the usual per-lake `BATHYMETRY_FALLBACK`, naming the depth chart.
 - Using a chart for a lake clears that lake's maximum-depth override, since a charted lake does not offer one. Chart gaps take the modeled depths unscaled.
+
+The [independent accuracy evaluation](reports/chart-tracing-accuracy-2026-09-23.md) found substantial raster basin distortion across four real charts and 20 image variants. Successful tracing and `publishable` status do not certify appearance or fabrication accuracy.

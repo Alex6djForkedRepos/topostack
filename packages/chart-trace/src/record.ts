@@ -45,6 +45,7 @@ export interface ChartRecordRequest {
 }
 
 export interface ChartRecordReport {
+  /** License eligibility only; never geometry, accuracy, or fabrication approval. */
   publishable: boolean;
   georefRmsM: number;
   contours: number;

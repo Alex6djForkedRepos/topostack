@@ -1,8 +1,9 @@
+import { reviewFixture } from "$lib/domain/testing/chart-review-fixture";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { UserChartBathymetryV1 } from "@topostack/data-contracts/chart-bathymetry";
 import type { ChartBuildResult } from "$lib/domain/chart-build";
 import { draft, resetDraft } from "$lib/studio/customdata/chart-draft.svelte";
-import { canTrace, chooseChartFile, keepChart, placeDepth, removeDepth, resetSession, resultIsCurrent, session, traceChart, traceHint, traceInputsKey } from "$lib/studio/customdata/chart-tracing.svelte";
+import { canTrace, chooseChartFile, keepChart, placeDepth, removeDepth, resetSession, resultIsCurrent, session, traceChart, traceHint, traceInputsKey, reviewSourceKey, generateReviewedDepths, canKeepChart } from "$lib/studio/customdata/chart-tracing.svelte";
 
 /** The PDF renderer; pdf.js itself needs a real browser, so it is exercised end to end instead. */
 const pdf = vi.hoisted(() => ({ renderPdfPage: vi.fn() }));
@@ -12,6 +13,7 @@ vi.mock("$lib/domain/chart-pdf", () => pdf);
 const builds: { resolve: (result: ChartBuildResult) => void; reject: (error: unknown) => void; request: Record<string, unknown> }[] = [];
 vi.mock("$lib/workers/chart-trace-client", () => ({
   ChartTraceClient: class {
+    prepare(request: Record<string, unknown>) { return this.build(request); }
     build(request: Record<string, unknown>) {
       return new Promise<ChartBuildResult>((resolve, reject) => builds.push({ resolve, reject, request }));
     }
@@ -250,7 +252,14 @@ describe("tracing a depth chart", () => {
 
     draft.result = traced({ provenance: { title: "Round Lake depth chart", fileSha256: "0", tool: "chart-trace" }, license: { attestation: "own-work" } });
     expect(await keepChart(vi.fn()), "nothing current to keep").toBe(false);
+    const fixture = reviewFixture();
+    draft.image = fixture.request.image;
+    draft.lake = { id: "lake-1", name: "Round Lake", outline: fixture.request.lake.outline, footprint: 1, spanKm: [1,1], distanceKm: 0, clipped: false };
+    draft.units = "m"; draft.interval = "5";
+    draft.review = fixture.review; draft.reviewSourceKey = reviewSourceKey();
     draft.resultKey = traceInputsKey();
+    expect(await keepChart(vi.fn()), "layer review is required").toBe(false);
+    draft.layersReviewedKey = draft.resultKey;
     // The name and licence are chosen after the trace, and the kept record carries them.
     draft.title = "  Viking 2019  ";
     draft.attestation = "public-domain";
@@ -260,11 +269,31 @@ describe("tracing a depth chart", () => {
       id: "chart-1",
       provenance: expect.objectContaining({ title: "Viking 2019", tool: "chart-trace" }),
       license: { attestation: "public-domain" },
+      review: expect.objectContaining({ version: 1, contours: true, alignment: true, layers: true }),
     }));
 
     const failing = vi.fn(async () => { throw new Error("Storage is full."); });
     expect(await keepChart(failing)).toBe(false);
     expect(session.error).toBe("Storage is full.");
     expect(session.keeping).toBe(false);
+    draft.review!.contours[1]!.value = 15;
+    expect(canKeepChart(), "an edit invalidates the preview and receipt").toBe(false);
+  });
+
+  it("does not generate before review and discards a generated result after an edit", async () => {
+    await generateReviewedDepths();
+    expect(builds).toHaveLength(0);
+    const fixture = reviewFixture();
+    draft.image = fixture.request.image;
+    draft.lake = { id: "lake-1", name: "Round Lake", outline: fixture.request.lake.outline, footprint: 1, spanKm: [1,1], distanceKm: 0, clipped: false };
+    draft.units = "m"; draft.interval = "5";
+    draft.review = fixture.review; draft.reviewSourceKey = reviewSourceKey();
+    const generation = generateReviewedDepths();
+    expect(builds).toHaveLength(1);
+    expect(builds[0]!.request.review).toEqual(fixture.review);
+    draft.review!.contours[1]!.confirmed = false;
+    builds[0]!.resolve(traced());
+    await generation;
+    expect(draft.result).toBeUndefined();
   });
 });

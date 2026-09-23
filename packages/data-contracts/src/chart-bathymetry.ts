@@ -76,6 +76,8 @@ export type ChartLabelsV1 =
   | { kind: "elevation"; surfaceElevationM: number; datum?: string };
 
 export interface UserChartBathymetryV1 {
+  /** Workflow receipt, not survey accuracy or fabrication certification. */
+  review?: { version: 1; profile: "closed-contours-v1"; reviewedAt: string; contours: true; alignment: true; layers: true };
   schema: typeof CHART_BATHYMETRY_SCHEMA;
   id: string;
   /** `region` is where a reader would look for the lake, as the lake directory lists it. */
@@ -210,7 +212,7 @@ function parseGrid(value: unknown): ChartGridV1 {
 /** Returns a normalized copy of a stored or submitted chart, or throws naming the first field out of contract. */
 export function parseUserChartBathymetry(value: unknown): UserChartBathymetryV1 {
   const limits = CHART_BATHYMETRY_LIMITS;
-  const r = record(value, "chart", ["schema", "id", "lake", "georef", "units", "labels", "intervalM", "contours", "spots", "grid", "provenance", "license"]);
+  const r = record(value, "chart", ["schema", "id", "lake", "georef", "units", "labels", "intervalM", "contours", "spots", "grid", "provenance", "license", "review"]);
   if (r.schema !== CHART_BATHYMETRY_SCHEMA) fail(`schema must be ${CHART_BATHYMETRY_SCHEMA}.`);
   if (typeof r.id !== "string" || !CHART_ID_PATTERN.test(r.id)) fail("id must be 8-64 lowercase letters, digits, or dashes.");
 
@@ -280,7 +282,16 @@ export function parseUserChartBathymetry(value: unknown): UserChartBathymetryV1 
   });
   const note = optional(l.note, (item) => text(item, "license note", limits.note));
 
+  const review = optional(r.review, value => {
+    const item = record(value, "review", ["version", "profile", "reviewedAt", "contours", "alignment", "layers"]);
+    if (item.version !== 1 || item.profile !== "closed-contours-v1" || item.contours !== true || item.alignment !== true || item.layers !== true) fail("review must record completed contour, alignment, and layer review.");
+    if (typeof item.reviewedAt !== "string" || !/^\d{4}-\d{2}-\d{2}T/.test(item.reviewedAt) || !Number.isFinite(Date.parse(item.reviewedAt))) fail("review timestamp must be an ISO date.");
+    if (method !== "control-points" || !controlPoints || controlPoints.length < 4 || contours.some(c => !c.closed || c.line.length < 3) || contours.length > 127) fail("reviewed charts require four control points and complete closed contours.");
+    return { version: 1 as const, profile: "closed-contours-v1" as const, reviewedAt: item.reviewedAt as string, contours: true as const, alignment: true as const, layers: true as const };
+  });
+
   return {
+    ...(review ? { review } : {}),
     schema: CHART_BATHYMETRY_SCHEMA,
     id: r.id,
     lake: { ...(name ? { name } : {}), ...(region ? { region } : {}), ...(hylakId === undefined ? {} : { hylakId }), outline },

@@ -1,0 +1,32 @@
+// Optional live-map integration: imports the exported reviewed chart in fresh storage.
+import { readFile, writeFile } from 'node:fs/promises';
+import { chromium, expect } from '@playwright/test';
+const project = await readFile('.topostack/chart-release/king-project.json');
+const browser = await chromium.launch({ headless: true });
+try {
+  const page = await browser.newPage({ viewport: { width: 1600, height: 1100 } });
+  const errors = []; page.on('pageerror', e => errors.push(e.message));
+  await page.goto(process.env.CHART_STRESS_URL ?? 'http://127.0.0.1:5278/studio');
+  await page.locator('input[type=file][accept="application/json,.json"]').setInputFiles({ name: 'king-project.json', mimeType: 'application/json', buffer: project });
+  await expect(page.getByText('Project imported with its depth chart · generate to refresh its terrain', { exact: true }).first()).toBeVisible({ timeout: 30000 });
+  await page.getByRole('button', { name: 'Generate terrain', exact: true }).click();
+  await expect(page.getByText('Ready to export', { exact: true }).first()).toBeVisible({ timeout: 180000 });
+  await page.getByRole('radio', { name: '3D stack', exact: true }).click();
+  await page.screenshot({ path: 'docs/images/chart-release/king-generated-terrain.png' });
+  const text = await page.locator('body').innerText();
+  // The warning stack shows two items at a time. Retain the initial warnings
+  // in the screenshot, then reveal lower-priority provenance to verify use.
+  const chartWarning = page.getByText('Some lake floors come from a traced depth chart. They are only as accurate as the chart and its tracing.', { exact: true });
+  const warnings = [];
+  for (let i = 0; i < 8 && !await chartWarning.isVisible(); i++) {
+    const dismiss = page.getByRole('button', { name: /^Dismiss warning:/ }).first();
+    if (!await dismiss.isVisible()) break;
+    warnings.push(await dismiss.getAttribute('aria-label'));
+    await dismiss.click();
+  }
+  await expect(chartWarning).toBeVisible();
+  warnings.push(await chartWarning.innerText());
+  await writeFile('.topostack/chart-release/king-terrain-receipt.json', JSON.stringify({ errors, warnings, text }, null, 2));
+  if (errors.length) throw new Error(errors.join('\n'));
+  console.log(text);
+} finally { await browser.close(); }

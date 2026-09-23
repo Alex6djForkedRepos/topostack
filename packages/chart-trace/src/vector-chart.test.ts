@@ -25,6 +25,11 @@ describe("strokeStyles", () => {
 });
 
 describe("labels", () => {
+  it("reads thousands-separated USGS elevations without accepting grid ticks or malformed grouping", () => {
+    expect(["1,020", "1,028.5 ft", "9,999 m"].map(parseLabel)).toEqual([1020, 1028.5, 9999]);
+    expect(["1,02", "10,20", "1,020,000", "10,000", "0,020", "1,020 m extra"].map(parseLabel)).toEqual(Array(6).fill(undefined));
+  });
+
   it("reads depth and elevation labels with common unit marks and ignores other text", () => {
     expect(["15", "10'", "2.5 m", "320 ft", "7′"].map(parseLabel)).toEqual([15, 10, 2.5, 320, 7]);
     expect(["Figure 6", "1,200,000", "-5", "", "12345"].map(parseLabel)).toEqual([undefined, undefined, undefined, undefined, undefined]);

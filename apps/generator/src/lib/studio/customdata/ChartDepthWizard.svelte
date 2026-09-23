@@ -65,7 +65,7 @@
 <aside class="chart-depth-guide" aria-label="Contour depth guide">
   <div class="chart-depth-guide__heading" role="status">
     <strong>{session.busy ? "Tracing your chart…" : session.point ? `Point ${number}${number <= MIN_CHART_DEPTH_POINTS ? ` of ${MIN_CHART_DEPTH_POINTS}` : ""} · enter its value` : ready ? `${count} points confirmed` : `Point ${count + 1} of ${MIN_CHART_DEPTH_POINTS} · select a contour`}</strong>
-    <span>{session.point ? "Confirm the value in the floating card, or cancel to choose another point." : ready ? "Review your points, add more, or trace the lake bed." : count === 0 ? "Click a labelled contour line to get started." : "Choose a different contour line, then enter the value printed on it."}</span>
+    <span>{session.point ? "Confirm the value in the floating card, or cancel to choose another point." : ready ? "Review your points, add more, or prepare contours for review." : count === 0 ? "Click a labelled contour line to get started." : "Choose a different contour line, then enter the value printed on it."}</span>
   </div>
   <ol class="chart-wizard-progress" aria-label="Minimum three points">
     {#each [1, 2, 3] as step}
@@ -81,7 +81,7 @@
   {/if}
   <div class="chart-depth-guide__actions">
     <button class="ldt-button ldt-button--quiet ldt-button--sm" type="button" disabled={!count || session.busy || session.keeping} onclick={() => { removeDepth(count - 1); returnToChart(); }}>Undo last point</button>
-    <button class="ldt-button ldt-button--primary ldt-button--sm" type="button" disabled={!canTrace() || session.busy || session.keeping} title={traceHint() || "Trace the lake bed"} onclick={() => void traceChart()}>Trace chart</button>
+    <button class="ldt-button ldt-button--primary ldt-button--sm" type="button" disabled={!canTrace() || session.busy || session.keeping} title={traceHint() || "Trace the lake bed"} onclick={() => void traceChart()}>Prepare contours</button>
   </div>
 </aside>
 

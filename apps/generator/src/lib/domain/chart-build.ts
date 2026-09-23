@@ -1,3 +1,4 @@
+import { reviewAlignment, reviewGeometryIssues, type ChartReview } from "./chart-review.ts";
 import { snapCandidates, SNAP_MIN_IOU } from "@topostack/chart-trace/georef";
 import type { Point2 } from "@topostack/chart-trace/local-frame";
 import type { Rgb } from "@topostack/chart-trace/raster";
@@ -26,6 +27,10 @@ export interface ChartImage {
 }
 
 export interface ChartBuildRequest {
+  /** Exact source paths, when a vector PDF supplies them. */
+  sourceContours?: { points: Point2[]; closed: boolean }[];
+  /** Production generation requires the explicitly reviewed paths. */
+  review?: ChartReview;
   image: ChartImage;
   /** The lake being charted, with its outline in [lon, lat]. */
   lake: { name?: string; region?: string; hylakId?: number; outline: Point2[] };
@@ -132,6 +137,7 @@ export function buildChartFromImage(request: ChartBuildRequest, random: () => nu
   // Without the surface every elevation becomes a negative depth, and the
   // maker would be told no contour got a level instead of what is missing.
   if (request.labels === "elevation" && !Number.isFinite(request.surface)) throw new Error("Enter the water surface elevation the chart's heights are measured against.");
+  if (request.review) return buildReviewedChart(request, random);
   const trace = traceRasterChart(request.image, {
     ...(request.ink ? { ink: request.ink } : {}),
     labels: request.labels,
@@ -182,4 +188,27 @@ export function buildChartFromImage(request: ChartBuildRequest, random: () => nu
       ambiguous: candidates.filter((candidate) => candidate.iou >= candidates[0]!.iou - AMBIGUOUS_IOU).length > 1,
     },
   };
+}
+
+/** Production route: never re-detect, infer, or replace a reviewed contour. */
+function buildReviewedChart(request: ChartBuildRequest, random: () => number): ChartBuildResult {
+  const review = request.review!;
+  const issues = reviewGeometryIssues(review, request);
+  if (issues.length) throw new Error(issues[0]!.message);
+  if (!review.alignmentConfirmed) throw new Error("Review the aligned map outline over the source chart before generating depths.");
+  const alignment = reviewAlignment(review, request.lake.outline);
+  const shore = review.contours.find(c => c.id === review.shorelineId)!;
+  const active = review.contours.filter(c => !c.excluded && c !== shore);
+  const result = buildChartRecord({
+    id: request.id ?? chartId(request.lake.name, random), lake: request.lake,
+    georef: { method: "control-points", matrix: alignment.matrix, rmsM: alignment.rmsM, controlPoints: review.controlPoints, iou: alignment.iou },
+    units: request.units,
+    labels: request.labels === "depth" ? { kind: "depth" } : { kind: "elevation", surfaceElevationM: request.surface! * CHART_UNIT_METRES[request.units] },
+    interval: request.interval!, contours: active.map(c => ({ points: c.points, closed: c.closed, value: c.value! })),
+    water: { pixels: [shore.points] }, resolutionM: request.resolutionM,
+    provenance: { title: request.title, fileSha256: request.fileSha256, tool: "chart-reviewed-v1" },
+    license: { attestation: request.attestation },
+  });
+  if (result.record.contours.length !== active.length || result.record.contours.some(c => c.line.length < 3)) throw new Error("A reviewed contour was lost at this grid resolution. This chart needs a higher-detail workflow before it can be used.");
+  return { ...result, report: { ...result.report, coverage: 1, labelled: active.length, inferred: 0, iou: alignment.iou, snapUncertain: false, placements: 1, placement: 0, ambiguous: false } };
 }

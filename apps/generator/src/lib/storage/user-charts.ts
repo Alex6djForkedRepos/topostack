@@ -51,7 +51,7 @@ export async function chartContentHash(chart: UserChartBathymetryV1): Promise<st
 }
 
 const summaryOf = (chart: UserChartBathymetryV1, savedAt: string, contentHash: string): SavedChartSummary => ({
-  id: chart.id, savedAt, name: chart.provenance.title, lakeName: chart.lake.name, hylakId: chart.lake.hylakId, contentHash,
+  reviewed: chart.review?.version === 1, id: chart.id, savedAt, name: chart.provenance.title, lakeName: chart.lake.name, hylakId: chart.lake.hylakId, contentHash,
 });
 
 /** Saves a chart and returns the reference a project stores for a lake. */
@@ -93,7 +93,8 @@ async function readStored(id: string, record: Partial<StoredChart>): Promise<Loa
 }
 
 /**
- * The charts a project's lakes use, under the same keys. A chart whose content
+ * The reviewed charts a project's lakes use, under the same keys. Legacy
+ * records stay loadable/exportable but cannot silently re-enter generation. A chart whose content
  * no longer matches the project's reference is still used, because the saved
  * chart is the one the maker means; `currentChartReferences` brings the
  * project's references up to date before a generation, so what is carved and
@@ -107,7 +108,7 @@ export async function loadUserCharts(references: Record<string, UserDepthChartRe
     let loaded = byId.get(reference.id);
     if (!loaded) {
       loaded = await loadUserChart(reference.id);
-      if (!loaded) continue;
+      if (!loaded || !loaded.chart.review) continue;
       byId.set(reference.id, loaded);
     }
     charts.set(lake, loaded);
@@ -117,6 +118,7 @@ export async function loadUserCharts(references: Record<string, UserDepthChartRe
 
 /** One line per saved chart: enough to list it, and to use it for its lake. */
 export interface SavedChartSummary {
+  reviewed?: boolean;
   id: string;
   savedAt: string;
   /** The chart's own name. */
@@ -151,7 +153,7 @@ export async function listUserCharts(): Promise<SavedChartSummary[]> {
   const listed: SavedChartSummary[] = [];
   for (const [index, id] of ids.entries()) {
     const summary = summaries[index];
-    if (isSummary(summary)) { listed.push(summary); continue; }
+    if (isSummary(summary) && typeof summary.reviewed === "boolean") { listed.push(summary); continue; }
     const saved = await get<Partial<StoredChart>>(chartKey(id)).catch(() => undefined);
     const loaded = saved && await readStored(id, saved);
     if (!loaded) continue;

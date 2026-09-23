@@ -1,0 +1,82 @@
+{
+  "source": "USGS King City South SIM3486 sheet 2",
+  "qaReference": "https://www.sciencebase.gov/catalog/item/5f6b9ce482ce38aaa24556f7",
+  "browserAndFixtureGridsIdentical": true,
+  "report": {
+    "publishable": true,
+    "georefRmsM": 0,
+    "contours": 8,
+    "contourPoints": 553,
+    "waterCells": 4556,
+    "deepestM": 4.7,
+    "grid": {
+      "width": 103,
+      "height": 127,
+      "resolutionM": 5.000000005
+    },
+    "coverage": 1,
+    "labelled": 8,
+    "inferred": 0,
+    "iou": 0.9379375336564351,
+    "snapUncertain": false,
+    "placements": 1,
+    "placement": 0,
+    "ambiguous": false
+  },
+  "metrics": {
+    "pointwise": {
+      "count": 25782,
+      "coverage": 1.0,
+      "medianAbsoluteM": 0.11057262611180718,
+      "p95AbsoluteM": 0.27941617280001774,
+      "meanErrorM": 0.03527060193862417,
+      "rmseM": 0.14592111258915105
+    },
+    "spatial20m": {
+      "cells": 21,
+      "validPoints": 25782,
+      "coverage": 1.0000000000000002,
+      "medianAbsoluteM": 0.11981512084074097,
+      "p95AbsoluteM": 0.2905623040000025,
+      "meanErrorM": 0.021948219317926874,
+      "rmseM": 0.1512965199766333,
+      "medianAbsoluteContourIntervals": 0.19654711424006063,
+      "p95AbsoluteContourIntervals": 0.4766441994750697,
+      "previewStepM": 0.4272727272727273,
+      "withinOneFixedScaleSheet": 1.0,
+      "p95FixedScaleSheetDifference": 1.0,
+      "withinOneNormalizedSheet": 0.8135086498509897,
+      "p95NormalizedSheetDifference": 2.0,
+      "normalizationReference": "Maximum depth among publisher-designated QA points; not a claim about the full-lake maximum."
+    },
+    "intervalM": 0.6096
+  },
+  "limitations": [
+    "QA points occupy 21 cells and do not cover the entire lake.",
+    "Corrections were explicitly prepared from source contours and printed coordinates; no QA depth was used to build the record.",
+    "Normalized diagnostic uses maximum QA depth, not the full-lake maximum.",
+    "Calibration controls share one source-coordinate fit; zero fit residual is not independent geographic validation."
+  ],
+  "terrainIntegration": {
+    "layers": 6,
+    "cutPanels": 6,
+    "pageErrors": [],
+    "warnings": [
+      "Dismiss warning: A lake has incomplete depth chart coverage. Uncovered cells use existing terrain, modeled depths, or estimates near surveyed shores; cells without enough information remain at the waterline.",
+      "Some lake floors come from a traced depth chart. They are only as accurate as the chart and its tracing."
+    ],
+    "physicalFabricationValidated": false
+  },
+  "verification": {
+    "unitAndComponentTestsPassed": 749,
+    "browserTestsPassed": 15,
+    "browsers": [
+      "Chromium",
+      "Firefox",
+      "WebKit"
+    ],
+    "workspaceTypecheck": "passed",
+    "changedSourceLint": "passed",
+    "reviewedScoreReproduced": true
+  }
+}

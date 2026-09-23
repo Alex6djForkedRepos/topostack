@@ -98,6 +98,54 @@ async function mark(page: Page, value: string, x: number, y: number): Promise<vo
   await expect(card).toHaveCount(0);
 }
 
+/** Correct and approve paths through visible controls, without injecting review state. */
+async function reviewContours(page: Page): Promise<void> {
+  await expect(page.getByRole("heading", { name: "5 · Review and correct contours" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Generate reviewed depths", exact: true })).toBeDisabled();
+  await expect(page.locator(".chart-report")).toHaveCount(0);
+  const chooser = page.getByLabel("Select review contour", { exact: true });
+  const options = await chooser.locator("option").evaluateAll(items => items.map(item => ({ id: (item as HTMLOptionElement).value, label: item.textContent ?? "" })));
+  for (const value of [0, 5, 10]) {
+    const item = options.find(o => o.label.includes(` · ${value} · `));
+    expect(item, `a source path assigned ${value}`).toBeDefined();
+    await chooser.selectOption(item!.id);
+    if (value === 0) await page.getByRole("button", { name: "Use as shoreline", exact: true }).click();
+    if (value === 5) {
+      await page.getByLabel("Contour printed value", { exact: true }).fill("6");
+      await page.getByRole("button", { name: "Undo edit", exact: true }).click();
+      await expect(page.getByLabel("Contour printed value", { exact: true })).toHaveValue("5");
+      await page.getByRole("button", { name: "Redo edit", exact: true }).click();
+      await expect(page.getByLabel("Contour printed value", { exact: true })).toHaveValue("6");
+      await page.getByLabel("Contour printed value", { exact: true }).fill("5");
+    }
+    await page.getByRole("button", { name: "Confirm path and value", exact: true }).click();
+  }
+  await page.getByRole("button", { name: "Exclude all unassigned paths", exact: true }).click();
+  const draftDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export review draft", exact: true }).click();
+  const draftStream = await (await draftDownload).createReadStream();
+  const draftChunks: Buffer[] = [];
+  for await (const chunk of draftStream) draftChunks.push(Buffer.from(chunk));
+  const savedDraft = Buffer.concat(draftChunks);
+  expect(JSON.parse(savedDraft.toString()).schema).toBe("chart-review-draft-v1");
+  await page.locator(".chart-review-restore input").setInputFiles({ name: "review.json", mimeType: "application/json", buffer: savedDraft });
+  await expect(page.getByRole("checkbox", { name: "I checked the alignment and orientation against the source." })).not.toBeChecked();
+  for (const [index, [x, y]] of ([[40,50],[320,50],[320,230],[40,230]] as const).entries()) {
+    await page.getByRole("button", { name: "Place alignment point", exact: true }).click();
+    const svg = page.locator(".review-source svg");
+    await svg.scrollIntoViewIfNeeded();
+    const bounds = await svg.boundingBox();
+    await svg.click({ position: { x: x / 360 * bounds!.width, y: y / 280 * bounds!.height } });
+    await page.getByRole("spinbutton", { name: `Longitude ${index + 1}`, exact: true }).fill(String(-80 + (x - 180) * .0001));
+    await page.getByRole("spinbutton", { name: `Latitude ${index + 1}`, exact: true }).fill(String(45 - (y - 140) * .0001));
+    await page.getByRole("spinbutton", { name: `Latitude ${index + 1}`, exact: true }).press("Tab");
+  }
+  await page.getByRole("checkbox", { name: "I checked the alignment and orientation against the source." }).check();
+  await expect(page.getByRole("button", { name: "Generate reviewed depths", exact: true })).toBeEnabled();
+  await page.screenshot({ path: test.info().outputPath("contour-review-aligned.png") });
+  await page.getByRole("button", { name: "Generate reviewed depths", exact: true }).click();
+}
+
 test("traces an image in the worker, saves it, applies it, and restores the library", async ({ page }, testInfo) => {
   test.setTimeout(120_000);
   const errors: string[] = [];
@@ -116,15 +164,14 @@ test("traces an image in the worker, saves it, applies it, and restores the libr
   await expect(page.locator(".chart-canvas")).toBeVisible();
   await mark(page, "5", 275, 140);
   await mark(page, "10", 130, 140);
-  await expect(page.locator(".chart-depth-guide").getByRole("button", { name: "Trace chart", exact: true })).toBeDisabled();
+  await expect(page.locator(".chart-depth-guide").getByRole("button", { name: "Prepare contours", exact: true })).toBeDisabled();
   await mark(page, "0", 320, 140);
-  const scrollBefore = await page.evaluate(() => window.scrollY);
-  await page.getByRole("button", { name: "Trace chart", exact: true }).click();
+  await page.getByRole("button", { name: "Prepare contours", exact: true }).click();
+  await reviewContours(page);
   await expect(page.locator(".chart-result")).toBeVisible({ timeout: 60_000 });
   await expect(page.locator(".chart-report")).toContainText("100%");
-  await expect(page.getByRole("button", { name: "Keep this chart", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Keep this chart", exact: true })).toBeDisabled();
   await expect(page.locator(".depth-3d canvas:visible")).toBeVisible();
-  expect(await page.evaluate(() => window.scrollY)).toBe(scrollBefore);
   await page.setViewportSize({ width: 1600, height: 1100 });
   const editor = await page.locator(".chart-editor").boundingBox();
   const three = await page.locator(".chart-result__3d").boundingBox();
@@ -154,6 +201,7 @@ test("traces an image in the worker, saves it, applies it, and restores the libr
   await expect(page.locator(".depth-3d canvas:visible")).toBeVisible();
   await page.getByRole("button", { name: "Review and save chart", exact: true }).click();
   await expect(page.locator("#chart-save-heading")).toBeFocused();
+  await page.getByRole("checkbox", { name: "I checked the generated basin and layers against the source." }).check();
   await page.getByRole("button", { name: "Keep this chart", exact: true }).click();
   await expect(page.locator(".chart-saved")).toContainText("Round Lake depth chart");
   await page.getByRole("button", { name: "Use for Round Lake", exact: true }).click();
@@ -168,6 +216,7 @@ test("traces an image in the worker, saves it, applies it, and restores the libr
   for await (const chunk of stream) chunks.push(Buffer.from(chunk));
   const exported = JSON.parse(Buffer.concat(chunks).toString("utf8"));
   expect(exported.charts).toHaveLength(1);
+  expect(exported.charts[0].review).toMatchObject({ version: 1, profile: "closed-contours-v1", contours: true, alignment: true, layers: true });
   expect(exported.charts[0].lake.hylakId).toBe(900001);
   expect(exported.charts[0].grid.depthsDm.length).toBeGreaterThan(0);
   expect(exported.project.userDepthCharts["900001"].id).toBe(exported.charts[0].id);
@@ -198,11 +247,12 @@ test("recovers from invalid uploads and a blank PDF cover, and places points at 
   await expect(page.locator(".chart-depths li")).toHaveCount(2);
   await page.getByRole("button", { name: "Undo last point" }).click();
   await expect(page.locator(".chart-depths li")).toHaveCount(1);
-  await expect(page.getByRole("button", { name: "Trace chart", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Prepare contours", exact: true })).toBeDisabled();
   await mark(page, "10", 130, 140);
-  await expect(page.locator(".chart-depth-guide").getByRole("button", { name: "Trace chart", exact: true })).toBeDisabled();
+  await expect(page.locator(".chart-depth-guide").getByRole("button", { name: "Prepare contours", exact: true })).toBeDisabled();
   await mark(page, "0", 320, 140);
-  await page.getByRole("button", { name: "Trace chart", exact: true }).click();
+  await page.getByRole("button", { name: "Prepare contours", exact: true }).click();
+  await reviewContours(page);
   await expect(page.locator(".chart-result")).toBeVisible({ timeout: 60_000 });
   await expect(page.locator(".chart-report")).toContainText("100%");
   await expect(page.locator(".depth-3d canvas:visible")).toBeVisible();
@@ -235,4 +285,21 @@ test("selects a lake on the map without changing the terrain location", async ({
 test("discovers and highlights lakes on first open before any search or selection", async ({ page }) => {
   await openCharts(page, true, true);
   await expect(page.locator(".chart-chosen")).toContainText("Round Lake");
+});
+
+
+test("prepares native PDF paths without raster marks and requires review", async ({ page }) => {
+  await openCharts(page);
+  await page.locator(".chart-upload input").setInputFiles({ name: "native.pdf", mimeType: "application/pdf", buffer: chartPdf() });
+  const number = page.getByRole("spinbutton", { name: "Page, of 2", exact: true });
+  await number.fill("2"); await number.press("Tab");
+  await page.getByText("Use native PDF lines (recommended)", { exact: true }).click();
+  const style = page.getByRole("checkbox", { name: /Line style 1/ });
+  await expect(style).toBeVisible();
+  await style.check();
+  await expect(page.locator(".chart-depths li")).toHaveCount(0);
+  await page.getByRole("button", { name: "Prepare contours for review", exact: true }).click();
+  await expect(page.getByLabel("Select review contour", { exact: true }).locator('option:not([value=""])')).toHaveCount(3);
+  await expect(page.getByRole("button", { name: "Generate reviewed depths", exact: true })).toBeDisabled();
+  await expect(page.locator(".chart-report")).toHaveCount(0);
 });
