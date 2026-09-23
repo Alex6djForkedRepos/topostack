@@ -54,6 +54,7 @@ describe("the depth chart tools", () => {
     resetSession();
     library.saved = [];
     library.note = "";
+    library.error = "";
     builds.length = 0;
     vi.clearAllMocks();
   });
@@ -67,6 +68,16 @@ describe("the depth chart tools", () => {
     return target;
   }
   const button = (target: HTMLElement, text: string | RegExp) => [...target.querySelectorAll("button")].find((item) => (typeof text === "string" ? item.textContent?.trim() === text : text.test(item.textContent ?? "")));
+
+  it("reports library failures and lets the maker retry without losing the draft", async () => {
+    storage.listUserCharts.mockRejectedValueOnce(new Error("Storage unavailable"));
+    const target = await open();
+    await vi.waitFor(() => expect(target.querySelector('[role="alert"]')?.textContent).toContain("saved charts could not be loaded"));
+    expect(target.textContent).not.toContain("Nothing kept yet");
+    button(target, "Try again")!.click();
+    await vi.waitFor(() => expect(target.textContent).toContain("Nothing kept yet"));
+    expect(target.querySelector('[role="alert"]')).toBeNull();
+  });
 
   it("finds lakes near a place, names surveyed ones, and loads the whole of a cut-off lake it picks", async () => {
     lookup.searchPlaces.mockResolvedValue([{ id: "walker", label: "Walker, MN", lat: 47.1, lon: -94.6 }]);
@@ -85,7 +96,7 @@ describe("the depth chart tools", () => {
     expect(target.textContent).toContain("Leech (Main Basin) has a published survey and already carves from it");
     button(target, /Round Lake/)!.click();
     await vi.waitFor(() => expect(draft.lake).toEqual(whole));
-    expect(lookup.wholeLake).toHaveBeenCalledWith(expect.objectContaining({ clipped: true }));
+    expect(lookup.wholeLake).toHaveBeenCalledWith(expect.objectContaining({ clipped: true }), expect.any(AbortSignal));
     expect(draft.title).toBe("Round Lake depth chart");
   });
 
@@ -119,7 +130,7 @@ describe("the depth chart tools", () => {
   it("offers the next placement when the lake fits the chart more than one way", async () => {
     draft.lake = lake();
     draft.image = { width: 40, height: 30, data: new Uint8ClampedArray(40 * 30 * 4) };
-    draft.depths = [{ x: 1, y: 1, value: 10, reach: 2 }, { x: 5, y: 5, value: 20, reach: 2 }];
+    draft.depths = [{ x: 1, y: 1, value: 10, reach: 2 }, { x: 5, y: 5, value: 20, reach: 2 }, { x: 9, y: 9, value: 30, reach: 2 }];
     draft.result = { record: { id: "round-lake-chart" }, report: { placements: 3, placement: 0, ambiguous: true, deepestM: 6, coverage: 1, iou: 0.97, snapUncertain: false } } as unknown as ChartBuildResult;
     draft.resultKey = traceInputsKey();
     const target = await open();

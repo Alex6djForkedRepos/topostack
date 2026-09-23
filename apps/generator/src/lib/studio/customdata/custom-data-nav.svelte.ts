@@ -1,7 +1,7 @@
 /**
  * Which kind of brought-in data the custom data view is working on.
  *
- * It is one choice for two places: the sidebar opens that kind's tools, and
+ * The active section chooses the workspace; tools can collapse independently, and
  * the viewport shows what those tools work on — the chart being clicked, or
  * the map that markers and paths sit on. It lives outside the components for
  * the same reason the chart draft does: switching to another view unmounts
@@ -25,7 +25,18 @@ export const CUSTOM_DATA_SECTIONS: readonly CustomDataSectionInfo[] = [
   { id: "import", label: "Import" },
 ];
 
-export const nav = $state<{ section: CustomDataSectionId }>({ section: "charts" });
+// Disclosure state is independent: collapsing tools keeps the workspace and draft.
+export const nav = $state<{ section: CustomDataSectionId; expanded: boolean }>({ section: "charts", expanded: true });
+
+export function openCustomDataSection(section: CustomDataSectionId): void {
+  nav.section = section;
+  nav.expanded = true;
+}
+
+export function toggleCustomDataSection(section: CustomDataSectionId): void {
+  if (nav.section === section) nav.expanded = !nav.expanded;
+  else openCustomDataSection(section);
+}
 
 /**
  * The sections a project can use. A flat engraving has no lake floor to

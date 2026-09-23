@@ -1,8 +1,9 @@
+import type { ChartContour } from "$lib/domain/chart-contours";
 import { CHART_BATHYMETRY_LIMITS, decodeChartDepths, type ChartAttestation, type ChartUnit, type UserChartBathymetryV1 } from "@topostack/data-contracts/chart-bathymetry";
 import type { ChartImage } from "$lib/domain/chart-build";
 import type { UserDepthChartRefV1 } from "@topostack/core";
 import { ChartTraceClient } from "$lib/workers/chart-trace-client";
-import { draft, resetChartImage } from "$lib/studio/customdata/chart-draft.svelte";
+import { draft, draftRevision, resetChartImage } from "$lib/studio/customdata/chart-draft.svelte";
 
 /**
  * Tracing one depth chart: reading the picture, placing the depths printed on
@@ -42,11 +43,21 @@ function chartTitle(): string {
 }
 
 /** What is happening to the draft right now, as opposed to what it holds. */
-export const session = $state({ pendingDepth: "" as string | number, busy: false, keeping: false, error: "" });
+export interface PendingChartPoint { x: number; y: number; reach: number; index?: number }
+export const MIN_CHART_DEPTH_POINTS = 3;
+export const session = $state({ pendingDepth: "" as string | number, point: undefined as PendingChartPoint | undefined, busy: false, keeping: false, error: "" });
 
-/** Two depths are the minimum: one cannot say which way the lake deepens. */
+/** The guided flow needs three confirmed samples before tracing. */
+export function traceHint(): string {
+  if (session.point) return "Confirm or cancel the selected point before tracing.";
+  if (draft.depths.length < MIN_CHART_DEPTH_POINTS) return `Confirm at least ${MIN_CHART_DEPTH_POINTS} points on different contour lines to trace the lake bed.`;
+  if (draft.reads === "elevation" && !Number.isFinite(typedNumber(draft.surface))) return "Enter the water surface elevation in the same units as the chart.";
+  if (String(draft.interval).trim() && (!Number.isFinite(typedNumber(draft.interval)) || typedNumber(draft.interval) <= 0)) return "Enter a positive contour interval, or leave it blank to infer it from your depths.";
+  return "";
+}
+
 export function canTrace(): boolean {
-  return draft.depths.length >= 2;
+  return !traceHint();
 }
 
 export function unitLabel(unit: ChartUnit): string {
@@ -54,6 +65,7 @@ export function unitLabel(unit: ChartUnit): string {
 }
 
 let client: ChartTraceClient | undefined;
+let operation = 0;
 
 /** Frees the trace worker. The custom data view calls this as it closes. */
 export function disposeTracer(): void {
@@ -99,6 +111,11 @@ async function readImage(file: File): Promise<{ image: ChartImage; pixels: Image
  */
 export async function chooseChartFile(file: File | undefined, page = 1): Promise<void> {
   if (!file) return;
+  const mine = ++operation;
+  const revision = draftRevision();
+  const current = () => mine === operation && revision === draftRevision();
+  disposeTracer();
+  cancelDepthPoint();
   session.error = "";
   session.busy = true;
   try {
@@ -107,6 +124,7 @@ export async function chooseChartFile(file: File | undefined, page = 1): Promise
       pdf ? import("$lib/domain/chart-pdf").then(async ({ renderPdfPage }) => renderPdfPage(new Uint8Array(await file.arrayBuffer()), page, MAX_SIDE)) : readImage(file),
       digestOf(file),
     ]);
+    if (!current()) return;
     if ("blank" in read && read.blank) {
       // The chart may be on another page: offer the pages, not a blank picture.
       resetChartImage();
@@ -124,23 +142,35 @@ export async function chooseChartFile(file: File | undefined, page = 1): Promise
     draft.fileSha256 = digest;
     draft.title ||= `${draft.lake?.name ?? "Lake"} depth chart`;
   } catch (cause) {
-    session.error = cause instanceof Error ? cause.message : "This file could not be read as an image.";
+    if (current()) session.error = cause instanceof Error ? cause.message : "This file could not be read as an image.";
   } finally {
-    session.busy = false;
+    if (mine === operation) session.busy = false;
   }
 }
 
 /** Draws the chart with every placed depth marked on it, and the keyboard crosshair when it has one. */
-export function paintChart(canvas: HTMLCanvasElement, crosshair?: { x: number; y: number }): void {
+export function paintChart(canvas: HTMLCanvasElement, crosshair?: { x: number; y: number }, contour?: ChartContour): void {
   const context = canvas.getContext("2d");
   const image = draft.image;
   if (!context || !image) return;
   if (draft.pixels) context.putImageData(draft.pixels, 0, 0);
+  if (contour?.points.length) {
+    const scale = image.width / (canvas.getBoundingClientRect().width || image.width);
+    const accent = getComputedStyle(canvas).getPropertyValue("--loidolt-accent").trim() || "#c4511b";
+    for (const [colour, width] of [["#ffffff", 7], [accent, 3]] as const) {
+      context.strokeStyle = colour;
+      context.lineWidth = width * scale;
+      context.beginPath();
+      contour.points.forEach(([x, y], i) => { if (i === 0) context.moveTo(x, y); else context.lineTo(x, y); });
+      if (contour.closed) context.closePath();
+      context.stroke();
+    }
+  }
   context.lineWidth = Math.max(2, image.width / 400);
   context.font = `${Math.max(12, Math.round(image.width / 40))}px sans-serif`;
   context.textBaseline = "middle";
   const radius = Math.max(6, image.width / 120);
-  for (const depth of draft.depths) {
+  for (const [index, depth] of draft.depths.entries()) {
     context.strokeStyle = "#b3261e";
     context.fillStyle = "#ffffff";
     context.beginPath();
@@ -148,7 +178,7 @@ export function paintChart(canvas: HTMLCanvasElement, crosshair?: { x: number; y
     context.fill();
     context.stroke();
     context.fillStyle = "#b3261e";
-    context.fillText(String(depth.value), depth.x + radius * 1.4, depth.y);
+    context.fillText(`${index + 1} · ${depth.value}`, depth.x + radius * 1.4, depth.y);
   }
   if (crosshair) {
     // Drawn twice, light under dark, so it shows on ink and on paper alike.
@@ -199,7 +229,7 @@ export function placeDepth(x: number, y: number, reach: number): void {
   // An empty box is not a depth of zero: it means no depth was typed yet.
   const typed = String(session.pendingDepth).trim();
   const value = typed === "" ? Number.NaN : Number(typed);
-  if (!Number.isFinite(value) || value < 0) {
+  if (!Number.isFinite(value) || (draft.reads === "depth" && value < 0)) {
     session.error = "Type the depth printed on the contour, then click that contour.";
     return;
   }
@@ -207,7 +237,48 @@ export function placeDepth(x: number, y: number, reach: number): void {
   session.error = "";
 }
 
+/** Select first, then ask for the value beside that location. Clicking an existing point edits it. */
+export function selectDepthPoint(x: number, y: number, reach: number): void {
+  if (!draft.image || session.busy || session.keeping) return;
+  const index = draft.depths.findIndex((point) => Math.hypot(point.x - x, point.y - y) <= reach);
+  if (index >= 0) { editDepthPoint(index); return; }
+  session.point = { x, y, reach };
+  session.pendingDepth = "";
+  session.error = "";
+}
+
+export function editDepthPoint(index: number): void {
+  const point = draft.depths[index];
+  if (!point || session.busy || session.keeping) return;
+  session.point = { x: point.x, y: point.y, reach: point.reach, index };
+  session.pendingDepth = String(point.value);
+  session.error = "";
+}
+
+export function cancelDepthPoint(): void {
+  session.point = undefined;
+  session.pendingDepth = "";
+  session.error = "";
+}
+
+export function confirmDepthPoint(): boolean {
+  const point = session.point;
+  if (!point || session.busy || session.keeping) return false;
+  const value = String(session.pendingDepth).trim() === "" ? Number.NaN : Number(session.pendingDepth);
+  if (!Number.isFinite(value) || (draft.reads === "depth" && value < 0)) {
+    session.error = draft.reads === "depth" ? "Enter a depth of zero or more." : "Enter the elevation printed on this contour.";
+    return false;
+  }
+  const confirmed = { x: point.x, y: point.y, reach: point.reach, value };
+  if (point.index === undefined) draft.depths = [...draft.depths, confirmed];
+  else draft.depths = draft.depths.map((depth, index) => index === point.index ? confirmed : depth);
+  cancelDepthPoint();
+  return true;
+}
+
 export function removeDepth(index: number): void {
+  if (session.busy || session.keeping) return;
+  cancelDepthPoint();
   draft.depths = draft.depths.filter((_, at) => at !== index);
 }
 
@@ -230,7 +301,9 @@ const typedNumber = (text: string): number => (String(text).trim() === "" ? Numb
 export async function traceChart(): Promise<void> {
   const image = draft.image;
   const lake = draft.lake;
-  if (!image || !lake || !canTrace()) return;
+  if (!image || !lake || !canTrace() || session.busy) return;
+  const mine = ++operation;
+  const revision = draftRevision();
   session.busy = true;
   session.error = "";
   client ??= new ChartTraceClient();
@@ -254,15 +327,15 @@ export async function traceChart(): Promise<void> {
       placement: draft.placement,
     });
     // The maker may have placed a depth or changed a setting while this ran.
-    if (key !== traceInputsKey()) return;
+    if (mine !== operation || revision !== draftRevision() || key !== traceInputsKey()) return;
     draft.result = result;
     draft.resultKey = key;
   } catch (cause) {
     // Leaving the view cancels a trace; that is not something that went wrong.
     if (cause instanceof DOMException && cause.name === "AbortError") return;
-    if (key === traceInputsKey()) session.error = cause instanceof Error ? cause.message : "This chart could not be traced.";
+    if (mine === operation && revision === draftRevision() && key === traceInputsKey()) session.error = cause instanceof Error ? cause.message : "This chart could not be traced.";
   } finally {
-    session.busy = false;
+    if (mine === operation) session.busy = false;
   }
 }
 
@@ -272,7 +345,7 @@ export async function traceChart(): Promise<void> {
  */
 export async function keepChart(save: (record: UserChartBathymetryV1) => Promise<UserDepthChartRefV1>): Promise<boolean> {
   const traced = draft.result?.record;
-  if (!traced || !resultIsCurrent()) return false;
+  if (!traced || !resultIsCurrent() || session.keeping) return false;
   session.keeping = true;
   session.error = "";
   // The name and where the chart came from are asked for after the trace, so
@@ -306,6 +379,9 @@ export async function tryNextPlacement(): Promise<void> {
 }
 
 export function resetSession(): void {
+  operation += 1;
+  disposeTracer();
+  session.point = undefined;
   session.pendingDepth = "";
   session.busy = false;
   session.keeping = false;

@@ -10,6 +10,8 @@ import type { VectorPage } from "./vector-page.ts";
 import { inferIntervalM } from "./grid.ts";
 
 export interface VectorTraceOptions {
+  /** Stop after chaining, before labels and level inference. */
+  geometryOnly?: boolean;
   /** Stroke style keys (from strokeStyles) that draw contours. */
   contourStyles: string[];
   /** Stroke style keys that draw the shoreline; omit when the chart has none. */
@@ -40,6 +42,8 @@ export interface TracedContour {
 }
 
 export interface VectorTrace {
+  /** Joined paths used to bind labels, including contours without a depth yet. */
+  selectionContours: { points: Point2[]; closed: boolean }[];
   contours: TracedContour[];
   shoreline: Point2[][];
   interval: number;
@@ -114,6 +118,11 @@ export function traceVectorChart(page: VectorPage, options: VectorTraceOptions):
   const bridged = bridgeGaps(chainPaths(contourPaths, tolerance, options.continueThroughJunctions), Math.max(tolerance * 4, typicalLabel * 1.8), undefined, undefined, labels.map((label): Point2 => [label.x, label.y]));
   const minStraight = Math.hypot(page.width, page.height) * 0.03;
   const chains = options.dropStraightLines ? bridged.filter((chain) => !isStraight(chain, minStraight)) : bridged;
+  if (options.geometryOnly) return {
+    selectionContours: chains.map(({ points, closed }) => ({ points, closed })),
+    contours: [], shoreline: [], interval: 0,
+    diagnostics: { paths: contourPaths.length, chains: chains.length, labels: 0, labelled: 0, inferred: 0, unresolved: chains.length, labelDisagreements: 0, contradictoryRegions: 0, coverage: 0 },
+  };
   const labelled = labelChains(chains, labels);
   const interval = options.interval ?? inferIntervalM(labels.map((label) => label.value));
   if (!interval) throw new Error("Set the contour interval; the labels do not show it.");
@@ -145,6 +154,7 @@ export function traceVectorChart(page: VectorPage, options: VectorTraceOptions):
   });
   return {
     contours,
+    selectionContours: chains.map(({ points, closed }) => ({ points, closed })),
     shoreline,
     interval,
     diagnostics: {

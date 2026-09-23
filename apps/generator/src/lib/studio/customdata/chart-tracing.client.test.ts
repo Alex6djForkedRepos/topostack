@@ -2,7 +2,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { UserChartBathymetryV1 } from "@topostack/data-contracts/chart-bathymetry";
 import type { ChartBuildResult } from "$lib/domain/chart-build";
 import { draft, resetDraft } from "$lib/studio/customdata/chart-draft.svelte";
-import { canTrace, chooseChartFile, keepChart, placeDepth, removeDepth, resetSession, resultIsCurrent, session, traceChart, traceInputsKey } from "$lib/studio/customdata/chart-tracing.svelte";
+import { canTrace, chooseChartFile, keepChart, placeDepth, removeDepth, resetSession, resultIsCurrent, session, traceChart, traceHint, traceInputsKey } from "$lib/studio/customdata/chart-tracing.svelte";
 
 /** The PDF renderer; pdf.js itself needs a real browser, so it is exercised end to end instead. */
 const pdf = vi.hoisted(() => ({ renderPdfPage: vi.fn() }));
@@ -91,13 +91,16 @@ describe("tracing a depth chart", () => {
     expect(session.error).toBe("");
   });
 
-  it("needs two depths, because one cannot say which way the lake deepens", async () => {
+  it("requires three confirmed depths before tracing", async () => {
     await upload();
     session.pendingDepth = "10";
     placeDepth(4, 4, 3);
     expect(canTrace()).toBe(false);
     session.pendingDepth = "20";
     placeDepth(8, 8, 3);
+    expect(canTrace()).toBe(false);
+    session.pendingDepth = "30";
+    placeDepth(16, 16, 3);
     expect(canTrace()).toBe(true);
   });
 
@@ -125,7 +128,7 @@ describe("tracing a depth chart", () => {
     expect(resultIsCurrent(), "a name is applied when kept, not traced").toBe(true);
   });
 
-  it("sends placed depths as marks the tracer does not erase, and a missing surface as missing", async () => {
+  it("validates the surface elevation before tracing and sends placed depths as marks", async () => {
     draft.lake = { id: "lake-1", name: "Round Lake", hylakId: 9092, footprint: 1, spanKm: [1, 1], distanceKm: 0, clipped: false, outline: [[-80, 45], [-79.99, 45], [-79.99, 45.01]] };
     await upload();
     draft.reads = "elevation";
@@ -133,11 +136,17 @@ describe("tracing a depth chart", () => {
     placeDepth(4, 4, 3);
     session.pendingDepth = "20";
     placeDepth(8, 8, 3);
+    session.pendingDepth = "30";
+    placeDepth(16, 16, 3);
+    await traceChart();
+    expect(builds).toHaveLength(0);
+    expect(traceHint()).toContain("surface elevation");
+    draft.surface = "100";
     void traceChart();
     expect(builds).toHaveLength(1);
-    expect(builds[0]!.request.marks).toEqual([{ x: 4, y: 4, value: 10, reach: 3 }, { x: 8, y: 8, value: 20, reach: 3 }]);
+    expect(builds[0]!.request.marks).toEqual([{ x: 4, y: 4, value: 10, reach: 3 }, { x: 8, y: 8, value: 20, reach: 3 }, { x: 16, y: 16, value: 30, reach: 3 }]);
     expect(builds[0]!.request.words).toBeUndefined();
-    expect(builds[0]!.request.surface, "an empty surface box is not a surface of zero").toBeNaN();
+    expect(builds[0]!.request.surface).toBe(100);
   });
 
   it("drops a trace that finishes after its depths changed, and stays quiet when one is cancelled", async () => {
@@ -147,6 +156,8 @@ describe("tracing a depth chart", () => {
     placeDepth(4, 4, 3);
     session.pendingDepth = "20";
     placeDepth(8, 8, 3);
+    session.pendingDepth = "30";
+    placeDepth(16, 16, 3);
     const first = traceChart();
     placeDepth(12, 12, 3);
     builds[0]!.resolve(traced());
@@ -158,6 +169,80 @@ describe("tracing a depth chart", () => {
     await second;
     expect(session.error).toBe("");
     expect(session.busy).toBe(false);
+  });
+
+
+  it("keeps the latest upload when an older file finishes afterwards", async () => {
+    vi.stubGlobal("crypto", { subtle: { digest: vi.fn(async () => new Uint8Array(32).buffer) } });
+    let finishFirst!: (value: unknown) => void;
+    pdf.renderPdfPage.mockImplementationOnce(() => new Promise((resolve) => { finishFirst = resolve; }));
+    const first = chooseChartFile(new File(["first"], "first.pdf", { type: "application/pdf" }));
+    await vi.waitFor(() => expect(finishFirst).toBeDefined());
+    pdf.renderPdfPage.mockResolvedValueOnce({ pixels: pixels(), pages: 1, page: 1, blank: false });
+    await chooseChartFile(new File(["second"], "second.pdf", { type: "application/pdf" }));
+    finishFirst({ pixels: pixels(), pages: 1, page: 1, blank: false });
+    await first;
+    expect(draft.imageName).toBe("second.pdf");
+    expect(session.busy).toBe(false);
+  });
+
+  it("discards an upload after the maker starts a different lake", async () => {
+    vi.stubGlobal("crypto", { subtle: { digest: vi.fn(async () => new Uint8Array(32).buffer) } });
+    let finish!: (value: unknown) => void;
+    pdf.renderPdfPage.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const upload = chooseChartFile(new File(["first"], "first.pdf", { type: "application/pdf" }));
+    await vi.waitFor(() => expect(finish).toBeDefined());
+    resetDraft();
+    resetSession();
+    finish({ pixels: pixels(), pages: 1, page: 1, blank: false });
+    await upload;
+    expect(draft.image).toBeUndefined();
+    expect(session.error).toBe("");
+  });
+
+  it("does not let a cancelled trace clear the busy state of a newer upload", async () => {
+    draft.lake = { id: "lake-1", name: "Round Lake", hylakId: 9092, footprint: 1, spanKm: [1, 1], distanceKm: 0, clipped: false, outline: [[-80, 45], [-79.99, 45], [-79.99, 45.01]] };
+    await upload();
+    session.pendingDepth = "10";
+    placeDepth(4, 4, 3);
+    session.pendingDepth = "20";
+    placeDepth(8, 8, 3);
+    session.pendingDepth = "30";
+    placeDepth(16, 16, 3);
+    const trace = traceChart();
+    let finish!: (value: unknown) => void;
+    pdf.renderPdfPage.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const next = chooseChartFile(new File(["new"], "new.pdf", { type: "application/pdf" }));
+    await vi.waitFor(() => expect(finish).toBeDefined());
+    builds[0]!.resolve(traced());
+    await trace;
+    expect(draft.result).toBeUndefined();
+    expect(session.busy).toBe(true);
+    finish({ pixels: pixels(), pages: 1, page: 1, blank: false });
+    await next;
+    expect(draft.imageName).toBe("new.pdf");
+    expect(session.busy).toBe(false);
+  });
+
+  it("accepts below-datum elevations but rejects negative water depths", async () => {
+    await upload();
+    session.pendingDepth = "-10";
+    placeDepth(4, 4, 3);
+    expect(draft.depths).toHaveLength(0);
+    draft.reads = "elevation";
+    placeDepth(4, 4, 3);
+    expect(draft.depths[0]?.value).toBe(-10);
+    session.pendingDepth = "-20";
+    placeDepth(8, 8, 3);
+    session.pendingDepth = "-30";
+    placeDepth(16, 16, 3);
+    draft.surface = "0";
+    expect(canTrace()).toBe(true);
+    draft.interval = "-5";
+    expect(canTrace()).toBe(false);
+    expect(traceHint()).toContain("positive contour interval");
+    draft.interval = "";
+    expect(canTrace()).toBe(true);
   });
 
   it("keeps a traced chart through the studio, and reports a browser that will not store it", async () => {
