@@ -472,7 +472,8 @@
   $effect(() => {
     if (!styleReady || !map) return;
     const selection = lakeSelection;
-    highlightLake();
+    // A background viewport refresh must not clear feedback under a stationary pointer.
+    if (hoveredLake !== undefined && !selection?.lakes.some(lake => lake.id === hoveredLake)) highlightLake();
     const data: FeatureCollection = { type: "FeatureCollection", features: (selection?.lakes ?? []).map(lake => ({ type: "Feature", id: lake.id, properties: { id: lake.id, name: lake.name, selected: lake.id === selection?.activeId }, geometry: { type: "Polygon", coordinates: [[...lake.outline, lake.outline[0]!]] } })) };
     const source = map.getSource("chart-lakes") as GeoJSONSource | undefined;
     if (source) source.setData(data);
