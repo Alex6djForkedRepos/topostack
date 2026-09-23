@@ -198,14 +198,15 @@ function buildReviewedChart(request: ChartBuildRequest, random: () => number): C
   if (!review.alignmentConfirmed) throw new Error("Review the aligned map outline over the source chart before generating depths.");
   const alignment = reviewAlignment(review, request.lake.outline);
   const shore = review.contours.find(c => c.id === review.shorelineId)!;
-  const active = review.contours.filter(c => !c.excluded && c !== shore);
+  const islands = review.contours.filter(c => !c.excluded && c.role === "island" && c !== shore);
+  const active = review.contours.filter(c => !c.excluded && c !== shore && c.role !== "island");
   const result = buildChartRecord({
     id: request.id ?? chartId(request.lake.name, random), lake: request.lake,
     georef: { method: "control-points", matrix: alignment.matrix, rmsM: alignment.rmsM, controlPoints: review.controlPoints, iou: alignment.iou },
     units: request.units,
     labels: request.labels === "depth" ? { kind: "depth" } : { kind: "elevation", surfaceElevationM: request.surface! * CHART_UNIT_METRES[request.units] },
-    interval: request.interval!, contours: active.map(c => ({ points: c.points, closed: c.closed, value: c.value! })),
-    water: { pixels: [shore.points] }, resolutionM: request.resolutionM,
+    explicitInteriors: true, contours: active.map(c => ({ points: c.points, closed: c.closed, value: c.value!, inside: c.inside ?? "deeper", ...(c.interiorValue === undefined ? {} : { interiorValue: c.interiorValue }) })),
+    water: { pixels: [shore.points, ...islands.map(c => c.points)] }, resolutionM: request.resolutionM,
     provenance: { title: request.title, fileSha256: request.fileSha256, tool: "chart-reviewed-v1" },
     license: { attestation: request.attestation },
   });

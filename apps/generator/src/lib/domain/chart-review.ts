@@ -12,6 +12,10 @@ export interface ReviewContour {
   points: Point2[];
   closed: boolean;
   value: number | null;
+  role?: "contour" | "island";
+  inside?: "deeper" | "shallower";
+  /** Optional modelled interior extreme in printed chart units; absent holds the last contour. */
+  interiorValue?: number;
   confirmed: boolean;
   excluded: boolean;
 }
@@ -40,14 +44,8 @@ export function prepareChartReview(request: ChartBuildRequest): ChartReview {
   return { contours, shorelineId: "", controlPoints: [], alignmentConfirmed: false };
 }
 
-export function insideRing(point: Point2, ring: readonly Point2[]): boolean {
-  let inside = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const a = ring[i]!, b = ring[j]!;
-    if ((a[1] > point[1]) !== (b[1] > point[1]) && point[0] < (b[0] - a[0]) * (point[1] - a[1]) / (b[1] - a[1]) + a[0]) inside = !inside;
-  }
-  return inside;
-}
+export { insideRing } from "./chart-geometry.ts";
+import { insideRing } from "./chart-geometry.ts";
 
 const cross = (a: Point2, b: Point2, c: Point2) => (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
 const same = (a: Point2, b: Point2) => a[0] === b[0] && a[1] === b[1];
@@ -66,14 +64,14 @@ export function reviewGeometryIssues(review: ChartReview, request: Pick<ChartBui
   if (new Set(review.contours.map(c => c.id)).size !== review.contours.length) add("ids", "Contour identifiers must be unique.");
   const shore = active.find(c => c.id === review.shorelineId);
   if (!shore) add("shore", "Select the complete outer shoreline.");
-  if (active.length < 2) add("empty", "Include a shoreline and at least one depth contour.");
+  if (!active.some(c => c !== shore && c.role !== "island")) add("empty", "Include a shoreline and at least one depth contour.");
   if (active.length > 128 || active.reduce((n, c) => n + c.points.length, 0) > 12000) {
     add("limit", "This release supports at most 128 included paths and 12,000 vertices. Simplify or crop the chart.");
     return issues;
   }
-  if (!Number.isFinite(request.interval) || request.interval! <= 0) add("interval", "Enter the positive contour interval printed on the chart.");
+
   if (request.labels === "elevation" && !Number.isFinite(request.surface)) add("surface", "Enter the chart's water surface elevation.");
-  const depth = (c: ReviewContour) => c.id === review.shorelineId ? 0 : (request.labels === "depth" ? c.value! : request.surface! - c.value!) * CHART_UNIT_METRES[request.units];
+  const depth = (c: ReviewContour) => c.id === review.shorelineId || c.role === "island" ? 0 : (request.labels === "depth" ? c.value! : request.surface! - c.value!) * CHART_UNIT_METRES[request.units];
   for (const c of active) {
     const p = ring(c);
     const area = Math.abs(p.reduce((sum, a, i) => { const b = p[(i + 1) % p.length]!; return sum + a[0] * b[1] - b[0] * a[1]; }, 0)) / 2;
@@ -81,7 +79,7 @@ export function reviewGeometryIssues(review: ChartReview, request: Pick<ChartBui
     if (!c.confirmed) add("unreviewed", "Confirm this path against the source chart, or exclude it.", c.id);
     if (!c.closed || ring(c).length < 3) add("open", "Join or redraw this path as a complete closed contour. Open contours are outside this release.", c.id);
     if (c.points.some(([x, y]) => !Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || x > request.image.width || y > request.image.height)) add("bounds", "Contour vertices must lie within the chart image.", c.id);
-    if (c !== shore && (c.value === null || !Number.isFinite(c.value) || !(depth(c) > 0) || depth(c) > CHART_BATHYMETRY_LIMITS.maxDepthM)) add("value", "Assign a finite contour value below the water surface.", c.id);
+    if (c !== shore && c.role !== "island" && (c.value === null || !Number.isFinite(c.value) || !(depth(c) > 0) || depth(c) > CHART_BATHYMETRY_LIMITS.maxDepthM)) add("value", "Assign a finite contour value below the water surface.", c.id);
   }
   if (issues.some(i => ["open", "bounds", "value", "surface", "degenerate"].includes(i.code))) return issues;
   const segments = active.flatMap(c => ring(c).map((a, index, points) => ({ c, index, count: points.length, a, b: points[(index + 1) % points.length]! })));
@@ -110,14 +108,25 @@ export function reviewGeometryIssues(review: ChartReview, request: Pick<ChartBui
       }
     }
   }
-  const first = active.find(c => c !== shore);
   for (const c of active) {
     if (c === shore) continue;
-    if (first && request.interval && Math.abs((c.value! - first.value!) / request.interval - Math.round((c.value! - first.value!) / request.interval)) > 0.01) add("interval-values", "Contour values do not follow the stated interval.", c.id);
-    if (shore && !insideRing(c.points[0]!, shore.points)) add("outside", "This contour is outside the shoreline.", c.id);
-    for (const outer of active) {
-      if (outer === c || outer === shore || !insideRing(c.points[0]!, outer.points)) continue;
-      if (depth(c) <= depth(outer)) add("order", "An enclosed contour must be deeper than its surrounding contour. Islands and underwater rises are outside this release.", c.id, outer.id);
+    if (shore && !insideRing(c.points[0]!, shore.points)) add("outside", "This path is outside the outer shoreline.", c.id);
+    const containers = active.filter(outer => outer !== c && insideRing(c.points[0]!, outer.points));
+    const parent = containers.find(outer => !containers.some(inner => inner !== outer && insideRing(inner.points[0]!, outer.points)));
+    if (containers.some(outer => outer.role === "island")) add("land", "Paths cannot lie inside an island. Exclude land contours or correct the island boundary.", c.id);
+    if (parent === shore && c.inside === "shallower" && c.role !== "island") add("order", "An underwater rise needs a surrounding deeper contour to define its slope.", c.id);
+    if (parent && parent !== shore && parent.role !== "island") {
+      if (depth(c) === depth(parent)) add("order", "Nested contours need different values; remove duplicate lines.", c.id, parent.id);
+      // A shallower child can start a rise inside a basin. A deeper child within
+      // a rise can likewise start a depression. The child direction identifies
+      // the local feature, rather than requiring every ancestor to be deeper.
+      if (c.role !== "island" && depth(c) < depth(parent) && c.inside !== "shallower") add("order", "This contour is shallower than its surrounding contour. Set its interior to an underwater rise.", c.id, parent.id);
+      if (c.role !== "island" && depth(c) > depth(parent) && c.inside === "shallower") add("order", "A deeper contour within a rise starts a basin. Set its interior to deeper.", c.id, parent.id);
+    }
+    if (c.interiorValue !== undefined && c.role !== "island") {
+      const target = (request.labels === "depth" ? c.interiorValue : request.surface! - c.interiorValue) * CHART_UNIT_METRES[request.units];
+      if (!Number.isFinite(target) || target <= 0 || target > CHART_BATHYMETRY_LIMITS.maxDepthM || (c.inside === "shallower" ? target > depth(c) : target < depth(c))) add("interior", "Interior value must stay underwater and follow the selected deeper or shallower direction.", c.id);
+      if (active.some(inner => inner !== c && insideRing(inner.points[0]!, c.points))) add("interior-child", "Set an interior value only on an innermost contour. Its enclosed paths already define the interior.", c.id);
     }
   }
   return issues;
@@ -145,6 +154,7 @@ export function reviewAlignment(review: ChartReview, outline: Point2[]) {
 /** Endpoint join; never silently joins closed or differently valued contours. */
 export function joinReviewContours(a: ReviewContour, b: ReviewContour): ReviewContour {
   if (a.id === b.id || a.closed || b.closed) throw new Error("Choose two different open paths to join.");
+  if ((a.role ?? "contour") !== (b.role ?? "contour") || (a.inside ?? "deeper") !== (b.inside ?? "deeper") || a.interiorValue !== b.interiorValue) throw new Error("Joined paths must have matching roles and interior settings.");
   if (a.value !== null && b.value !== null && a.value !== b.value) throw new Error("Joined paths must have the same value.");
   const options = [a.points, [...a.points].reverse()].flatMap(left => [b.points, [...b.points].reverse()].map(right => ({ left, right, distance: Math.hypot(left.at(-1)![0] - right[0]![0], left.at(-1)![1] - right[0]![1]) })));
   const best = options.sort((x, y) => x.distance - y.distance)[0]!;

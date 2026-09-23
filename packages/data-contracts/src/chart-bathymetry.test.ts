@@ -141,3 +141,14 @@ describe("isPublishableChart", () => {
     expect(CHART_ATTESTATIONS.filter((attestation) => isPublishableChart({ license: { attestation } }))).toEqual(["own-work", "public-domain", "open-license"]);
   });
 });
+
+it("round-trips island and interior metadata and rejects invalid target directions", () => {
+  const record = chart();
+  record.lake.islands = [[[-79.998,45.002],[-79.997,45.002],[-79.997,45.003]]];
+  record.contours[0] = {...record.contours[0]!, depthM: 10, inside: "shallower", interiorDepthM: 4};
+  const parsed = parseUserChartBathymetry(record);
+  expect(parsed.lake.islands).toEqual(record.lake.islands);
+  expect(parsed.contours[0]).toEqual(record.contours[0]);
+  record.contours[0]!.interiorDepthM = 12;
+  expect(() => parseUserChartBathymetry(record)).toThrow(/direction/);
+});

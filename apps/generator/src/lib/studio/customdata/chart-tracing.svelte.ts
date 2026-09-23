@@ -48,15 +48,12 @@ function chartTitle(): string {
 
 /** What is happening to the draft right now, as opposed to what it holds. */
 export interface PendingChartPoint { x: number; y: number; reach: number; index?: number }
-export const MIN_CHART_DEPTH_POINTS = 3;
 export const session = $state({ pendingDepth: "" as string | number, point: undefined as PendingChartPoint | undefined, busy: false, keeping: false, error: "" });
 
 /** The guided flow needs three confirmed samples before tracing. */
 export function traceHint(): string {
   if (session.point) return "Confirm or cancel the selected point before tracing.";
-  if (!draft.vectorStyles.length && draft.depths.length < MIN_CHART_DEPTH_POINTS) return `Confirm at least ${MIN_CHART_DEPTH_POINTS} points on different contour lines to trace the lake bed.`;
   if (draft.reads === "elevation" && !Number.isFinite(typedNumber(draft.surface))) return "Enter the water surface elevation in the same units as the chart.";
-  if (String(draft.interval).trim() && (!Number.isFinite(typedNumber(draft.interval)) || typedNumber(draft.interval) <= 0)) return "Enter a positive contour interval, or leave it blank to infer it from your depths.";
   return "";
 }
 
@@ -383,7 +380,7 @@ export async function keepChart(save: (record: UserChartBathymetryV1) => Promise
   // they are applied here rather than baked in when it was traced.
   const record: UserChartBathymetryV1 = {
     ...traced,
-    review: { version: 1, profile: "closed-contours-v1", reviewedAt: new Date().toISOString(), contours: true, alignment: true, layers: true },
+    review: { version: 1, profile: "contour-topology-v1", reviewedAt: new Date().toISOString(), contours: true, alignment: true, layers: true },
     provenance: { ...traced.provenance, title: chartTitle() },
     license: { ...traced.license, attestation: draft.attestation },
   };

@@ -93,16 +93,9 @@ describe("tracing a depth chart", () => {
     expect(session.error).toBe("");
   });
 
-  it("requires three confirmed depths before tracing", async () => {
+  it("prepares geometry without seed depths", async () => {
     await upload();
-    session.pendingDepth = "10";
-    placeDepth(4, 4, 3);
-    expect(canTrace()).toBe(false);
-    session.pendingDepth = "20";
-    placeDepth(8, 8, 3);
-    expect(canTrace()).toBe(false);
-    session.pendingDepth = "30";
-    placeDepth(16, 16, 3);
+    expect(draft.depths).toHaveLength(0);
     expect(canTrace()).toBe(true);
   });
 
@@ -241,8 +234,7 @@ describe("tracing a depth chart", () => {
     draft.surface = "0";
     expect(canTrace()).toBe(true);
     draft.interval = "-5";
-    expect(canTrace()).toBe(false);
-    expect(traceHint()).toContain("positive contour interval");
+    expect(canTrace(), "legacy interval metadata does not gate contour review").toBe(true);
     draft.interval = "";
     expect(canTrace()).toBe(true);
   });

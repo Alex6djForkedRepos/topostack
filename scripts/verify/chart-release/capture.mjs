@@ -24,12 +24,15 @@ try {
   const draftFile = { schema: 'chart-review-draft-v1', source: { sha256: createHash('sha256').update(bytes).digest('hex'), page: 0, ...size, units: 'ft', reads: 'elevation', surface: '1028.5', interval: '2' }, review };
   await page.locator('.chart-review-restore input').setInputFiles({ name: 'king-reviewed.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(draftFile)) });
   await expect(page.getByRole('button', { name: 'Generate reviewed depths', exact: true })).toBeDisabled();
+  await page.getByLabel('Select review contour', { exact: true }).selectOption(review.contours.find(c => !c.excluded && c.id !== review.shorelineId).id);
+  await page.screenshot({ path: 'docs/images/chart-release/king-contour-editing.png' });
+  await page.getByRole('button', { name: 'Alignment', exact: true }).click();
   await page.getByRole('checkbox', { name: 'I checked the alignment and orientation against the source.' }).check();
   await page.getByRole('button', { name: 'Generate reviewed depths', exact: true }).click();
   await expect(page.locator('.chart-report')).toContainText('100%');
   await expect(page.getByRole('button', { name: 'Keep this chart', exact: true })).toBeDisabled();
   await expect(page.locator('.depth-3d canvas:visible')).toBeVisible();
-  await page.getByRole('slider', { name: 'Chart review zoom', exact: true }).fill('0.75');
+  await page.locator('.review-source [data-svg-viewport]').press('0');
   await page.locator('.review-editor').evaluate(el => { el.scrollTop = 0; });
   await page.screenshot({ path: 'docs/images/chart-release/king-reviewed-workspace.png' });
   await page.getByRole('checkbox', { name: 'I checked the generated basin and layers against the source.' }).check();

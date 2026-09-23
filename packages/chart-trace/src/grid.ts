@@ -29,6 +29,8 @@ export interface GridContour {
    * (deeper, the usual case) or a hump (shallower). Chart nesting decides it.
    */
   inside?: "deeper" | "shallower";
+  /** Explicit interior target; equal to depthM holds a flat interior. */
+  interiorDepthM?: number;
 }
 
 export interface GridSpot {
@@ -297,7 +299,7 @@ export interface HarmonicInput {
   layout: GridLayout;
   mask: Uint8Array;
   /** Contours and spots in metre coordinates. */
-  contours: { depthM: number; line: Point2[]; closed?: boolean; inside?: "deeper" | "shallower" }[];
+  contours: { depthM: number; line: Point2[]; closed?: boolean; inside?: "deeper" | "shallower"; interiorDepthM?: number }[];
   spots: { x: number; y: number; depthM: number }[];
   intervalM?: number;
 }
@@ -398,7 +400,9 @@ export function harmonicGridMetres(input: HarmonicInput): Float32Array {
     const soundingDepths = [...soundings].map((cell) => fixed[cell]!);
     const extreme = soundingDepths.length ? (hump ? Math.min(...soundingDepths) : Math.max(...soundingDepths)) : undefined;
     const step = (interval ?? ringDepth) / 2;
-    const target = Math.max(0, Math.min(MAX_DEPTH_M, extreme ?? (hump ? ringDepth - step : ringDepth + step)));
+    const targets = [...owners].map(index => contours[index]!.interiorDepthM);
+    const explicit = targets.length && targets.every(value => value !== undefined) ? (hump ? Math.min(...targets as number[]) : Math.max(...targets as number[])) : undefined;
+    const target = Math.max(0, Math.min(MAX_DEPTH_M, explicit ?? extreme ?? (hump ? ringDepth - step : ringDepth + step)));
     // Soundings sit inside the dome rather than being edges it slopes to.
     const domain = [...members, ...soundings];
     for (const cell of domain) inRegion[cell] = 1;

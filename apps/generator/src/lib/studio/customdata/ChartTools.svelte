@@ -8,7 +8,7 @@
   import LakePicker from "$lib/studio/customdata/LakePicker.svelte";
   import { draft, draftRevision, resetChartImage, resetDraft } from "$lib/studio/customdata/chart-draft.svelte";
   import { library, refreshLibrary } from "$lib/studio/customdata/chart-library.svelte";
-  import { canKeepChart, canTrace, CHART_ATTESTATIONS, CHART_READS, CHART_UNITS, chooseChartFile, keepChart, restoreReviewDraft, editDepthPoint, removeDepth, resetSession, resultIsCurrent, session, traceChart, traceHint, traceInputsKey, tryNextPlacement, unitLabel } from "$lib/studio/customdata/chart-tracing.svelte";
+  import { canKeepChart, canTrace, CHART_ATTESTATIONS, CHART_READS, CHART_UNITS, chooseChartFile, keepChart, restoreReviewDraft, resetSession, resultIsCurrent, session, traceChart, traceHint, traceInputsKey, tryNextPlacement, unitLabel } from "$lib/studio/customdata/chart-tracing.svelte";
 
   /**
    * Every control for tracing a depth chart, in the sidebar section beside the
@@ -22,6 +22,7 @@
    */
 
   const studio = getStudio();
+  let reviewFileInput = $state<HTMLInputElement>();
   const pdfStyles = $derived([...new Set(draft.vectorPage?.paths.filter(p => p.stroke).map(styleKey) ?? [])]);
   const current = $derived(draft.result && resultIsCurrent() ? draft.result : undefined);
 
@@ -51,7 +52,7 @@
   }
 </script>
 
-<p class="custom-data-intro">Prepare contours, correct them against the source, align the chart, then generate and review the layers. First release: flat charts with closed contours and no islands.</p>
+<p class="custom-data-intro">Prepare contours, correct them against the source, align the chart, then generate and review the layers. Use flat charts with closed contours; define islands and underwater rises explicitly.</p>
 
 <!-- With a chart open, the canvas shows the error beside the work; say it once. -->
 {#if session.error && !draft.image}<p class="chart-error" role="alert">{session.error}</p>{/if}
@@ -81,7 +82,10 @@
   </div>
 
   {#if draft.image}
-    <label class="chart-review-restore"><span>Restore contour review draft</span><input type="file" accept="application/json,.json" disabled={session.busy || session.keeping} onchange={event => { void restoreReviewDraft(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} /></label>
+    <div class="chart-review-restore">
+      <Button size="sm" variant="quiet" disabled={session.busy || session.keeping} onclick={() => reviewFileInput?.click()}>Restore contour review draft</Button>
+      <input bind:this={reviewFileInput} hidden type="file" aria-label="Restore contour review draft" accept="application/json,.json" disabled={session.busy || session.keeping} onchange={event => { void restoreReviewDraft(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
+    </div>
     <div class="chart-tools">
       <h3 class="chart-tools__heading">3 · Set the chart units</h3>
       <div class="field-stack">
@@ -90,26 +94,19 @@
         {#if draft.reads === "elevation"}
           <Field label="Surface level" class="field-row">{#snippet children({ id })}<Input {id} type="number" bind:value={draft.surface} placeholder={`Water level, in ${unitLabel(draft.units)}`} boxed />{/snippet}</Field>
         {/if}
-        <Field label="Contour interval" class="field-row">{#snippet children({ id })}<Input {id} type="number" min="0" step="0.5" bind:value={draft.interval} boxed />{/snippet}</Field>
+
       </div>
       {#if pdfStyles.length}
         <details><summary>Use native PDF lines (recommended)</summary><p class="chart-hint">Select styles for the shoreline and contours. Unselected styles are ignored. Leave all unchecked to use image tracing.</p>
           {#each pdfStyles as style, index}<label><input type="checkbox" checked={draft.vectorStyles.includes(style)} onchange={event => { draft.vectorStyles = event.currentTarget.checked ? [...draft.vectorStyles, style] : draft.vectorStyles.filter(s => s !== style); }} /> <span style={`display:inline-block;width:24px;border-top:3px solid ${style.split("/")[0]}`} aria-hidden="true"></span> Line style {index + 1} · {style.split("/")[1]} pt</label>{/each}
         </details>
       {/if}
-      <p class="chart-hint">The interval is the difference between neighbouring contours, in {unitLabel(draft.units)}. Enter the printed interval before generating reviewed depths.</p>
+
     </div>
 
     <div class="chart-tools">
-      <h3 class="chart-tools__heading">4 · Place depths <span>{draft.depths.length}</span></h3>
-      <p class="chart-hint">Follow the floating guide on the chart: select a contour, enter its value, and confirm. At least three points are required; use different contour lines across the lake.</p>
-      {#if draft.depths.length}
-        <ul class="chart-depths">
-          {#each draft.depths as depth, index (index)}
-            <li><button type="button" aria-label={`Edit point ${index + 1}`} disabled={session.busy || session.keeping} onclick={() => editDepthPoint(index)}>{index + 1} · {depth.value} {unitLabel(draft.units)}</button><button type="button" aria-label={`Remove the ${depth.value} ${unitLabel(draft.units)} depth`} disabled={session.busy || session.keeping} onclick={() => removeDepth(index)}>Remove</button></li>
-          {/each}
-        </ul>
-      {/if}
+      <h3 class="chart-tools__heading">4 · Prepare contours</h3>
+      <p class="chart-hint">Extract the paths, then select each shoreline, island, or depth contour and define it in the editing panel. No initial depth points or uniform interval are needed.</p>
       {#if traceHint()}<p class="chart-hint" role="status">{traceHint()}</p>{/if}
       {#if draft.review}<p class="chart-hint">Preparing again replaces your contour edits. Export a review draft first if you want to keep them.</p>{/if}
       <Button variant="primary" disabled={!canTrace() || session.busy || session.keeping} onclick={() => void traceChart()}>{session.busy ? "Tracing…" : draft.review ? "Prepare contours again" : "Prepare contours for review"}</Button>

@@ -18,6 +18,7 @@ export function parseReviewDraft(text: string, source: Pick<ChartReviewDraftFile
   const ids = new Set<string>();
   for (const c of review.contours) {
     if (!c || typeof c.id !== "string" || ids.has(c.id) || c.id.length > 100 || !Array.isArray(c.points) || c.points.length < 2 || typeof c.closed !== "boolean" || typeof c.confirmed !== "boolean" || typeof c.excluded !== "boolean" || (c.value !== null && !Number.isFinite(c.value))) throw new Error("Invalid contour in review draft.");
+    if ((c.role !== undefined && !["contour", "island"].includes(c.role)) || (c.inside !== undefined && !["deeper", "shallower"].includes(c.inside)) || (c.interiorValue !== undefined && !Number.isFinite(c.interiorValue))) throw new Error("Invalid contour relationship in review draft.");
     ids.add(c.id); points += c.points.length;
     if (points > 200_000 || c.points.some(p => !Array.isArray(p) || p.length !== 2 || !p.every(Number.isFinite))) throw new Error("Invalid or excessive vertices in review draft.");
   }

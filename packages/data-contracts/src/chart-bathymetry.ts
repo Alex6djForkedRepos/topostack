@@ -42,6 +42,8 @@ export const CHART_BATHYMETRY_LIMITS = {
 export type ChartLonLat = [number, number];
 
 export interface ChartContourV1 {
+  inside?: "deeper" | "shallower";
+  interiorDepthM?: number;
   depthM: number;
   line: ChartLonLat[];
   /** True when the line closes on itself or on the shoreline. */
@@ -77,11 +79,11 @@ export type ChartLabelsV1 =
 
 export interface UserChartBathymetryV1 {
   /** Workflow receipt, not survey accuracy or fabrication certification. */
-  review?: { version: 1; profile: "closed-contours-v1"; reviewedAt: string; contours: true; alignment: true; layers: true };
+  review?: { version: 1; profile: "closed-contours-v1" | "contour-topology-v1"; reviewedAt: string; contours: true; alignment: true; layers: true };
   schema: typeof CHART_BATHYMETRY_SCHEMA;
   id: string;
   /** `region` is where a reader would look for the lake, as the lake directory lists it. */
-  lake: { name?: string; region?: string; hylakId?: number; outline: ChartLonLat[] };
+  lake: { name?: string; region?: string; hylakId?: number; outline: ChartLonLat[]; islands?: ChartLonLat[][] };
   georef: {
     method: ChartGeorefMethod;
     /** Row-major 3x3 homography from chart pixels to [lon, lat, 1]. */
@@ -99,7 +101,8 @@ export interface UserChartBathymetryV1 {
    * `surfaceElevationM` before they are stored, and this records how.
    */
   labels: ChartLabelsV1;
-  intervalM: number;
+  /** Legacy automatic-tracing interval; explicit reviewed contours need no uniform interval. */
+  intervalM?: number;
   contours: ChartContourV1[];
   spots: ChartSpotV1[];
   grid: ChartGridV1;
@@ -216,7 +219,9 @@ export function parseUserChartBathymetry(value: unknown): UserChartBathymetryV1 
   if (r.schema !== CHART_BATHYMETRY_SCHEMA) fail(`schema must be ${CHART_BATHYMETRY_SCHEMA}.`);
   if (typeof r.id !== "string" || !CHART_ID_PATTERN.test(r.id)) fail("id must be 8-64 lowercase letters, digits, or dashes.");
 
-  const lakeRecord = record(r.lake, "lake", ["name", "region", "hylakId", "outline"]);
+  const lakeRecord = record(r.lake, "lake", ["name", "region", "hylakId", "outline", "islands"]);
+  const islands = optional(lakeRecord.islands, value => list(value, "islands", 127).map((ring, index) => list(ring, `island ${index}`, limits.maxOutlinePoints, 3).map((p, at) => lonLat(p, `island ${index} point ${at}`))));
+  if (islands && islands.reduce((n, ring) => n + ring.length, 0) > limits.maxOutlinePoints) fail("Island point limit exceeded.");
   const outline = list(lakeRecord.outline, "lake outline", limits.maxOutlinePoints, 4).map((point, index) => lonLat(point, `lake outline point ${index}`));
   const hylakId = optional(lakeRecord.hylakId, (id) => {
     if (!Number.isSafeInteger(id) || (id as number) <= 0) fail("lake hylakId must be a positive whole number.");
@@ -251,11 +256,15 @@ export function parseUserChartBathymetry(value: unknown): UserChartBathymetryV1 
 
   let points = 0;
   const contours = list(r.contours, "contours", limits.maxContours, 1).map((item, index) => {
-    const c = record(item, `contour ${index}`, ["depthM", "line", "closed"]);
+    const c = record(item, `contour ${index}`, ["depthM", "line", "closed", "inside", "interiorDepthM"]);
     const line = list(c.line, `contour ${index} line`, limits.maxContourPoints, 2).map((point, at) => lonLat(point, `contour ${index} point ${at}`));
     points += line.length;
     if (typeof c.closed !== "boolean") fail(`contour ${index} closed must be true or false.`);
-    return { depthM: finite(c.depthM, `contour ${index} depth`, 0, limits.maxDepthM), line, closed: c.closed };
+    const inside = optional(c.inside, value => oneOf(value, ["deeper", "shallower"] as const, "contour interior direction"));
+    const interiorDepthM = optional(c.interiorDepthM, value => finite(value, "contour interior depth", 0, limits.maxDepthM));
+    const depthM = finite(c.depthM, `contour ${index} depth`, 0, limits.maxDepthM);
+    if (interiorDepthM !== undefined && (inside === "shallower" ? interiorDepthM > depthM : interiorDepthM < depthM)) fail("Contour interior depth contradicts its direction.");
+    return { ...(inside ? { inside } : {}), ...(interiorDepthM === undefined ? {} : { interiorDepthM }), depthM, line, closed: c.closed };
   });
   if (points > limits.maxContourPoints) fail(`contours must hold at most ${limits.maxContourPoints} points in total.`);
   const spots = list(r.spots, "spots", limits.maxSpots).map((item, index) => {
@@ -282,30 +291,34 @@ export function parseUserChartBathymetry(value: unknown): UserChartBathymetryV1 
   });
   const note = optional(l.note, (item) => text(item, "license note", limits.note));
 
+  const intervalM = optional(r.intervalM, value => {
+    const interval = finite(value, "intervalM", 0, limits.maxIntervalM);
+    if (interval <= 0) fail("intervalM must be greater than 0.");
+    return interval;
+  });
+  if (intervalM === undefined && contours.some(c => c.interiorDepthM === undefined)) fail("Charts without an interval require explicit contour interiors.");
+
   const review = optional(r.review, value => {
     const item = record(value, "review", ["version", "profile", "reviewedAt", "contours", "alignment", "layers"]);
-    if (item.version !== 1 || item.profile !== "closed-contours-v1" || item.contours !== true || item.alignment !== true || item.layers !== true) fail("review must record completed contour, alignment, and layer review.");
+    if (item.version !== 1 || !["closed-contours-v1", "contour-topology-v1"].includes(String(item.profile)) || item.contours !== true || item.alignment !== true || item.layers !== true) fail("review must record completed contour, alignment, and layer review.");
     if (typeof item.reviewedAt !== "string" || !/^\d{4}-\d{2}-\d{2}T/.test(item.reviewedAt) || !Number.isFinite(Date.parse(item.reviewedAt))) fail("review timestamp must be an ISO date.");
     if (method !== "control-points" || !controlPoints || controlPoints.length < 4 || contours.some(c => !c.closed || c.line.length < 3) || contours.length > 127) fail("reviewed charts require four control points and complete closed contours.");
-    return { version: 1 as const, profile: "closed-contours-v1" as const, reviewedAt: item.reviewedAt as string, contours: true as const, alignment: true as const, layers: true as const };
+    if (item.profile === "contour-topology-v1" && (contours.some(c => c.inside === undefined || c.interiorDepthM === undefined) || contours.length + (islands?.length ?? 0) > 127)) fail("Topology review requires explicit interiors and at most 127 paths plus the outer shoreline.");
+    return { version: 1 as const, profile: item.profile as "closed-contours-v1" | "contour-topology-v1", reviewedAt: item.reviewedAt as string, contours: true as const, alignment: true as const, layers: true as const };
   });
 
   return {
     ...(review ? { review } : {}),
     schema: CHART_BATHYMETRY_SCHEMA,
     id: r.id,
-    lake: { ...(name ? { name } : {}), ...(region ? { region } : {}), ...(hylakId === undefined ? {} : { hylakId }), outline },
+    lake: { ...(name ? { name } : {}), ...(region ? { region } : {}), ...(hylakId === undefined ? {} : { hylakId }), outline, ...(islands ? { islands } : {}) },
     georef: {
       method, matrix, ...(controlPoints ? { controlPoints } : {}),
       rmsM: finite(g.rmsM, "georef rmsM", 0, 1_000_000), ...(iou === undefined ? {} : { iou }),
     },
     units: oneOf(r.units, CHART_UNITS, "units"),
     labels,
-    intervalM: (() => {
-      const interval = finite(r.intervalM, "intervalM", 0, limits.maxIntervalM);
-      if (interval <= 0) fail("intervalM must be greater than 0.");
-      return interval;
-    })(),
+    ...(intervalM === undefined ? {} : { intervalM }),
     contours,
     spots,
     grid: parseGrid(r.grid),

@@ -13,3 +13,13 @@ it("rejects a different source/page and malformed geometry", () => {
   const broken = file(); broken.review.contours[0]!.points = [[Number.NaN, 0]];
   expect(() => parseReviewDraft(JSON.stringify(broken), source)).toThrow(/contour|vertices/);
 });
+
+it("round-trips topology choices and rejects malformed relationships", () => {
+  const draft = file();
+  draft.review.contours[1]!.role = "island";
+  draft.review.contours[2]!.inside = "shallower";
+  draft.review.contours[2]!.interiorValue = 3;
+  expect(parseReviewDraft(JSON.stringify(draft), source).review.contours).toEqual(draft.review.contours);
+  draft.review.contours[2]!.inside = "sideways" as never;
+  expect(() => parseReviewDraft(JSON.stringify(draft), source)).toThrow(/relationship/);
+});
