@@ -26,7 +26,7 @@ import {
 } from "../primitives/geometry2d.js";
 import { labelDimensions, labelGeometry } from "../annotate/labels.js";
 import { addLabelObstacles, indexLabelLayer, placeElevationLabelStack, placeLabel, placeLinearLabel } from "../annotate/label-placement.js";
-import { geoPointToMapPoint, longitudeInBounds, markerSymbolCenterForAnchor, markerSymbolPaths } from "../annotate/markers.js";
+import { geoPointToMapPoint, longitudeInBounds, markerCenterForAnchor, markerPolygons } from "../annotate/markers.js";
 import { markerLayerPolygons } from "../annotate/marker-placement.js";
 import { offsetClosedRing } from "../primitives/offset.js";
 import { northArrowMarkings } from "../annotate/north-arrow.js";
@@ -888,13 +888,11 @@ function placeMarkers({ config, source, flatEngraving }: GenerationContext, clip
     const anchor = geoPointToMapPoint(marker.lat, marker.lon, source.bounds, config.widthMm, config.heightMm);
     if (!materials.some(material => pointInPreparedPolygons(anchor, material))) return;
     const size = marker.sizeMm ?? MAP_MARKER_SIZE_MM;
-    const symbolCenter = markerSymbolCenterForAnchor(marker.symbol, anchor, size);
-    const symbolPaths = markerSymbolPaths(marker.symbol, symbolCenter, size);
-    // A pin's second ring is its eye, engraved as a hole in the head.
-    const paths = marker.symbol === "pin" ? symbolPaths.slice(0, 1) : symbolPaths;
-    const holes = marker.symbol === "pin" ? symbolPaths.slice(1) : [];
-    const place = (path: Point2D[], id: string, knockout = false) => {
-      markerLayerPolygons(path, materials, knockout ? [] : holes).forEach(({ layerIndex, polygon }, pieceIndex) => clips[layerIndex]!.layer.markings.push({
+    const symbolCenter = markerCenterForAnchor(marker, config.markerIcons, anchor, size);
+    // Holes (a pin's eye, a letter's counter) are engraved as gaps in the fill.
+    const polygons = markerPolygons(marker, config.markerIcons, symbolCenter, size);
+    const place = (path: Point2D[], id: string, holes: Point2D[][], knockout = false) => {
+      markerLayerPolygons(path, materials, holes).forEach(({ layerIndex, polygon }, pieceIndex) => clips[layerIndex]!.layer.markings.push({
         id: `map-marker-${markerIndex}-${id}-${layerIndex}-${pieceIndex}`,
         operation: "engrave",
         kind: "marker",
@@ -904,10 +902,10 @@ function placeMarkers({ config, source, flatEngraving }: GenerationContext, clip
         ...(knockout ? { knockout: true } : {}),
       }));
     };
-    paths.forEach((path, pathIndex) => {
-      offsetClosedRing(path, MAP_MARKER_CLEARANCE_MM, "round").forEach((halo, haloIndex) => place(halo, `halo-${pathIndex}-${haloIndex}`, true));
+    polygons.forEach(({ outer }, pathIndex) => {
+      offsetClosedRing(outer, MAP_MARKER_CLEARANCE_MM, "round").forEach((halo, haloIndex) => place(halo, `halo-${pathIndex}-${haloIndex}`, [], true));
     });
-    paths.forEach((path, pathIndex) => place(path, String(pathIndex)));
+    polygons.forEach(({ outer, holes }, pathIndex) => place(outer, String(pathIndex), holes));
   });
 }
 

@@ -1,5 +1,5 @@
 import { get, set } from "idb-keyval";
-import { PAINT_REGION_KINDS, DEFAULT_PROJECT, DEPTH_CHART_ID_PATTERN, isDepthChartLakeKey, MAP_MARKER_SIZE_MM, MAX_CUSTOM_DATA_NAME_LENGTH, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, NORTH_ARROW_ANCHORS, isTextFont, validateProject, type CustomLineFeatureV1, type CustomLineKind, type MapMarkerV1, type MarkerSymbol, type NorthArrowAnchor, type NorthArrowStyle, type PlaqueV1, type ProjectConfigV1, type UserDepthChartRefV1 } from "@topostack/core";
+import { PAINT_REGION_KINDS, DEFAULT_PROJECT, DEPTH_CHART_ID_PATTERN, isDepthChartLakeKey, MAP_MARKER_SIZE_MM, MARKER_ICON_ID_PATTERN, MARKER_ICON_UNITS, MARKER_SYMBOLS, MAX_MARKER_ICON_POINTS, MAX_MARKER_ICONS, markerIconPointCount, MAX_CUSTOM_DATA_NAME_LENGTH, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, NORTH_ARROW_ANCHORS, isTextFont, validateProject, type CustomLineFeatureV1, type CustomLineKind, type MapMarkerV1, type MarkerIconShapeV1, type MarkerIconV1, type MarkerSymbol, type NorthArrowAnchor, type NorthArrowStyle, type PlaqueV1, type ProjectConfigV1, type UserDepthChartRefV1 } from "@topostack/core";
 
 const PROJECT_KEY = "topostack:project:v1";
 /** Where an unreadable saved project is copied before autosave replaces it. */
@@ -103,8 +103,43 @@ function plaqueValue(value: unknown): PlaqueV1 | undefined {
 }
 
 function markerSymbolValue(value: unknown): MarkerSymbol {
-  if (value === "pin" || value === "circle" || value === "triangle" || value === "star" || value === "cross") return value;
+  if (value === "custom" || (MARKER_SYMBOLS as readonly unknown[]).includes(value)) return value as MarkerSymbol;
   throw new Error("Marker symbol is invalid.");
+}
+
+function iconRingValue(value: unknown): number[] | undefined {
+  const half = MARKER_ICON_UNITS / 2;
+  return Array.isArray(value) && value.length >= 6 && value.length % 2 === 0 && value.every((coordinate) => Number.isSafeInteger(coordinate) && Math.abs(coordinate) <= half) ? value as number[] : undefined;
+}
+
+/**
+ * Uploaded marker icons. A malformed icon is dropped rather than refusing the
+ * project, and the markers that drew it fall back to pins (see markersValue).
+ * Absent stays absent, which keeps older projects' fingerprints.
+ */
+function markerIconsValue(value: unknown): MarkerIconV1[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const icons: MarkerIconV1[] = [];
+  for (const item of value) {
+    if (icons.length >= MAX_MARKER_ICONS) break;
+    if (!item || typeof item !== "object") continue;
+    const icon = item as Record<string, unknown>;
+    if (typeof icon.id !== "string" || !MARKER_ICON_ID_PATTERN.test(icon.id) || icons.some(({ id }) => id === icon.id)) continue;
+    if (!Array.isArray(icon.shapes) || !icon.shapes.length) continue;
+    const shapes: MarkerIconShapeV1[] = [];
+    for (const shape of icon.shapes as unknown[]) {
+      const record = shape && typeof shape === "object" ? shape as Record<string, unknown> : {};
+      const outer = iconRingValue(record.outer);
+      const holes = Array.isArray(record.holes) ? record.holes.map(iconRingValue) : [];
+      if (!outer || holes.some((hole) => !hole)) break;
+      shapes.push({ outer, ...(holes.length ? { holes: holes as number[][] } : {}) });
+    }
+    if (shapes.length !== icon.shapes.length) continue;
+    const parsed: MarkerIconV1 = { id: icon.id, name: customDataName(icon.name).name ?? "Icon", ...(icon.anchor === "bottom" ? { anchor: "bottom" as const } : {}), shapes };
+    if (markerIconPointCount(parsed) > MAX_MARKER_ICON_POINTS) continue;
+    icons.push(parsed);
+  }
+  return icons.length ? icons : undefined;
 }
 
 /**
@@ -118,7 +153,7 @@ function customDataName(value: unknown): { name?: string } {
   return name && name.length <= MAX_CUSTOM_DATA_NAME_LENGTH ? { name } : {};
 }
 
-function markersValue(value: unknown): MapMarkerV1[] {
+function markersValue(value: unknown, icons: MarkerIconV1[] | undefined): MapMarkerV1[] {
   if (value === undefined) return [];
   if (!Array.isArray(value)) throw new Error("Project markers must be a list.");
   if (value.length > MAX_MAP_MARKERS) throw new Error("Project contains too many markers.");
@@ -126,7 +161,16 @@ function markersValue(value: unknown): MapMarkerV1[] {
     if (!item || typeof item !== "object") throw new Error("Each marker must be an object.");
     const marker = item as Record<string, unknown>;
     if (typeof marker.id !== "string") throw new Error("Each marker must have an id.");
-    return { id: marker.id, lat: numberValue(marker.lat), lon: numberValue(marker.lon), symbol: markerSymbolValue(marker.symbol), sizeMm: marker.sizeMm === undefined ? MAP_MARKER_SIZE_MM : numberValue(marker.sizeMm), ...customDataName(marker.name) };
+    const symbol = markerSymbolValue(marker.symbol);
+    // A custom marker whose icon did not survive keeps its place as a pin.
+    const iconId = symbol === "custom" && icons?.some(({ id }) => id === marker.iconId) ? marker.iconId as string : undefined;
+    return {
+      id: marker.id, lat: numberValue(marker.lat), lon: numberValue(marker.lon),
+      symbol: symbol === "custom" && !iconId ? "pin" : symbol,
+      sizeMm: marker.sizeMm === undefined ? MAP_MARKER_SIZE_MM : numberValue(marker.sizeMm),
+      ...customDataName(marker.name),
+      ...(iconId ? { iconId } : {}),
+    };
   });
 }
 
@@ -222,6 +266,7 @@ export function parseProject(value: unknown): ProjectConfigV1 {
   if (!value || typeof value !== "object") throw new Error("Project must be a JSON object.");
   const record = value as Record<string, unknown>;
   if (record.schemaVersion !== 1) throw new Error("Not a TopoStack v1 project.");
+  const markerIcons = markerIconsValue(record.markerIcons);
   const location = record.location;
   if (!location || typeof location !== "object") throw new Error("Project location is missing.");
   const locationRecord = location as Record<string, unknown>;
@@ -311,7 +356,8 @@ export function parseProject(value: unknown): ProjectConfigV1 {
     ...(record.scaleBarPlacement === undefined ? {} : { scaleBarPlacement: scaleBarPlacementValue(record.scaleBarPlacement) }),
     ...userDepthChartsValue(record.userDepthCharts),
     ...(record.plaque === undefined ? {} : { plaque: plaqueValue(record.plaque) }),
-    markers: markersValue(record.markers),
+    ...(markerIcons ? { markerIcons } : {}),
+    markers: markersValue(record.markers, markerIcons),
     customLines: customLinesValue(record.customLines),
     explodedPreview: record.explodedPreview === undefined ? DEFAULT_PROJECT.explodedPreview : numberValue(record.explodedPreview),
   };

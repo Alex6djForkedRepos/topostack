@@ -76,12 +76,49 @@ export function clipPolygons(subject: Polygon2D[], clip: Polygon2D[], operation:
  * become holes and its overlapping strokes merge.
  */
 export function nonZeroPolygons(rings: Point2D[][]): Polygon2D[] {
+  return filledPolygons(rings, "nonzero");
+}
+
+/** The region closed rings enclose under an SVG fill rule, as outers with holes. */
+export function filledPolygons(rings: Point2D[][], rule: "nonzero" | "evenodd"): Polygon2D[] {
   const paths = rings.map(toPath).filter((path) => path.length >= 3);
   if (!paths.length) return [];
   const clipper = new ClipperLib.Clipper();
   clipper.AddPaths(paths, ClipperLib.PolyType.ptSubject, true);
   const tree = new ClipperLib.PolyTree();
-  clipper.Execute(ClipperLib.ClipType.ctUnion, tree, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
+  const fill = rule === "evenodd" ? ClipperLib.PolyFillType.pftEvenOdd : ClipperLib.PolyFillType.pftNonZero;
+  clipper.Execute(ClipperLib.ClipType.ctUnion, tree, fill, fill);
+  return fromTree(tree);
+}
+
+export type StrokeCap = "butt" | "round" | "square";
+export type StrokeJoin = "miter" | "round" | "bevel";
+
+/**
+ * The region a stroke of `width` paints along polylines, as SVG draws it:
+ * open lines get `cap` at both ends, closed rings are stroked all the way
+ * round with no ends. Miters past SVG's default limit of 4 are cut square.
+ */
+export function strokePolylines(polylines: Array<{ points: Point2D[]; closed: boolean }>, width: number, cap: StrokeCap = "butt", join: StrokeJoin = "miter"): Polygon2D[] {
+  if (!(width > 0)) return [];
+  const joinType = { miter: ClipperLib.JoinType.jtMiter, round: ClipperLib.JoinType.jtRound, bevel: ClipperLib.JoinType.jtSquare }[join];
+  const openEnd = { butt: ClipperLib.EndType.etOpenButt, round: ClipperLib.EndType.etOpenRound, square: ClipperLib.EndType.etOpenSquare }[cap];
+  const offsetter = new ClipperLib.ClipperOffset(4, Math.max(1, width * 0.005 * CLIPPER_SCALE));
+  let added = false;
+  for (const { points, closed } of polylines) {
+    const path = toPath(points);
+    if (path.length < (closed ? 3 : 1)) continue;
+    // A lone point with round or square caps still paints a dot, as in SVG.
+    if (path.length === 1) {
+      if (cap === "butt") continue;
+      path.push({ ...path[0]! });
+    }
+    offsetter.AddPath(path, joinType, closed ? ClipperLib.EndType.etClosedLine : openEnd);
+    added = true;
+  }
+  if (!added) return [];
+  const tree = new ClipperLib.PolyTree();
+  offsetter.Execute(tree, width / 2 * CLIPPER_SCALE);
   return fromTree(tree);
 }
 

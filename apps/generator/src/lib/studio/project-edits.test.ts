@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_PROJECT, MAX_CUSTOM_DATA_NAME_LENGTH, MAX_CUSTOM_DATA_POINTS, projectFingerprint, MAX_CUSTOM_LINE_POINTS, MAX_MAP_MARKERS, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, type CustomLineFeatureV1, type ProjectConfigV1 } from "@topostack/core";
-import { addCustomLine, addCustomLinePoint, addDrawnCustomLine, canExtendDrawnLine, renameCustomLine, renameMarker, addMarker, addMarkerAt, appendCustomData, canAddCustomLine, clampPlaqueSize, customDataCapacity, plaqueSettings, plaqueText, plaqueWithFont, northArrowMaximumMm, removeCustomLine, removeCustomLinePoint, removeMarker, updateCustomLine, updateCustomLinePoint, updateMarker, withLiveNames } from "$lib/studio/project-edits";
+import { addMarkerIcon, removeMarkerIcon, renameMarkerIcon, setMarkerIconAnchor, addCustomLine, addCustomLinePoint, addDrawnCustomLine, canExtendDrawnLine, renameCustomLine, renameMarker, addMarker, addMarkerAt, appendCustomData, canAddCustomLine, clampPlaqueSize, customDataCapacity, plaqueSettings, plaqueText, plaqueWithFont, northArrowMaximumMm, removeCustomLine, removeCustomLinePoint, removeMarker, updateCustomLine, updateCustomLinePoint, updateMarker, withLiveNames } from "$lib/studio/project-edits";
 
 const line = (id: string, count = 2): CustomLineFeatureV1 => ({ id, kind: "trail", points: Array.from({ length: count }, (_, index) => ({ lat: 40, lon: -105 + index * 0.01 })) });
 const withData = (patch: Partial<ProjectConfigV1>): ProjectConfigV1 => ({ ...DEFAULT_PROJECT, ...patch });
@@ -33,6 +33,45 @@ describe("marker edits", () => {
     expect(updateMarker(project, "a", { lon: Number.NaN })).toBeUndefined();
     expect(updateMarker(project, "missing", { lat: 1 })).toBeUndefined();
     expect(removeMarker(project, "a").markers.map((marker) => marker.id)).toEqual(["b"]);
+  });
+});
+
+describe("marker icon edits", () => {
+  const icon = { id: "icon-0001", name: "Cabin", shapes: [{ outer: [-500, 500, 500, 500, 0, -500] }] };
+  const project = withData({ markers: [{ id: "a", lat: 1, lon: 2, symbol: "pin" }, { id: "b", lat: 3, lon: 4, symbol: "star" }] });
+
+  it("adds an icon once, reusing the same drawing when it is uploaded again", () => {
+    const added = addMarkerIcon(project, icon)!;
+    expect(added).toEqual({ iconId: icon.id, patch: { markers: project.markers, markerIcons: [icon] } });
+    const withIcon = { ...project, ...added.patch };
+    expect(addMarkerIcon(withIcon, { ...icon, id: "icon-0002", name: "Again" })?.iconId).toBe(icon.id);
+    expect(addMarkerIcon(withIcon, { ...icon, id: "icon-0002", anchor: "bottom" })?.iconId).toBe("icon-0002");
+    const full = { ...project, markerIcons: Array.from({ length: 24 }, (_, index) => ({ ...icon, id: `icon-${String(index).padStart(4, "0")}`, shapes: [{ outer: [index, 0, 1, 1, 2, 0] }] })) };
+    expect(addMarkerIcon(full, { ...icon, id: "icon-9999" })).toBeUndefined();
+  });
+
+  it("gives markers only icons the project has, and drops the icon with the symbol", () => {
+    const withIcon = { ...project, markerIcons: [icon] };
+    const custom = updateMarker(withIcon, "a", { symbol: "custom", iconId: icon.id })!;
+    expect(custom.markers[0]).toEqual({ id: "a", lat: 1, lon: 2, symbol: "custom", iconId: icon.id });
+    expect(updateMarker(withIcon, "a", { symbol: "custom", iconId: "missing" })).toBeUndefined();
+    expect(updateMarker(project, "a", { symbol: "custom", iconId: icon.id })).toBeUndefined();
+    // Resizing a custom marker keeps its icon; choosing a built-in lets it go.
+    const resized = updateMarker({ ...withIcon, ...custom }, "a", { sizeMm: 12 })!;
+    expect(resized.markers[0]).toMatchObject({ symbol: "custom", iconId: icon.id, sizeMm: 12 });
+    expect(updateMarker({ ...withIcon, ...custom }, "a", { symbol: "circle" })?.markers[0]).toEqual({ id: "a", lat: 1, lon: 2, symbol: "circle" });
+  });
+
+  it("renames and re-anchors icons, and removing one turns its markers into pins", () => {
+    const withIcon = { ...project, markerIcons: [icon], markers: [{ id: "a", lat: 1, lon: 2, symbol: "custom" as const, iconId: icon.id }, project.markers[1]!] };
+    expect(renameMarkerIcon(withIcon, icon.id, "  Hut ")?.markerIcons?.[0]!.name).toBe("Hut");
+    expect(renameMarkerIcon(withIcon, icon.id, "  ")).toBeUndefined();
+    expect(setMarkerIconAnchor(withIcon, icon.id, "bottom")?.markerIcons?.[0]).toEqual({ ...icon, anchor: "bottom" });
+    expect(setMarkerIconAnchor({ ...withIcon, markerIcons: [{ ...icon, anchor: "bottom" }] }, icon.id, "center")?.markerIcons?.[0]).toEqual(icon);
+    const removed = removeMarkerIcon(withIcon, icon.id);
+    expect(removed.markerIcons).toBeUndefined();
+    expect(removed.markers[0]).toEqual({ id: "a", lat: 1, lon: 2, symbol: "pin" });
+    expect(removed.markers[1]).toBe(project.markers[1]);
   });
 });
 

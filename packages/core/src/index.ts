@@ -13,6 +13,8 @@ export type { PreparedPolygons } from "./primitives/geometry2d.js";
 export * from "./annotate/labels.js";
 export { FONT_CATALOG, FontNotLoadedError, clearRegisteredFonts, decodeFontGlyphs, fontEntry, isBitmapFont, isFontLoaded, isTextFont, missingGlyphs, projectFonts, registerFont, type FontCatalogEntry, type FontGlyphsV1, type FontKind } from "./annotate/font-data.js";
 export * from "./annotate/markers.js";
+export { MarkerIconError, buildMarkerIcon, markerIconBottom, markerIconPointCount, markerIconPolygons, paintedRegion, type MarkerIconPaint } from "./annotate/marker-icons.js";
+export { absolutePathCommands, flattenSvgPath, type AbsolutePathCommand, type PathPolyline } from "./annotate/svg-path-data.js";
 export * from "./annotate/north-arrow.js";
 export * from "./annotate/plaque.js";
 export * from "./annotate/scale-bar.js";

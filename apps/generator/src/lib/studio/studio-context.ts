@@ -155,6 +155,8 @@ export interface StudioContext {
   copyShareLink(): Promise<void>;
   /** Adds markers and paths from a GPX, KML or GeoJSON file as one undo step. */
   importCustomData(file: File | undefined): Promise<void>;
+  /** Adds an SVG as a marker icon, and gives it to `markerId` when one is named. */
+  importMarkerIcon(file: File | undefined, markerId?: string): Promise<void>;
 
   // Generation
   generate(): Promise<void>;

@@ -603,7 +603,7 @@
     status = `${action} applied`;
     // A cosmetic change leaves any pending refresh to finish on its own.
     if (keepsWork || !sourceChanged.some((key) => !COSMETIC_KEYS.has(key))) return;
-    const kind: PreviewUpdateKind = sourceChanged.some((key) => key.startsWith("show")) ? "details" : sourceChanged.every((key) => key === "markers" || key === "customLines") ? "customData" : "fabrication";
+    const kind: PreviewUpdateKind = sourceChanged.some((key) => key.startsWith("show")) ? "details" : sourceChanged.every((key) => key === "markers" || key === "markerIcons" || key === "customLines") ? "customData" : "fabrication";
     void refreshPreview(kind, 0);
   }
   function resetProject(): void {
@@ -920,7 +920,8 @@
     cancelLineDraft: () => customData.cancelLineDraft(),
     saveChartToLibrary: (record) => customData.saveChartToLibrary(record),
     useChartForLake: (key, reference) => customData.useChartForLake(key, reference),
-    clearDepthChart: (key) => customData.clearDepthChart(key), choosePlace, startPlacement, commitPlacement, cancelPlacement, undo, redo, importProject, copyShareLink, importCustomData, generate, cancelGeneration, toggleSection, setAllSections, sectionSummary, navigateChoice, dismissPreviewWarning, previewMarkingPath, trailPatternDash, getFeedbackContext,
+    clearDepthChart: (key) => customData.clearDepthChart(key),
+    importMarkerIcon: (file, markerId) => customData.importMarkerIcon(file, markerId), choosePlace, startPlacement, commitPlacement, cancelPlacement, undo, redo, importProject, copyShareLink, importCustomData, generate, cancelGeneration, toggleSection, setAllSections, sectionSummary, navigateChoice, dismissPreviewWarning, previewMarkingPath, trailPatternDash, getFeedbackContext,
   });
 </script>
 

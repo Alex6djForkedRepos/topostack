@@ -206,6 +206,98 @@
   stroke-linejoin: round;
 }
 
+/* Uploaded icons are drawn filled at their true outline; the built-in
+   hairline stroke would blur fine detail. */
+.marker-symbol-options__icon svg {
+  stroke: none;
+}
+
+.marker-icon-upload {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--loidolt-text-muted);
+  font-size: var(--panel-font-caption);
+  cursor: pointer;
+}
+
+.marker-icon-upload:hover:not(:disabled) {
+  color: var(--loidolt-text);
+}
+
+.marker-icon-upload:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.marker-icon-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.marker-icon-row {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto 26px;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 4px 6px 8px;
+  border: 1px solid var(--loidolt-border);
+  background: var(--loidolt-surface);
+}
+
+.marker-icon-row > svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
+
+.marker-icon-anchor {
+  display: flex;
+}
+
+.marker-icon-anchor button {
+  padding: 3px 6px;
+  border: 1px solid var(--loidolt-border);
+  background: var(--loidolt-surface-input);
+  color: var(--loidolt-text-muted);
+  font-size: var(--panel-font-caption);
+  cursor: pointer;
+}
+
+.marker-icon-anchor button + button {
+  border-left: 0;
+}
+
+.marker-icon-anchor button[data-state="on"] {
+  border-color: var(--loidolt-accent);
+  background: var(--loidolt-surface-alt);
+  color: var(--loidolt-text);
+}
+
+.marker-icon-remove {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--loidolt-text-muted);
+  cursor: pointer;
+}
+
+.marker-icon-remove:hover {
+  color: var(--loidolt-text-danger);
+}
+
+.marker-icon-upload:focus-visible,
+.marker-icon-anchor button:focus-visible,
+.marker-icon-remove:focus-visible,
 .marker-card__header button:focus-visible,
 .marker-symbol-options button:focus-visible,
 .custom-line-kind-options button:focus-visible,

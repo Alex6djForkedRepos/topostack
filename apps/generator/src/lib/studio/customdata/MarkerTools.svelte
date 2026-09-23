@@ -1,13 +1,13 @@
 <script lang="ts">
-  import { Crosshair, MapPin, Plus, Trash2 } from "@lucide/svelte";
+  import { Crosshair, ImageUp, MapPin, Plus, Shapes, Trash2 } from "@lucide/svelte";
   import { Field } from "@loidolt/theme-svelte";
-  import { displayLength, MAP_MARKER_SIZE_MM, MAP_MARKER_MIN_SIZE_MM, MAP_MARKER_MAX_SIZE_MM, MAX_CUSTOM_DATA_NAME_LENGTH } from "@topostack/core";
+  import { displayLength, markerIconPolygons, MAP_MARKER_SIZE_MM, MAP_MARKER_MIN_SIZE_MM, MAP_MARKER_MAX_SIZE_MM, MAX_CUSTOM_DATA_NAME_LENGTH, type MarkerIconV1 } from "@topostack/core";
   import NumberField from "$lib/studio/StudioNumberField.svelte";
   import LengthField from "$lib/studio/StudioLengthField.svelte";
   import { MARKER_OPTIONS } from "$lib/studio/options";
   import * as edits from "$lib/studio/project-edits";
   import { MAX_LATITUDE, MAX_LONGITUDE } from "$lib/domain/coordinates";
-  import { symbolPath } from "$lib/studio/svg-path";
+  import { polygonsPath, symbolPath } from "$lib/studio/svg-path";
   import { getStudio } from "$lib/studio/studio-context";
 
   /**
@@ -19,7 +19,19 @@
    */
 
   const studio = getStudio();
-  const { applyCustomDataEdit, navigateChoice, renameCustomData, shownLength, storedLength } = studio;
+  const { applyCustomDataEdit, importMarkerIcon, navigateChoice, renameCustomData, shownLength, storedLength } = studio;
+
+  // One file input serves every card's upload button; this is the marker that asked.
+  let iconInput: HTMLInputElement;
+  let iconTarget = "";
+  let uploading = $state(false);
+  const icons = $derived(studio.project.markerIcons ?? []);
+  const iconPath = (icon: MarkerIconV1) => polygonsPath(markerIconPolygons(icon, { x: 0, y: 0 }, 20));
+
+  function chooseIcon(markerId: string): void {
+    iconTarget = markerId;
+    iconInput.click();
+  }
 </script>
 
 <div class="marker-editor">
@@ -52,10 +64,36 @@
                 <svg viewBox="-11 -11 22 22" aria-hidden="true"><path d={symbolPath(option.paths)} fill-rule="evenodd" /></svg>
               </button>
             {/each}
+            {#each icons as icon (icon.id)}
+              {@const chosen = marker.symbol === "custom" && marker.iconId === icon.id}
+              <button type="button" role="radio" class="marker-symbol-options__icon" aria-label={icon.name} title={icon.name} aria-checked={chosen} data-state={chosen ? "on" : "off"} tabindex={chosen ? 0 : -1} onclick={() => applyCustomDataEdit(edits.updateMarker(studio.project, marker.id, { symbol: "custom", iconId: icon.id }))} onkeydown={navigateChoice}>
+                <svg viewBox="-11 -11 22 22" aria-hidden="true"><path d={iconPath(icon)} fill-rule="evenodd" /></svg>
+              </button>
+            {/each}
           </div>
+          <button type="button" class="marker-icon-upload" onclick={() => chooseIcon(marker.id)} disabled={uploading || !edits.canAddMarkerIcon(studio.project)}><ImageUp size={12} />{uploading ? "Reading SVG…" : "Use an SVG for this marker"}</button>
         </div>
       {/each}
     </div>
   {/if}
-  <small class="marker-note">Markers follow the visible faces of the stack. Markers outside the selected crop remain saved but are not engraved.</small>
+  {#if icons.length}
+    <div class="marker-icon-list" aria-label="Marker icons">
+      <div class="subgroup-heading"><p><Shapes size={14} />Icons <span>{icons.length}</span></p></div>
+      {#each icons as icon (icon.id)}
+        <div class="marker-icon-row">
+          <svg viewBox="-11 -11 22 22" aria-hidden="true"><path d={iconPath(icon)} fill-rule="evenodd" /></svg>
+          <input class="custom-data-name" type="text" value={icon.name} maxlength={MAX_CUSTOM_DATA_NAME_LENGTH} aria-label={`Name for icon ${icon.name}`} onchange={(event) => renameCustomData(edits.renameMarkerIcon(studio.project, icon.id, event.currentTarget.value))} />
+          <span class="marker-icon-anchor" role="radiogroup" aria-label={`${icon.name} rests on the marker at its`}>
+            {#each [{ value: "center", label: "Center" }, { value: "bottom", label: "Base" }] as const as option}
+              {@const chosen = (icon.anchor ?? "center") === option.value}
+              <button type="button" role="radio" aria-checked={chosen} data-state={chosen ? "on" : "off"} tabindex={chosen ? 0 : -1} title={option.value === "bottom" ? "The icon's lowest point marks the spot, like a pin's tip" : "The icon's middle marks the spot"} onclick={() => applyCustomDataEdit(edits.setMarkerIconAnchor(studio.project, icon.id, option.value))} onkeydown={navigateChoice}>{option.label}</button>
+            {/each}
+          </span>
+          <button type="button" class="marker-icon-remove" aria-label={`Remove icon ${icon.name}`} title="Remove icon; markers using it become pins" onclick={() => applyCustomDataEdit(edits.removeMarkerIcon(studio.project, icon.id))}><Trash2 size={14} /></button>
+        </div>
+      {/each}
+    </div>
+  {/if}
+  <input bind:this={iconInput} data-marker-icon-import class="ldt-visually-hidden" type="file" tabindex="-1" aria-hidden="true" accept=".svg,image/svg+xml" onchange={(event) => { const input = event.currentTarget; uploading = true; void importMarkerIcon(input.files?.[0], iconTarget).finally(() => { input.value = ""; uploading = false; }); }} />
+  <small class="marker-note">Markers follow the visible faces of the stack. Markers outside the selected crop remain saved but are not engraved. Uploaded SVG icons are engraved as filled shapes; strokes become outlines and white areas cut through.</small>
 </div>
