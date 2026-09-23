@@ -1,0 +1,17 @@
+{
+  "name": "@topostack/nest-wasm",
+  "version": "0.4.0",
+  "private": true,
+  "type": "module",
+  "description": "Strip packing for sheet nesting: the sparrow heuristic (MIT) and jagua-rs (MPL-2.0), unmodified, compiled to WebAssembly. The build output in pkg/ is committed so app builds need no Rust toolchain; rebuild it with `npm run build:nest-wasm` after changing the crate.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./wasm": "./pkg/topostack_nest_wasm_bg.wasm"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node scripts/build.mjs --check && vitest run",
+    "coverage": "vitest run --coverage"
+  },
+  "sideEffects": false
+}

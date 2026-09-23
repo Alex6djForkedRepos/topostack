@@ -1,0 +1,9 @@
+{
+  "crate": "0.1.0",
+  "rustc": "rustc 1.90.0 (1159e78c4 2025-09-14)",
+  "wasmBindgen": "0.2.100",
+  "wasmOpt": "133",
+  "sourceSha256": "4010dcec03da5698de218f7ee6dd4bd34b8ef07e29b942a0b90adaef2a7ed119",
+  "wasmSha256": "adbe97cb10b754a17dda81a19012253bb30b1d2a8218f062c8b0735fe4e55552",
+  "wasmBytes": 769673
+}
