@@ -31,6 +31,7 @@ async function openCharts(page: Page, fromMap = false, withoutSearch = false): P
   } }));
   await page.goto("/studio");
   await page.getByRole("radio", { name: "Custom data", exact: true }).click();
+  await expect(page.locator(".generate-dock")).toHaveCount(0);
   if (!withoutSearch) {
   await page.getByRole("textbox", { name: "Search for a lake", exact: true }).fill("Round Lake");
   await page.locator(".chart-search").getByRole("button", { name: "Search", exact: true }).click();
@@ -101,6 +102,7 @@ test("traces an image in the worker, saves it, applies it, and restores the libr
   test.setTimeout(120_000);
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
+  page.on("console", message => { if (message.type() === "error" && /shader|WebGLProgram/i.test(message.text())) errors.push(message.text()); });
   await openCharts(page);
   const image = await page.evaluate(rings => {
     const canvas = document.createElement("canvas"); canvas.width = 360; canvas.height = 280;
@@ -116,29 +118,47 @@ test("traces an image in the worker, saves it, applies it, and restores the libr
   await mark(page, "10", 130, 140);
   await expect(page.locator(".chart-depth-guide").getByRole("button", { name: "Trace chart", exact: true })).toBeDisabled();
   await mark(page, "0", 320, 140);
+  const scrollBefore = await page.evaluate(() => window.scrollY);
   await page.getByRole("button", { name: "Trace chart", exact: true }).click();
   await expect(page.locator(".chart-result")).toBeVisible({ timeout: 60_000 });
   await expect(page.locator(".chart-report")).toContainText("100%");
   await expect(page.getByRole("button", { name: "Keep this chart", exact: true })).toBeEnabled();
-  await expect(page.locator(".depth-3d canvas")).toBeVisible();
+  await expect(page.locator(".depth-3d canvas:visible")).toBeVisible();
+  expect(await page.evaluate(() => window.scrollY)).toBe(scrollBefore);
+  await page.setViewportSize({ width: 1600, height: 1100 });
+  const editor = await page.locator(".chart-editor").boundingBox();
+  const three = await page.locator(".chart-result__3d").boundingBox();
+  const dem = await page.locator(".chart-result__dem").boundingBox();
+  expect(three!.x).toBeGreaterThan(editor!.x + editor!.width);
+  expect(Math.abs(three!.y - editor!.y)).toBeLessThan(2);
+  expect(dem!.y).toBeGreaterThan(three!.y + three!.height);
+  await expect(page.locator(".chart-preview")).toBeVisible();
+
   await page.locator(".depth-controls").getByRole("button", { name: "Rotate", exact: true }).click();
   await page.locator(".depth-controls").getByRole("button", { name: "Zoom in", exact: true }).click();
-  await page.getByLabel("Vertical exaggeration", { exact: true }).selectOption("10");
-  await page.locator(".depth-controls").getByRole("button", { name: "Reset view", exact: true }).click();
+  await page.getByRole("slider", { name: "Exploded layers", exact: true }).fill("0.2");
+  await page.locator(".depth-controls").getByRole("button", { name: "Fit view", exact: true }).click();
   await page.locator(".depth-3d").scrollIntoViewIfNeeded();
+  await expect(page.getByLabel("3D surface style", { exact: true })).toHaveValue("stack");
+  await expect(page.locator(".depth-viewer .chart-hint")).toContainText("12 representative layers · 3 mm stock");
+  const contours = await page.locator(".depth-3d").screenshot();
+  await page.getByLabel("3D surface style", { exact: true }).selectOption("dem");
+  await expect(page.locator(".dem-3d canvas")).toBeVisible();
+  await page.getByLabel("Vertical exaggeration", { exact: true }).selectOption("auto");
+  const shaded = await page.locator(".depth-3d").screenshot();
+  expect(contours.equals(shaded)).toBe(false);
+  await page.getByLabel("3D surface style", { exact: true }).selectOption("stack");
   await page.screenshot({ path: testInfo.outputPath("depth-chart-result.png") });
-  await page.getByRole("button", { name: "2D depth map", exact: true }).click();
   await expect(page.locator(".chart-preview")).toBeVisible();
   await expect(page.locator(".chart-preview-legend")).toContainText("Shallow");
-  await page.getByRole("button", { name: "3D lake bed", exact: true }).click();
-  await expect(page.locator(".depth-3d canvas")).toBeVisible();
+  await expect(page.locator(".depth-3d canvas:visible")).toBeVisible();
   await page.getByRole("button", { name: "Review and save chart", exact: true }).click();
   await expect(page.locator("#chart-save-heading")).toBeFocused();
   await page.getByRole("button", { name: "Keep this chart", exact: true }).click();
   await expect(page.locator(".chart-saved")).toContainText("Round Lake depth chart");
   await page.getByRole("button", { name: "Use for Round Lake", exact: true }).click();
   await expect(page.locator(".chart-saved__state")).toContainText("Ready for Round Lake");
-  await expect(page.locator(".status-line")).toContainText("regenerate terrain");
+  await expect(page.locator(".generate-dock")).toHaveCount(0);
   // The transferable project file must contain both the reference and chart data.
   await page.getByRole("button", { name: "Export", exact: true }).click();
   const downloading = page.waitForEvent("download");
@@ -185,8 +205,17 @@ test("recovers from invalid uploads and a blank PDF cover, and places points at 
   await page.getByRole("button", { name: "Trace chart", exact: true }).click();
   await expect(page.locator(".chart-result")).toBeVisible({ timeout: 60_000 });
   await expect(page.locator(".chart-report")).toContainText("100%");
+  await expect(page.locator(".depth-3d canvas:visible")).toBeVisible();
+  const editor = await page.locator(".chart-editor").boundingBox();
+  const three = await page.locator(".chart-result__3d").boundingBox();
+  const dem = await page.locator(".chart-result__dem").boundingBox();
+  expect(three!.y).toBeGreaterThan(editor!.y + editor!.height);
+  expect(dem!.y).toBeGreaterThan(three!.y + three!.height);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.locator(".depth-3d").scrollIntoViewIfNeeded();
   await page.screenshot({ path: testInfo.outputPath("depth-chart-mobile.png") });
+  await page.locator(".chart-preview").scrollIntoViewIfNeeded();
+  await page.screenshot({ path: testInfo.outputPath("depth-chart-mobile-dem.png") });
 });
 
 

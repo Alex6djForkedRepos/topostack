@@ -21,8 +21,10 @@
    * like the placement layer's viewBox, orbiting is off, and generated markings
    * matching `hiddenPrefixes` are left out while their drafts are drawn above.
    */
-  let { geometry, exploded, placement, onUnavailable }: {
-    geometry: GeometryIRV1;
+  let { geometry, exploded, placement, onUnavailable, rememberCamera = true }: {
+    geometry: Pick<GeometryIRV1, "widthMm" | "heightMm" | "layers" | "waterSurfaces" | "lineStyle">;
+    /** Isolated representative previews must not replace the project camera. */
+    rememberCamera?: boolean;
     exploded: number;
     /** `toolbarRows` is how many rows the placement toolbar has; the stage reserves more space above the drawing for two. */
     placement?: { hiddenPrefixes: readonly string[]; marginMm: number; hideMarkings?: boolean; toolbarRows?: number };
@@ -41,7 +43,7 @@
     runtime.camera.position.copy(runtime.controls.target).addScaledVector(direction, fitDistance / value);
     runtime.controls.update(); runtime.requestRender();
   }
-  function fitView() {
+  export function fitView() {
     if (!runtime) return;
     runtime.controls.target.copy(fitTarget);
     setZoom(1);
@@ -336,7 +338,7 @@
     const rig = new THREE.Group(); const content = new THREE.Group(); content.scale.y = -1; rig.add(content); scene.add(rig);
     const topCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 20_000); topCamera.position.set(0, 0, 5_000); topCamera.lookAt(0, 0, 0);
     const controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.dampingFactor = 0.065; controls.maxPolarAngle = Math.PI * 0.95; controls.minDistance = 120; controls.maxDistance = 1800; controls.target.set(0, 0, 10); camera.position.set(15, -165, 270); controls.update();
-    if (savedCamera) { camera.position.set(...savedCamera.position); controls.target.set(...savedCamera.target); controls.update(); fitDistance = savedCamera.fitDistance; fitTarget = new THREE.Vector3(...savedCamera.fitTarget); }
+    if (rememberCamera && savedCamera) { camera.position.set(...savedCamera.position); controls.target.set(...savedCamera.target); controls.update(); fitDistance = savedCamera.fitDistance; fitTarget = new THREE.Vector3(...savedCamera.fitTarget); }
     const texture = makeWoodTexture();
     let contextLost = false;
     const requestRender = () => {
@@ -370,13 +372,13 @@
       controls.removeEventListener("change", requestRender);
       controls.removeEventListener("change", updateZoom);
     };
-    runtime = { renderer, camera, topCamera, topDown: false, controls, rig, content, resizeObserver, frame: 0, environmentTarget, texture, keyLight, detachContextHandlers, requestRender, sceneResources: [], layerMeshes: new Map(), fitSignature: savedCamera?.fitSignature };
+    runtime = { renderer, camera, topCamera, topDown: false, controls, rig, content, resizeObserver, frame: 0, environmentTarget, texture, keyLight, detachContextHandlers, requestRender, sceneResources: [], layerMeshes: new Map(), fitSignature: rememberCamera ? savedCamera?.fitSignature : undefined };
     requestRender();
     return () => {
       if (!runtime) return;
       const { position, target } = orbitBeforePlacement ?? { position: runtime.camera.position, target: runtime.controls.target };
       cancelAnimationFrame(easeFrame);
-      savedCamera = { position: [position.x, position.y, position.z], target: [target.x, target.y, target.z], fitSignature: runtime.fitSignature, fitDistance, fitTarget: [fitTarget.x, fitTarget.y, fitTarget.z] };
+      if (rememberCamera) savedCamera = { position: [position.x, position.y, position.z], target: [target.x, target.y, target.z], fitSignature: runtime.fitSignature, fitDistance, fitTarget: [fitTarget.x, fitTarget.y, fitTarget.z] };
       cancelAnimationFrame(runtime.frame); runtime.detachContextHandlers(); runtime.resizeObserver.disconnect(); disposeContent(runtime.content, runtime.sceneResources); disposeLayerCache(runtime.layerMeshes); runtime.texture.dispose(); runtime.environmentTarget.dispose(); scene.environment = null; runtime.keyLight.shadow.dispose(); runtime.controls.dispose(); runtime.renderer.dispose();
       // Browsers cap live WebGL contexts; release this one now instead of at GC.
       runtime.renderer.forceContextLoss(); runtime.renderer.domElement.remove(); runtime = undefined;
@@ -569,6 +571,9 @@
       fitTopCamera(); runtime?.requestRender();
     });
   });
+
+  export function rotateView(): void { handleKeyDown(new KeyboardEvent("keydown", { key: "ArrowLeft" })); }
+  export function zoomView(closer: boolean): void { handleKeyDown(new KeyboardEvent("keydown", { key: closer ? "+" : "-" })); }
 
   function handleKeyDown(event: KeyboardEvent): void {
     if (!runtime || placement) return; if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "+", "-"].includes(event.key)) event.preventDefault();

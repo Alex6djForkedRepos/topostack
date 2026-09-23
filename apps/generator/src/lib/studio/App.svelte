@@ -980,7 +980,7 @@
   {#if AtommWorkbench}<AtommWorkbench ready={atommReady} blockedReason={exportBlockedBy} preparing={exportPhase === "preparing"} {exportPhase} {exportTitle} {exportDetail}>
     {#snippet leadHeader()}<ProjectControls />{/snippet}
     {#snippet lead()}<OutputSwitch />{#if mode === "custom"}{#if CustomDataNav}<CustomDataNav />{:else if customDataNav.failed}<p class="panel-loading" role="alert">Custom data tools could not load. <button type="button" class="btn btn-secondary" onclick={() => customDataNav.load()}>Retry</button></p>{:else}<p class="panel-loading" role="status">Loading custom data tools…</p>{/if}{:else}<SetupSection /><CustomDataSection />{/if}{/snippet}
-    {#snippet generate()}<GenerationDock />{/snippet}
+    {#snippet generate()}{#if mode !== "custom"}<GenerationDock />{/if}{/snippet}
     {#snippet parameterHeader()}
       <UnitSwitch />
       <button type="button" class="btn btn-secondary" onclick={() => void updateFabrication({ ...DEFAULT_PROJECT, id: project.id, name: project.name, location: project.location, outputMode: project.outputMode })}>Reset</button>
@@ -1041,7 +1041,7 @@
           <ParameterSections />
         {/if}
       </div>
-      <GenerationDock />
+      {#if mode !== "custom"}<GenerationDock />{/if}
     </Sidebar>
     {/snippet}
 

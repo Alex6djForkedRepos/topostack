@@ -23,7 +23,6 @@
 
   let canvas = $state<HTMLCanvasElement | undefined>();
   let previewCanvas = $state<HTMLCanvasElement | undefined>();
-  let resultElement = $state<HTMLDivElement | undefined>();
 
   async function reviewAndSave(): Promise<void> {
     openCustomDataSection("charts");
@@ -33,10 +32,6 @@
     heading?.scrollIntoView({ block: "nearest" });
   }
 
-  $effect(() => {
-    if (draft.result && resultElement) resultElement.scrollIntoView?.({ block: "start" });
-  });
-  let resultView = $state<"3d" | "2d">("3d");
   let threeUnavailable = $state(false);
   /**
    * The keyboard's pointer on the chart, in image pixels. Depths can be placed
@@ -156,13 +151,18 @@
   {:else if !draft.image}
     <p class="chart-stage__empty"><ImageUp size={20} />Choose a picture of {draft.lake.name}'s chart in the sidebar: a scan, a photo or a screenshot. Straight-on works best.</p>
   {:else}
+    <div class="chart-workspace">
+    <section class="chart-editor" aria-label="Chart editor">
+    <h3 class="chart-result__title">Chart editor</h3>
     <ChartDepthWizard {canvas} />
     <figure class="chart-figure">
+      <div class="chart-image-area" style:--chart-aspect={draft.image.width / draft.image.height}>
       <!-- A canvas may not take the application role, so the arrow keys are
            described instead; the picture itself is the thing to steer on. -->
       <canvas bind:this={canvas} width={draft.image.width} height={draft.image.height} class="chart-canvas" data-contour={activeContour?.index} aria-busy={detecting} onpointermove={hover} onpointerleave={() => { pointer = undefined; }} tabindex="0" aria-describedby="chart-keys" onclick={place} onfocus={onFocus} onblur={() => { focused = false; }} onkeydown={onKey} aria-label={`${draft.lake.name}, ${draft.depths.length} depths placed`}></canvas>
       <span id="chart-keys" class="ldt-visually-hidden">Arrow keys move the crosshair, Shift with an arrow moves it further, and Enter selects a point and opens its depth entry card. Confirm the value to continue to the next point.</span>
       <span class="ldt-visually-hidden" aria-live="polite">{focused && crosshair ? `Crosshair ${Math.round((crosshair.x / draft.image.width) * 100)}% across, ${Math.round((crosshair.y / draft.image.height) * 100)}% down.` : ""}</span>
+      </div>
       <figcaption class="chart-hint" role="status">
         {#if detecting}Finding contour lines…
         {:else if detectionError || !contours.length}No contour preview is available. You can still select points on the printed lines manually.
@@ -173,38 +173,48 @@
 
     {#if session.error && !session.point}<p class="chart-error" role="alert">{session.error}</p>{/if}
 
-    {#if draft.result}
-      <div class="chart-result" bind:this={resultElement}>
-        <section class="chart-result__visual" aria-label="Verify generated depth map">
-          <strong>Verify the generated lake bed</strong>
-          <div class="chart-result__views" role="group" aria-label="Depth preview view">
-            <button class="ldt-button ldt-button--quiet ldt-button--sm" type="button" aria-pressed={resultView === "3d"} onclick={() => { resultView = "3d"; }}>3D lake bed</button>
-            <button class="ldt-button ldt-button--quiet ldt-button--sm" type="button" aria-pressed={resultView === "2d"} onclick={() => { resultView = "2d"; }}>2D depth map</button>
-          </div>
-          {#if !resultIsCurrent()}
-            <p class="chart-warning" role="status">Preview out of date. Trace again to update it.</p>
-          {/if}
-          {#if resultView === "3d" && !threeUnavailable}
+    </section>
+    <div class="chart-result">
+      <section class="chart-result__visual chart-result__3d" aria-label="3D lake bed">
+        <h3 class="chart-result__title">3D lake bed</h3>
+        {#if draft.result && !resultIsCurrent()}
+          <p class="chart-warning" role="status">Preview out of date. Trace again to update it.</p>
+        {/if}
+        <div class="chart-3d-slot">
+        {#if draft.result}
+          {#if !threeUnavailable}
             {#await import("./ChartDepth3D.svelte")}
-              <p class="chart-hint" role="status">Loading 3D lake bed…</p>
+              <p class="chart-preview-placeholder" role="status">Loading 3D lake bed…</p>
             {:then module}
               {#key draft.result}
                 <module.default grid={draft.result.record.grid} onUnavailable={() => { threeUnavailable = true; }} />
               {/key}
             {:catch}
-              <p class="chart-warning" role="status">3D preview could not load. Choose 2D depth map to inspect the result.</p>
+              <p class="chart-preview-placeholder" role="status">3D preview could not load. Inspect the flat DEM below.</p>
             {/await}
           {:else}
-            {#if resultView === "3d"}<p class="chart-warning" role="status">3D preview is unavailable. Showing the 2D depth map instead.</p>{/if}
-            <figure class="chart-preview-figure" aria-label="Traced lake bed, shaded from shallow to deep">
-              <canvas bind:this={previewCanvas} class="chart-preview" aria-hidden="true"></canvas>
-              <figcaption class="chart-preview-legend"><span>Shallow</span><span>Deep</span></figcaption>
-            </figure>
+            <p class="chart-preview-placeholder" role="status">3D preview is unavailable. Inspect the flat DEM below.</p>
           {/if}
-          <p class="chart-hint">Light blue: shallow · dark blue: deep · gaps: no data. Compare the basin and its placement with your chart before keeping it.</p>
-        </section>
+        {:else}
+          <p class="chart-preview-placeholder">Trace your chart to inspect the lake bed in 3D.</p>
+        {/if}
+        </div>
+      </section>
+      <section class="chart-result__visual chart-result__dem" aria-label="Flat DEM">
+        <h3 class="chart-result__title">Flat DEM <small>North up</small></h3>
+        <figure class="chart-preview-figure" aria-label="Traced lake bed, shaded from shallow to deep">
+          <div class="chart-dem-slot">
+          {#if draft.result}
+            <canvas bind:this={previewCanvas} class="chart-preview" aria-hidden="true"></canvas>
+          {:else}
+            <p class="chart-preview-placeholder">The generated depth map will appear here.</p>
+          {/if}
+          </div>
+          <figcaption class="chart-preview-legend"><span>Shallow</span><span>Deep</span></figcaption>
+        </figure>
+        {#if draft.result}
         <div class="chart-result__read">
-          <h3 class="chart-result__title">{resultIsCurrent() ? "Your traced lake bed" : "Previous trace"}</h3>
+          <h3 class="ldt-visually-hidden">{resultIsCurrent() ? "Your traced lake bed" : "Previous trace"}</h3>
           <dl class="chart-report">
             <div><dt>Deepest</dt><dd>{(draft.result.report.deepestM / CHART_UNIT_METRES[draft.units]).toFixed(1)} {unitLabel(draft.units)}</dd></div>
             <div><dt>Contours levelled</dt><dd>{Math.round(draft.result.report.coverage * 100)}%</dd></div>
@@ -224,7 +234,9 @@
             <p class="chart-warning" role="status">Some contours carry no depth. Placing another depth usually fixes the rest.</p>
           {/if}
         </div>
-      </div>
-    {/if}
+        {/if}
+      </section>
+    </div>
+    </div>
   {/if}
 </div>
