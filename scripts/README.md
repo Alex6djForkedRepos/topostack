@@ -105,3 +105,5 @@ The changelog, version consistency, and the Atomm marketplace bundle. See [chang
 - [`verify/chart-accuracy/`](verify/chart-accuracy/README.md): opt-in, pinned USGS charts and independent QA soundings; 20 raster variants, spatial error scoring, appearance diagnostics, and reproducible figures.
 
 Reviewed depth-chart release checks and real-source capture instructions: [chart-release/README.md](verify/chart-release/README.md).
+
+Reviewed Walden Pond announcement assets and project: [walden-example/README.md](verify/walden-example/README.md). The runbook covers source preparation, offline validation, and fresh-browser capture.
