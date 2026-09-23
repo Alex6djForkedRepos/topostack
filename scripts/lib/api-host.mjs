@@ -13,3 +13,22 @@ export function isForbiddenApiHost(hostname) {
   if (host.includes("example.")) return true;
   return false;
 }
+
+/**
+ * Hosts a bundled library writes into its own code without ever calling them,
+ * each tied to a string only that library's chunk contains. An entry here says
+ * why the host is not an endpoint; everything else found in a script still
+ * fails the scan.
+ */
+const LIBRARY_HOSTS = [
+  // pdf.js tells absolute URLs from relative ones by parsing against this base
+  // (`new URL(url, "http://example.com")`). It is never requested.
+  { host: "example.com", marker: "GlobalWorkerOptions" },
+];
+
+/** The forbidden hosts named in one built file, less those a bundled library only writes. */
+export function forbiddenHostsIn(text) {
+  const hosts = [...text.matchAll(/https?:\/\/([a-z0-9.-]+)/gi)].map((match) => match[1].toLowerCase());
+  const allowed = new Set(LIBRARY_HOSTS.filter((entry) => text.includes(entry.marker)).map((entry) => entry.host));
+  return [...new Set(hosts.filter((host) => isForbiddenApiHost(host) && !allowed.has(host)))];
+}
