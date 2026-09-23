@@ -11,7 +11,7 @@
   import { trackUsage } from "$lib/site/usage";
   import { createSamplePreviewSource } from "$lib/domain/sample-preview";
   import { exportBlockReason } from "@topostack/core";
-  import { loadProject, parseProject, saveProject } from "$lib/storage/storage";
+  import { loadProject, parseProject, saveProject, saveProjectUnloadCopy } from "$lib/storage/storage";
   import { connectAtomm } from "$lib/atomm/atomm-bridge";
   import type { DownloadOption } from "$lib/studio/native-export";
   import { downloadProject as downloadWithNotice, ExportNotice } from "$lib/studio/export-notice";
@@ -468,12 +468,18 @@
     try { localStorage.setItem(MENU_STATE_KEY, JSON.stringify(current)); } catch { /* Preferences are optional. */ }
   });
 
+  /**
+   * Never persist a project that would fail validation on the next load —
+   * parse failures there would silently reset the user to the default project.
+   */
+  function canPersist(current: ProjectConfigV1): boolean {
+    try { validateProject(current); } catch { return false; }
+    return Number.isFinite(current.explodedPreview) && current.explodedPreview >= 0 && current.explodedPreview <= 1;
+  }
+
   /** Persist one snapshot, unless it could not be read back. */
   function persistProject(current: ProjectConfigV1): void {
-    // Never persist a project that would fail validation on the next load —
-    // parse failures there would silently reset the user to the default project.
-    try { validateProject(current); } catch { return; }
-    if (!Number.isFinite(current.explodedPreview) || current.explodedPreview < 0 || current.explodedPreview > 1) return;
+    if (!canPersist(current)) return;
     void saveProject(current).catch(() => status = "Local save is unavailable in this browser");
   }
 
@@ -484,16 +490,24 @@
     let timeout = 0;
     const write = () => { if (written) return; written = true; window.clearTimeout(timeout); persistProject(current); };
     timeout = window.setTimeout(write, 450);
-    // A closing, reloading or backgrounded tab gets this snapshot now: the
-    // debounce lost whatever was edited in its last 450 ms, because unmount
-    // only cleared the timer. `pagehide` covers close, reload and back/forward
-    // cache; `visibilitychange` covers a mobile tab switch that never unloads.
-    const onHidden = () => { if (document.hidden) write(); };
-    window.addEventListener("pagehide", write);
+    // A closing, reloading or backgrounded tab must keep this snapshot, but an
+    // unloading page abandons IndexedDB transactions it starts (an edit then
+    // an immediate reload was lost every time), and can abandon one the
+    // debounce started moments earlier. So the snapshot also goes to
+    // localStorage synchronously, even when the debounced write already ran;
+    // `loadProject` prefers that copy while it is newer. `pagehide` covers
+    // close, reload and back/forward cache; `visibilitychange` covers a mobile
+    // tab switch that never unloads, where the IndexedDB write does finish.
+    const flush = () => {
+      if (canPersist(current)) saveProjectUnloadCopy(current);
+      write();
+    };
+    const onHidden = () => { if (document.hidden) flush(); };
+    window.addEventListener("pagehide", flush);
     document.addEventListener("visibilitychange", onHidden);
     return () => {
       window.clearTimeout(timeout);
-      window.removeEventListener("pagehide", write);
+      window.removeEventListener("pagehide", flush);
       document.removeEventListener("visibilitychange", onHidden);
     };
   });

@@ -25,6 +25,7 @@ vi.mock("$lib/atomm/atomm-bridge", () => ({ connectAtomm: vi.fn(() => () => unde
 vi.mock("$app/navigation", () => ({ replaceState: (url: URL) => window.history.replaceState(window.history.state, "", url) }));
 vi.mock("$lib/studio/ThreePreview.svelte", async () => ({ default: (await import("$lib/studio/TestPreview.svelte")).default }));
 
+import { PROJECT_UNLOAD_COPY_KEY } from "$lib/storage/storage";
 import App from "$lib/studio/App.svelte";
 import { nav } from "$lib/studio/customdata/custom-data-nav.svelte";
 import { resetDraft } from "$lib/studio/customdata/chart-draft.svelte";
@@ -207,6 +208,9 @@ describe("TopoStack Svelte shell", () => {
     vi.mocked(saveProject).mockClear();
     window.dispatchEvent(new Event("pagehide"));
     expect(saveProject).toHaveBeenLastCalledWith(DEFAULT_PROJECT);
+    // The unloading page may abandon that IndexedDB write, so a synchronous copy lands too.
+    expect(JSON.parse(localStorage.getItem(PROJECT_UNLOAD_COPY_KEY)!).value).toEqual(DEFAULT_PROJECT);
+    localStorage.removeItem(PROJECT_UNLOAD_COPY_KEY);
     expect(target.textContent).not.toContain("Sample terrain generated");
   });
 
