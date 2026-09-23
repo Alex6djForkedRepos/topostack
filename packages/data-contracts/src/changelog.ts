@@ -33,6 +33,7 @@ export interface LatestRelease {
 export type InlineToken =
   | { kind: "text"; text: string }
   | { kind: "code"; text: string }
+  | { kind: "strong"; text: string }
   | { kind: "link"; text: string; href: string };
 
 const TITLE_MAX = 100;
@@ -154,17 +155,18 @@ export function latestRelease(changelog: ChangelogV1): LatestRelease | undefined
 }
 
 /**
- * Split entry text into plain text, `code`, and [links](/path). Nothing else
+ * Split entry text into plain text, `code`, **bold**, and [links](/path). Nothing else
  * is markup, so renderers escape every token and never inject HTML.
  */
 export function inlineTokens(text: string, where = "text"): InlineToken[] {
   const tokens: InlineToken[] = [];
-  const pattern = /`([^`]+)`|\[([^\]]+)\]\(([^)\s]+)\)/g;
+  const pattern = /`([^`]+)`|\*\*([^*]+)\*\*|\[([^\]]+)\]\(([^)\s]+)\)/g;
   let last = 0;
   for (const match of text.matchAll(pattern)) {
     if (match.index > last) tokens.push({ kind: "text", text: text.slice(last, match.index) });
-    const [whole, code, label = "", href = ""] = match;
+    const [whole, code, strong, label = "", href = ""] = match;
     if (code !== undefined) tokens.push({ kind: "code", text: code });
+    else if (strong !== undefined) tokens.push({ kind: "strong", text: strong });
     else {
       if (!/^\/(?!\/)/.test(href) && !href.startsWith("https://")) fail(where, `link ${href} must be a site path or https URL`);
       tokens.push({ kind: "link", text: label, href });
