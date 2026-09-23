@@ -6,6 +6,8 @@ import type { FabricationPanelV1, GeometryIRV1 } from "../types.js";
 export interface FabricationPanel extends FabricationPanelV1 {
   /** Polygon indexes to emit per layer index; absent when the project is cut whole. */
   included?: Map<number, Set<number>>;
+  /** Set on a stock sheet of a nested export: the panel is in sheet coordinates and holds placed parts. */
+  sheetIndex?: number;
 }
 
 /** A nest family: the root layer plus everything cut out of it, transitively. */

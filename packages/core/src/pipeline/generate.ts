@@ -10,7 +10,6 @@ import { cropBoundary as boundary, cropElevationRange } from "../primitives/crop
 import { contours } from "d3-contour";
 import polygonClipping, { type MultiPolygon, type Pair, type Ring } from "polygon-clipping";
 import {
-  boundsOverlap,
   clipPolyline,
   close,
   mercatorWorldY,
@@ -19,8 +18,6 @@ import {
   pointInRing,
   type PreparedPolygons,
   preparePolygons,
-  ringBounds,
-  signedArea,
   toPoint,
   toRing,
 } from "../primitives/geometry2d.js";
@@ -35,6 +32,7 @@ import { scaleBarMarkings } from "../annotate/scale-bar.js";
 import { plaqueFootprint, plaqueMarkings } from "../annotate/plaque.js";
 import { sourceRequirements } from "./source-requirements.js";
 import { splitLayersForWorkArea } from "./split.js";
+import { coveredLabelPoint } from "./piece-labels.js";
 import { displayElevation, elevationUnit } from "../primitives/units.js";
 import { MAP_MARKER_CLEARANCE_MM, MAP_MARKER_SIZE_MM, MIN_LAYER_COUNT, SEA_LEVEL_M } from "../types.js";
 import { type CarvedWater, carveWaterDepth, clampCarveToLadder, fitLakesToLadder, waterSurfaceLevelM } from "../water/water.js";
@@ -141,42 +139,6 @@ function addAlignmentGuides(config: ProjectConfigV1, clips: LayerClip[], outline
   }
 }
 
-function ringArea(points: Point2D[]): number {
-  return Math.abs(signedArea(points));
-}
-
-/** The parts of `polygon` that something stacked above it hides after assembly. */
-function coveredParts(polygon: Polygon2D, covering: PreparedPolygons): Polygon2D[] {
-  if (!covering.polygons.length) return [];
-  const box = ringBounds(polygon.outer);
-  // Layer 0's covering is every layer above it, so filter before clipping.
-  const near = covering.polygons.filter((_, index) => boundsOverlap(box, covering.outerBounds[index]!));
-  if (!near.length) return [];
-  return normalizeMultiPolygon(polygonClipping.intersection(
-    [[toRing(polygon.outer), ...polygon.holes.map(toRing)]] as MultiPolygon,
-    near.map((part) => [toRing(part.outer), ...part.holes.map(toRing)]) as MultiPolygon,
-  ) as MultiPolygon);
-}
-
-/**
- * Candidate label centres spanning a covered region at label-box spacing. The
- * global grid is 10% of the model, far coarser than one piece's covered area,
- * and the alignment guide usually already owns the region's centre.
- */
-function coveredCandidates(label: string, config: ProjectConfigV1, region: Polygon2D): Point2D[] {
-  const { width, height } = labelDimensions(label, config.textStyle);
-  const bounds = ringBounds(region.outer);
-  const stepX = (width + 1.6) / 2;
-  const stepY = height + 1.6;
-  const candidates: Point2D[] = [];
-  for (let y = bounds.minY + stepY / 2; y <= bounds.maxY - stepY / 2 && candidates.length < 400; y += stepY) {
-    for (let x = bounds.minX + stepX / 2; x <= bounds.maxX - stepX / 2 && candidates.length < 400; x += stepX) {
-      candidates.push({ x: x / (config.widthMm / 2), y: y / (config.heightMm / 2) });
-    }
-  }
-  return candidates;
-}
-
 /**
  * Engrave each cut piece's assembly id where the stack above hides it.
  *
@@ -198,16 +160,7 @@ function addPieceLabels({ config, flatEngraving, warnings }: GenerationContext, 
     for (const piece of layer.pieces) {
       const polygon = layer.polygons[piece.polygonIndex];
       if (!polygon) continue;
-      const covered = coveredParts(polygon, covering);
-      // Aim at the middle of the largest covered region rather than the middle
-      // of the piece: `placeLabel` tries the preferred point first and then
-      // falls back to a grid spanning the whole model, whose spacing is far
-      // coarser than one cut piece, so a poor first guess loses the label.
-      const largest = covered.reduce<Polygon2D | undefined>((best, part) =>
-        !best || ringArea(part.outer) > ringArea(best.outer) ? part : best, undefined);
-      const point = largest
-        ? placeLabel(piece.id, config, labelIndex, polygonCenter(largest, config), covered, coveredCandidates(piece.id, config, largest))
-        : undefined;
+      const point = coveredLabelPoint(piece.id, config, labelIndex, polygon, covering);
       if (!point) {
         omitted.push(piece.id);
         continue;

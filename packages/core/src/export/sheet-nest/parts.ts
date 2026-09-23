@@ -63,7 +63,7 @@ export function nestableParts(ir: GeometryIRV1): NestPartV1[] {
       const outline = partOutline(polygon.outer, ir.laserKerfMm);
       parts.push({
         id: `${layer.id}:${group.rootPolygonIndex}`,
-        label: partLabel(ir, group.rootLayerIndex, group.rootPolygonIndex),
+        label: polygonLabel(ir, group.rootLayerIndex, group.rootPolygonIndex),
         rootLayerIndex: group.rootLayerIndex,
         members: [...group.members.entries()].sort(([left], [right]) => left - right).map(([layerIndex, polygonIndexes]) => ({ layerIndex, polygonIndexes: polygonIndexes.sort((left, right) => left - right) })),
         outline,
@@ -76,7 +76,7 @@ export function nestableParts(ir: GeometryIRV1): NestPartV1[] {
 }
 
 /** The seam piece id when the layer was split, otherwise `L03`, or `L03-2` for a layer's second island. */
-function partLabel(ir: GeometryIRV1, layerIndex: number, polygonIndex: number): string {
+export function polygonLabel(ir: GeometryIRV1, layerIndex: number, polygonIndex: number): string {
   const layer = ir.layers[layerIndex]!;
   const piece = layer.pieces.find((candidate) => candidate.polygonIndex === polygonIndex);
   if (piece) return piece.id;

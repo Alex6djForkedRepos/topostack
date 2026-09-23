@@ -25,6 +25,27 @@ export interface GuideSheet {
   included?: Map<number, Set<number>>;
   /** Paint templates actually written for this sheet. */
   paintTemplates?: Array<{ kind: PaintRegionKind; filename: string }>;
+  /** Where each piece sits on a nested stock sheet, drawn so unlabelled pieces can be told apart. */
+  map?: GuideSheetMap;
+}
+
+export interface GuideSheetMap {
+  widthMm: number;
+  heightMm: number;
+  /** Placed outlines in sheet coordinates. */
+  parts: Array<{ label: string; points: Point2D[] }>;
+}
+
+/** A nested sheet drawn as outlines, each piece named at its centre. */
+function sheetMapFigure(sheet: GuideSheet, map: GuideSheetMap): string {
+  const fontSize = Math.max(3, Math.min(map.widthMm, map.heightMm) / 28);
+  const tolerance = Math.max(map.widthMm, map.heightMm) / DIAGRAM_RESOLUTION;
+  const outlines = map.parts.map(({ points }) => `<path d="${ringPath(simplifyClosedRing(points, tolerance))}"/>`).join("");
+  const labels = map.parts.map(({ label, points }) => {
+    const bounds = ringBounds(points);
+    return `<text x="${format((bounds.minX + bounds.maxX) / 2)}" y="${format((bounds.minY + bounds.maxY) / 2)}">${escapeXml(label)}</text>`;
+  }).join("");
+  return `<figure class="sheet-map"><svg class="diagram" viewBox="0 0 ${format(map.widthMm)} ${format(map.heightMm)}" role="img" aria-label="Pieces on ${escapeXml(sheet.filename)}"><rect width="${format(map.widthMm)}" height="${format(map.heightMm)}" fill="#fbfaf6" stroke="#8d8b83" stroke-width="${format(fontSize / 8)}"/><g fill="#e8e1cf" stroke="#20231d" stroke-width="${format(fontSize / 10)}">${outlines}</g><g fill="#20231d" text-anchor="middle" dominant-baseline="middle" font-size="${format(fontSize)}">${labels}</g></svg><figcaption><code>${escapeXml(sheet.filename)}</code></figcaption></figure>`;
 }
 
 // The printed diagram is about 7.5 in wide, so detail finer than a few hundred
@@ -173,6 +194,9 @@ export function assemblyGuideToHtml(ir: GeometryIRV1, config: ProjectConfigV1, s
     return `<tr><td><input type="checkbox" aria-label="Cut ${escapeXml(sheet.filename)}"></td><td><code>${escapeXml(sheet.filename)}</code></td><td>${ids.join(", ")}${sheet.cellName ? ` <span class="muted">· cell ${escapeXml(sheet.cellName)}</span>` : ""}</td></tr>`;
   }).join("");
 
+  const sheetMaps = sheets.map((sheet) => sheet.map ? sheetMapFigure(sheet, sheet.map) : "").join("");
+  const nestedSheet = sheets.find((sheet) => sheet.map)?.map;
+
   const templateRows = templates.map(({ filename, sheet }) => `<tr><td><input type="checkbox" aria-label="Cut ${escapeXml(filename)}"></td><td><code>${escapeXml(filename)}</code></td><td>for <code>${escapeXml(sheet.filename)}</code></td></tr>`).join("");
   const paintSection = painted ? `<section class="page">
 <p class="label">Section 2</p>
@@ -261,7 +285,9 @@ code{font:12.5px var(--mono);background:var(--surface-alt);border:1px solid var(
 .facts dt{font:11px var(--utility);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .facts dd{margin:4px 0 0;font-size:18px;font-weight:500}
 figure{margin:0;background:var(--canvas);padding:14px;box-shadow:0 18px 23px rgb(32 35 29/.12)}
-.diagram{display:block;width:100%;height:auto;max-height:118mm}
+.diagram{display:block;width:100%;height:auto;max-height:118mm}${sheetMaps ? `
+.sheet-maps{display:grid;grid-template-columns:repeat(auto-fill,minmax(3in,1fr));gap:14px;margin-top:10px}
+.sheet-map figcaption{margin-top:6px}` : ""}
 .diagram use{stroke:#847d6a;stroke-width:.6;vector-effect:non-scaling-stroke;fill-rule:evenodd}
 .diagram use.current{fill:#c65224;stroke:#6e2a10;stroke-width:1.4}
 .diagram .callout{fill:none;stroke:#c65224;stroke-width:1.8;stroke-dasharray:4 3;vector-effect:non-scaling-stroke}
@@ -345,7 +371,7 @@ figure,code,.badge,.diagram,.swatch,.numbered>li::before,input{-webkit-print-col
 <div>
 <p class="label">You will need</p>
 <ul>
-<li>${plural(sheets.length, "sheet")} of ${length(thickness)} material${split ? ` that fit your ${length(config.workAreaWidthMm)} × ${length(config.workAreaHeightMm)} work area` : `, each at least ${width} × ${height}`}</li>
+<li>${plural(sheets.length, "sheet")} of ${length(thickness)} material${nestedSheet ? `, each ${length(nestedSheet.widthMm)} × ${length(nestedSheet.heightMm)}` : split ? ` that fit your ${length(config.workAreaWidthMm)} × ${length(config.workAreaHeightMm)} work area` : `, each at least ${width} × ${height}`}</li>
 <li>Glue suited to the material (wood glue for plywood or MDF)</li>
 <li>A flat board to build on and some weights or clamps</li>
 <li>A small bag or tray per layer, and a pencil</li>
@@ -367,7 +393,7 @@ ${nests.length ? `<li><strong>Keep every cutout.</strong> Some small pieces of h
 <p class="label">Section 1</p>
 <h2>Cut the sheets</h2>
 <p class="muted">Tick each file off as it comes off the laser. The last column says which layers are on that sheet.</p>
-<table><tbody>${sheetRows}</tbody></table>
+<table><tbody>${sheetRows}</tbody></table>${sheetMaps ? `\n<p class="muted">Pieces from different layers share each sheet. Where a piece carries no engraved id, find it on its sheet here.</p>\n<div class="sheet-maps">${sheetMaps}</div>` : ""}
 </section>
 ${paintSection}
 <section class="page build-intro">
