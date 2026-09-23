@@ -94,7 +94,7 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     description: "Make a layered wooden lake map from surveyed depth data. Find your lake, frame the shoreline, set depth layers, paint the water and export SVG files.",
     label: "Custom lake depth map",
     published: "2026-09-21",
-    updated: "2026-09-21",
+    updated: "2026-09-23",
   },
   "/lakes": {
     title: "Lake Depth Maps for Laser Cutting: Surveyed Lakes by Region | TopoStack",
@@ -108,14 +108,14 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     description: "Learn how TopoStack combines lake surveys, shoreline terrain and depth estimates, handles missing data, and turns lake floors into cut layers.",
     label: "How lake depths work",
     published: "2026-09-16",
-    updated: "2026-09-17",
+    updated: "2026-09-23",
   },
   "/guides/studio-tour": {
     title: "Studio Tour: Settings, Previews and Saving | TopoStack",
     description: "Find your way around the TopoStack studio: choose a place, frame the map, generate terrain, switch previews, and save or import projects.",
     label: "Studio tour",
     published: "2026-09-17",
-    updated: "2026-09-18",
+    updated: "2026-09-23",
   },
   "/guides/map-details": {
     title: "Map Details, Labels and Linework for Laser Maps | TopoStack",
@@ -124,12 +124,19 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     published: "2026-09-17",
     updated: "2026-09-20",
   },
+  "/guides/custom-data": {
+    title: "Add Your Own Data to a Topographic Map | TopoStack",
+    description: "Bring depth charts, markers, GPS tracks, boundaries and SVG graphics into a laser-cut topographic map, and learn how each is saved and shared.",
+    label: "Custom data overview",
+    published: "2026-09-23",
+    updated: "2026-09-23",
+  },
   "/guides/custom-markers-and-paths": {
     title: "Add Custom Markers and Trails to a Topographic Map | TopoStack",
     description: "Engrave your own summit markers, hiking routes and boundaries on a topographic map. Import a GPX, KML or GeoJSON file, or enter coordinates.",
     label: "Custom markers and paths",
     published: "2026-09-17",
-    updated: "2026-09-20",
+    updated: "2026-09-23",
   },
   "/guides/custom-graphics": {
     title: "Add a Logo or Graphic to a Laser-Cut Topographic Map | TopoStack",
@@ -138,12 +145,19 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     published: "2026-09-23",
     updated: "2026-09-23",
   },
+  "/guides/trace-a-depth-chart": {
+    title: "Trace a Lake Depth Chart for a Laser-Cut Map | TopoStack",
+    description: "Turn a scanned, photographed or PDF lake depth chart into a carved lake floor. Place depths on its contours, trace it, and use it for your lake.",
+    label: "Trace a depth chart",
+    published: "2026-09-23",
+    updated: "2026-09-23",
+  },
   "/guides/settings-reference": {
     title: "Studio Settings Reference | TopoStack",
     description: "Every TopoStack studio control with its range, default and output type, from vertical exaggeration and kerf to linework widths.",
     label: "Settings reference",
     published: "2026-09-17",
-    updated: "2026-09-20",
+    updated: "2026-09-23",
   },
   "/guides/export-files": {
     title: "Laser Export Files and SVG Structure | TopoStack",
@@ -157,7 +171,7 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     description: "Fix blocked exports, understand studio warnings, and get answers to common questions about layers, lake depth, SVG scale and kerf.",
     label: "Troubleshooting",
     published: "2026-09-17",
-    updated: "2026-09-18",
+    updated: "2026-09-23",
   },
   "/examples": {
     title: "Topographic Map Examples: Laser-Cut Terrain Projects | TopoStack",
