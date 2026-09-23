@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import polygonClipping, { type MultiPolygon, type Pair } from "polygon-clipping";
 import { markerLayerPolygons } from "./marker-placement.js";
 import { pointInPolygon, preparePolygons, signedArea } from "../primitives/geometry2d.js";
-import { createSyntheticSource, DEFAULT_PROJECT, generateGeometry, markerSymbolPaths, geoPointToMapPoint, markerSymbolCenterForAnchor, MARKER_SYMBOLS, projectFingerprint, exportBlockReason, type Polygon2D, type Point2D } from "../index.js";
+import { createSyntheticSource, DEFAULT_PROJECT, generateGeometry, markerCenterForAnchor, markerPolygons, markerSymbolPaths, geoPointToMapPoint, markerSymbolCenterForAnchor, MARKER_SYMBOLS, projectFingerprint, exportBlockReason, type Polygon2D, type Point2D } from "../index.js";
 
 const box = (left: number, bottom: number, right: number, top: number): Polygon2D => ({ outer: [[left,bottom],[right,bottom],[right,top],[left,top],[left,bottom]].map(([x,y]) => ({ x: x!, y: y! })), holes: [] });
 const poly = (polygon: Polygon2D): MultiPolygon => [[polygon.outer, ...polygon.holes].map(ring => ring.map(({ x,y }): Pair => [x,y]))];
@@ -75,6 +75,37 @@ describe("markers across exposed layer faces", () => {
       }
     }
     expect(new Set(geometry.layers.flatMap(layer => layer.markings.map(mark => mark.id))).size).toBe(geometry.layers.reduce((sum, layer) => sum + layer.markings.length, 0));
+  });
+
+  it("engraves a custom icon with its holes, on every exposed face, and hashes its shapes but not its name", () => {
+    // A square frame with a separate dot in its window.
+    const icon = { id: "icon-0001", name: "Frame", shapes: [
+      { outer: [-500, -500, 500, -500, 500, 500, -500, 500], holes: [[-300, -300, -300, 300, 300, 300, 300, -300]] },
+      { outer: [-100, -100, 100, -100, 100, 100, -100, 100] },
+    ] };
+    const project = { ...config, markerIcons: [icon], markers: [{ ...config.markers[0]!, symbol: "custom" as const, iconId: icon.id }] };
+    const geometry = generateGeometry(project, slopeSource());
+    const drawn = geometry.layers.flatMap(layer => layer.markings).filter(mark => mark.kind === "marker" && !mark.knockout);
+    expect(new Set(geometry.layers.filter(layer => layer.markings.some(mark => mark.kind === "marker")).map(layer => layer.index)).size).toBeGreaterThan(2);
+    // 80 mm frame less its 48 mm window, plus the 16 mm dot.
+    expect(drawn.reduce((sum, mark) => sum + area({ outer: mark.points, holes: mark.holes ?? [] }), 0)).toBeCloseTo(80 * 80 - 48 * 48 + 16 * 16, 3);
+    expect(geometry.layers.flatMap(layer => layer.markings).some(mark => mark.kind === "marker" && mark.knockout)).toBe(true);
+    const anchor = geoPointToMapPoint(0.05, 0.05, bounds, 100, 100);
+    expect(drawn.some(mark => pointInPolygon(anchor, { outer: mark.points, holes: mark.holes ?? [] }))).toBe(true);
+    expect(drawn.some(mark => pointInPolygon({ x: anchor.x + 20, y: anchor.y }, { outer: mark.points, holes: mark.holes ?? [] }))).toBe(false);
+    expect(projectFingerprint({ ...project, markerIcons: [{ ...icon, name: "Renamed" }] })).toBe(projectFingerprint(project));
+    expect(projectFingerprint({ ...project, markerIcons: [{ ...icon, shapes: icon.shapes.slice(0, 1) }] })).not.toBe(projectFingerprint(project));
+  });
+
+  it("rests a bottom-anchored icon's lowest point on the marker position", () => {
+    const icon = { id: "icon-0001", name: "Tent", anchor: "bottom" as const, shapes: [{ outer: [0, -500, 500, 250, -500, 250] }] };
+    const marker = { symbol: "custom" as const, iconId: icon.id };
+    const center = markerCenterForAnchor(marker, [icon], { x: 10, y: 10 }, 8);
+    expect(center).toEqual({ x: 10, y: 8 });
+    const lowest = Math.max(...markerPolygons(marker, [icon], center, 8)[0]!.outer.map(({ y }) => y));
+    expect(lowest).toBeCloseTo(10);
+    expect(markerCenterForAnchor(marker, [{ ...icon, anchor: undefined }], { x: 10, y: 10 }, 8)).toEqual({ x: 10, y: 10 });
+    expect(markerPolygons({ symbol: "custom", iconId: "missing" }, [icon], center, 8)).toEqual([]);
   });
 
   it("keeps flat artwork on one face, scales it, and blocks stale sizes and old geometry", () => {

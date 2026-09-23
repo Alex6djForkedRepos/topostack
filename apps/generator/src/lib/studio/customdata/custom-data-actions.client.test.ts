@@ -18,6 +18,34 @@ function studio(start: Partial<ProjectConfigV1> = {}) {
 const at = (index: number) => ({ lat: 40, lon: -105 + index * 0.01 });
 
 describe("custom data actions", () => {
+  it("adds an uploaded SVG icon as one edit and gives it to the marker that asked", async () => {
+    const { actions, host, current } = studio({ markers: [{ id: "m1", lat: 42.9, lon: -122.1, symbol: "pin", sizeMm: 8 }] });
+    const file = new File([`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10"/><text>x</text></svg>`], "hut.svg", { type: "image/svg+xml" });
+    await actions.importMarkerIcon(file, "m1");
+    expect(host.updateFabrication).toHaveBeenCalledTimes(1);
+    const [icon] = current().markerIcons!;
+    expect(icon).toMatchObject({ name: "hut" });
+    expect(current().markers[0]).toMatchObject({ symbol: "custom", iconId: icon!.id });
+    expect(host.setStatus).toHaveBeenLastCalledWith(expect.stringMatching(/“hut” added · Text is left out/));
+    await actions.importMarkerIcon(new File(["nope"], "broken.svg"));
+    expect(host.setStatus).toHaveBeenLastCalledWith(expect.stringMatching(/not a readable SVG/));
+    expect(host.updateFabrication).toHaveBeenCalledTimes(1);
+  });
+
+  it("adds an uploaded SVG to the graphics library as one edit, once per drawing", async () => {
+    const { actions, host, current } = studio();
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/></svg>`;
+    await actions.importGraphic(new File([svg], "club-logo.svg", { type: "image/svg+xml" }));
+    expect(host.updateFabrication).toHaveBeenCalledTimes(1);
+    expect(current().customGraphics).toEqual([expect.objectContaining({ name: "club logo" })]);
+    expect(current().placedGraphics).toBeUndefined();
+    expect(host.setStatus).toHaveBeenLastCalledWith(expect.stringMatching(/Graphic “club logo” added · Place it on the piece/));
+    await actions.importGraphic(new File([svg], "again.svg", { type: "image/svg+xml" }));
+    expect(current().customGraphics).toHaveLength(1);
+    await actions.importGraphic(new File(["nope"], "broken.svg"));
+    expect(host.setStatus).toHaveBeenLastCalledWith(expect.stringMatching(/not a readable SVG/));
+  });
+
   it("keeps each armed tool to the view and section that shows its controls", () => {
     const { actions } = studio();
     actions.setPlacingMarker(true);

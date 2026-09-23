@@ -7,7 +7,7 @@ import type { ElevationGrid, Point2D, Polygon2D, ProjectConfigV1 } from "../type
 /** Douglas-Peucker tolerance for contour rings, as a fraction of the minimum feature size. */
 export const CONTOUR_SIMPLIFICATION_FACTOR = 0.18;
 
-function removeTinyRing(points: Point2D[], minimumFeatureMm: number): boolean {
+export function removeTinyRing(points: Point2D[], minimumFeatureMm: number): boolean {
   if (points.length < 4) return true;
   const bounds = ringBounds(points);
   return bounds.maxX - bounds.minX < minimumFeatureMm || bounds.maxY - bounds.minY < minimumFeatureMm;

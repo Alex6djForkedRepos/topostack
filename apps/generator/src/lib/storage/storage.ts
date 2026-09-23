@@ -1,5 +1,5 @@
 import { getMany, set, setMany } from "idb-keyval";
-import { PAINT_REGION_KINDS, DEFAULT_PROJECT, DEPTH_CHART_ID_PATTERN, isDepthChartLakeKey, MAP_MARKER_SIZE_MM, MAX_CUSTOM_DATA_NAME_LENGTH, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, NORTH_ARROW_ANCHORS, isTextFont, validateProject, type CustomLineFeatureV1, type CustomLineKind, type MapMarkerV1, type MarkerSymbol, type NorthArrowAnchor, type NorthArrowStyle, type PlaqueV1, type ProjectConfigV1, type UserDepthChartRefV1 } from "@topostack/core";
+import { PAINT_REGION_KINDS, DEFAULT_PROJECT, DEPTH_CHART_ID_PATTERN, isDepthChartLakeKey, MAP_MARKER_SIZE_MM, MARKER_ICON_ID_PATTERN, MARKER_ICON_UNITS, MARKER_SYMBOLS, MAX_MARKER_ICON_POINTS, MAX_MARKER_ICONS, markerIconPointCount, GRAPHIC_MAX_SIZE_MM, GRAPHIC_MIN_SIZE_MM, GRAPHIC_OPERATIONS, MAX_CUSTOM_GRAPHIC_POINTS, MAX_CUSTOM_GRAPHICS, MAX_PLACED_GRAPHICS, type CustomGraphicV1, type GraphicOperation, type PlacedGraphicV1, MAX_CUSTOM_DATA_NAME_LENGTH, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, NORTH_ARROW_ANCHORS, isTextFont, validateProject, type CustomLineFeatureV1, type CustomLineKind, type MapMarkerV1, type MarkerIconShapeV1, type MarkerIconV1, type MarkerSymbol, type NorthArrowAnchor, type NorthArrowStyle, type PlaqueV1, type ProjectConfigV1, type UserDepthChartRefV1 } from "@topostack/core";
 
 const PROJECT_KEY = "topostack:project:v1";
 /** When the IndexedDB copy was written, stored in the same transaction as the project. */
@@ -113,8 +113,89 @@ function plaqueValue(value: unknown): PlaqueV1 | undefined {
 }
 
 function markerSymbolValue(value: unknown): MarkerSymbol {
-  if (value === "pin" || value === "circle" || value === "triangle" || value === "star" || value === "cross") return value;
+  if (value === "custom" || (MARKER_SYMBOLS as readonly unknown[]).includes(value)) return value as MarkerSymbol;
   throw new Error("Marker symbol is invalid.");
+}
+
+function iconRingValue(value: unknown): number[] | undefined {
+  const half = MARKER_ICON_UNITS / 2;
+  return Array.isArray(value) && value.length >= 6 && value.length % 2 === 0 && value.every((coordinate) => Number.isSafeInteger(coordinate) && Math.abs(coordinate) <= half) ? value as number[] : undefined;
+}
+
+/**
+ * Uploaded marker icons. A malformed icon is dropped rather than refusing the
+ * project, and the markers that drew it fall back to pins (see markersValue).
+ * Absent stays absent, which keeps older projects' fingerprints.
+ */
+function markerIconsValue(value: unknown): MarkerIconV1[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const icons: MarkerIconV1[] = [];
+  for (const item of value) {
+    if (icons.length >= MAX_MARKER_ICONS) break;
+    const icon = iconShapesValue(item, icons, MAX_MARKER_ICON_POINTS);
+    if (!icon) continue;
+    icons.push({ id: icon.id, name: customDataName(icon.record.name).name ?? "Icon", ...(icon.record.anchor === "bottom" ? { anchor: "bottom" as const } : {}), shapes: icon.shapes });
+  }
+  return icons.length ? icons : undefined;
+}
+
+/** An uploaded drawing's id and rings, when both are well formed, its id is new and it fits `maxPoints`. */
+function iconShapesValue(item: unknown, existing: Array<{ id: string }>, maxPoints: number): { id: string; shapes: MarkerIconShapeV1[]; record: Record<string, unknown> } | undefined {
+  if (!item || typeof item !== "object") return undefined;
+  const record = item as Record<string, unknown>;
+  if (typeof record.id !== "string" || !MARKER_ICON_ID_PATTERN.test(record.id) || existing.some(({ id }) => id === record.id)) return undefined;
+  if (!Array.isArray(record.shapes) || !record.shapes.length) return undefined;
+  const shapes: MarkerIconShapeV1[] = [];
+  for (const shape of record.shapes as unknown[]) {
+    const fields = shape && typeof shape === "object" ? shape as Record<string, unknown> : {};
+    const outer = iconRingValue(fields.outer);
+    const holes = Array.isArray(fields.holes) ? fields.holes.map(iconRingValue) : [];
+    if (!outer || holes.some((hole) => !hole)) return undefined;
+    shapes.push({ outer, ...(holes.length ? { holes: holes as number[][] } : {}) });
+  }
+  if (markerIconPointCount({ shapes }) > maxPoints) return undefined;
+  return { id: record.id, shapes, record };
+}
+
+/** Uploaded graphics, leniently like marker icons: a malformed one is dropped along with its placements. */
+function customGraphicsValue(value: unknown): CustomGraphicV1[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const graphics: CustomGraphicV1[] = [];
+  for (const item of value) {
+    if (graphics.length >= MAX_CUSTOM_GRAPHICS) break;
+    const graphic = iconShapesValue(item, graphics, MAX_CUSTOM_GRAPHIC_POINTS);
+    if (graphic) graphics.push({ id: graphic.id, name: customDataName(graphic.record.name).name ?? "Graphic", shapes: graphic.shapes });
+  }
+  return graphics.length ? graphics : undefined;
+}
+
+/** Placements of those graphics; one naming missing artwork or out of range is dropped rather than refusing the project. */
+function placedGraphicsValue(value: unknown, graphics: CustomGraphicV1[] | undefined): PlacedGraphicV1[] | undefined {
+  if (!Array.isArray(value) || !graphics) return undefined;
+  const placed: PlacedGraphicV1[] = [];
+  for (const item of value) {
+    if (placed.length >= MAX_PLACED_GRAPHICS) break;
+    if (!item || typeof item !== "object") continue;
+    const record = item as Record<string, unknown>;
+    if (typeof record.id !== "string" || !MARKER_ICON_ID_PATTERN.test(record.id) || placed.some(({ id }) => id === record.id)) continue;
+    if (!graphics.some(({ id }) => id === record.graphicId)) continue;
+    const placement = record.placement && typeof record.placement === "object" ? record.placement as Record<string, unknown> : undefined;
+    const offset = placement?.offset && typeof placement.offset === "object" ? placement.offset as Record<string, unknown> : undefined;
+    const offsetX = Number(offset?.x ?? 0); const offsetY = Number(offset?.y ?? 0);
+    if (!NORTH_ARROW_ANCHORS.includes(placement?.anchor as NorthArrowAnchor) || ![offsetX, offsetY].every((part) => Number.isFinite(part) && Math.abs(part) <= 1)) continue;
+    const sizeMm = Number(record.sizeMm); const rotationDeg = Number(record.rotationDeg ?? 0);
+    if (!Number.isFinite(sizeMm) || sizeMm < GRAPHIC_MIN_SIZE_MM || sizeMm > GRAPHIC_MAX_SIZE_MM || !Number.isFinite(rotationDeg)) continue;
+    const operation = (GRAPHIC_OPERATIONS as readonly unknown[]).includes(record.operation) ? record.operation as GraphicOperation : "engrave";
+    placed.push({
+      id: record.id,
+      graphicId: record.graphicId as string,
+      placement: { anchor: placement!.anchor as NorthArrowAnchor, offset: { x: offsetX, y: offsetY } },
+      sizeMm,
+      rotationDeg: ((rotationDeg % 360) + 360) % 360,
+      operation,
+    });
+  }
+  return placed.length ? placed : undefined;
 }
 
 /**
@@ -128,7 +209,7 @@ function customDataName(value: unknown): { name?: string } {
   return name && name.length <= MAX_CUSTOM_DATA_NAME_LENGTH ? { name } : {};
 }
 
-function markersValue(value: unknown): MapMarkerV1[] {
+function markersValue(value: unknown, icons: MarkerIconV1[] | undefined): MapMarkerV1[] {
   if (value === undefined) return [];
   if (!Array.isArray(value)) throw new Error("Project markers must be a list.");
   if (value.length > MAX_MAP_MARKERS) throw new Error("Project contains too many markers.");
@@ -136,7 +217,16 @@ function markersValue(value: unknown): MapMarkerV1[] {
     if (!item || typeof item !== "object") throw new Error("Each marker must be an object.");
     const marker = item as Record<string, unknown>;
     if (typeof marker.id !== "string") throw new Error("Each marker must have an id.");
-    return { id: marker.id, lat: numberValue(marker.lat), lon: numberValue(marker.lon), symbol: markerSymbolValue(marker.symbol), sizeMm: marker.sizeMm === undefined ? MAP_MARKER_SIZE_MM : numberValue(marker.sizeMm), ...customDataName(marker.name) };
+    const symbol = markerSymbolValue(marker.symbol);
+    // A custom marker whose icon did not survive keeps its place as a pin.
+    const iconId = symbol === "custom" && icons?.some(({ id }) => id === marker.iconId) ? marker.iconId as string : undefined;
+    return {
+      id: marker.id, lat: numberValue(marker.lat), lon: numberValue(marker.lon),
+      symbol: symbol === "custom" && !iconId ? "pin" : symbol,
+      sizeMm: marker.sizeMm === undefined ? MAP_MARKER_SIZE_MM : numberValue(marker.sizeMm),
+      ...customDataName(marker.name),
+      ...(iconId ? { iconId } : {}),
+    };
   });
 }
 
@@ -279,6 +369,9 @@ export function parseProject(value: unknown): ProjectConfigV1 {
   if (!value || typeof value !== "object") throw new Error("Project must be a JSON object.");
   const record = value as Record<string, unknown>;
   if (record.schemaVersion !== 1) throw new Error("Not a TopoStack v1 project.");
+  const markerIcons = markerIconsValue(record.markerIcons);
+  const customGraphics = customGraphicsValue(record.customGraphics);
+  const placedGraphics = placedGraphicsValue(record.placedGraphics, customGraphics);
   const location = record.location;
   if (!location || typeof location !== "object") throw new Error("Project location is missing.");
   const locationRecord = location as Record<string, unknown>;
@@ -368,7 +461,10 @@ export function parseProject(value: unknown): ProjectConfigV1 {
     ...(record.scaleBarPlacement === undefined ? {} : { scaleBarPlacement: scaleBarPlacementValue(record.scaleBarPlacement) }),
     ...userDepthChartsValue(record.userDepthCharts),
     ...(record.plaque === undefined ? {} : { plaque: plaqueValue(record.plaque) }),
-    markers: markersValue(record.markers),
+    ...(markerIcons ? { markerIcons } : {}),
+    ...(customGraphics ? { customGraphics } : {}),
+    ...(placedGraphics ? { placedGraphics } : {}),
+    markers: markersValue(record.markers, markerIcons),
     customLines: customLinesValue(record.customLines),
     explodedPreview: record.explodedPreview === undefined ? DEFAULT_PROJECT.explodedPreview : numberValue(record.explodedPreview),
   };

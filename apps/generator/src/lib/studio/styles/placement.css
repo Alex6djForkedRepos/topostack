@@ -1,7 +1,9 @@
 /* Placement mode: the top-down stage, the draft layer over it, and its toolbar.
    The layer's SVG and every backdrop share one meet-fitted viewBox, so all of
    them fill the stage box exactly; see lib/studio/placement/viewport.ts. */
-.preview-stage:has(.placement-stage) {
+/* Set on the stage whether or not placement is open, so the 3D preview can
+   read it as it starts easing overhead, before the placement stage mounts. */
+.preview-stage {
   --placement-toolbar-space: 96px;
 }
 
@@ -37,9 +39,9 @@
   height: 100%;
 }
 
-/* Keep the shared drawing viewport below the controls, including in 3D.
-   A millimeter margin alone cannot protect handles from a pixel-sized toolbar. */
-.preview-stage:has(.placement-stage) .three-stage,
+/* Keep the shared drawing viewport below the controls. A millimeter margin
+   alone cannot protect handles from a pixel-sized toolbar. The 3D canvas stays
+   full size and shifts its camera instead; see ThreePreview's viewOffset. */
 .placement-stage .stack-top-view,
 .placement-layer > svg {
   top: var(--placement-toolbar-space);
@@ -230,7 +232,7 @@
 }
 
 @container terrain-preview (max-width: 560px) {
-  .preview-stage:has(.placement-stage) {
+  .preview-stage {
     --placement-toolbar-space: 112px;
   }
 
@@ -272,4 +274,100 @@
   border-left: 1px solid var(--loidolt-border);
   color: var(--loidolt-text-muted);
   font-variant-numeric: tabular-nums;
+}
+
+/* Graphics: a cut is drafted as its outline in the cut color, since the sheet
+   itself only opens when generation runs. */
+.placement-cut-draft {
+  fill: none;
+  stroke: #e5484d;
+  stroke-width: 1.5px;
+  stroke-dasharray: 5 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.placement-rotate-stem {
+  stroke: var(--loidolt-accent);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.placement-grip--rotate {
+  cursor: alias;
+}
+
+/* A second toolbar row for graphics, which needs more room below it. */
+.preview-stage:has(.placement-toolbar--graphics) {
+  --placement-toolbar-space: 136px;
+}
+
+.placement-toolbar--graphics {
+  flex-wrap: wrap;
+}
+
+.placement-toolbar__graphics {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  flex-basis: 100%;
+  padding-top: 8px;
+  border-top: 1px solid var(--loidolt-border);
+}
+
+.placement-add-graphic {
+  min-height: 28px;
+  padding: 2px 8px;
+  border: 1px solid var(--loidolt-border);
+  background: var(--loidolt-surface);
+  color: var(--loidolt-text);
+  font: var(--panel-font-micro) var(--loidolt-font-utility);
+}
+
+.placement-operation {
+  display: inline-flex;
+  border: 1px solid var(--loidolt-border);
+}
+
+.placement-operation button,
+.placement-remove {
+  min-height: 28px;
+  padding: 2px 10px;
+  border: 0;
+  background: var(--loidolt-surface);
+  color: var(--loidolt-text);
+  font: var(--panel-font-micro) var(--loidolt-font-utility);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.placement-operation button + button {
+  border-left: 1px solid var(--loidolt-border);
+}
+
+.placement-operation button[aria-checked="true"] {
+  background: var(--loidolt-accent);
+  color: var(--loidolt-on-accent);
+}
+
+.placement-remove {
+  display: inline-grid;
+  place-items: center;
+  margin-left: auto;
+  border: 1px solid var(--loidolt-border);
+}
+
+.placement-operation button:focus-visible,
+.placement-remove:focus-visible,
+.placement-add-graphic:focus-visible {
+  outline: 2px solid var(--loidolt-accent);
+  outline-offset: 2px;
+}
+
+@container terrain-preview (max-width: 560px) {
+  .preview-stage:has(.placement-toolbar--graphics) {
+    --placement-toolbar-space: 160px;
+  }
 }
