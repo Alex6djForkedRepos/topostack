@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { ChevronDown, FileUp, MapPin, Route, Waves } from "@lucide/svelte";
+  import { ChevronDown, FileUp, MapPin, Route, Shapes, Waves } from "@lucide/svelte";
   import { Section } from "@loidolt/theme-svelte";
   import { nav, openCustomDataSection, sectionsFor, toggleCustomDataSection, type CustomDataSectionId } from "$lib/studio/customdata/custom-data-nav.svelte";
   import { getStudio } from "$lib/studio/studio-context";
   import ChartTools from "$lib/studio/customdata/ChartTools.svelte";
+  import GraphicTools from "$lib/studio/customdata/GraphicTools.svelte";
   import ImportTools from "$lib/studio/customdata/ImportTools.svelte";
   import MarkerTools from "$lib/studio/customdata/MarkerTools.svelte";
   import PathTools from "$lib/studio/customdata/PathTools.svelte";
@@ -28,12 +29,20 @@
     charts: chartSummary(),
     markers: studio.project.markers.length ? `${studio.project.markers.length} placed` : "None yet",
     paths: pathSummary(),
+    graphics: graphicSummary(),
     import: "GPX, KML or GeoJSON",
   });
 
   function chartSummary(): string {
     const inUse = Object.keys(studio.project.userDepthCharts ?? {}).length;
     return inUse ? `${inUse} carving ${inUse === 1 ? "a lake" : "lakes"}` : "Trace a printed chart";
+  }
+
+  function graphicSummary(): string {
+    const placed = studio.project.placedGraphics?.length ?? 0;
+    const uploaded = studio.project.customGraphics?.length ?? 0;
+    if (placed) return `${placed} on the piece`;
+    return uploaded ? `${uploaded} uploaded` : "Logos and artwork";
   }
 
   function pathSummary(): string {
@@ -51,7 +60,7 @@
       <span class="section-number">0{index + 1}</span>
       <span class="section-title">{section.label}<small>{summaries[section.id]}</small></span>
       <span class="section-icon" aria-hidden="true">
-        {#if section.id === "charts"}<Waves size={14} />{:else if section.id === "markers"}<MapPin size={14} />{:else if section.id === "paths"}<Route size={14} />{:else}<FileUp size={14} />{/if}
+        {#if section.id === "charts"}<Waves size={14} />{:else if section.id === "markers"}<MapPin size={14} />{:else if section.id === "paths"}<Route size={14} />{:else if section.id === "graphics"}<Shapes size={14} />{:else}<FileUp size={14} />{/if}
       </span>
       <ChevronDown size={16} class={open ? "kicker-chevron kicker-chevron--open" : "kicker-chevron"} />
     </button>
@@ -62,6 +71,8 @@
         <MarkerTools />
       {:else if section.id === "paths"}
         <PathTools />
+      {:else if section.id === "graphics"}
+        <GraphicTools />
       {:else}
         <ImportTools />
       {/if}

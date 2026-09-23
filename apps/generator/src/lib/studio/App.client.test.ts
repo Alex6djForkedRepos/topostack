@@ -25,6 +25,7 @@ vi.mock("$lib/atomm/atomm-bridge", () => ({ connectAtomm: vi.fn(() => () => unde
 vi.mock("$app/navigation", () => ({ replaceState: (url: URL) => window.history.replaceState(window.history.state, "", url) }));
 vi.mock("$lib/studio/ThreePreview.svelte", async () => ({ default: (await import("$lib/studio/TestPreview.svelte")).default }));
 
+import { PROJECT_UNLOAD_COPY_KEY } from "$lib/storage/storage";
 import App from "$lib/studio/App.svelte";
 import { nav } from "$lib/studio/customdata/custom-data-nav.svelte";
 import { resetDraft } from "$lib/studio/customdata/chart-draft.svelte";
@@ -109,6 +110,38 @@ describe("TopoStack Svelte shell", () => {
     window.dispatchEvent(new Event("pagehide"));
     expect(vi.mocked(saveProject).mock.lastCall![0].plaque?.text).toBe("Updated title");
   });
+  it("uploads a graphic, then places, turns and cuts it on the preview as one edit", async () => {
+    const { saveProject } = await import("$lib/storage/storage");
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await tick();
+    await openCustomData(target, "Graphics");
+    const input = target.querySelector<HTMLInputElement>("input[data-graphic-import]")!;
+    const file = new File([`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 10"><rect width="20" height="10"/></svg>`], "badge.svg", { type: "image/svg+xml" });
+    Object.defineProperty(input, "files", { value: [file], configurable: true });
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    await vi.waitFor(() => expect(target.querySelector('[aria-label="Uploaded graphics"]')?.textContent).toBeDefined());
+    await vi.waitFor(() => expect(target.querySelector<HTMLInputElement>('[aria-label="Name for graphic badge"]')).not.toBeNull());
+    [...target.querySelectorAll<HTMLButtonElement>(".graphic-place")].find((button) => button.textContent?.includes("Place"))!.click();
+    await vi.waitFor(() => expect(target.querySelector('[data-placeable^="graphic:"]')).not.toBeNull(), { timeout: 5_000 });
+    // Nothing is saved until Done.
+    window.dispatchEvent(new Event("pagehide"));
+    expect(vi.mocked(saveProject).mock.lastCall![0].placedGraphics).toBeUndefined();
+    const handle = target.querySelector('[data-placeable^="graphic:"]')!;
+    handle.dispatchEvent(new KeyboardEvent("keydown", { key: "]", bubbles: true }));
+    await tick();
+    expect(target.querySelector(".placement-toolbar")?.textContent).toContain("15°");
+    [...target.querySelectorAll<HTMLButtonElement>('.placement-operation [role="radio"]')].find((button) => button.textContent === "Cut")!.click();
+    await tick();
+    expect(target.querySelector(".placement-cut-draft")).not.toBeNull();
+    [...target.querySelectorAll<HTMLButtonElement>(".placement-toolbar button")].find((button) => button.textContent?.trim() === "Done")!.click();
+    await vi.waitFor(() => expect(target.querySelector("[data-placement-layer]")).toBeNull(), { timeout: 6_000 });
+    window.dispatchEvent(new Event("pagehide"));
+    const saved = vi.mocked(saveProject).mock.lastCall![0];
+    expect(saved.placedGraphics).toEqual([expect.objectContaining({ graphicId: saved.customGraphics![0]!.id, rotationDeg: 15, operation: "cut" })]);
+    expect(target.querySelector('[aria-label="Graphics on the piece"]')?.textContent).toContain("15°");
+  });
+
   it("toolbar undo is paused during placement", async () => {
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
@@ -207,6 +240,9 @@ describe("TopoStack Svelte shell", () => {
     vi.mocked(saveProject).mockClear();
     window.dispatchEvent(new Event("pagehide"));
     expect(saveProject).toHaveBeenLastCalledWith(DEFAULT_PROJECT);
+    // The unloading page may abandon that IndexedDB write, so a synchronous copy lands too.
+    expect(JSON.parse(localStorage.getItem(PROJECT_UNLOAD_COPY_KEY)!).value).toEqual(DEFAULT_PROJECT);
+    localStorage.removeItem(PROJECT_UNLOAD_COPY_KEY);
     expect(target.textContent).not.toContain("Sample terrain generated");
   });
 
@@ -1523,6 +1559,7 @@ describe("TopoStack Svelte shell", () => {
       "Depth chartsTrace a printed chart",
       "MarkersNone yet",
       "Trails & boundariesNone yet",
+      "GraphicsLogos and artwork",
       "ImportGPX, KML or GeoJSON",
     ]);
     // Depth charts opens first, and its tools are in the sidebar beside the
@@ -1553,7 +1590,7 @@ describe("TopoStack Svelte shell", () => {
       expect(headers().every((item) => item.getAttribute("aria-expanded") === "false")).toBe(true);
       expect(target.querySelector<HTMLElement>(`#${header.getAttribute("aria-controls")}`)?.hidden).toBe(true);
     }
-    headers()[3]!.click();
+    headers()[4]!.click();
     await tick();
     expect(headers()[0]!.getAttribute("aria-expanded")).toBe("false");
     expect(target.querySelector<HTMLElement>("#custom-data-import")?.hidden).toBe(false);

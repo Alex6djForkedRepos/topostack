@@ -131,6 +131,13 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     published: "2026-09-17",
     updated: "2026-09-20",
   },
+  "/guides/custom-graphics": {
+    title: "Add a Logo or Graphic to a Laser-Cut Topographic Map | TopoStack",
+    description: "Upload an SVG logo or badge, place and rotate it on your topographic map, and engrave it, score its outline or cut it out of the layer.",
+    label: "Custom graphics",
+    published: "2026-09-23",
+    updated: "2026-09-23",
+  },
   "/guides/settings-reference": {
     title: "Studio Settings Reference | TopoStack",
     description: "Every TopoStack studio control with its range, default and output type, from vertical exaggeration and kerf to linework widths.",

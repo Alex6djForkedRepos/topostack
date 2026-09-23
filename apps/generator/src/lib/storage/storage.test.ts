@@ -16,6 +16,23 @@ describe("project import validation", () => {
     expect(() => parseProject({ ...DEFAULT_PROJECT, markers: [{ ...markers[0], symbol: "flag" }] })).toThrow(/marker symbol/i);
     expect(() => parseProject({ ...DEFAULT_PROJECT, markers: [{ ...markers[0], lon: 200 }] })).toThrow(/marker longitude/i);
   });
+  it("restores uploaded marker icons, drops malformed ones, and turns their orphaned markers into pins", () => {
+    const icon = { id: "icon-0001", name: "Cabin", anchor: "bottom" as const, shapes: [{ outer: [-500, 500, 500, 500, 0, -500], holes: [[-100, 300, 100, 300, 0, 0]] }] };
+    const marker = { id: "cabin", lat: 43, lon: -122, symbol: "custom" as const, sizeMm: 8, iconId: icon.id };
+    const project = parseProject({ ...DEFAULT_PROJECT, markerIcons: [icon], markers: [marker] });
+    expect(parseProject(JSON.parse(JSON.stringify(project)))).toMatchObject({ markerIcons: [icon], markers: [marker] });
+    // Projects without icons keep no field, and so keep their fingerprints.
+    expect(parseProject(DEFAULT_PROJECT)).not.toHaveProperty("markerIcons");
+    for (const broken of [{ ...icon, id: "BAD" }, { ...icon, shapes: [{ outer: [0, 0, 1.5, 1, 2, 0] }] }, { ...icon, shapes: [{ outer: [0, 0, 1, 1, 2, 0], holes: [[0]] }] }, { ...icon, shapes: [] }, "icon"]) {
+      const loaded = parseProject({ ...DEFAULT_PROJECT, markerIcons: [broken], markers: [marker] });
+      expect(loaded).not.toHaveProperty("markerIcons");
+      expect(loaded.markers).toEqual([{ id: "cabin", lat: 43, lon: -122, symbol: "pin", sizeMm: 8 }]);
+    }
+    // A blank or overlong name is replaced rather than losing the icon.
+    expect(parseProject({ ...DEFAULT_PROJECT, markerIcons: [{ ...icon, name: " " }] }).markerIcons?.[0]!.name).toBe("Icon");
+    expect(parseProject({ ...DEFAULT_PROJECT, markerIcons: [{ ...icon, anchor: "top" }] }).markerIcons?.[0]).not.toHaveProperty("anchor");
+    expect(parseProject({ ...DEFAULT_PROJECT, markers: [{ ...marker, symbol: "star" }] }).markers[0]).not.toHaveProperty("iconId");
+  });
   it("round-trips marker size and rejects malformed sizes", () => {
     const marker = { id: "sized", lat: 43, lon: -122, symbol: "star", sizeMm: 12.5 };
     const project = parseProject({ ...DEFAULT_PROJECT, markers: [marker] });
@@ -263,4 +280,23 @@ describe("project import validation", () => {
       waterDepthOverrides: { "9092": 594 },
     });
   });
+  it("restores custom graphics and their placements, dropping what is malformed", () => {
+    const graphic = { id: "graphic-0001", name: "Logo", shapes: [{ outer: [-500, -500, 500, -500, 0, 500] }] };
+    const placed = { id: "placed-0001", graphicId: graphic.id, placement: { anchor: "top-left" as const, offset: { x: 0.25, y: 0 } }, sizeMm: 30, rotationDeg: 45, operation: "cut" as const };
+    const project = parseProject({ ...DEFAULT_PROJECT, customGraphics: [graphic], placedGraphics: [placed] });
+    expect(parseProject(JSON.parse(JSON.stringify(project)))).toMatchObject({ customGraphics: [graphic], placedGraphics: [placed] });
+    expect(parseProject(DEFAULT_PROJECT)).not.toHaveProperty("customGraphics");
+    expect(parseProject(DEFAULT_PROJECT)).not.toHaveProperty("placedGraphics");
+    // A broken graphic takes its placements with it.
+    const orphaned = parseProject({ ...DEFAULT_PROJECT, customGraphics: [{ ...graphic, shapes: [] }], placedGraphics: [placed] });
+    expect(orphaned).not.toHaveProperty("customGraphics");
+    expect(orphaned).not.toHaveProperty("placedGraphics");
+    for (const broken of [{ ...placed, graphicId: "graphic-9999" }, { ...placed, sizeMm: 1 }, { ...placed, placement: { anchor: "middle", offset: { x: 0, y: 0 } } }, { ...placed, placement: { anchor: "top", offset: { x: 3, y: 0 } } }, { ...placed, id: "X" }]) {
+      expect(parseProject({ ...DEFAULT_PROJECT, customGraphics: [graphic], placedGraphics: [broken] })).not.toHaveProperty("placedGraphics");
+    }
+    // Rotation wraps into range and an unknown operation engraves.
+    expect(parseProject({ ...DEFAULT_PROJECT, customGraphics: [graphic], placedGraphics: [{ ...placed, rotationDeg: -90, operation: "etch" }] }).placedGraphics?.[0]).toMatchObject({ rotationDeg: 270, operation: "engrave" });
+    expect(parseProject({ ...DEFAULT_PROJECT, customGraphics: [{ ...graphic, name: "" }] }).customGraphics?.[0]!.name).toBe("Graphic");
+  });
 });
+

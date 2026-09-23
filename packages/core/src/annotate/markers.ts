@@ -1,6 +1,7 @@
 import polygonClipping, { type Polygon } from "polygon-clipping";
 import { mercatorWorldY, normalizeMultiPolygon } from "../primitives/geometry2d.js";
-import type { GeoBounds, MarkerSymbol, Point2D } from "../types.js";
+import { MARKER_ICON_UNITS, type BuiltInMarkerSymbol, type GeoBounds, type MapMarkerV1, type MarkerIconV1, type Point2D, type Polygon2D } from "../types.js";
+import { markerIconBottom, markerIconPolygons } from "./marker-icons.js";
 
 /** Enough sides that a marker-sized circle reads as round at any preview zoom. */
 function circle(center: Point2D, radius: number, steps = 48): Point2D[] {
@@ -24,12 +25,41 @@ function thickSegment(start: Point2D, end: Point2D, width: number): Point2D[] {
 }
 
 /** Center a symbol around its geographic anchor. Pins sit above the anchor so their tip identifies it. */
-export function markerSymbolCenterForAnchor(symbol: MarkerSymbol, anchor: Point2D, size: number): Point2D {
+export function markerSymbolCenterForAnchor(symbol: BuiltInMarkerSymbol, anchor: Point2D, size: number): Point2D {
   return symbol === "pin" ? { x: anchor.x, y: anchor.y - size / 2 } : { ...anchor };
 }
 
+/** The project icon a marker draws, when it is a custom marker whose icon exists. */
+export function markerIcon(marker: Pick<MapMarkerV1, "symbol" | "iconId">, icons: readonly MarkerIconV1[] | undefined): MarkerIconV1 | undefined {
+  return marker.symbol === "custom" ? icons?.find((icon) => icon.id === marker.iconId) : undefined;
+}
+
+/**
+ * Where a marker's symbol is centered for its geographic anchor. A bottom-
+ * anchored icon rests its lowest point on the anchor, as a pin's tip does.
+ */
+export function markerCenterForAnchor(marker: Pick<MapMarkerV1, "symbol" | "iconId">, icons: readonly MarkerIconV1[] | undefined, anchor: Point2D, size: number): Point2D {
+  if (marker.symbol !== "custom") return markerSymbolCenterForAnchor(marker.symbol, anchor, size);
+  const icon = markerIcon(marker, icons);
+  return icon?.anchor === "bottom" ? { x: anchor.x, y: anchor.y - markerIconBottom(icon) * size / MARKER_ICON_UNITS } : { ...anchor };
+}
+
+/**
+ * A marker's symbol as filled polygons centered on `center`: the built-in
+ * shapes (a pin's eye is a hole) or the project icon a custom marker names.
+ * A custom marker whose icon is missing draws nothing.
+ */
+export function markerPolygons(marker: Pick<MapMarkerV1, "symbol" | "iconId">, icons: readonly MarkerIconV1[] | undefined, center: Point2D, size: number): Polygon2D[] {
+  if (marker.symbol === "custom") {
+    const icon = markerIcon(marker, icons);
+    return icon ? markerIconPolygons(icon, center, size) : [];
+  }
+  const paths = markerSymbolPaths(marker.symbol, center, size);
+  return marker.symbol === "pin" ? [{ outer: paths[0]!, holes: paths.slice(1) }] : paths.map((outer) => ({ outer, holes: [] }));
+}
+
 /** Fabrication-safe line paths for the marker picker, previews, and SVG output. */
-export function markerSymbolPaths(symbol: MarkerSymbol, center: Point2D, size: number): Point2D[][] {
+export function markerSymbolPaths(symbol: BuiltInMarkerSymbol, center: Point2D, size: number): Point2D[][] {
   const radius = size / 2;
   if (symbol === "circle") return [circle(center, radius * 0.78)];
   if (symbol === "cross") {

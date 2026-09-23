@@ -24,7 +24,8 @@
   let { geometry, exploded, placement, onUnavailable }: {
     geometry: GeometryIRV1;
     exploded: number;
-    placement?: { hiddenPrefixes: readonly string[]; marginMm: number; hideMarkings?: boolean };
+    /** `toolbarRows` is how many rows the placement toolbar has; the stage reserves more space above the drawing for two. */
+    placement?: { hiddenPrefixes: readonly string[]; marginMm: number; hideMarkings?: boolean; toolbarRows?: number };
     onUnavailable?: () => void;
   } = $props();
   import AtommZoom from "$lib/atomm/AtommZoom.svelte";
@@ -221,11 +222,34 @@
     content.add(object);
   }
 
+  /**
+   * Placement draws below its toolbar, in the stage minus the top
+   * `--placement-toolbar-space`. The canvas keeps its full size, since resizing
+   * a WebGL canvas clears it and would flash (and bare a strip behind the
+   * toolbar); the cameras shift their frame down instead, by `viewOffset` of it.
+   */
+  let toolbarSpace = 0;
+  let viewOffset = 0;
+  const readToolbarSpace = () => parseFloat(getComputedStyle(container).getPropertyValue("--placement-toolbar-space")) || 0;
+  const placementHeight = () => Math.max(container.clientHeight - toolbarSpace, 1);
+
+  /** Aim the perspective camera at the stage below `fraction` of the toolbar space. */
+  function applyViewOffset(fraction: number): void {
+    if (!runtime) return;
+    viewOffset = fraction;
+    const { camera } = runtime; const width = Math.max(container.clientWidth, 1); const height = Math.max(container.clientHeight, 1);
+    const shift = Math.min(toolbarSpace * fraction, height - 1);
+    camera.aspect = width / (height - shift);
+    if (shift > 0) camera.setViewOffset(width, height - shift, 0, -shift, width, height); else camera.clearViewOffset();
+    camera.updateProjectionMatrix();
+  }
+
   /** Frame the top-down camera exactly like the placement layer's meet-fitted viewBox. */
   function fitTopCamera(): void {
     if (!runtime || !placement) return;
-    const { halfWidth, halfHeight } = placementFrustum(placementViewBox(geometry.widthMm, geometry.heightMm, placement.marginMm), container.clientWidth, container.clientHeight);
-    Object.assign(runtime.topCamera, { left: -halfWidth, right: halfWidth, top: halfHeight, bottom: -halfHeight });
+    const available = placementHeight();
+    const { halfWidth, halfHeight } = placementFrustum(placementViewBox(geometry.widthMm, geometry.heightMm, placement.marginMm), container.clientWidth, available);
+    Object.assign(runtime.topCamera, { left: -halfWidth, right: halfWidth, top: halfHeight + toolbarSpace * (2 * halfHeight / available), bottom: -halfHeight });
     runtime.topCamera.updateProjectionMatrix();
   }
 
@@ -255,7 +279,7 @@
    * ease does not jump. A hair of y offset keeps OrbitControls' lookAt defined.
    */
   function overheadPosition(): THREE.Vector3 {
-    const { halfHeight } = placementFrustum(placementViewBox(geometry.widthMm, geometry.heightMm, placement?.marginMm ?? 0), container.clientWidth, container.clientHeight);
+    const { halfHeight } = placementFrustum(placementViewBox(geometry.widthMm, geometry.heightMm, placement?.marginMm ?? 0), container.clientWidth, placementHeight());
     return new THREE.Vector3(0, -0.001, halfHeight / Math.tan(THREE.MathUtils.degToRad(runtime!.camera.fov) / 2));
   }
 
@@ -266,6 +290,7 @@
     orbitBeforePlacement = { position: camera.position.clone(), target: controls.target.clone(), minDistance: controls.minDistance };
     controls.enabled = false;
     controls.minDistance = 0;
+    toolbarSpace = readToolbarSpace();
     fitTopCamera();
     const fromPosition = camera.position.clone(); const fromTarget = controls.target.clone();
     const toPosition = overheadPosition(); const toTarget = new THREE.Vector3(0, 0, 0);
@@ -274,6 +299,7 @@
       camera.position.lerpVectors(fromPosition, toPosition, fraction);
       controls.target.lerpVectors(fromTarget, toTarget, fraction);
       applyExploded(content, fromExploded * (1 - fraction));
+      applyViewOffset(fraction);
     }, () => { if (runtime) runtime.topDown = true; });
   }
 
@@ -289,6 +315,7 @@
       camera.position.lerpVectors(fromPosition, back.position, fraction);
       controls.target.lerpVectors(fromTarget, back.target, fraction);
       applyExploded(content, toExploded * fraction);
+      applyViewOffset(1 - fraction);
     }, () => { controls.minDistance = back.minDistance; controls.enabled = true; });
   }
 
@@ -328,7 +355,7 @@
     controls.addEventListener("change", requestRender);
     const updateZoom = () => { zoom = fitDistance / controls.getDistance(); };
     controls.addEventListener("change", updateZoom);
-    const resizeObserver = new ResizeObserver(([entry]) => { const width = entry?.contentRect.width ?? 0; const height = entry?.contentRect.height ?? 0; if (width <= 0 || height <= 0) return; camera.aspect = width / height; camera.updateProjectionMatrix(); renderer.setSize(width, height, false); fitTopCamera(); requestRender(); }); resizeObserver.observe(container);
+    const resizeObserver = new ResizeObserver(([entry]) => { const width = entry?.contentRect.width ?? 0; const height = entry?.contentRect.height ?? 0; if (width <= 0 || height <= 0) return; if (placement) toolbarSpace = readToolbarSpace(); applyViewOffset(viewOffset); renderer.setSize(width, height, false); fitTopCamera(); stopFrame(); render(); }); resizeObserver.observe(container);
     const stopFrame = () => { if (runtime) { cancelAnimationFrame(runtime.frame); runtime.frame = 0; } };
     const onVisibilityChange = () => { if (document.hidden) stopFrame(); else requestRender(); };
     const onContextLost = (event: Event) => { event.preventDefault(); contextLost = true; stopFrame(); };
@@ -529,12 +556,18 @@
   $effect(() => {
     if (placing) untrack(enterTopDown); else untrack(leaveTopDown);
   });
-  // Draft edits can replace the placement prop. Refit only when its margin
-  // changes: otherwise every nudge schedules an expensive terrain render.
+  // Draft edits can replace the placement prop. Refit only when its margin or
+  // toolbar changes: otherwise every nudge schedules an expensive terrain render.
+  // A toolbar row appearing mid-session (the first uploaded graphic) changes the
+  // reserved space without resizing anything, so it is read again here.
   const topMargin = $derived(placement?.marginMm);
+  const toolbarRows = $derived(placement?.toolbarRows);
   $effect(() => {
-    void topMargin; void widthMm; void heightMm;
-    untrack(() => { fitTopCamera(); runtime?.requestRender(); });
+    void topMargin; void toolbarRows; void widthMm; void heightMm;
+    untrack(() => {
+      if (placement && runtime) { toolbarSpace = readToolbarSpace(); applyViewOffset(viewOffset); }
+      fitTopCamera(); runtime?.requestRender();
+    });
   });
 
   function handleKeyDown(event: KeyboardEvent): void {

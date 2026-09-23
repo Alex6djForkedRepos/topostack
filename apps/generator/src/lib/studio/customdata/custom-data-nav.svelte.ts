@@ -10,7 +10,7 @@
 
 import type { ProjectConfigV1 } from "@topostack/core";
 
-export type CustomDataSectionId = "charts" | "markers" | "paths" | "import";
+export type CustomDataSectionId = "charts" | "markers" | "paths" | "graphics" | "import";
 
 export interface CustomDataSectionInfo {
   id: CustomDataSectionId;
@@ -21,6 +21,7 @@ export const CUSTOM_DATA_SECTIONS: readonly CustomDataSectionInfo[] = [
   { id: "charts", label: "Depth charts" },
   { id: "markers", label: "Markers" },
   { id: "paths", label: "Trails & boundaries" },
+  { id: "graphics", label: "Graphics" },
   { id: "import", label: "Import" },
 ];
 

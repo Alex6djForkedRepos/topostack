@@ -46,3 +46,27 @@ test("markers are placed by clicking the map and moved by dragging", async ({ pa
   await expect.poll(async () => Number(await page.getByRole("spinbutton", { name: "Marker 1 latitude", exact: true }).inputValue())).toBeLessThan(before);
   expect(errors).toEqual([]);
 });
+
+test("an uploaded SVG becomes a marker symbol on the card and the map", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.getByRole("button", { name: "Add marker" }).click();
+  await expect(page.locator(".marker-card")).toHaveCount(1);
+  await page.getByRole("button", { name: "Use an SVG for this marker" }).click();
+  await page.locator("[data-marker-icon-import]").setInputFiles({
+    name: "cabin.svg",
+    mimeType: "image/svg+xml",
+    buffer: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10 12 3l9 7v11H3Z"/><rect x="9" y="14" width="6" height="7"/></svg>`),
+  });
+  const symbols = page.getByRole("radiogroup", { name: "Marker 1 symbol" });
+  await expect(symbols.getByRole("radio", { name: "cabin" })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByLabel("Marker icons")).toContainText("Icons");
+  await expect(page.locator(".topostack-map-marker")).toHaveAttribute("data-symbol", "custom");
+  await expect(page.locator(".topostack-map-marker")).toHaveAttribute("aria-label", /cabin marker at/);
+
+  // Removing the icon leaves the marker in place as a pin.
+  await page.getByRole("button", { name: "Remove icon cabin" }).click();
+  await expect(symbols.getByRole("radio", { name: "Pin" })).toHaveAttribute("aria-checked", "true");
+  await expect(page.locator(".topostack-map-marker")).toHaveAttribute("data-symbol", "pin");
+  expect(errors).toEqual([]);
+});

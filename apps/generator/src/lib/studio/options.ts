@@ -1,4 +1,4 @@
-import { DEFAULT_PROJECT, FONT_CATALOG, markerSymbolPaths, northArrowMarkings, type CustomLineKind, type LineStyleV1, type MarkerSymbol, type NorthArrowStyle, type OperationPath, type Point2D, type RoadCap, type RoadStyle, type FontCatalogEntry, type FontKind, type TrailPattern, type WaterFillPattern } from "@topostack/core";
+import { DEFAULT_PROJECT, FONT_CATALOG, markerSymbolPaths, northArrowMarkings, type CustomLineKind, type LineStyleV1, type BuiltInMarkerSymbol, type NorthArrowStyle, type OperationPath, type Point2D, type RoadCap, type RoadStyle, type FontCatalogEntry, type FontKind, type TrailPattern, type WaterFillPattern } from "@topostack/core";
 import type { PlaceResult } from "$lib/domain/data-provider";
 
 /** Fixed choices for the studio controls. */
@@ -34,7 +34,7 @@ const NORTH_ARROW_CHOICES: Array<{ value: NorthArrowStyle; label: string }> = [
   { value: "minimal", label: "Minimal" }, { value: "classic", label: "Classic" }, { value: "mariner", label: "Mariner" },
 ];
 export const NORTH_ARROW_OPTIONS: Array<{ value: NorthArrowStyle; label: string; markings: OperationPath[] }> = NORTH_ARROW_CHOICES.map((option) => ({ ...option, markings: northArrowMarkings({ ...DEFAULT_PROJECT, northArrowStyle: option.value, northArrowSizeMm: 100, northArrowPlacement: { anchor: "center", offset: { x: 0, y: 0 } } }) }));
-export const MARKER_OPTIONS: Array<{ value: MarkerSymbol; label: string; paths: Point2D[][] }> = [
+export const MARKER_OPTIONS: Array<{ value: BuiltInMarkerSymbol; label: string; paths: Point2D[][] }> = [
   { value: "pin", label: "Pin", paths: markerSymbolPaths("pin", { x: 0, y: 0 }, 20) },
   { value: "circle", label: "Circle", paths: markerSymbolPaths("circle", { x: 0, y: 0 }, 20) },
   { value: "triangle", label: "Triangle", paths: markerSymbolPaths("triangle", { x: 0, y: 0 }, 20) },

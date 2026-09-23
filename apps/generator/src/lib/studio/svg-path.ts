@@ -1,4 +1,4 @@
-import { labelSvgPaths, roundText, type OperationPath } from "@topostack/core";
+import { labelSvgPaths, roundText, type OperationPath, type Polygon2D } from "@topostack/core";
 
 /**
  * One polyline as an SVG path. Every preview, the sidebar's marker symbols and
@@ -17,6 +17,11 @@ export function pointsToPath(points: readonly { x: number; y: number }[]): strin
  */
 export function symbolPath(rings: readonly (readonly { x: number; y: number }[])[]): string {
   return rings.map((ring) => `${pointsToPath(ring)} Z`).join(" ");
+}
+
+/** Filled polygons, holes included, as one even-odd path. */
+export function polygonsPath(polygons: readonly Polygon2D[]): string {
+  return polygons.flatMap(({ outer, holes }) => [outer, ...holes]).map((ring) => `${pointsToPath(ring)} Z`).join(" ");
 }
 
 /** Filled pieces retain their interior voids in both SVG previews. */

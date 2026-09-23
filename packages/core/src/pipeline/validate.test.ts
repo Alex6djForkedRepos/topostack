@@ -24,6 +24,25 @@ describe("project validation", () => {
     expect(() => validateProject({ ...DEFAULT_PROJECT, markers: [{ ...marker, name: 7 as never }] })).toThrow(/marker name/i);
   });
 
+  it("ties custom markers to the project's own well-formed icons", () => {
+    const icon = { id: "icon-0001", name: "Cabin", shapes: [{ outer: [-500, 500, 500, 500, 0, -500] }] };
+    const marker = { id: "marker", lat: DEFAULT_PROJECT.location.lat, lon: DEFAULT_PROJECT.location.lon, symbol: "custom" as const, iconId: icon.id };
+    expect(() => validateProject({ ...DEFAULT_PROJECT, markerIcons: [icon], markers: [marker] })).not.toThrow();
+    expect(() => validateProject({ ...DEFAULT_PROJECT, markerIcons: [{ ...icon, anchor: "bottom" }], markers: [marker] })).not.toThrow();
+    expect(() => validateProject({ ...DEFAULT_PROJECT, markers: [marker] })).toThrow(/custom marker/i);
+    expect(() => validateProject({ ...DEFAULT_PROJECT, markerIcons: [icon], markers: [{ ...marker, iconId: "icon-0002" }] })).toThrow(/custom marker/i);
+    expect(() => validateProject({ ...DEFAULT_PROJECT, markerIcons: [icon], markers: [{ ...marker, symbol: "pin" }] })).toThrow(/only custom markers/i);
+    expect(() => validateProject({ ...DEFAULT_PROJECT, markerIcons: [icon, icon] })).toThrow(/unique/i);
+    expect(() => validateProject({ ...DEFAULT_PROJECT, markerIcons: [{ ...icon, id: "Short" }] })).toThrow(/icon id/i);
+    expect(() => validateProject({ ...DEFAULT_PROJECT, markerIcons: [{ ...icon, name: " " }] })).toThrow(/icon name/i);
+    expect(() => validateProject({ ...DEFAULT_PROJECT, markerIcons: [{ ...icon, anchor: "top" as never }] })).toThrow(/anchor/i);
+    expect(() => validateProject({ ...DEFAULT_PROJECT, markerIcons: [{ ...icon, shapes: [] }] })).toThrow(/at least one shape/i);
+    expect(() => validateProject({ ...DEFAULT_PROJECT, markerIcons: [{ ...icon, shapes: [{ outer: [0, 0, 1, 1.5, 2, 0] }] }] })).toThrow(/whole-number/i);
+    expect(() => validateProject({ ...DEFAULT_PROJECT, markerIcons: [{ ...icon, shapes: [{ outer: [0, 0, 501, 0, 0, 1] }] }] })).toThrow(/whole-number/i);
+    expect(() => validateProject({ ...DEFAULT_PROJECT, markerIcons: [{ ...icon, shapes: [{ outer: Array.from({ length: 1602 }, (_, index) => index % 400) }] }] })).toThrow(/800 points/i);
+    expect(() => validateProject({ ...DEFAULT_PROJECT, markerIcons: Array.from({ length: 25 }, (_, index) => ({ ...icon, id: `icon-${String(index).padStart(4, "0")}` })) })).toThrow(/24 marker icons/i);
+  });
+
   it("accepts bounded positive fabrication sizes", () => {
     expect(() => validateProject({ ...DEFAULT_PROJECT, widthMm: 2_400, heightMm: 1_200 })).not.toThrow();
     expect(() => validateProject({ ...DEFAULT_PROJECT, widthMm: 0 })).toThrow(/greater than zero/i);
