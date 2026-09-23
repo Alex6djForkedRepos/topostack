@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { FeatureCollection } from "geojson";
   import { onMount, untrack, getContext } from "svelte";
   import { base } from "$app/paths";
   import { LocateFixed, MapPin, Spline } from "@lucide/svelte";
@@ -8,7 +9,10 @@
   import { MAX_PROJECT_DIMENSION_MM, markerCenterForAnchor, markerIcon, markerPolygons, unwrapLongitude, type CustomLineFeatureV1, type GeoBounds, type GeoPoint, type MapMarkerV1, type ProjectConfigV1 } from "@topostack/core";
   import { boundsForProject } from "$lib/domain/data-provider";
   import { polygonsPath } from "$lib/studio/svg-path";
-  let { project, aspectLocked = $bindable(false), placingMarker = false, drawingLine = false, draftPoints = [], framing = true, hint = "Drag the map to choose your terrain", onLocationChange, onSelectionResize, onUnavailable, onPlaceMarker, onMoveMarker, onStopPlacing, onDrawPoint, onFinishDraw, onCancelDraw }: {
+  let { lakeSelection, onLakeViewportChange, onLakeMapClick, project, aspectLocked = $bindable(false), placingMarker = false, drawingLine = false, draftPoints = [], framing = true, hint = "Drag the map to choose your terrain", onLocationChange, onSelectionResize, onUnavailable, onPlaceMarker, onMoveMarker, onStopPlacing, onDrawPoint, onFinishDraw, onCancelDraw }: {
+    lakeSelection?: { bounds?: GeoBounds; activeId?: string; lakes: { id: string; name: string; outline: [number, number][] }[] };
+    onLakeViewportChange?: (bounds: GeoBounds) => void;
+    onLakeMapClick?: (lat: number, lon: number, lakeId?: string) => void;
     aspectLocked?: boolean; project: ProjectConfigV1; onSelectionResize: (widthMm: number, heightMm: number, bounds: GeoBounds) => void; onUnavailable?: (reason?: "unsupported" | "load-failed") => void; onLocationChange: (lat: number, lon: number, zoom: number, bounds: GeoBounds) => void;
     /** While true, a click on the map places a marker there. */
     placingMarker?: boolean;
@@ -196,6 +200,12 @@
 
   function fitSelection(): void {
     if (!map || !guide || resizing) return;
+    if (lakeSelection?.bounds) {
+      const b = lakeSelection.bounds;
+      map.resize({ topostackProgrammatic: true });
+      map.fitBounds([[b.west, b.south], [b.east, b.north]], { padding: 48, maxZoom: 15, duration: 0 }, { topostackProgrammatic: true });
+      return;
+    }
     const bounds = boundsForProject(project);
     const aspect = project.widthMm / project.heightMm;
     const width = Math.min(container.clientWidth * 0.54, 630, container.clientHeight * 0.7 * aspect);
@@ -349,6 +359,17 @@
     return Math.hypot(at.x - point.x, at.y - point.y) <= CLOSE_RADIUS_PX;
   }
 
+  let hoveredLake: string | number | undefined;
+  function highlightLake(id?: string | number): void {
+    if (!map) return;
+    if (hoveredLake !== id) {
+      if (hoveredLake !== undefined && map.getSource("chart-lakes")) map.setFeatureState({ source: "chart-lakes", id: hoveredLake }, { hover: false });
+      hoveredLake = id;
+      if (id !== undefined) map.setFeatureState({ source: "chart-lakes", id }, { hover: true });
+    }
+    map.getCanvas().style.cursor = id === undefined ? "" : "pointer";
+  }
+
   onMount(() => {
     // MapLibre 6 needs an explicit worker URL with bundlers. Use Vite's worker
     // pipeline so the worker's shared-module imports are bundled for production.
@@ -361,8 +382,25 @@
     initialZoom = map.getZoom(); initialCenter = [project.location.lon, project.location.lat];
     map.on("zoom", () => { if (map) zoomScale = 2 ** (map.getZoom() - initialZoom); });
     map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: `<a href="${base}/attribution${import.meta.env.VITE_SITE_ENV === "atomm" ? ".html" : ""}" target="_blank" rel="noopener noreferrer">All sources</a>` }), "bottom-left");
-    map.on("load", () => { styleReady = true; });
+    let viewportTimer: ReturnType<typeof setTimeout> | undefined;
+    const reportLakeViewport = () => {
+      clearTimeout(viewportTimer);
+      if (!onLakeViewportChange) return;
+      viewportTimer = setTimeout(() => {
+        if (!map) return;
+        const bounds = map.getBounds();
+        const centre = map.getCenter();
+        const shift = wrapLongitude(centre.lng) - centre.lng;
+        onLakeViewportChange?.({ west: bounds.getWest() + shift, east: bounds.getEast() + shift, south: Math.max(-85, bounds.getSouth()), north: Math.min(85, bounds.getNorth()) });
+      }, 180);
+    };
+    map.on("load", () => { styleReady = true; reportLakeViewport(); });
+    map.on("moveend", reportLakeViewport);
     map.on("mousemove", (event) => {
+      if (lakeSelection && map?.getLayer("chart-lakes-fill")) {
+        const feature = map.queryRenderedFeatures(event.point, { layers: ["chart-lakes-fill"] })[0];
+        highlightLake(feature?.id);
+      }
       if (!drawingLine) {
         if (pointer) { pointer = undefined; closable = false; }
         return;
@@ -372,8 +410,14 @@
       const first = draftPoints[0];
       pointer = closable && first ? { lat: first.lat, lon: first.lon } : { lat: event.lngLat.lat, lon: wrapLongitude(event.lngLat.lng) };
     });
-    map.on("mouseout", () => { pointer = undefined; closable = false; });
+    map.on("mouseout", () => { highlightLake(); pointer = undefined; closable = false; });
+    map.on("movestart", () => { if (hoveredLake !== undefined) highlightLake(); });
     map.on("click", (event) => {
+      if (onLakeMapClick) {
+        const feature = map?.getLayer("chart-lakes-fill") ? map.queryRenderedFeatures(event.point, { layers: ["chart-lakes-fill"] })[0] : undefined;
+        onLakeMapClick(event.lngLat.lat, wrapLongitude(event.lngLat.lng), feature?.properties.id === undefined ? undefined : String(feature.properties.id));
+        return;
+      }
       if (drawingLine) {
         if (closesDraft(event.point)) { onFinishDraw?.(true); return; }
         onDrawPoint?.(roundDegrees(event.lngLat.lat), roundDegrees(wrapLongitude(event.lngLat.lng)));
@@ -429,8 +473,26 @@
     const resizeObserver = new ResizeObserver(() => fitSelection());
     resizeObserver.observe(container);
     fitSelection();
-    return () => { resizeObserver.disconnect(); mapMarkers.forEach((marker) => marker.remove()); mapMarkers.clear(); map?.remove(); map = undefined; };
+    return () => { clearTimeout(viewportTimer); resizeObserver.disconnect(); mapMarkers.forEach((marker) => marker.remove()); mapMarkers.clear(); map?.remove(); map = undefined; };
   });
+
+  $effect(() => {
+    if (!styleReady || !map) return;
+    const selection = lakeSelection;
+    // A background viewport refresh must not clear feedback under a stationary pointer.
+    if (hoveredLake !== undefined && !selection?.lakes.some(lake => lake.id === hoveredLake)) highlightLake();
+    const data: FeatureCollection = { type: "FeatureCollection", features: (selection?.lakes ?? []).map(lake => ({ type: "Feature", id: lake.id, properties: { id: lake.id, name: lake.name, selected: lake.id === selection?.activeId }, geometry: { type: "Polygon", coordinates: [[...lake.outline, lake.outline[0]!]] } })) };
+    const source = map.getSource("chart-lakes") as GeoJSONSource | undefined;
+    if (source) source.setData(data);
+    else {
+      map.addSource("chart-lakes", { type: "geojson", promoteId: "id", data });
+      map.addLayer({ id: "chart-lakes-fill", type: "fill", source: "chart-lakes", paint: { "fill-color": "#c4511b", "fill-opacity": ["case", ["boolean", ["feature-state", "hover"], false], 0.5, ["get", "selected"], 0.35, 0.12] } });
+      map.addLayer({ id: "chart-lakes-outline", type: "line", source: "chart-lakes", paint: { "line-color": "#c4511b", "line-width": ["case", ["boolean", ["feature-state", "hover"], false], 4, ["get", "selected"], 3, 1.5] } });
+      if (map.getStyle()?.glyphs) map.addLayer({ id: "chart-lakes-label", type: "symbol", source: "chart-lakes", layout: { "text-field": ["get", "name"], "text-size": 12 }, paint: { "text-color": "#782b0b", "text-halo-color": "#ffffff", "text-halo-width": 2 } });
+    }
+  });
+  const lakeCameraBounds = $derived(lakeSelection?.bounds);
+  $effect(() => { void lakeCameraBounds; if (styleReady) untrack(fitSelection); });
 
   // Deriveds only notify when the value itself changes, so a rename or slider
   // tick that replaces `project` does not refit the map or resync overlays.
@@ -485,7 +547,7 @@
     void cropShape;
     void widthMm;
     void heightMm;
-    syncMapArea(!framing);
+    syncMapArea(!framing && !lakeSelection);
   });
 
   // Reading all three, so the drawn line follows the pointer and is cleared

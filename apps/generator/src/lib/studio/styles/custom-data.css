@@ -410,6 +410,76 @@
   cursor: not-allowed;
 }
 
+/* Give the primary map action room and a clear hit target at sidebar widths. */
+.custom-data-section .section-title small {
+  font-size: var(--panel-font-caption);
+}
+
+.marker-add-actions {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.subgroup-heading--action .marker-add-button {
+  justify-content: center;
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 1px solid var(--loidolt-border-control);
+  background: var(--loidolt-surface);
+  color: var(--loidolt-text);
+  font-size: var(--panel-font-label);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.subgroup-heading--action .marker-add-button:first-child {
+  border-color: var(--loidolt-accent);
+  color: var(--loidolt-accent);
+}
+
+.subgroup-heading--action .marker-add-button[aria-pressed="true"] {
+  background: var(--loidolt-accent);
+  color: var(--loidolt-on-accent);
+}
+
+.subgroup-heading--action .marker-add-button:hover:not(:disabled),
+.custom-data-import__button:hover:not(:disabled),
+.custom-point-expand:hover {
+  background: var(--loidolt-surface-alt);
+}
+
+.marker-empty,
+.marker-note,
+.custom-data-tool-status {
+  font-size: var(--panel-font-caption);
+}
+
+.custom-data-tool-status {
+  margin: 0;
+  padding: 10px;
+  border-left: 2px solid var(--loidolt-accent);
+  background: var(--loidolt-surface);
+  color: var(--loidolt-text);
+  line-height: 1.5;
+}
+
+.custom-data-import__button,
+.custom-point-expand,
+.custom-point-add {
+  min-height: 34px;
+  font-size: var(--panel-font-caption);
+  text-transform: none;
+}
+
+.custom-data-import__button {
+  padding: 12px;
+  border-style: solid;
+  background: var(--loidolt-surface-alt);
+}
+
 /* Graphics share the marker editor's frame: the uploaded library, then each use on the piece. */
 .graphic-row {
   grid-template-columns: 22px minmax(0, 1fr) auto 26px;

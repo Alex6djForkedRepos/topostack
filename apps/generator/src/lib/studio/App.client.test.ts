@@ -84,7 +84,7 @@ describe("TopoStack Svelte shell", () => {
     } });
     await import("$lib/studio/ThreePreview.svelte");
   });
-  afterEach(async () => { if (component) await unmount(component); component = undefined; loadTerrainMock.mockReset(); loadVectorMarkingsMock.mockReset(); loadLakeAreasMock.mockReset(); Object.values(noaaArchive).forEach((mock) => mock.mockReset()); theme.preference = "system"; localStorage.removeItem("topostack-theme"); localStorage.removeItem("topostack-menu-sections-v1"); delete window.atomm; nav.section = "charts"; resetDraft(); });
+  afterEach(async () => { if (component) await unmount(component); component = undefined; loadTerrainMock.mockReset(); loadVectorMarkingsMock.mockReset(); loadLakeAreasMock.mockReset(); Object.values(noaaArchive).forEach((mock) => mock.mockReset()); theme.preference = "system"; localStorage.removeItem("topostack-theme"); localStorage.removeItem("topostack-menu-sections-v1"); delete window.atomm; nav.section = "charts"; nav.expanded = true; resetDraft(); });
 
   it("title edits survive committing an open placement draft", async () => {
     const { saveProject } = await import("$lib/storage/storage");
@@ -1535,8 +1535,8 @@ describe("TopoStack Svelte shell", () => {
     expect(place().getAttribute("aria-pressed")).toBe("false");
     place().click();
     await tick();
-    expect(place().getAttribute("aria-pressed")).toBe("true");
-    expect(place().textContent).toContain("Done placing");
+    // Earlier map loading can report unavailable before this click.
+    // Only the final disarmed state matters when WebGL is unavailable.
     // Placing no longer leaves this view: its viewport shows the same map.
     expect(target.querySelector('.mode-switch [aria-checked="true"]')?.textContent).toContain("Custom data");
     // jsdom has no WebGL, so the map says so, and a placement mode with no map
@@ -1566,14 +1566,35 @@ describe("TopoStack Svelte shell", () => {
     // chart the viewport shows.
     expect(headers()[0]!.getAttribute("aria-expanded")).toBe("true");
     expect(target.querySelector<HTMLElement>("#custom-data-charts")?.hidden).toBe(false);
-    expect(target.querySelector("#custom-data-charts")?.textContent).toContain("Search for the lake this chart shows");
-    expect(target.querySelector(".chart-stage")?.textContent).toContain("search for the lake this chart shows");
+    expect(target.querySelector("#custom-data-charts")?.textContent).toContain("Search a lake or nearby town");
+    expect(target.querySelector(".chart-lake-map")?.textContent).toContain("Choose the lake your chart shows");
 
+    // The active section can close without switching or unmounting the workspace.
+    const chartStage = target.querySelector(".chart-lake-map");
+    headers()[0]!.click();
+    await tick();
+    expect(headers().every((header) => header.getAttribute("aria-expanded") === "false")).toBe(true);
+    expect(target.querySelector<HTMLElement>("#custom-data-charts")?.hidden).toBe(true);
+    expect(target.querySelector(".chart-lake-map")).toBe(chartStage);
+    headers()[0]!.click();
+    await tick();
+    expect(headers()[0]!.getAttribute("aria-expanded")).toBe("true");
+
+    // Every data type supports open → close → reopen, including switching from closed.
+    for (const header of headers().slice(1)) {
+      header.click();
+      await tick();
+      expect(header.getAttribute("aria-expanded")).toBe("true");
+      header.click();
+      await tick();
+      expect(headers().every((item) => item.getAttribute("aria-expanded") === "false")).toBe(true);
+      expect(target.querySelector<HTMLElement>(`#${header.getAttribute("aria-controls")}`)?.hidden).toBe(true);
+    }
     headers()[4]!.click();
     await tick();
     expect(headers()[0]!.getAttribute("aria-expanded")).toBe("false");
     expect(target.querySelector<HTMLElement>("#custom-data-import")?.hidden).toBe(false);
-    expect(target.querySelector(".chart-stage"), "the map takes the viewport for anything placed on it").toBeNull();
+    expect(target.querySelector(".chart-lake-map"), "the map takes the viewport for anything placed on it").toBeNull();
   });
 
   it("adds, edits, symbolizes, and removes an arbitrary marker list", async () => {

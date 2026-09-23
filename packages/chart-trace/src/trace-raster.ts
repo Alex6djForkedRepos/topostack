@@ -52,6 +52,8 @@ export interface SkeletonLine {
 }
 
 export interface RasterTraceOptions {
+  /** Extract joined contour paths without requiring labels or an interval. */
+  geometryOnly?: boolean;
   /** Ink to trace: chosen swatches, or everything darker than a threshold (Otsu when absent). */
   ink?: { colours: Rgb[]; tolerance?: number } | { threshold?: number };
   words?: ChartWord[];
@@ -398,6 +400,7 @@ function finish(image: RgbaImage, tracedPixels: readonly SkeletonLine[], scale: 
   const shoreStyle = styleKey({ stroke: SHORE_INK, lineWidth: 1, dashed: false });
   const trace = traceVectorChart({ width: image.width, height: image.height, paths, texts }, {
     contourStyles: [contourStyle],
+    ...(options.geometryOnly ? { geometryOnly: true } : {}),
     ...(split === undefined ? {} : { shorelineStyles: [shoreStyle] }),
     labels: options.labels,
     continueThroughJunctions: true,

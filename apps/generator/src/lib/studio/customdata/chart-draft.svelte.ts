@@ -67,14 +67,19 @@ const empty = (): ChartDraft => ({
 });
 
 export const draft = $state<ChartDraft>(empty());
+// Distinguishes even identical uploads or resets while asynchronous work runs.
+let revision = 0;
+export const draftRevision = (): number => revision;
 
 /** Starts again, keeping nothing. */
 export function resetDraft(): void {
+  revision += 1;
   Object.assign(draft, empty());
 }
 
 /** Keeps the lake but drops the picture and everything traced from it. */
 export function resetChartImage(): void {
+  revision += 1;
   const { lake } = draft;
   Object.assign(draft, empty(), { lake });
 }

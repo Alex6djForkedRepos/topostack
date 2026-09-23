@@ -1,3 +1,4 @@
+import { ChartTraceClient } from "$lib/workers/chart-trace-client";
 import { mount, tick, unmount } from "svelte";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { encodeChartDepths } from "@topostack/data-contracts/chart-bathymetry";
@@ -5,7 +6,7 @@ import type { ChartBuildResult } from "$lib/domain/chart-build";
 import type { ChartableLake } from "$lib/domain/lake-lookup";
 import ChartCanvas from "$lib/studio/customdata/ChartCanvas.svelte";
 import { draft, resetDraft } from "$lib/studio/customdata/chart-draft.svelte";
-import { resetSession, session } from "$lib/studio/customdata/chart-tracing.svelte";
+import { canTrace, resetSession, session } from "$lib/studio/customdata/chart-tracing.svelte";
 
 const lake: ChartableLake = { id: "lake-1", name: "Round Lake", hylakId: 9092, footprint: 1, spanKm: [1, 1], distanceKm: 0, clipped: false, outline: [[-80, 45], [-79.99, 45], [-79.99, 45.01]] };
 const pixels = () => ({ width: 40, height: 30, data: new Uint8ClampedArray(40 * 30 * 4).fill(255), colorSpace: "srgb" }) as unknown as ImageData;
@@ -53,25 +54,58 @@ describe("the chart on the custom data stage", () => {
     expect(target.querySelector("canvas")).toBeNull();
   });
 
-  it("turns a click into a depth at that point of the chart", async () => {
+  it("guides three confirmed points, with blank-value validation, cancellation, and correction", async () => {
     withImage();
     const target = open();
     await tick();
     const canvas = target.querySelector<HTMLCanvasElement>(".chart-canvas")!;
-    // The picture is drawn to fit, so a click is read as a share of its box.
+    await vi.waitFor(() => expect(canvas.getAttribute("aria-busy")).toBe("false"));
     vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue({ left: 0, top: 0, width: 400, height: 300 } as DOMRect);
-
-    canvas.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 200, clientY: 150 }));
+    const pick = async (x: number, y: number) => {
+      canvas.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: x, clientY: y }));
+      await tick();
+    };
+    const confirm = async (value: string) => {
+      const input = target.querySelector<HTMLInputElement>("#chart-point-value")!;
+      input.value = value;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      await tick();
+      target.querySelector(".chart-point-card form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      await tick();
+    };
+    await pick(200, 150);
+    expect(draft.depths).toHaveLength(0);
+    expect(document.activeElement).toBe(target.querySelector("#chart-point-value"));
+    expect(target.querySelector('[role="dialog"]')?.textContent).toContain("Assign point 1");
+    await confirm("");
+    expect(target.querySelector('[role="alert"]')?.textContent).toContain("Enter a depth");
+    expect(draft.depths).toHaveLength(0);
+    await confirm("10");
+    expect(draft.depths[0]).toMatchObject({ x: 20, y: 15, value: 10 });
+    expect(document.activeElement).toBe(canvas);
+    expect(target.textContent).toContain("Point 2 of 3");
+    await pick(100, 100);
+    expect(session.pendingDepth).toBe("");
+    await confirm("20");
+    expect(canTrace()).toBe(false);
+    await pick(300, 200);
+    expect(canTrace(), "an unconfirmed third point does not count").toBe(false);
+    target.querySelector(".chart-point-card form")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
     await tick();
-    expect(draft.depths, "a click with no depth typed is not a depth of zero").toHaveLength(0);
-    expect(target.querySelector("[role=alert]")?.textContent).toContain("Type the depth");
-
-    session.pendingDepth = "10";
-    canvas.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 200, clientY: 150 }));
-    await tick();
-    // The reach is a fixed distance on screen: 12 px of a 400 px box over a 40 px image.
-    expect(draft.depths).toEqual([{ x: 20, y: 15, value: 10, reach: 1.2000000000000002 }]);
-    expect(target.textContent).toContain("one more needed");
+    expect(session.point).toBeUndefined();
+    expect(draft.depths).toHaveLength(2);
+    await pick(300, 200);
+    await confirm("30");
+    expect(canTrace()).toBe(true);
+    expect(target.textContent).toContain("3 points confirmed");
+    await pick(200, 150);
+    expect(target.querySelector('[role="dialog"]')?.textContent).toContain("Edit point 1");
+    await confirm("12");
+    expect(draft.depths).toHaveLength(3);
+    expect(draft.depths[0]?.value).toBe(12);
+    await pick(50, 250);
+    await confirm("40");
+    expect(draft.depths).toHaveLength(4);
   });
 
   it("places depths from the keyboard with a crosshair", async () => {
@@ -81,13 +115,17 @@ describe("the chart on the custom data stage", () => {
     const canvas = target.querySelector<HTMLCanvasElement>(".chart-canvas")!;
     expect(canvas.tabIndex).toBe(0);
     // Drawn 400 px wide over a 40 px picture: a screen pixel is a tenth of an image pixel.
+    await vi.waitFor(() => expect(canvas.getAttribute("aria-busy")).toBe("false"));
     vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue({ left: 0, top: 0, width: 400, height: 300 } as DOMRect);
     canvas.dispatchEvent(new FocusEvent("focus"));
     const key = (key: string, shiftKey = false) => canvas.dispatchEvent(new KeyboardEvent("keydown", { key, shiftKey, bubbles: true, cancelable: true }));
     key("ArrowRight");
     key("ArrowDown", true);
-    session.pendingDepth = "10";
     key("Enter");
+    await tick();
+    expect(draft.depths).toHaveLength(0);
+    session.pendingDepth = "10";
+    target.querySelector(".chart-point-card form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     await tick();
     // From the middle (20, 15): right 2 screen px, down 20.
     expect(draft.depths).toHaveLength(1);
@@ -95,6 +133,22 @@ describe("the chart on the custom data stage", () => {
     expect(draft.depths[0]!.y).toBeCloseTo(17);
     expect(draft.depths[0]!.reach).toBeCloseTo(1.2);
     expect(target.textContent).toContain("% across");
+  });
+
+  it("ignores contour detection from an image replaced while detection was running", async () => {
+    const oldLines = Promise.withResolvers<{ points: [number, number][]; closed: boolean }[]>();
+    const newLines = Promise.withResolvers<{ points: [number, number][]; closed: boolean }[]>();
+    vi.spyOn(ChartTraceClient.prototype, "contours").mockReturnValueOnce(oldLines.promise).mockReturnValueOnce(newLines.promise);
+    withImage();
+    const target = open();
+    await tick();
+    withImage();
+    await tick();
+    newLines.resolve([]);
+    await vi.waitFor(() => expect(target.querySelector("canvas")?.getAttribute("aria-busy")).toBe("false"));
+    oldLines.resolve([{ points: [[0, 0], [40, 30]], closed: false }]);
+    await tick();
+    expect(target.textContent).toContain("No contour preview is available");
   });
 
   it("shows the traced lake bed and what the tracer made of the chart", async () => {
@@ -126,6 +180,6 @@ describe("the chart on the custom data stage", () => {
     const reopened = open();
     await tick();
     expect(reopened.querySelector(".chart-canvas")).not.toBeNull();
-    expect(reopened.textContent).toContain("one more needed");
+    expect(reopened.textContent).toContain("Point 2 of 3");
   });
 });

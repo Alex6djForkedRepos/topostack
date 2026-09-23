@@ -18,7 +18,7 @@
    * panning there changes nothing about the project.
    */
 
-  let { onUnavailable }: { onUnavailable?: (reason?: "unsupported" | "load-failed") => void } = $props();
+  let { onUnavailable, lakeSelection, onLakeViewportChange, onLakeMapClick }: { lakeSelection?: { bounds?: GeoBounds; activeId?: string; lakes: { id: string; name: string; outline: [number, number][] }[] }; onLakeViewportChange?: (bounds: GeoBounds) => void; onLakeMapClick?: (lat: number, lon: number, lakeId?: string) => void; onUnavailable?: (reason?: "unsupported" | "load-failed") => void } = $props();
   const studio = getStudio();
   const MapCanvas = $derived(studio.MapCanvas);
   const { applyCustomDataEdit, cancelLineDraft, commitLineDraft, extendLineDraft, updateFabrication, updateLocation } = studio;
@@ -32,18 +32,21 @@
   // With no map to click, placing and drawing must not stay armed. The map
   // reports itself unavailable while it is mounting, so this waits for an
   // effect to say so.
-  $effect(() => { if (failed) { studio.placingMarker = false; cancelLineDraft(); } });
+  $effect(() => { if (failed && (studio.placingMarker || studio.lineDraft)) { studio.placingMarker = false; cancelLineDraft(); } });
 </script>
 
 {#if failed}
-  <div class="preview-loading" role="alert">The map is unavailable in this browser. Markers and paths can still be added by typing their coordinates.</div>
+  <div class="preview-loading" role="alert">{lakeSelection ? "The map is unavailable in this browser. Search and choose a lake from the list." : "The map is unavailable in this browser. Markers and paths can still be added by typing their coordinates."}</div>
 {:else if MapCanvas}
   <MapCanvas
+    {lakeSelection}
+    {onLakeViewportChange}
+    {onLakeMapClick}
     project={studio.project}
     bind:aspectLocked={studio.mapAspectLocked}
     placingMarker={studio.placingMarker}
     framing={studio.mode !== "custom"}
-    hint={studio.mode === "custom" ? "Dashed outline is your map area · drag to look around" : undefined}
+    hint={lakeSelection ? "Click inside a lake to select it · drag to explore" : studio.mode === "custom" ? "Dashed outline is your map area · drag to look around" : undefined}
     onPlaceMarker={(lat, lon) => {
       const patch = edits.addMarkerAt(studio.project, crypto.randomUUID(), { lat, lon });
       if (!patch) { studio.placingMarker = false; return; }

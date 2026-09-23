@@ -7,10 +7,18 @@ import { deleteUserChart, listUserCharts, type SavedChartSummary } from "$lib/st
  * like the draft, it lives outside both so leaving the view keeps the list and
  * the last note about it.
  */
-export const library = $state<{ saved: SavedChartSummary[]; note: string }>({ saved: [], note: "" });
+export const library = $state<{ saved: SavedChartSummary[]; note: string; error: string }>({ saved: [], note: "", error: "" });
+let refresh = 0;
 
 export async function refreshLibrary(): Promise<void> {
-  library.saved = await listUserCharts();
+  const mine = ++refresh;
+  library.error = "";
+  try {
+    const saved = await listUserCharts();
+    if (mine === refresh) library.saved = saved;
+  } catch {
+    if (mine === refresh) library.error = "Your saved charts could not be loaded. Check that browser storage is available, then try again.";
+  }
 }
 
 /**
