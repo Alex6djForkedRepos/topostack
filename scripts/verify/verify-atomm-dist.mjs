@@ -1,6 +1,6 @@
 import { validateStaticHeaders } from "../lib/static-headers.mjs";
 import { readFile, stat } from "node:fs/promises";
-import { isForbiddenApiHost } from "../lib/api-host.mjs";
+import { forbiddenHostsIn } from "../lib/api-host.mjs";
 import { filesBelow } from "../lib/files.mjs";
 
 // `--skip-endpoint-scan` is used only by the CI validate job, whose build
@@ -26,11 +26,12 @@ const distDirectory = new URL("../../apps/generator/dist/", import.meta.url);
 const distFiles = await filesBelow(distDirectory);
 const scripts = distFiles.filter((file) => file.pathname.endsWith(".js"));
 if (!scripts.length) throw new Error("Production artifact contains no JavaScript application files.");
-const searchable = [index, studio, ...await Promise.all(scripts.map((file) => readFile(file, "utf8")))].join("\n");
+// Scanned file by file, so a host a bundled library only writes into its own
+// code (see LIBRARY_HOSTS) is excused there and nowhere else.
+const searchable = [index, studio, ...await Promise.all(scripts.map((file) => readFile(file, "utf8")))];
 
 if (!skipEndpointScan) {
-  const embeddedHosts = [...searchable.matchAll(/https?:\/\/([a-z0-9.-]+)/gi)].map((match) => match[1]);
-  const forbidden = embeddedHosts.filter((host) => isForbiddenApiHost(host));
+  const forbidden = searchable.flatMap((text) => forbiddenHostsIn(text));
   if (forbidden.length) throw new Error(`Production artifact contains development or placeholder API endpoints: ${[...new Set(forbidden)].join(", ")}`);
 }
 
