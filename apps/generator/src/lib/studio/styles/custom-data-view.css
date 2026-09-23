@@ -109,6 +109,7 @@
 }
 
 .chart-result {
+  width: 100%;
   display: flex;
   flex-wrap: wrap;
   gap: var(--loidolt-space-4);
@@ -462,3 +463,26 @@
 .chart-lake-map__guide span { color: var(--loidolt-text-muted); line-height: 1.5; }
 .chart-places button small { display: block; margin-top: 4px; color: var(--loidolt-text-muted); }
 .chart-places button[aria-pressed="true"] { border-left: 3px solid var(--loidolt-accent); background: var(--loidolt-surface-alt); }
+
+
+.chart-result__visual {
+  display: grid;
+  gap: var(--loidolt-space-2);
+  width: 100%;
+  min-width: 0;
+}
+
+.chart-result__views {
+  display: flex;
+  gap: var(--loidolt-space-2);
+}
+
+.chart-result__views button[aria-pressed="true"] {
+  border-color: var(--loidolt-accent);
+  background: var(--loidolt-surface-alt);
+}
+
+.chart-result__visual .chart-preview { width: 100%; }
+
+/* Let the point guide scroll away while the larger result is being reviewed. */
+.chart-stage:has(.chart-result) .chart-depth-guide { position: static; }

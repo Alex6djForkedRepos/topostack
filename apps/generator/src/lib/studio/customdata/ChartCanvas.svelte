@@ -34,8 +34,10 @@
   }
 
   $effect(() => {
-    if (draft.result && resultElement) resultElement.scrollIntoView?.({ block: "nearest" });
+    if (draft.result && resultElement) resultElement.scrollIntoView?.({ block: "start" });
   });
+  let resultView = $state<"3d" | "2d">("3d");
+  let threeUnavailable = $state(false);
   /**
    * The keyboard's pointer on the chart, in image pixels. Depths can be placed
    * without a mouse: focus the chart, steer the crosshair onto a contour with
@@ -173,10 +175,34 @@
 
     {#if draft.result}
       <div class="chart-result" bind:this={resultElement}>
-        <figure class="chart-preview-figure" aria-label="Traced lake bed, shaded from shallow to deep">
-          <canvas bind:this={previewCanvas} class="chart-preview" aria-hidden="true"></canvas>
-          <figcaption class="chart-preview-legend"><span>Shallow</span><span>Deep</span></figcaption>
-        </figure>
+        <section class="chart-result__visual" aria-label="Verify generated depth map">
+          <strong>Verify the generated lake bed</strong>
+          <div class="chart-result__views" role="group" aria-label="Depth preview view">
+            <button class="ldt-button ldt-button--quiet ldt-button--sm" type="button" aria-pressed={resultView === "3d"} onclick={() => { resultView = "3d"; }}>3D lake bed</button>
+            <button class="ldt-button ldt-button--quiet ldt-button--sm" type="button" aria-pressed={resultView === "2d"} onclick={() => { resultView = "2d"; }}>2D depth map</button>
+          </div>
+          {#if !resultIsCurrent()}
+            <p class="chart-warning" role="status">Preview out of date. Trace again to update it.</p>
+          {/if}
+          {#if resultView === "3d" && !threeUnavailable}
+            {#await import("./ChartDepth3D.svelte")}
+              <p class="chart-hint" role="status">Loading 3D lake bed…</p>
+            {:then module}
+              {#key draft.result}
+                <module.default grid={draft.result.record.grid} onUnavailable={() => { threeUnavailable = true; }} />
+              {/key}
+            {:catch}
+              <p class="chart-warning" role="status">3D preview could not load. Choose 2D depth map to inspect the result.</p>
+            {/await}
+          {:else}
+            {#if resultView === "3d"}<p class="chart-warning" role="status">3D preview is unavailable. Showing the 2D depth map instead.</p>{/if}
+            <figure class="chart-preview-figure" aria-label="Traced lake bed, shaded from shallow to deep">
+              <canvas bind:this={previewCanvas} class="chart-preview" aria-hidden="true"></canvas>
+              <figcaption class="chart-preview-legend"><span>Shallow</span><span>Deep</span></figcaption>
+            </figure>
+          {/if}
+          <p class="chart-hint">Light blue: shallow · dark blue: deep · gaps: no data. Compare the basin and its placement with your chart before keeping it.</p>
+        </section>
         <div class="chart-result__read">
           <h3 class="chart-result__title">{resultIsCurrent() ? "Your traced lake bed" : "Previous trace"}</h3>
           <dl class="chart-report">
