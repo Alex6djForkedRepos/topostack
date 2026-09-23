@@ -28,13 +28,13 @@ describe("changelog data", () => {
 describe("changelog views", () => {
   const entries = [
     { type: "fix" as const, title: "Fix", body: "Fixed <things>." },
-    { type: "feature" as const, title: "New & shiny", body: "Read [the guide](/guides) or [docs](https://example.com), press `Ctrl+Z`.", pr: 54 },
+    { type: "feature" as const, title: "New & shiny", body: "Read [the guide](/guides) or [docs](https://example.com), press `Ctrl+Z`, choose **Undo & redo**.", pr: 54 },
   ];
 
   it("groups entries by type in page order and tokenizes bodies", () => {
     const groups = groupEntries(entries);
     expect(groups.map((group) => group.label)).toEqual(["New", "Fixed"]);
-    expect(groups[0]!.entries[0]!.tokens.map((token) => token.kind)).toEqual(["text", "link", "text", "link", "text", "code", "text"]);
+    expect(groups[0]!.entries[0]!.tokens.map((token) => token.kind)).toEqual(["text", "link", "text", "link", "text", "code", "text", "strong", "text"]);
   });
 
   it("gives each release an anchor and a readable date", () => {
@@ -48,6 +48,7 @@ describe("changelog views", () => {
     expect(html).toContain("<strong>New &#38; shiny</strong>");
     expect(html).toContain('<a href="https://topostack.app/guides">the guide</a>');
     expect(html).toContain("<code>Ctrl+Z</code>");
+    expect(html).toContain("<strong>Undo &#38; redo</strong>");
     expect(html).toContain("Fixed &#60;things&#62;.");
     expect(html).toContain("/pull/54");
     const feed = atomFeed([view!]);

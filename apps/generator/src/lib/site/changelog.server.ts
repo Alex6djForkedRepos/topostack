@@ -55,6 +55,7 @@ const escapeXml = (text: string): string => text.replace(/[&<>"']/g, (character)
 function tokenHtml(token: InlineToken): string {
   if (token.kind === "text") return escapeXml(token.text);
   if (token.kind === "code") return `<code>${escapeXml(token.text)}</code>`;
+  if (token.kind === "strong") return `<strong>${escapeXml(token.text)}</strong>`;
   return `<a href="${escapeXml(token.href.startsWith("/") ? SITE_ORIGIN + token.href : token.href)}">${escapeXml(token.text)}</a>`;
 }
 

@@ -11,7 +11,7 @@
     {#each group.entries as entry, index (index)}
       <li class={`change change-${entry.type}`}>
         <strong>{entry.title}.</strong>
-        {#each entry.tokens as token, part (part)}{#if token.kind === "text"}{token.text}{:else if token.kind === "code"}<code>{token.text}</code>{:else}<a href={token.href.startsWith("/") ? `${base}${token.href}` : token.href}>{token.text}</a>{/if}{/each}
+        {#each entry.tokens as token, part (part)}{#if token.kind === "text"}{token.text}{:else if token.kind === "code"}<code>{token.text}</code>{:else if token.kind === "strong"}<strong>{token.text}</strong>{:else}<a href={token.href.startsWith("/") ? `${base}${token.href}` : token.href}>{token.text}</a>{/if}{/each}
         {#if entry.pr}<a class="pr" href={`${REPOSITORY_URL}/pull/${entry.pr}`} aria-label={`Pull request ${entry.pr}`}>#{entry.pr}</a>{/if}
       </li>
     {/each}
