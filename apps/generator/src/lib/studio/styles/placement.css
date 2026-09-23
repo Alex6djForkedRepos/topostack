@@ -297,8 +297,10 @@
   cursor: alias;
 }
 
-/* A second toolbar row for graphics, which needs more room below it. */
-.preview-stage:has(.placement-toolbar--graphics) {
+/* A second toolbar row for graphics, which needs more room below it. Keyed
+   to the project rather than the toolbar, so the 3D camera reads the final
+   space as it starts easing, before the toolbar mounts. */
+.preview-stage[data-placement-graphics] {
   --placement-toolbar-space: 136px;
 }
 
@@ -367,7 +369,7 @@
 }
 
 @container terrain-preview (max-width: 560px) {
-  .preview-stage:has(.placement-toolbar--graphics) {
+  .preview-stage[data-placement-graphics] {
     --placement-toolbar-space: 160px;
   }
 }

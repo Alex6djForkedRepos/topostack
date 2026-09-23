@@ -24,7 +24,8 @@
   let { geometry, exploded, placement, onUnavailable }: {
     geometry: GeometryIRV1;
     exploded: number;
-    placement?: { hiddenPrefixes: readonly string[]; marginMm: number; hideMarkings?: boolean };
+    /** `toolbarRows` is how many rows the placement toolbar has; the stage reserves more space above the drawing for two. */
+    placement?: { hiddenPrefixes: readonly string[]; marginMm: number; hideMarkings?: boolean; toolbarRows?: number };
     onUnavailable?: () => void;
   } = $props();
   import AtommZoom from "$lib/atomm/AtommZoom.svelte";
@@ -555,12 +556,18 @@
   $effect(() => {
     if (placing) untrack(enterTopDown); else untrack(leaveTopDown);
   });
-  // Draft edits can replace the placement prop. Refit only when its margin
-  // changes: otherwise every nudge schedules an expensive terrain render.
+  // Draft edits can replace the placement prop. Refit only when its margin or
+  // toolbar changes: otherwise every nudge schedules an expensive terrain render.
+  // A toolbar row appearing mid-session (the first uploaded graphic) changes the
+  // reserved space without resizing anything, so it is read again here.
   const topMargin = $derived(placement?.marginMm);
+  const toolbarRows = $derived(placement?.toolbarRows);
   $effect(() => {
-    void topMargin; void widthMm; void heightMm;
-    untrack(() => { fitTopCamera(); runtime?.requestRender(); });
+    void topMargin; void toolbarRows; void widthMm; void heightMm;
+    untrack(() => {
+      if (placement && runtime) { toolbarSpace = readToolbarSpace(); applyViewOffset(viewOffset); }
+      fitTopCamera(); runtime?.requestRender();
+    });
   });
 
   function handleKeyDown(event: KeyboardEvent): void {
