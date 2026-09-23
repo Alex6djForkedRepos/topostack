@@ -1,7 +1,17 @@
-import { get, set } from "idb-keyval";
-import { PAINT_REGION_KINDS, DEFAULT_PROJECT, MAP_MARKER_SIZE_MM, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, NORTH_ARROW_ANCHORS, isTextFont, validateProject, type CustomLineFeatureV1, type CustomLineKind, type MapMarkerV1, type MarkerSymbol, type NorthArrowAnchor, type NorthArrowStyle, type PlaqueV1, type ProjectConfigV1 } from "@topostack/core";
+import { getMany, set, setMany } from "idb-keyval";
+import { PAINT_REGION_KINDS, DEFAULT_PROJECT, DEPTH_CHART_ID_PATTERN, isDepthChartLakeKey, MAP_MARKER_SIZE_MM, MARKER_ICON_ID_PATTERN, MARKER_ICON_UNITS, MARKER_SYMBOLS, MAX_MARKER_ICON_POINTS, MAX_MARKER_ICONS, markerIconPointCount, GRAPHIC_MAX_SIZE_MM, GRAPHIC_MIN_SIZE_MM, GRAPHIC_OPERATIONS, MAX_CUSTOM_GRAPHIC_POINTS, MAX_CUSTOM_GRAPHICS, MAX_PLACED_GRAPHICS, type CustomGraphicV1, type GraphicOperation, type PlacedGraphicV1, MAX_CUSTOM_DATA_NAME_LENGTH, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, NORTH_ARROW_ANCHORS, isTextFont, validateProject, type CustomLineFeatureV1, type CustomLineKind, type MapMarkerV1, type MarkerIconShapeV1, type MarkerIconV1, type MarkerSymbol, type NorthArrowAnchor, type NorthArrowStyle, type PlaqueV1, type ProjectConfigV1, type UserDepthChartRefV1 } from "@topostack/core";
 
 const PROJECT_KEY = "topostack:project:v1";
+/** When the IndexedDB copy was written, stored in the same transaction as the project. */
+const PROJECT_SAVED_AT_KEY = "topostack:project:v1:saved-at";
+/**
+ * A synchronous localStorage copy written as the page hides. IndexedDB writes
+ * started from `pagehide` are asynchronous, and an unloading page drops them:
+ * an edit followed by an immediate reload was lost every time in Chromium.
+ */
+export const PROJECT_UNLOAD_COPY_KEY = "topostack:project:v1:unload-copy";
+/** localStorage allows about five million characters per origin; stay well clear of it. */
+const MAX_UNLOAD_COPY_LENGTH = 1_000_000;
 /** Where an unreadable saved project is copied before autosave replaces it. */
 export const PROJECT_BACKUP_KEY = "topostack:project:v1:unreadable-backup";
 
@@ -103,11 +113,103 @@ function plaqueValue(value: unknown): PlaqueV1 | undefined {
 }
 
 function markerSymbolValue(value: unknown): MarkerSymbol {
-  if (value === "pin" || value === "circle" || value === "triangle" || value === "star" || value === "cross") return value;
+  if (value === "custom" || (MARKER_SYMBOLS as readonly unknown[]).includes(value)) return value as MarkerSymbol;
   throw new Error("Marker symbol is invalid.");
 }
 
-function markersValue(value: unknown): MapMarkerV1[] {
+function iconRingValue(value: unknown): number[] | undefined {
+  const half = MARKER_ICON_UNITS / 2;
+  return Array.isArray(value) && value.length >= 6 && value.length % 2 === 0 && value.every((coordinate) => Number.isSafeInteger(coordinate) && Math.abs(coordinate) <= half) ? value as number[] : undefined;
+}
+
+/**
+ * Uploaded marker icons. A malformed icon is dropped rather than refusing the
+ * project, and the markers that drew it fall back to pins (see markersValue).
+ * Absent stays absent, which keeps older projects' fingerprints.
+ */
+function markerIconsValue(value: unknown): MarkerIconV1[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const icons: MarkerIconV1[] = [];
+  for (const item of value) {
+    if (icons.length >= MAX_MARKER_ICONS) break;
+    const icon = iconShapesValue(item, icons, MAX_MARKER_ICON_POINTS);
+    if (!icon) continue;
+    icons.push({ id: icon.id, name: customDataName(icon.record.name).name ?? "Icon", ...(icon.record.anchor === "bottom" ? { anchor: "bottom" as const } : {}), shapes: icon.shapes });
+  }
+  return icons.length ? icons : undefined;
+}
+
+/** An uploaded drawing's id and rings, when both are well formed, its id is new and it fits `maxPoints`. */
+function iconShapesValue(item: unknown, existing: Array<{ id: string }>, maxPoints: number): { id: string; shapes: MarkerIconShapeV1[]; record: Record<string, unknown> } | undefined {
+  if (!item || typeof item !== "object") return undefined;
+  const record = item as Record<string, unknown>;
+  if (typeof record.id !== "string" || !MARKER_ICON_ID_PATTERN.test(record.id) || existing.some(({ id }) => id === record.id)) return undefined;
+  if (!Array.isArray(record.shapes) || !record.shapes.length) return undefined;
+  const shapes: MarkerIconShapeV1[] = [];
+  for (const shape of record.shapes as unknown[]) {
+    const fields = shape && typeof shape === "object" ? shape as Record<string, unknown> : {};
+    const outer = iconRingValue(fields.outer);
+    const holes = Array.isArray(fields.holes) ? fields.holes.map(iconRingValue) : [];
+    if (!outer || holes.some((hole) => !hole)) return undefined;
+    shapes.push({ outer, ...(holes.length ? { holes: holes as number[][] } : {}) });
+  }
+  if (markerIconPointCount({ shapes }) > maxPoints) return undefined;
+  return { id: record.id, shapes, record };
+}
+
+/** Uploaded graphics, leniently like marker icons: a malformed one is dropped along with its placements. */
+function customGraphicsValue(value: unknown): CustomGraphicV1[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const graphics: CustomGraphicV1[] = [];
+  for (const item of value) {
+    if (graphics.length >= MAX_CUSTOM_GRAPHICS) break;
+    const graphic = iconShapesValue(item, graphics, MAX_CUSTOM_GRAPHIC_POINTS);
+    if (graphic) graphics.push({ id: graphic.id, name: customDataName(graphic.record.name).name ?? "Graphic", shapes: graphic.shapes });
+  }
+  return graphics.length ? graphics : undefined;
+}
+
+/** Placements of those graphics; one naming missing artwork or out of range is dropped rather than refusing the project. */
+function placedGraphicsValue(value: unknown, graphics: CustomGraphicV1[] | undefined): PlacedGraphicV1[] | undefined {
+  if (!Array.isArray(value) || !graphics) return undefined;
+  const placed: PlacedGraphicV1[] = [];
+  for (const item of value) {
+    if (placed.length >= MAX_PLACED_GRAPHICS) break;
+    if (!item || typeof item !== "object") continue;
+    const record = item as Record<string, unknown>;
+    if (typeof record.id !== "string" || !MARKER_ICON_ID_PATTERN.test(record.id) || placed.some(({ id }) => id === record.id)) continue;
+    if (!graphics.some(({ id }) => id === record.graphicId)) continue;
+    const placement = record.placement && typeof record.placement === "object" ? record.placement as Record<string, unknown> : undefined;
+    const offset = placement?.offset && typeof placement.offset === "object" ? placement.offset as Record<string, unknown> : undefined;
+    const offsetX = Number(offset?.x ?? 0); const offsetY = Number(offset?.y ?? 0);
+    if (!NORTH_ARROW_ANCHORS.includes(placement?.anchor as NorthArrowAnchor) || ![offsetX, offsetY].every((part) => Number.isFinite(part) && Math.abs(part) <= 1)) continue;
+    const sizeMm = Number(record.sizeMm); const rotationDeg = Number(record.rotationDeg ?? 0);
+    if (!Number.isFinite(sizeMm) || sizeMm < GRAPHIC_MIN_SIZE_MM || sizeMm > GRAPHIC_MAX_SIZE_MM || !Number.isFinite(rotationDeg)) continue;
+    const operation = (GRAPHIC_OPERATIONS as readonly unknown[]).includes(record.operation) ? record.operation as GraphicOperation : "engrave";
+    placed.push({
+      id: record.id,
+      graphicId: record.graphicId as string,
+      placement: { anchor: placement!.anchor as NorthArrowAnchor, offset: { x: offsetX, y: offsetY } },
+      sizeMm,
+      rotationDeg: ((rotationDeg % 360) + 360) % 360,
+      operation,
+    });
+  }
+  return placed.length ? placed : undefined;
+}
+
+/**
+ * A marker's or path's own name, kept only when it is usable. Names are
+ * bookkeeping, never geometry, so one that is blank or too long is dropped
+ * rather than refusing the whole project.
+ */
+function customDataName(value: unknown): { name?: string } {
+  if (typeof value !== "string") return {};
+  const name = value.trim();
+  return name && name.length <= MAX_CUSTOM_DATA_NAME_LENGTH ? { name } : {};
+}
+
+function markersValue(value: unknown, icons: MarkerIconV1[] | undefined): MapMarkerV1[] {
   if (value === undefined) return [];
   if (!Array.isArray(value)) throw new Error("Project markers must be a list.");
   if (value.length > MAX_MAP_MARKERS) throw new Error("Project contains too many markers.");
@@ -115,7 +217,16 @@ function markersValue(value: unknown): MapMarkerV1[] {
     if (!item || typeof item !== "object") throw new Error("Each marker must be an object.");
     const marker = item as Record<string, unknown>;
     if (typeof marker.id !== "string") throw new Error("Each marker must have an id.");
-    return { id: marker.id, lat: numberValue(marker.lat), lon: numberValue(marker.lon), symbol: markerSymbolValue(marker.symbol), sizeMm: marker.sizeMm === undefined ? MAP_MARKER_SIZE_MM : numberValue(marker.sizeMm) };
+    const symbol = markerSymbolValue(marker.symbol);
+    // A custom marker whose icon did not survive keeps its place as a pin.
+    const iconId = symbol === "custom" && icons?.some(({ id }) => id === marker.iconId) ? marker.iconId as string : undefined;
+    return {
+      id: marker.id, lat: numberValue(marker.lat), lon: numberValue(marker.lon),
+      symbol: symbol === "custom" && !iconId ? "pin" : symbol,
+      sizeMm: marker.sizeMm === undefined ? MAP_MARKER_SIZE_MM : numberValue(marker.sizeMm),
+      ...customDataName(marker.name),
+      ...(iconId ? { iconId } : {}),
+    };
   });
 }
 
@@ -140,6 +251,7 @@ function customLinesValue(value: unknown): CustomLineFeatureV1[] {
     return {
       id: line.id,
       kind: customLineKindValue(line.kind),
+      ...customDataName(line.name),
       points: line.points.map((point) => {
         if (!point || typeof point !== "object") throw new Error("Each custom line point must be an object.");
         const coordinate = point as Record<string, unknown>;
@@ -150,22 +262,27 @@ function customLinesValue(value: unknown): CustomLineFeatureV1[] {
 }
 
 /**
- * Load the autosaved project. Storage that cannot be read restores nothing. A
+ * Load the autosaved project: the IndexedDB copy, or the unload copy when that
+ * is newer. IndexedDB that cannot be read restores only the unload copy. A
  * value that no longer parses (an older or newer build wrote it) is copied to
  * `PROJECT_BACKUP_KEY` and reported, so the next autosave never silently
- * destroys the only copy.
+ * destroys the only copy; that check runs before the unload copy is
+ * considered, so a newer unload copy never lets autosave skip the backup.
  */
 export async function loadProject(): Promise<ProjectConfigV1 | undefined> {
+  const unloadCopy = readUnloadCopy();
   let value: unknown;
+  let savedAt: unknown;
   try {
-    value = await get<unknown>(PROJECT_KEY);
+    [value, savedAt] = await getMany<unknown>([PROJECT_KEY, PROJECT_SAVED_AT_KEY]);
   } catch (error) {
     console.warn("TopoStack: saved projects are unavailable in this browser.", error);
-    return undefined;
+    return unloadCopy ? parseUnloadCopy(unloadCopy) : undefined;
   }
-  if (value === undefined) return undefined;
+  if (value === undefined) return unloadCopy ? parseUnloadCopy(unloadCopy) : undefined;
+  let saved: ProjectConfigV1;
   try {
-    return parseProject(value);
+    saved = parseProject(value);
   } catch (error) {
     console.warn("TopoStack: the saved project could not be restored.", error);
     try {
@@ -175,6 +292,48 @@ export async function loadProject(): Promise<ProjectConfigV1 | undefined> {
     }
     throw new UnreadableSavedProjectError(PROJECT_BACKUP_KEY, error);
   }
+  // An IndexedDB copy without a time predates the unload copy, so the copy wins.
+  if (unloadCopy && (typeof savedAt !== "number" || unloadCopy.savedAt > savedAt)) return parseUnloadCopy(unloadCopy) ?? saved;
+  if (unloadCopy) removeUnloadCopy();
+  return saved;
+}
+
+interface UnloadCopy { savedAt: number; value: unknown }
+
+function unloadStorage(): Storage | undefined {
+  // Reading `localStorage` itself throws where site data is blocked.
+  try { return globalThis.localStorage; } catch { return undefined; }
+}
+
+function readUnloadCopy(): UnloadCopy | undefined {
+  try {
+    const raw = unloadStorage()?.getItem(PROJECT_UNLOAD_COPY_KEY);
+    if (!raw) return undefined;
+    const record: unknown = JSON.parse(raw);
+    if (record && typeof record === "object" && typeof (record as UnloadCopy).savedAt === "number") return record as UnloadCopy;
+  } catch { /* An unreadable copy is ignored; IndexedDB stays authoritative. */ }
+  return undefined;
+}
+
+function removeUnloadCopy(): void {
+  try { unloadStorage()?.removeItem(PROJECT_UNLOAD_COPY_KEY); } catch { /* Nothing to protect. */ }
+}
+
+/** A copy that no longer parses (another build wrote it) falls back to IndexedDB. */
+function parseUnloadCopy(copy: UnloadCopy): ProjectConfigV1 | undefined {
+  try {
+    return parseProject(copy.value);
+  } catch (error) {
+    console.warn("TopoStack: the project saved while the page closed could not be restored.", error);
+    return undefined;
+  }
+}
+
+let lastSavedAt = 0;
+/** Strictly increasing within a session, so two saves in one millisecond still order. */
+function nextSavedAt(): number {
+  lastSavedAt = Math.max(Date.now(), lastSavedAt + 1);
+  return lastSavedAt;
 }
 
 /** Overrides are keyed by HydroLAKES id, so any non-numeric entry is dropped rather than thrown on. */
@@ -187,10 +346,32 @@ function waterDepthOverridesValue(value: unknown): Record<string, number> {
   return result;
 }
 
+/**
+ * Chart references are keyed by HydroLAKES id like the overrides above, or by
+ * `outline:<chart id>` for a lake without one, and a malformed entry is dropped rather than thrown on: the lake then falls back to
+ * the survey providers instead of the whole project failing to open. Absent
+ * stays absent, which keeps older projects' fingerprints.
+ */
+function userDepthChartsValue(value: unknown): { userDepthCharts?: Record<string, UserDepthChartRefV1> } {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const charts: Record<string, UserDepthChartRefV1> = {};
+  for (const [lake, reference] of Object.entries(value as Record<string, unknown>)) {
+    if (!reference || typeof reference !== "object") continue;
+    const { id, contentHash } = reference as Record<string, unknown>;
+    if (typeof id !== "string" || !DEPTH_CHART_ID_PATTERN.test(id) || !isDepthChartLakeKey(lake, { id })) continue;
+    if (typeof contentHash !== "string" || !/^[a-f0-9]{64}$/.test(contentHash)) continue;
+    charts[lake] = { id, contentHash };
+  }
+  return Object.keys(charts).length ? { userDepthCharts: charts } : {};
+}
+
 export function parseProject(value: unknown): ProjectConfigV1 {
   if (!value || typeof value !== "object") throw new Error("Project must be a JSON object.");
   const record = value as Record<string, unknown>;
   if (record.schemaVersion !== 1) throw new Error("Not a TopoStack v1 project.");
+  const markerIcons = markerIconsValue(record.markerIcons);
+  const customGraphics = customGraphicsValue(record.customGraphics);
+  const placedGraphics = placedGraphicsValue(record.placedGraphics, customGraphics);
   const location = record.location;
   if (!location || typeof location !== "object") throw new Error("Project location is missing.");
   const locationRecord = location as Record<string, unknown>;
@@ -278,8 +459,12 @@ export function parseProject(value: unknown): ProjectConfigV1 {
     } : { anchor: DEFAULT_PROJECT.northArrowPlacement.anchor, offset: { ...DEFAULT_PROJECT.northArrowPlacement.offset } },
     // Absent keeps the bar's original spot and the project's fingerprint.
     ...(record.scaleBarPlacement === undefined ? {} : { scaleBarPlacement: scaleBarPlacementValue(record.scaleBarPlacement) }),
+    ...userDepthChartsValue(record.userDepthCharts),
     ...(record.plaque === undefined ? {} : { plaque: plaqueValue(record.plaque) }),
-    markers: markersValue(record.markers),
+    ...(markerIcons ? { markerIcons } : {}),
+    ...(customGraphics ? { customGraphics } : {}),
+    ...(placedGraphics ? { placedGraphics } : {}),
+    markers: markersValue(record.markers, markerIcons),
     customLines: customLinesValue(record.customLines),
     explodedPreview: record.explodedPreview === undefined ? DEFAULT_PROJECT.explodedPreview : numberValue(record.explodedPreview),
   };
@@ -289,5 +474,28 @@ export function parseProject(value: unknown): ProjectConfigV1 {
 }
 
 export async function saveProject(project: ProjectConfigV1): Promise<void> {
-  await set(PROJECT_KEY, project);
+  const savedAt = nextSavedAt();
+  await setMany([[PROJECT_KEY, project], [PROJECT_SAVED_AT_KEY, savedAt]]);
+  // IndexedDB now holds everything the unload copy held.
+  const copy = readUnloadCopy();
+  if (copy && copy.savedAt <= savedAt) removeUnloadCopy();
+}
+
+/**
+ * Write `project` to localStorage synchronously, for a page that is about to
+ * unload before its IndexedDB save can finish. `loadProject` prefers this copy
+ * while it is newer than the IndexedDB copy. Returns whether it was written;
+ * an oversized project or full storage leaves IndexedDB as the only copy.
+ */
+export function saveProjectUnloadCopy(project: ProjectConfigV1): boolean {
+  const storage = unloadStorage();
+  if (!storage) return false;
+  const raw = JSON.stringify({ savedAt: nextSavedAt(), value: project } satisfies UnloadCopy);
+  if (raw.length > MAX_UNLOAD_COPY_LENGTH) return false;
+  try {
+    storage.setItem(PROJECT_UNLOAD_COPY_KEY, raw);
+    return true;
+  } catch {
+    return false;
+  }
 }

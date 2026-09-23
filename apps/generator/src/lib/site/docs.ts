@@ -23,14 +23,14 @@ export const DOCS_SECTIONS: readonly { id: string; title: string; summary: strin
   {
     id: "customize",
     title: "Customize",
-    summary: "Choose map details, labels and line widths, and engrave your own markers and routes.",
-    paths: ["/guides/map-details", "/guides/custom-markers-and-paths"],
+    summary: "Choose map details, labels and line widths, and bring in your own markers, routes, graphics and depth charts.",
+    paths: ["/guides/map-details", "/guides/custom-data", "/guides/custom-markers-and-paths", "/guides/custom-graphics"],
   },
   {
     id: "lakes",
     title: "Lakes and depth",
-    summary: "Make a layered lake map, browse lakes with surveyed depth data, and learn how TopoStack builds lake floors.",
-    paths: ["/guides/custom-lake-depth-map", "/lakes", "/guides/lake-depth-data", "/guides/how-lake-depths-work"],
+    summary: "Make a layered lake map, trace a depth chart for an unsurveyed lake, browse lakes with surveyed depth data, and learn how TopoStack builds lake floors.",
+    paths: ["/guides/custom-lake-depth-map", "/guides/trace-a-depth-chart", "/guides/how-depth-chart-tracing-works", "/lakes", "/guides/lake-depth-data", "/guides/how-lake-depths-work"],
   },
   {
     id: "help",

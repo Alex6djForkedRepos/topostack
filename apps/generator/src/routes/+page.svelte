@@ -1,33 +1,23 @@
 <script lang="ts">
-  import FeedbackButton from "$lib/site/FeedbackButton.svelte";
+  import SiteHeader from "$lib/site/SiteHeader.svelte";
+  import SiteFooter from "$lib/site/SiteFooter.svelte";
   import { base } from "$app/paths";
-  import { ArrowRight, ArrowUpRight, Heart } from "@lucide/svelte";
-  import { Brand, ThemeToggle, Topbar } from "@loidolt/theme-svelte";
-  import { theme } from "$lib/site/theme";
+  import { ArrowRight, ArrowUpRight, Heart, Star } from "@lucide/svelte";
   import { donationUrl } from "$lib/site/support";
+  import { REPOSITORY_URL } from "$lib/site/site";
   import { MAP_DATA_ATTRIBUTION } from "$lib/domain/map-attribution";
   import TerrainIllustration from "$lib/studio/TerrainIllustration.svelte";
 
   const atommBuild = import.meta.env.VITE_SITE_ENV === "atomm";
 
   const studioUrl = `${base}/studio`;
-  const repositoryUrl = "https://github.com/Echo-Foxtrot-Works/topostack";
 </script>
 
 {#if atommBuild}
   {#await import("./studio/+page.svelte")}<main class="atomm-startup" role="status">Preparing terrain studio…</main>{:then studio}<studio.default />{:catch}<main class="atomm-startup" role="alert">The studio could not load. Reload to try again.</main>{/await}
 {:else}
 <div class="landing-page">
-  <a class="skip-link" href="#landing-content">Skip to content</a>
-  <Topbar class="landing-topbar">
-    {#snippet brand()}<Brand name="TopoStack" meta="Studio" href={`${base}/`} />{/snippet}
-    {#snippet actions()}
-      <a class="header-guide" href="#how-it-works">How it works</a>
-      <a class="header-guide" href={`${base}/guides`}>Guides</a>
-      <a class="primary-link header-cta" href={studioUrl}>Start creating <ArrowRight size={16} aria-hidden="true" /></a>
-      <ThemeToggle {theme} label="Color scheme" />
-    {/snippet}
-  </Topbar>
+  <SiteHeader content="landing-content" home />
 
   <main id="landing-content">
     <section class="hero" aria-labelledby="landing-title">
@@ -135,8 +125,8 @@
         <p>The code is open source, so you can explore how it works, follow its development, and help make it better.</p>
         <p>Found a bug or have an idea? I’d love to hear it.</p>
         <div class="source-actions">
-          <a class="support-link" href={repositoryUrl} target="_blank" rel="noopener noreferrer">Explore the code on GitHub <ArrowUpRight size={16} aria-hidden="true" /><span class="ldt-visually-hidden"> (opens in a new tab)</span></a>
-          <a class="secondary-link" href={`${repositoryUrl}/issues`} target="_blank" rel="noopener noreferrer">Report a bug or share an idea<span class="ldt-visually-hidden"> (opens in a new tab)</span></a>
+          <a class="support-link star-link" href={REPOSITORY_URL} target="_blank" rel="noopener noreferrer"><Star size={16} aria-hidden="true" /> Star TopoStack on GitHub <ArrowUpRight size={16} aria-hidden="true" /><span class="ldt-visually-hidden"> (opens in a new tab)</span></a>
+          <a class="secondary-link" href={`${REPOSITORY_URL}/issues`} target="_blank" rel="noopener noreferrer">Report a bug or share an idea<span class="ldt-visually-hidden"> (opens in a new tab)</span></a>
         </div>
       </div>
     </section>
@@ -160,7 +150,7 @@
     </section>
   </main>
 
-  <footer><span>TopoStack <span class="footer-note">/ Terrain studio</span></span><a href={`${base}/guides`}>Guides</a><a href={`${base}/lakes`}>Lake depth maps</a><a href={`${base}/attribution`}>Sources and attribution</a><a href={`${base}/privacy`}>Privacy</a><a href={`${base}/changelog`}>Changelog</a><FeedbackButton /><a href={studioUrl}>Open terrain studio <ArrowUpRight size={14} aria-hidden="true" /></a></footer>
+  <SiteFooter />
 </div>
 
 {/if}
@@ -168,10 +158,9 @@
 <style>
   .atomm-startup { min-height: 100dvh; display: grid; place-content: center; background: var(--loidolt-surface); color: var(--loidolt-text); }
   .landing-page { min-height: 100dvh; background: var(--loidolt-background); color: var(--loidolt-text); }
-  .landing-page :global(.landing-topbar) { padding-inline: clamp(20px, 5vw, 80px); }
-  .secondary-link, .primary-link, .support-link, footer a { display: inline-flex; align-items: center; justify-content: center; gap: 10px; text-decoration: none; }
-  .header-guide { color: var(--loidolt-text-muted); font: 12px var(--loidolt-font-utility); text-decoration: none; }
-  .landing-page :global(.landing-topbar) { position: sticky; top: 0; z-index: 20; border-bottom: 1px solid var(--loidolt-border); }
+  .secondary-link, .primary-link, .support-link { display: inline-flex; align-items: center; justify-content: center; gap: 10px; text-decoration: none; }
+  .star-link :global(svg:first-child) { transition: fill 160ms ease, color 160ms ease; }
+  .star-link:hover :global(svg:first-child), .star-link:focus-visible :global(svg:first-child) { color: var(--loidolt-text-accent); fill: currentColor; }
   #how-it-works, #assembly-guide, #open-source { scroll-margin-top: 100px; }
   .hero-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 16px 24px; }
   .secondary-link { min-height: 48px; color: var(--loidolt-text); font-size: 13px; text-decoration: underline; text-underline-offset: 4px; }
@@ -183,9 +172,7 @@
   .start-panel .primary-link { flex-shrink: 0; }
   a:focus-visible, summary:focus-visible { outline: 2px solid var(--loidolt-accent); outline-offset: 5px; }
   a:hover { color: var(--loidolt-text-accent); }
-  .skip-link { position: fixed; top: -100px; left: 20px; z-index: 100; padding: 12px 18px; background: var(--loidolt-surface); }
-  .skip-link:focus { top: 12px; }
-  main, footer { width: min(1120px, calc(100% - 80px)); margin-inline: auto; }
+  main { width: min(1120px, calc(100% - 80px)); margin-inline: auto; }
   .hero { display: grid; grid-template-columns: 1.15fr 1fr; align-items: center; gap: 40px; padding: 80px 0 72px; }
   .eyebrow, .format, .step-number { font: 11px var(--loidolt-font-utility); letter-spacing: 0.12em; text-transform: uppercase; color: var(--loidolt-text-accent); }
   .eyebrow { margin: 0 0 22px; }
@@ -198,7 +185,6 @@
   p { font-size: 15px; line-height: 1.75; color: var(--loidolt-text-muted); }
   .intro { max-width: 480px; font-size: 17px; margin-bottom: 30px; }
   .primary-link { background: var(--loidolt-accent); color: var(--loidolt-on-accent); min-height: 50px; padding: 15px 24px; border-radius: var(--loidolt-border-radius); font-size: 15px; font-weight: 600; }
-  .header-cta { min-height: 42px; padding: 10px 16px; font-size: 13px; }
   .primary-link:hover { background: var(--loidolt-accent-hover); color: var(--loidolt-on-accent); }
   .terrain-art { margin: 0; color: var(--loidolt-text-accent); }
   figcaption { text-align: center; font: 11px var(--loidolt-font-utility); color: var(--loidolt-text-muted); margin-top: 20px; }
@@ -233,10 +219,8 @@
   .support h2 { margin-bottom: 14px; }
   .support p:last-child { max-width: 650px; margin: 0; }
   .support-link { flex-shrink: 0; border: 1px solid var(--loidolt-border); padding: 14px 18px; color: var(--loidolt-text); font-size: 13px; border-radius: var(--loidolt-border-radius); }
-  footer { display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 24px 0 32px; border-top: 1px solid var(--loidolt-border); font: 11px var(--loidolt-font-utility); }
-  footer a, .footer-note { color: var(--loidolt-text-muted); }
   @media (max-width: 760px) {
-    main, footer { width: calc(100% - 40px); }
+    main { width: calc(100% - 40px); }
     .hero { grid-template-columns: 1fr; gap: 24px; padding: 48px 0 40px; }
     .hero-copy { max-width: 560px; }
     .terrain-art { width: min(360px, 100%); margin-inline: auto; }
@@ -245,13 +229,7 @@
     .workflow-card { padding: 24px; }
     .section-art { max-width: 340px; margin-top: 24px; }
     .support { flex-direction: column; align-items: flex-start; gap: 24px; padding: 24px; margin-bottom: 36px; }
-    footer { flex-wrap: wrap; }
-    .header-guide { display: none; }
-    .header-cta { font-size: 12px; padding-inline: 12px; gap: 8px; }
     .start-panel { flex-direction: column; align-items: flex-start; padding: 28px 24px; gap: 24px; }
     .hero-actions .primary-link, .start-panel .primary-link { width: 100%; }
-    .landing-page :global(.ldt-brand__meta) { display: none; }
-    .landing-page :global(.landing-topbar) { flex-wrap: nowrap; }
-    .landing-page :global(.ldt-topbar__actions) { width: auto; margin-left: auto; }
   }
 </style>

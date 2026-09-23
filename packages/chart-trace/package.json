@@ -1,0 +1,34 @@
+{
+  "name": "@topostack/chart-trace",
+  "version": "0.5.0",
+  "private": true,
+  "type": "module",
+  "description": "Turns a lake depth chart into bathymetry: georeferencing a chart image against a known lake outline, and interpolating traced contours into a depth grid. Pure TypeScript with no DOM access, run by the batch build in Node and by a studio worker in the browser. Source-only; every consumer compiles TypeScript itself.",
+  "exports": {
+    "./georef": "./src/georef.ts",
+    "./grid": "./src/grid.ts",
+    "./levels": "./src/levels.ts",
+    "./local-frame": "./src/local-frame.ts",
+    "./pdf": "./src/pdf.ts",
+    "./raster": "./src/raster.ts",
+    "./raster-labels": "./src/raster-labels.ts",
+    "./record": "./src/record.ts",
+    "./trace-raster": "./src/trace-raster.ts",
+    "./trace-vector": "./src/trace-vector.ts",
+    "./vector-chart": "./src/vector-chart.ts",
+    "./vector-page": "./src/vector-page.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "coverage": "vitest run --coverage"
+  },
+  "sideEffects": false,
+  "dependencies": {
+    "@topostack/data-contracts": "*",
+    "delaunator": "^5.1.0"
+  },
+  "devDependencies": {
+    "pdfjs-dist": "^6.3.289"
+  }
+}

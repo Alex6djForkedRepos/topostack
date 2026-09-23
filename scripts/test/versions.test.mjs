@@ -11,8 +11,8 @@ async function fixture(t) {
   const directory = await mkdtemp(join(tmpdir(), "topostack-versions-"));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const base = pathToFileURL(directory + "/");
-  for (const path of ["apps/generator", "packages/core", "packages/data-contracts", "workers/map-api", "atomm"]) await mkdir(new URL(path, base), { recursive: true });
-  for (const path of ["package.json", "package-lock.json", "apps/generator/package.json", "packages/core/package.json", "packages/data-contracts/package.json", "workers/map-api/package.json", "atomm/version.json"]) {
+  for (const path of ["apps/generator", "packages/chart-trace", "packages/core", "packages/data-contracts", "workers/map-api", "atomm"]) await mkdir(new URL(path, base), { recursive: true });
+  for (const path of ["package.json", "package-lock.json", "apps/generator/package.json", "packages/chart-trace/package.json", "packages/core/package.json", "packages/data-contracts/package.json", "workers/map-api/package.json", "atomm/version.json"]) {
     await writeFile(new URL(path, base), await readFile(new URL(`../../${path}`, import.meta.url)));
   }
   return base;
@@ -37,7 +37,7 @@ test("main bumps synchronize every workspace, lock entry and the Atomm manifest 
   const newLock = JSON.parse(await readFile(new URL("package-lock.json", base), "utf8"));
   assert.equal(JSON.parse(await readFile(new URL("packages/data-contracts/package.json", base), "utf8")).version, version);
   oldLock.version = version;
-  for (const path of ["", "apps/generator", "packages/core", "packages/data-contracts", "workers/map-api"]) oldLock.packages[path].version = version;
+  for (const path of ["", "apps/generator", "packages/chart-trace", "packages/core", "packages/data-contracts", "workers/map-api"]) oldLock.packages[path].version = version;
   assert.deepEqual(newLock, oldLock);
 });
 

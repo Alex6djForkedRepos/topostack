@@ -7,7 +7,9 @@ export const USAGE_LANDINGS = [
   "/", "/studio", "/guides", "/guides/laser-cut-topographic-map", "/guides/topographic-map-engraving", "/examples/crater-lake", "/privacy",
   "/attribution", "/guides/split-large-maps", "/guides/water-paint-templates", "/guides/lake-depth-data", "/guides/how-lake-depths-work",
   "/guides/studio-tour", "/guides/map-details", "/guides/custom-markers-and-paths", "/guides/settings-reference", "/guides/export-files",
-  "/guides/troubleshooting", "/lakes", "/guides/custom-lake-depth-map", "/examples", "/changelog",
+  "/guides/troubleshooting", "/lakes", "/guides/custom-lake-depth-map", "/examples", "/changelog", "/guides/custom-graphics",
+  "/guides/custom-data", "/guides/trace-a-depth-chart",
+  "/guides/how-depth-chart-tracing-works",
 ] as const;
 // "ai" covers assistant and answer-engine referrers, which send a visitor who
 // already read a description of the tool rather than a search result snippet.

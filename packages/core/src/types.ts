@@ -16,7 +16,9 @@ export const TEXT_FONTS = ["technical", "rounded", "stencil", "hershey-sans", "h
 export type TextFont = typeof TEXT_FONTS[number];
 export type TransportationClass = "major-road" | "local-road" | "trail";
 export type NorthArrowStyle = "minimal" | "classic" | "mariner";
-export type MarkerSymbol = "pin" | "circle" | "triangle" | "star" | "cross";
+export type BuiltInMarkerSymbol = "pin" | "circle" | "triangle" | "star" | "cross";
+/** A built-in marker shape, or `custom` for one of the project's own icons (see MarkerIconV1). */
+export type MarkerSymbol = BuiltInMarkerSymbol | "custom";
 export type CustomLineKind = "trail" | "boundary";
 export type NorthArrowAnchor = "top-left" | "top" | "top-right" | "left" | "center" | "right" | "bottom-left" | "bottom" | "bottom-right";
 
@@ -25,13 +27,89 @@ export interface MapMarkerV1 extends GeoPoint {
   symbol: MarkerSymbol;
   /** Nominal symbol size in millimeters; omitted legacy values use 8 mm. */
   sizeMm?: number;
+  /**
+   * What the maker calls this marker. It is for finding it again in a long
+   * list; nothing is engraved from it, and it is absent until one is typed.
+   */
+  name?: string;
+  /** The project icon a `custom` marker draws; absent for built-in symbols. */
+  iconId?: string;
 }
 
-export const MARKER_SYMBOLS: readonly MarkerSymbol[] = ["pin", "circle", "triangle", "star", "cross"];
+/**
+ * One filled region of a marker icon: rings as flat `[x0, y0, x1, y1, …]`
+ * integers, open (the closing point is implied), y down. Holes are cut out of
+ * the outer ring.
+ */
+export interface MarkerIconShapeV1 {
+  outer: number[];
+  holes?: number[][];
+}
+
+/**
+ * A marker symbol the maker supplied as an SVG. It is stored as the filled
+ * region the SVG paints, already flattened, simplified, and fitted so its
+ * longer side spans MARKER_ICON_UNITS centered on 0, so a marker scales it
+ * like any built-in symbol and nothing about the SVG is kept.
+ */
+export interface MarkerIconV1 {
+  id: string;
+  name: string;
+  /** `bottom` puts the icon's lowest point on the marker's position, as a pin's tip; absent centers it. */
+  anchor?: "bottom";
+  shapes: MarkerIconShapeV1[];
+}
+
+/** The built-in symbols, in picker order. `custom` markers name an icon instead. */
+export const MARKER_SYMBOLS: readonly BuiltInMarkerSymbol[] = ["pin", "circle", "triangle", "star", "cross"];
 export const MAP_MARKER_SIZE_MM = 8;
 export const MAP_MARKER_MIN_SIZE_MM = 1;
 export const MAP_MARKER_MAX_SIZE_MM = 200;
 export const MAP_MARKER_CLEARANCE_MM = 1.2;
+/** An icon's longer side in stored units; coordinates run from -500 to 500. */
+export const MARKER_ICON_UNITS = 1000;
+export const MAX_MARKER_ICONS = 24;
+/** Points across every ring of one icon. Keeps a project with a few icons shareable as a link. */
+export const MAX_MARKER_ICON_POINTS = 800;
+/** Same shape as a depth chart id: 8-64 lowercase letters, digits or dashes. */
+export const MARKER_ICON_ID_PATTERN = /^[a-z0-9][a-z0-9-]{7,63}$/;
+
+/**
+ * Artwork the maker uploaded to place freely on the piece: a logo, a badge, a
+ * decoration. Stored exactly as a marker icon is (integer rings fitted so the
+ * longer side spans MARKER_ICON_UNITS about 0), with a larger point budget.
+ */
+export interface CustomGraphicV1 {
+  id: string;
+  name: string;
+  shapes: MarkerIconShapeV1[];
+}
+
+/** What the laser does with a placed graphic: engrave its filled shape, score its outline, or cut it out of the sheet it lands on. */
+export type GraphicOperation = "engrave" | "score" | "cut";
+export const GRAPHIC_OPERATIONS: readonly GraphicOperation[] = ["engrave", "score", "cut"];
+
+/**
+ * One use of a custom graphic on the piece. Anchored like the north arrow, so
+ * it stays where the maker put it when the crop or output size changes.
+ */
+export interface PlacedGraphicV1 {
+  id: string;
+  graphicId: string;
+  placement: NorthArrowPlacementV1;
+  /** The graphic's longer side before rotation, in millimeters. */
+  sizeMm: number;
+  /** Clockwise on the artwork (y down), in degrees from 0 up to 360. */
+  rotationDeg: number;
+  operation: GraphicOperation;
+}
+
+export const MAX_CUSTOM_GRAPHICS = 24;
+export const MAX_PLACED_GRAPHICS = 50;
+/** Points across every ring of one graphic. Detailed enough for a logo; large projects share as a file rather than a link. */
+export const MAX_CUSTOM_GRAPHIC_POINTS = 3_000;
+export const GRAPHIC_MIN_SIZE_MM = 3;
+export const GRAPHIC_MAX_SIZE_MM = 400;
 export const CUSTOM_LINE_KINDS: readonly CustomLineKind[] = ["trail", "boundary"];
 export const MAX_PROJECT_NAME_LENGTH = 120;
 export const MAX_PROJECT_DIMENSION_MM = 10_000;
@@ -39,6 +117,8 @@ export const MAX_MAP_MARKERS = 250;
 export const MAX_CUSTOM_LINES = 250;
 export const MAX_CUSTOM_LINE_POINTS = 2_000;
 export const MAX_CUSTOM_DATA_POINTS = 10_000;
+/** How long a marker or path name may be. Long enough to be a sentence, short enough to list. */
+export const MAX_CUSTOM_DATA_NAME_LENGTH = 60;
 
 /** A machine bed smaller than this cannot hold a piece worth cutting. */
 export const MIN_WORK_AREA_MM = 20;
@@ -53,6 +133,8 @@ export interface CustomLineFeatureV1 {
   id: string;
   kind: CustomLineKind;
   points: GeoPoint[];
+  /** What the maker calls this path. Bookkeeping, like a marker's name. */
+  name?: string;
 }
 
 export interface NorthArrowPlacementV1 {
@@ -159,6 +241,8 @@ export const BATHYMETRIC_RELIEF_M = 5;
 
 export type WaterKind = "ocean" | "lake";
 export type DepthSource = "surveyed" | "mixed" | "modeled" | "user";
+/** Where a lake's depth grid came from: a published survey, or a depth chart someone traced into a grid. */
+export type BathymetryOrigin = "survey" | "chart";
 
 /**
  * Physical consequences of a config plus its terrain relief. Layer count is a
@@ -190,6 +274,42 @@ export interface GeoBounds {
   south: number;
   east: number;
   north: number;
+}
+
+/**
+ * A depth chart's id: 8-64 lowercase letters, digits or dashes. The chart
+ * record contract states the same pattern (`CHART_ID_PATTERN`); core is built
+ * on its own and cannot import it, so a test holds the two together.
+ */
+export const DEPTH_CHART_ID_PATTERN = /^[a-z0-9][a-z0-9-]{7,63}$/;
+
+/**
+ * The key for a lake HydroLAKES does not know, mostly small lakes drawn only
+ * in OpenStreetMap. Their outlines carry no lasting id, so the chart itself
+ * names the lake: `outline:<chart id>`, and the lake is the one the chart's
+ * own outline overlaps.
+ */
+export const OUTLINE_CHART_KEY_PREFIX = "outline:";
+
+/**
+ * Whether `key` may name the lake a chart reference carves: a HydroLAKES id, or
+ * `outline:` followed by that same chart's id.
+ */
+export function isDepthChartLakeKey(key: string, reference: Pick<UserDepthChartRefV1, "id">): boolean {
+  return /^[1-9]\d*$/.test(key) || key === `${OUTLINE_CHART_KEY_PREFIX}${reference.id}`;
+}
+
+/** The key a project uses for the lake a chart was traced for. */
+export function depthChartLakeKey(chart: { id: string; hylakId?: number }): string {
+  return chart.hylakId === undefined ? `${OUTLINE_CHART_KEY_PREFIX}${chart.id}` : String(chart.hylakId);
+}
+
+/** Which traced depth chart a lake uses, and the exact content it was carved from. */
+export interface UserDepthChartRefV1 {
+  /** The chart record's id, as stored in the browser or exported beside the project. */
+  id: string;
+  /** SHA-256 of the record, so a changed chart is a changed project. */
+  contentHash: string;
 }
 
 export interface ProjectConfigV1 {
@@ -275,8 +395,26 @@ export interface ProjectConfigV1 {
   scaleBarPlacement?: NorthArrowPlacementV1;
   /** Optional engraved title. Absent in projects saved before titles existed, which keeps their fingerprints. */
   plaque?: PlaqueV1;
+  /**
+   * Depth charts the maker traced, one per lake, keyed by HydroLAKES id as
+   * `waterDepthOverrides` is, or for a lake without one by
+   * `outline:<chart id>` (see OUTLINE_CHART_KEY_PREFIX). The chart itself lives in browser storage or
+   * beside the project in its exported file; this records which chart a lake
+   * uses and the content it was carved from. Absent in every project without
+   * one, which keeps their fingerprints.
+   */
+  userDepthCharts?: Record<string, UserDepthChartRefV1>;
   /** User-placed symbols, projected from geographic coordinates onto the artwork. */
   markers: MapMarkerV1[];
+  /**
+   * Symbols the maker uploaded, which `custom` markers draw. Absent in every
+   * project without one, which keeps their fingerprints.
+   */
+  markerIcons?: MarkerIconV1[];
+  /** Artwork uploaded for free placement on the piece. Absent in every project without one, which keeps their fingerprints. */
+  customGraphics?: CustomGraphicV1[];
+  /** Where each custom graphic is used on the piece. Absent when none is placed. */
+  placedGraphics?: PlacedGraphicV1[];
   /** User-authored geographic paths, independent of fetched map-detail toggles. */
   customLines: CustomLineFeatureV1[];
   explodedPreview: number;
@@ -339,6 +477,8 @@ export interface WaterAreaV1 {
   clipped?: boolean;
   /** Set to "user" once a per-lake override has replaced `maxDepthM`. */
   depthSource?: DepthSource;
+  /** Absent means a published survey. A traced chart carves as a user-supplied depth. */
+  bathymetryOrigin?: BathymetryOrigin;
   /** Surveyed depths below the dataset reference waterline, aligned to the terrain grid. NaN means no coverage. */
   bathymetry?: {
     width: number;
@@ -394,6 +534,8 @@ export interface WaterSurfaceIR {
   /** Layer whose top face the surface sits on. */
   layerIndex: number;
   depthSource: DepthSource;
+  /** Set when the floor was carved from a traced depth chart. */
+  bathymetryOrigin?: "chart";
 }
 
 export interface TerrainSelection {
@@ -551,7 +693,7 @@ export interface FabricationPanelV1 {
 }
 
 export interface GeometryWarning {
-  code: "TERRAIN_SOURCE_FALLBACK" | "ELEVATION_REPAIRED" | "LOW_RELIEF" | "EMPTY_LAYER" | "SMALL_FEATURES" | "DATA_FALLBACK" | "VECTOR_DATA_PARTIAL" | "VECTOR_DATA_UNAVAILABLE" | "LAKE_DATA_UNAVAILABLE" | "BATHYMETRY_FALLBACK" | "LAKE_DEPTH_PREDICTED" | "LABEL_OMITTED" | "WATER_DEPTH_CLAMPED" | "WORK_AREA_OVERSIZE" | "WORK_AREA_UNSPLIT";
+  code: "TERRAIN_SOURCE_FALLBACK" | "ELEVATION_REPAIRED" | "LOW_RELIEF" | "EMPTY_LAYER" | "SMALL_FEATURES" | "DATA_FALLBACK" | "VECTOR_DATA_PARTIAL" | "VECTOR_DATA_UNAVAILABLE" | "LAKE_DATA_UNAVAILABLE" | "BATHYMETRY_FALLBACK" | "LAKE_DEPTH_PREDICTED" | "LAKE_DEPTH_FROM_CHART" | "LABEL_OMITTED" | "WATER_DEPTH_CLAMPED" | "WORK_AREA_OVERSIZE" | "WORK_AREA_UNSPLIT" | "GRAPHIC_LOOSE_PIECES";
   message: string;
   action?: "fit-lake-depth";
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_PROJECT, generateGeometry, validateProject, type ProjectConfigV1 } from "@topostack/core";
 import { createSamplePreviewSource } from "$lib/domain/sample-preview";
-import { availablePlaceables, draftProject, hiddenByPrefix, hiddenMarkingPrefixes, movePlaceable, PLACEABLES, PLACEABLE_ORDER, resizePlaceable, type PlacementSession } from "./placeables";
+import { addGraphicToSession, availablePlaceables, canPlace, draftProject, graphicPlaceableId, hiddenByPrefix, hiddenMarkingPrefixes, movePlaceable, placeableFor, placementPatch, PLACEABLES, PLACEABLE_ORDER, removePlaceable, resizePlaceable, rotatePlaceable, setPlaceableOperation, type PlacementSession } from "./placeables";
 
 const context = { groundWidthM: 20_000 };
 import { placementFrustum, placementViewBox } from "./viewport";
@@ -84,6 +84,64 @@ describe("placeables", () => {
     expect(hidden.some((marking) => marking.id.startsWith("plaque-"))).toBe(true);
     expect(hidden.some((marking) => marking.id.startsWith("scale-"))).toBe(true);
     expect(markings.filter((marking) => !hiddenByPrefix(marking.id, prefixes)).some((marking) => /north|plaque|scale/.test(marking.id))).toBe(false);
+  });
+});
+
+describe("graphic placeables", () => {
+  const graphic = { id: "graphic-0001", name: "Badge", shapes: [{ outer: [-500, -250, 500, -250, 500, 250, -500, 250] }] };
+  const withLibrary: ProjectConfigV1 = { ...project, customGraphics: [graphic] };
+  const added = addGraphicToSession(withLibrary, undefined, graphic.id, "placed-0001")!;
+  const id = graphicPlaceableId("placed-0001");
+
+  it("adds a graphic to the draft, not the project, and selects it", () => {
+    expect(added.selected).toBe(id);
+    expect(withLibrary.placedGraphics).toBeUndefined();
+    const draft = draftProject(withLibrary, added);
+    expect(availablePlaceables(draft).map((placeable) => placeable.id)).toEqual(["north", "plaque", "scale", id]);
+    expect(placeableFor(id).name?.(draft)).toBe("Badge, engraved");
+    expect(addGraphicToSession(withLibrary, added, "graphic-9999", "placed-0002")).toBeUndefined();
+    expect(() => validateProject(draft)).not.toThrow();
+  });
+
+  it("moves, resizes and turns a graphic about its center, and changes what the laser does", () => {
+    let session = movePlaceable(withLibrary, added, id, { x: 20, y: 10 }, context);
+    session = resizePlaceable(withLibrary, session, id, 30, context);
+    session = rotatePlaceable(withLibrary, session, id, 90);
+    session = setPlaceableOperation(withLibrary, session, id, "score");
+    const draft = draftProject(withLibrary, session);
+    const center = placeableFor(id).center(draft, context);
+    expect(center.x).toBeCloseTo(20, 4);
+    expect(center.y).toBeCloseTo(10, 4);
+    expect(draft.placedGraphics![0]).toMatchObject({ sizeMm: 30, rotationDeg: 90, operation: "score" });
+    // Turned a quarter, the 2:1 badge stands 30 mm tall and 15 mm wide.
+    const outline = placeableFor(id).outline(draft, context);
+    const ys = outline.map(({ y }) => y); const xs = outline.map(({ x }) => x);
+    expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(30, 4);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(15, 4);
+    expect(draftProject(withLibrary, rotatePlaceable(withLibrary, session, id, -30)).placedGraphics![0]!.rotationDeg).toBe(330);
+    expect(() => validateProject(draft)).not.toThrow();
+  });
+
+  it("removes a graphic and keeps the session open while the library can add another", () => {
+    const removed = removePlaceable(withLibrary, added, id);
+    const draft = draftProject(withLibrary, removed);
+    expect(draft.placedGraphics).toBeUndefined();
+    expect(canPlace({ ...draft, showNorthArrow: false, showScaleBar: false, plaque: undefined })).toBe(true);
+    expect(canPlace({ ...draft, showNorthArrow: false, showScaleBar: false, plaque: undefined, customGraphics: undefined })).toBe(false);
+  });
+
+  it("drops drafts of artwork removed from the library before committing", () => {
+    expect(placementPatch({ ...withLibrary, customGraphics: undefined }, added.draft)).toEqual({ placedGraphics: undefined });
+  });
+
+  it("hides every generated graphic marking while placing", () => {
+    const committed = { ...withLibrary, outputMode: "engraving" as const, ...placementPatch(withLibrary, added.draft) };
+    const geometry = generateGeometry(committed, createSamplePreviewSource());
+    const prefixes = hiddenMarkingPrefixes(committed);
+    const graphics = geometry.layers.flatMap((layer) => layer.markings).filter((marking) => marking.id.startsWith("graphic-"));
+    expect(graphics.length).toBeGreaterThan(0);
+    expect(graphics.every((marking) => hiddenByPrefix(marking.id, prefixes))).toBe(true);
+    expect(graphics.every((marking) => hiddenByPrefix(marking.id, placeableFor(id).bakedMarkingPrefixes))).toBe(true);
   });
 });
 

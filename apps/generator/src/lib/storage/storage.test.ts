@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_PROJECT } from "@topostack/core";
+import { DEFAULT_PROJECT, DEPTH_CHART_ID_PATTERN } from "@topostack/core";
+import { CHART_ID_PATTERN } from "@topostack/data-contracts/chart-bathymetry";
 import { parseProject } from "$lib/storage/storage";
 
 describe("project import validation", () => {
@@ -15,6 +16,23 @@ describe("project import validation", () => {
     expect(() => parseProject({ ...DEFAULT_PROJECT, markers: [{ ...markers[0], symbol: "flag" }] })).toThrow(/marker symbol/i);
     expect(() => parseProject({ ...DEFAULT_PROJECT, markers: [{ ...markers[0], lon: 200 }] })).toThrow(/marker longitude/i);
   });
+  it("restores uploaded marker icons, drops malformed ones, and turns their orphaned markers into pins", () => {
+    const icon = { id: "icon-0001", name: "Cabin", anchor: "bottom" as const, shapes: [{ outer: [-500, 500, 500, 500, 0, -500], holes: [[-100, 300, 100, 300, 0, 0]] }] };
+    const marker = { id: "cabin", lat: 43, lon: -122, symbol: "custom" as const, sizeMm: 8, iconId: icon.id };
+    const project = parseProject({ ...DEFAULT_PROJECT, markerIcons: [icon], markers: [marker] });
+    expect(parseProject(JSON.parse(JSON.stringify(project)))).toMatchObject({ markerIcons: [icon], markers: [marker] });
+    // Projects without icons keep no field, and so keep their fingerprints.
+    expect(parseProject(DEFAULT_PROJECT)).not.toHaveProperty("markerIcons");
+    for (const broken of [{ ...icon, id: "BAD" }, { ...icon, shapes: [{ outer: [0, 0, 1.5, 1, 2, 0] }] }, { ...icon, shapes: [{ outer: [0, 0, 1, 1, 2, 0], holes: [[0]] }] }, { ...icon, shapes: [] }, "icon"]) {
+      const loaded = parseProject({ ...DEFAULT_PROJECT, markerIcons: [broken], markers: [marker] });
+      expect(loaded).not.toHaveProperty("markerIcons");
+      expect(loaded.markers).toEqual([{ id: "cabin", lat: 43, lon: -122, symbol: "pin", sizeMm: 8 }]);
+    }
+    // A blank or overlong name is replaced rather than losing the icon.
+    expect(parseProject({ ...DEFAULT_PROJECT, markerIcons: [{ ...icon, name: " " }] }).markerIcons?.[0]!.name).toBe("Icon");
+    expect(parseProject({ ...DEFAULT_PROJECT, markerIcons: [{ ...icon, anchor: "top" }] }).markerIcons?.[0]).not.toHaveProperty("anchor");
+    expect(parseProject({ ...DEFAULT_PROJECT, markers: [{ ...marker, symbol: "star" }] }).markers[0]).not.toHaveProperty("iconId");
+  });
   it("round-trips marker size and rejects malformed sizes", () => {
     const marker = { id: "sized", lat: 43, lon: -122, symbol: "star", sizeMm: 12.5 };
     const project = parseProject({ ...DEFAULT_PROJECT, markers: [marker] });
@@ -22,6 +40,19 @@ describe("project import validation", () => {
     for (const sizeMm of [null, "12", 0, -1, 201, NaN, Infinity]) {
       expect(() => parseProject({ ...DEFAULT_PROJECT, markers: [{ ...marker, sizeMm }] })).toThrow(/marker size/i);
     }
+  });
+  it("keeps marker and path names through a save and load, and drops unusable ones", () => {
+    const marker = { id: "named", lat: 43, lon: -122, symbol: "pin", sizeMm: 8, name: "Trailhead" };
+    const line = { id: "loop", kind: "trail" as const, points: [{ lat: 42.9, lon: -122.1 }, { lat: 43, lon: -122 }], name: "Rim loop" };
+    const project = parseProject({ ...DEFAULT_PROJECT, markers: [marker], customLines: [line] });
+    const reloaded = parseProject(JSON.parse(JSON.stringify(project)));
+    expect(reloaded.markers).toEqual([marker]);
+    expect(reloaded.customLines).toEqual([line]);
+    // A name is only bookkeeping, so a bad one is dropped rather than refusing the project.
+    for (const name of ["   ", 42, "x".repeat(61)]) {
+      expect(parseProject({ ...DEFAULT_PROJECT, markers: [{ ...marker, name }] }).markers[0]).not.toHaveProperty("name");
+    }
+    expect(parseProject({ ...DEFAULT_PROJECT, markers: [{ ...marker, name: "  Dock  " }] }).markers[0]!.name).toBe("Dock");
   });
   it("restores custom trails and boundaries and defaults legacy projects to no paths", () => {
     const customLines = [
@@ -221,9 +252,51 @@ describe("project import validation", () => {
     });
   });
 
+  it("keeps usable depth chart references and drops the rest", () => {
+    const reference = { id: "round-lake-chart", contentHash: "a".repeat(64) };
+    const parsed = parseProject({ ...DEFAULT_PROJECT, userDepthCharts: {
+      "9092": reference,
+      "1": { id: "Round Lake", contentHash: "a".repeat(64) },
+      "2": { id: "round-lake-chart", contentHash: "short" },
+      "3": "round-lake-chart",
+      lake: reference,
+      "outline:round-lake-chart": reference,
+      "outline:someone-elses-chart": reference,
+    } });
+    expect(parsed.userDepthCharts).toEqual({ "9092": reference, "outline:round-lake-chart": reference });
+    // Absent stays absent, so projects saved before charts keep their fingerprint.
+    expect("userDepthCharts" in parseProject({ ...DEFAULT_PROJECT })).toBe(false);
+    expect("userDepthCharts" in parseProject({ ...DEFAULT_PROJECT, userDepthCharts: { "1": { id: "bad", contentHash: "" } } })).toBe(false);
+  });
+
+  it("holds core's chart id pattern to the record contract's", () => {
+    // Core is built on its own and keeps a copy; this is what keeps it honest.
+    expect(DEPTH_CHART_ID_PATTERN.source).toBe(CHART_ID_PATTERN.source);
+    expect(DEPTH_CHART_ID_PATTERN.flags).toBe(CHART_ID_PATTERN.flags);
+  });
+
   it("drops depth overrides that are not usable depths", () => {
     expect(parseProject({ ...DEFAULT_PROJECT, waterDepthOverrides: { "9092": 594, "1": -5, "2": "deep", "3": 99999, lake: 20 } })).toMatchObject({
       waterDepthOverrides: { "9092": 594 },
     });
   });
+  it("restores custom graphics and their placements, dropping what is malformed", () => {
+    const graphic = { id: "graphic-0001", name: "Logo", shapes: [{ outer: [-500, -500, 500, -500, 0, 500] }] };
+    const placed = { id: "placed-0001", graphicId: graphic.id, placement: { anchor: "top-left" as const, offset: { x: 0.25, y: 0 } }, sizeMm: 30, rotationDeg: 45, operation: "cut" as const };
+    const project = parseProject({ ...DEFAULT_PROJECT, customGraphics: [graphic], placedGraphics: [placed] });
+    expect(parseProject(JSON.parse(JSON.stringify(project)))).toMatchObject({ customGraphics: [graphic], placedGraphics: [placed] });
+    expect(parseProject(DEFAULT_PROJECT)).not.toHaveProperty("customGraphics");
+    expect(parseProject(DEFAULT_PROJECT)).not.toHaveProperty("placedGraphics");
+    // A broken graphic takes its placements with it.
+    const orphaned = parseProject({ ...DEFAULT_PROJECT, customGraphics: [{ ...graphic, shapes: [] }], placedGraphics: [placed] });
+    expect(orphaned).not.toHaveProperty("customGraphics");
+    expect(orphaned).not.toHaveProperty("placedGraphics");
+    for (const broken of [{ ...placed, graphicId: "graphic-9999" }, { ...placed, sizeMm: 1 }, { ...placed, placement: { anchor: "middle", offset: { x: 0, y: 0 } } }, { ...placed, placement: { anchor: "top", offset: { x: 3, y: 0 } } }, { ...placed, id: "X" }]) {
+      expect(parseProject({ ...DEFAULT_PROJECT, customGraphics: [graphic], placedGraphics: [broken] })).not.toHaveProperty("placedGraphics");
+    }
+    // Rotation wraps into range and an unknown operation engraves.
+    expect(parseProject({ ...DEFAULT_PROJECT, customGraphics: [graphic], placedGraphics: [{ ...placed, rotationDeg: -90, operation: "etch" }] }).placedGraphics?.[0]).toMatchObject({ rotationDeg: 270, operation: "engrave" });
+    expect(parseProject({ ...DEFAULT_PROJECT, customGraphics: [{ ...graphic, name: "" }] }).customGraphics?.[0]!.name).toBe("Graphic");
+  });
 });
+

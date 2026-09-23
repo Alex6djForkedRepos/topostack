@@ -4,6 +4,16 @@
 </script>
 
 <Article title="Troubleshooting and common questions" intro="What the studio's export messages and warnings mean, and how to fix the problems makers run into most often.">
+  <h2>Depth-chart review is blocked</h2>
+  <dl>
+    <div><dt>Generate reviewed depths is unavailable</dt><dd>Confirm every included path and its value, choose and confirm the source shoreline, and resolve open paths, crossings, or contradictory local depth relationships. Mark islands as land boundaries and underwater rises as shallower interiors. Interior bottom or summit values belong only on innermost contours. Follow <a href={`${base}/guides/trace-a-depth-chart`}>the reviewed tracing workflow</a>.</dd></div>
+    <div><dt>Alignment does not pass</dt><dd>Use at least four known positions spread across the source, each with both longitude and latitude in WGS84 decimal degrees. Check hemisphere signs, coordinate conversion, and lake selection. Inspect the dashed map outline against the source shoreline before confirming.</dd></div>
+    <div><dt>Keep this chart is unavailable</dt><dd>Generate from the current reviewed contours, then confirm that you checked the basin and layers. Edits make earlier results and approval stale.</dd></div>
+    <div><dt>An older chart needs review</dt><dd>Legacy charts can be exported for recovery but cannot be applied to new generations. Recreate the chart from its original source through contour, alignment, and layer review.</dd></div>
+    <div><dt>A review draft will not restore</dt><dd>Upload the same original file and PDF page first. The draft is tied to that source and does not contain the image. A restored draft requires fresh alignment confirmation and depth generation.</dd></div>
+    <div><dt>Incomplete depth chart coverage</dt><dd>The source shoreline or grid does not cover every map-water cell. Uncovered areas use existing terrain, modeled depths, or estimates near surveyed shores when possible; remaining cells stay at the waterline. Inspect transitions in the final cut layers.</dd></div>
+  </dl>
+
   <h2>Export is blocked</h2>
   <p>The <strong>Export</strong> dialog explains why artwork downloads are unavailable. <strong>Project settings</strong> can always be downloaded, so save them first if you are unsure.</p>
   <dl class="issues">
@@ -21,7 +31,8 @@
     <div><dt>Pieces remain larger than the work area, or the work area was not applied</dt><dd>The model is too large for your work area to split cleanly: either some pieces still overflow the bed, or the split was skipped entirely. Use a larger work area, a smaller model, or thicker material for fewer layers.</dd></div>
     <div><dt>Very little elevation change</dt><dd>Flat areas produce layers that look nearly identical, or sparse contours. Raise the vertical exaggeration or contour density, or include more of the surrounding hills.</dd></div>
     <div><dt>Water is deeper than the sheets below the shoreline can hold</dt><dd>An explicit depth-layer limit can flatten the lake floor. Turn off <strong>Limit depth layers</strong> for automatic coverage, increase the allowance, or select <strong>Fit depth</strong> to compress the lake instead, lower <strong>Depth exaggeration</strong>, or use thinner material. <a href={`${base}/guides/how-lake-depths-work#layers`}>How depth settings affect layers</a>.</dd></div>
-    <div><dt>Some lake depths are estimated rather than surveyed</dt><dd>At least one lake is modeled in whole or part. This is expected for most lakes. <a href={`${base}/guides/how-lake-depths-work#confidence`}>How to read the result</a>.</dd></div>
+    <div><dt>Some lake depths are estimated rather than surveyed</dt><dd>At least one lake is modeled in whole or part. This is expected for most lakes. <a href={`${base}/guides/how-lake-depths-work#confidence`}>How to read the result</a>. If you have a depth chart of the lake, <a href={`${base}/guides/trace-a-depth-chart`}>trace it</a> to replace the estimate.</dd></div>
+    <div><dt>Some lake floors come from a traced depth chart</dt><dd>A lake is carved from a chart you traced. Step through <strong>Cut layers</strong> and compare the deepest sheets with the chart before cutting.</dd></div>
     <div><dt>A lake extends past the edge of this map</dt><dd>No shoreline is visible, so its depth cannot be modeled. Zoom out to include part of the shore.</dd></div>
     <div><dt>A label or elevation labels were omitted</dt><dd>The text does not fit on the material. Increase the output size or reduce <strong>Text size</strong>.</dd></div>
     <div><dt>Upper sheets or contours were omitted from a circular crop</dt><dd>The circle left no piece at those elevations larger than <strong>Minimum feature</strong>. Reduce that setting, or center the crop on the high ground.</dd></div>

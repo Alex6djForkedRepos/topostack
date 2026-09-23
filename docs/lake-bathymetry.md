@@ -20,6 +20,7 @@ worldwide survey coverage. Lake outlines come from pinned provider water masks, 
 | [Norway NVE](https://data.norge.no/nb/datasets/fa42a236-7881-4a15-a4f9-a69b3970f440/dybdekart) | 521 processed lakes; 7 records skipped | Digital depth contours joined to survey polygons, interpolated onto a masked 20 m grid. |
 | [Texas Water Development Board](https://www.twdb.texas.gov/surfacewater/surveys/completed/index.asp) | Alan Henry, Lake Austin, Lady Bird Lake | Verified contour elevations and report reference levels; masked 10 m grid. Other reservoirs remain to be validated. |
 | [Bureau of Reclamation](https://www.usbr.gov/tsc/techreferences/reservoir.html) | Estes, Flatiron, Pinewood | Verified historical reference levels and conservative closed-contour masks; 10 m grid. Other reservoirs remain to be validated. |
+| Published depth charts (`community-charts-v1`) — built, not yet registered | Lake Viking, Missouri | Traced from published contour maps whose licence allows redistribution, one committed record per chart. Its archive builds from those records; registering it here is a provisioning pass described in [depth-chart-tracing.md](depth-chart-tracing.md). |
 
 Swiss coverage includes Ägeri, Baldegg, Biel, Constance, Brienz, Hallwil, Joux,
 Geneva, Neuchâtel, Maggiore (Swiss portion), Lungern, Morat, Rotsee, Sarnen,

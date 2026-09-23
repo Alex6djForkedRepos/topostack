@@ -8,12 +8,18 @@ test("marker size persists and fabrication artwork spans visible stack layers", 
   await page.route("**/v1/**", route => route.abort("internetdisconnected"));
   await page.route("https://static-res.makextool.com/**", route => route.abort("internetdisconnected"));
   await page.goto("/studio");
-  await page.getByRole("button", { name: "Expand all" }).click();
+  const openMarkers = async () => {
+    await page.getByRole("radio", { name: "Custom data", exact: true }).click();
+    await page.locator("#custom-data-markers-title").click();
+  };
+  await openMarkers();
   await page.getByRole("button", { name: "Add marker", exact: true }).click();
   const size = page.getByRole("spinbutton", { name: "Marker 1 size", exact: true });
   await expect(size).toHaveValue("8");
   await page.getByRole("radiogroup", { name: "Marker 1 symbol" }).getByRole("radio", { name: "Circle", exact: true }).click();
   await size.fill("180");
+  // Terrain generation controls live in the output views, outside Custom data.
+  await page.getByRole("radio", { name: /3D stack/ }).click();
   await expect(page.locator(".status-line")).toContainText("Custom data updated", { timeout: 30_000 });
   await page.getByRole("button", { name: /^(?:Generate|Regenerate) terrain/ }).click();
   await expect(page.getByText("Ready to export")).toBeVisible({ timeout: 30_000 });
@@ -36,6 +42,7 @@ test("marker size persists and fabrication artwork spans visible stack layers", 
   expect(saved.project.markers[0].sizeMm).toBe(180);
   await page.keyboard.press("Escape");
   await page.reload();
+  await openMarkers();
   await expect(size).toHaveValue("180");
   await expect(page.getByText("Generate before export")).toBeVisible();
   expect(errors).toEqual([]);

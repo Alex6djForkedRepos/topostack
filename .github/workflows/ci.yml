@@ -316,8 +316,10 @@ jobs:
           command: deploy --env ${{ github.ref_name == 'main' && 'production' || 'development' }}
           secrets: |
             GEOCODER_API_KEY
+            FEEDBACK_EMAIL_TO
         env:
           GEOCODER_API_KEY: ${{ secrets.GEOCODER_API_KEY }}
+          FEEDBACK_EMAIL_TO: ${{ secrets.FEEDBACK_EMAIL_TO }}
 
       - name: Smoke test deployed Worker
         run: node scripts/verify/verify-worker-deployment.mjs

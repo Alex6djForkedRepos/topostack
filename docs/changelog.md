@@ -33,7 +33,7 @@ Bring tracks, routes and waypoints from other apps into a project as custom path
 
 - **type**: `feature` (new), `improvement`, `fix`, or `breaking`. The largest type in a release sets the SemVer bump: breaking → major, feature → minor, otherwise patch.
 - **title**: one line, at most 100 characters, written for makers.
-- **body**: one to three sentences, at most 600 characters, saying what someone can now do or no longer runs into. The only markup is `` `code` `` and `[text](/site/path)` or `[text](https://…)` links; everything else is shown as plain text.
+- **body**: one to three sentences, at most 600 characters, saying what someone can now do or no longer runs into. The only markup is `` `code` ``, `**bold**` (for studio labels), and `[text](/site/path)` or `[text](https://…)` links; everything else is shown as plain text.
 - **pr** (optional): the pull request number. Leave it out; the release script finds it from the merge commit.
 
 Skip the fragment only when users will not notice the change (tests, tooling, refactors, internal docs) and label the pull request `no-changelog`. Dependabot pull requests are exempt. One pull request may add several fragments.

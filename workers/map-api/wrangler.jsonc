@@ -17,7 +17,8 @@
     "ALLOWED_ORIGIN_SUFFIXES": ".atomm.com",
     "TERRAIN_ORIGIN": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium",
     "GEOCODER_ORIGIN": "https://api.geoapify.com",
-    "DATASET_VERSION": "mapzen-terrarium+protomaps-20260905-z12-v1"
+    "DATASET_VERSION": "mapzen-terrarium+protomaps-20260905-z12-v1",
+    "FEEDBACK_EMAIL_FROM": "feedback@topostack.app"
   },
   // The top-level configuration is the fallback for a bare `wrangler deploy`
   // and for local tooling (tests, `--env=""` dry-run builds). It must never
@@ -37,8 +38,14 @@
     { "name": "REQUEST_LIMITER", "namespace_id": "1001", "simple": { "limit": 240, "period": 60 } },
     { "name": "GEOCODE_LIMITER", "namespace_id": "1004", "simple": { "limit": 30, "period": 60 } },
     { "name": "GEOCODE_GLOBAL_LIMITER", "namespace_id": "1007", "simple": { "limit": 300, "period": 60 } },
-    { "name": "TERRAIN_GLOBAL_LIMITER", "namespace_id": "1010", "simple": { "limit": 2400, "period": 60 } }
+    { "name": "TERRAIN_GLOBAL_LIMITER", "namespace_id": "1010", "simple": { "limit": 2400, "period": 60 } },
+    { "name": "FEEDBACK_LIMITER", "namespace_id": "1013", "simple": { "limit": 3, "period": 60 } },
+    { "name": "FEEDBACK_GLOBAL_LIMITER", "namespace_id": "1016", "simple": { "limit": 30, "period": 60 } }
   ],
+  // Feedback is emailed through Cloudflare Email Service. The sender domain
+  // must be onboarded in the dashboard (Email Service > Onboard domain); the
+  // recipient is the FEEDBACK_EMAIL_TO secret so it stays out of the repo.
+  "send_email": [{ "name": "FEEDBACK_EMAIL" }],
   // head_sampling_rate stays at 1 because the line volume is controlled in the
   // Worker instead: src/request-log.ts samples the cache-hit request_completed
   // lines of the archive and terrain routes (hundreds per generation) and keeps
@@ -70,19 +77,23 @@
         "ALLOWED_ORIGIN_SUFFIXES": ".atomm.com",
         "TERRAIN_ORIGIN": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium",
         "GEOCODER_ORIGIN": "https://api.geoapify.com",
-        "DATASET_VERSION": "mapzen-terrarium+protomaps-20260905-z12-v1"
+        "DATASET_VERSION": "mapzen-terrarium+protomaps-20260905-z12-v1",
+        "FEEDBACK_EMAIL_FROM": "feedback@topostack.app"
       },
       "r2_buckets": [
         { "binding": "MAP_CACHE", "bucket_name": "topostack-map-cache-development" },
         { "binding": "VECTOR_DATA", "bucket_name": "topostack-vector-data-development", "remote": true }
       ],
-      "secrets": { "required": ["GEOCODER_API_KEY"] },
+      "secrets": { "required": ["GEOCODER_API_KEY", "FEEDBACK_EMAIL_TO"] },
       "ratelimits": [
         { "name": "REQUEST_LIMITER", "namespace_id": "1002", "simple": { "limit": 240, "period": 60 } },
         { "name": "GEOCODE_LIMITER", "namespace_id": "1005", "simple": { "limit": 30, "period": 60 } },
         { "name": "GEOCODE_GLOBAL_LIMITER", "namespace_id": "1008", "simple": { "limit": 300, "period": 60 } },
-        { "name": "TERRAIN_GLOBAL_LIMITER", "namespace_id": "1011", "simple": { "limit": 2400, "period": 60 } }
-      ]
+        { "name": "TERRAIN_GLOBAL_LIMITER", "namespace_id": "1011", "simple": { "limit": 2400, "period": 60 } },
+        { "name": "FEEDBACK_LIMITER", "namespace_id": "1014", "simple": { "limit": 3, "period": 60 } },
+        { "name": "FEEDBACK_GLOBAL_LIMITER", "namespace_id": "1017", "simple": { "limit": 30, "period": 60 } }
+      ],
+      "send_email": [{ "name": "FEEDBACK_EMAIL", "remote": true }]
     },
     "production": {
       "name": "topostack",
@@ -100,19 +111,23 @@
         "ALLOWED_ORIGIN_SUFFIXES": ".atomm.com",
         "TERRAIN_ORIGIN": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium",
         "GEOCODER_ORIGIN": "https://api.geoapify.com",
-        "DATASET_VERSION": "mapzen-terrarium+protomaps-20260905-z12-v1"
+        "DATASET_VERSION": "mapzen-terrarium+protomaps-20260905-z12-v1",
+        "FEEDBACK_EMAIL_FROM": "feedback@topostack.app"
       },
       "r2_buckets": [
         { "binding": "MAP_CACHE", "bucket_name": "topostack-map-cache" },
         { "binding": "VECTOR_DATA", "bucket_name": "topostack-vector-data" }
       ],
-      "secrets": { "required": ["GEOCODER_API_KEY"] },
+      "secrets": { "required": ["GEOCODER_API_KEY", "FEEDBACK_EMAIL_TO"] },
       "ratelimits": [
         { "name": "REQUEST_LIMITER", "namespace_id": "1003", "simple": { "limit": 240, "period": 60 } },
         { "name": "GEOCODE_LIMITER", "namespace_id": "1006", "simple": { "limit": 30, "period": 60 } },
         { "name": "GEOCODE_GLOBAL_LIMITER", "namespace_id": "1009", "simple": { "limit": 300, "period": 60 } },
-        { "name": "TERRAIN_GLOBAL_LIMITER", "namespace_id": "1012", "simple": { "limit": 2400, "period": 60 } }
-      ]
+        { "name": "TERRAIN_GLOBAL_LIMITER", "namespace_id": "1012", "simple": { "limit": 2400, "period": 60 } },
+        { "name": "FEEDBACK_LIMITER", "namespace_id": "1015", "simple": { "limit": 3, "period": 60 } },
+        { "name": "FEEDBACK_GLOBAL_LIMITER", "namespace_id": "1018", "simple": { "limit": 30, "period": 60 } }
+      ],
+      "send_email": [{ "name": "FEEDBACK_EMAIL", "remote": true }]
     }
   }
 }

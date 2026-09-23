@@ -75,11 +75,22 @@
   </table>
 
   <h2>Custom Data</h2>
+  <p>In the <strong>Custom data</strong> view. See <a href={`${base}/guides/custom-data`}>bring your own data</a> for how the sections fit together.</p>
   <table>
     <thead><tr><th scope="col">Control</th><th scope="col">Range or options</th><th scope="col">Default</th><th scope="col">Notes</th></tr></thead>
     <tbody>
       <tr><td>Markers</td><td>Up to 250; Pin, Circle, Triangle, Star, Cross</td><td>None</td><td>Latitude and longitude in decimal degrees; Size 1–200 mm (default 8 mm), shown in the selected units.</td></tr>
       <tr><td>Paths</td><td>Up to 250; Trail or Boundary; 2–2,000 points each, 10,000 in total</td><td>None</td><td>Engraved even when built-in trails or boundaries are off.</td></tr>
+      <tr><td>Marker icons</td><td>Up to 24 SVGs, 1 MB each; Base or Center anchor</td><td>None</td><td>Simplified to 800 points each.</td></tr>
+      <tr><td>Graphics</td><td>Up to 24 in the library, 50 placed; Engrave, Score or Cut; 3 mm up to the piece's shorter side</td><td>None</td><td>SVG up to 1 MB, simplified to 3,000 points. See <a href={`${base}/guides/custom-graphics`}>custom graphics</a>.</td></tr>
+      <tr><td>Import</td><td>GPX, KML or GeoJSON, up to 20 MB</td><td>None</td><td>Adds markers, trails and boundaries in one undo step.</td></tr>
+      <tr><td>Depth chart units</td><td>Feet, Metres, Fathoms</td><td>Feet</td><td><em>Layered</em>. PNG, JPEG, WebP or PDF. See <a href={`${base}/guides/trace-a-depth-chart`}>trace a depth chart</a>.</td></tr>
+      <tr><td>The chart prints</td><td>Depth below the surface, Height above a datum</td><td>Depth below the surface</td><td><em>Layered</em>. Heights also need the water's surface level.</td></tr>
+      <tr><td>Path type and interior</td><td>Outer shoreline, island boundary, or depth contour; deeper or shallower interior</td><td>Depth contour, deeper</td><td><em>Layered</em>. Assign each contour its printed value. An optional innermost bottom or summit value replaces the default flat interior; no uniform interval is required.</td></tr>
+      <tr><td>Depth points</td><td>3 or more, on different contours</td><td>None</td><td><em>Layered</em>. Required for raster preparation; native PDF style selection can prepare without marks. Every included path still needs a confirmed value.</td></tr>
+      <tr><td>Contour review</td><td>Confirm, correct, join, close, redraw, exclude; undo/redo</td><td>Unreviewed</td><td><em>Layered</em>. A source shoreline and valid closed, noncrossing depth contours are required.</td></tr>
+      <tr><td>Chart alignment</td><td>4–64 distributed WGS84 control points</td><td>None</td><td><em>Layered</em>. Enter longitude/latitude and confirm the source overlay before generation.</td></tr>
+      <tr><td>Layer review</td><td>Explicit confirmation</td><td>Unchecked</td><td><em>Layered</em>. Required to keep the generated chart. Edits invalidate approval.</td></tr>
     </tbody>
   </table>
 

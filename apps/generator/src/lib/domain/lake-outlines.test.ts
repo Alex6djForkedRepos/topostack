@@ -1,5 +1,6 @@
 import release from "../../../../../scripts/data/lake-outlines-release.json";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import polygonClipping from "polygon-clipping";
 import { DEFAULT_PROJECT, type Polygon2D, type WaterAreaV1 } from "@topostack/core";
 import { loadProviderOutlines, resolveLakeOutlines } from "$lib/domain/lake-outlines";
 
@@ -24,6 +25,14 @@ describe("shoreline priority", () => {
     const result = resolveLakeOutlines([provider(box(-2, 2))], [], [box(-10, 10)]);
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({ outlineSource: "osm", polygon: box(-10, 10) });
+  });
+  it("leaves out map water the clipper cannot compare, and keeps the rest", () => {
+    // polygon-clipping throws on some near-degenerate slivers; one must not cost the map its water.
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const intersection = vi.spyOn(polygonClipping, "intersection").mockImplementationOnce(() => { throw new Error("Unable to find segment in SweepLine tree."); });
+    const result = resolveLakeOutlines([provider()], [], [box(-12, 12), box(20, 40)]);
+    expect(result.map((item) => item.id)).toEqual(["survey", "osm-lake-1"]);
+    intersection.mockRestore();
   });
   it("adds unmatched OSM water and preserves islands without inventing depths", () => {
     const shape = { ...box(20, 40), holes: [box(25, 30).outer] };

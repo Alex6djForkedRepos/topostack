@@ -15,6 +15,24 @@ export function worldYToLat(y: number, zoom: number): number {
   return Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / worldSize(zoom)))) * 180 / Math.PI;
 }
 
+/**
+ * The inverse of `tilePointProjector`: artwork millimetres back to [lon, lat].
+ * Water areas are carried in millimetres from the artwork's centre, but a depth
+ * chart is placed against a lake outline on the ground, so one has to become
+ * the other. Both axes are linear in Web Mercator, as the projector makes them.
+ */
+export function artworkToLonLat(bounds: GeoBounds, widthMm: number, heightMm: number): (point: Point2D) => [number, number] {
+  const zoom = 0;
+  const westX = lonToWorldX(bounds.west, zoom);
+  const eastX = lonToWorldX(bounds.east, zoom);
+  const northY = latToWorldY(bounds.north, zoom);
+  const southY = latToWorldY(bounds.south, zoom);
+  return (point) => [
+    worldXToLon(westX + (point.x / widthMm + 0.5) * (eastX - westX), zoom),
+    worldYToLat(northY + (point.y / heightMm + 0.5) * (southY - northY), zoom),
+  ];
+}
+
 export function groundWidthM(bounds: GeoBounds): number {
   return Math.abs(bounds.east - bounds.west) * Math.PI / 180 * 6_371_008.8 * Math.cos(((bounds.north + bounds.south) / 2) * Math.PI / 180);
 }

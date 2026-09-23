@@ -9,4 +9,15 @@ describe("project fingerprint", () => {
     expect(projectFingerprint({ ...DEFAULT_PROJECT, explodedPreview: 0.9 })).toBe(projectFingerprint(DEFAULT_PROJECT));
     expect(projectFingerprint({ ...DEFAULT_PROJECT, name: "Renamed without geometry changes" })).toBe(projectFingerprint(DEFAULT_PROJECT));
   });
+
+  it("leaves projects without an optional field unchanged, and re-carves when one arrives", () => {
+    // An absent optional key and an explicitly undefined one are the same
+    // project, so adding one never invalidates saved work.
+    expect(projectFingerprint({ ...DEFAULT_PROJECT, userDepthCharts: undefined })).toBe(projectFingerprint(DEFAULT_PROJECT));
+    expect(projectFingerprint({ ...DEFAULT_PROJECT, plaque: undefined, scaleBarPlacement: undefined })).toBe(projectFingerprint(DEFAULT_PROJECT));
+    // A depth chart changes the lake bed, so it must change the fingerprint.
+    const charted = { ...DEFAULT_PROJECT, userDepthCharts: { "9092": { id: "round-lake-chart", contentHash: "a".repeat(64) } } };
+    expect(projectFingerprint(charted)).not.toBe(projectFingerprint(DEFAULT_PROJECT));
+    expect(projectFingerprint({ ...charted, userDepthCharts: { "9092": { id: "round-lake-chart", contentHash: "b".repeat(64) } } })).not.toBe(projectFingerprint(charted));
+  });
 });

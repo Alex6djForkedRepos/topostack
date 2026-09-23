@@ -1,0 +1,868 @@
+[
+  {
+    "id": "hamilton",
+    "name": "Hamilton Reservoir",
+    "surface": 926.2,
+    "area": [
+      1040,
+      390,
+      2380,
+      1550
+    ],
+    "styles": [
+      "#9b9c9f/0.70",
+      "#2c2e35/1.00"
+    ],
+    "marks": [
+      {
+        "x": 1935.9623997825624,
+        "y": 542.5318000295638,
+        "value": 920,
+        "reach": 4
+      },
+      {
+        "x": 1793.9019999694824,
+        "y": 1700.5086000686647,
+        "value": 910,
+        "reach": 4
+      },
+      {
+        "x": 2042.5722004272466,
+        "y": 1922.5070001449585,
+        "value": 908,
+        "reach": 4
+      },
+      {
+        "x": 2189.9218001411436,
+        "y": 2077.8821999895094,
+        "value": 906,
+        "reach": 4
+      },
+      {
+        "x": 1578.7878001754761,
+        "y": 1469.956799889374,
+        "value": 912,
+        "reach": 4
+      },
+      {
+        "x": 1385.020800656128,
+        "y": 1396.6426019531245,
+        "value": 914,
+        "reach": 4
+      },
+      {
+        "x": 1193.180000011444,
+        "y": 1269.30700038147,
+        "value": 916,
+        "reach": 4
+      },
+      {
+        "x": 1193.180000011444,
+        "y": 1269.30700038147,
+        "value": 916,
+        "reach": 4
+      },
+      {
+        "x": 952.1155770507812,
+        "y": 1288.1746107421877,
+        "value": 918,
+        "reach": 4
+      },
+      {
+        "x": 762.232400175476,
+        "y": 1178.2670000047683,
+        "value": 920,
+        "reach": 4
+      },
+      {
+        "x": 634.926799900818,
+        "y": 1112.95219996376,
+        "value": 922,
+        "reach": 4
+      },
+      {
+        "x": 482.48656289062455,
+        "y": 1038.919787304687,
+        "value": 924,
+        "reach": 4
+      }
+    ],
+    "units": "ft",
+    "labels": "elevation",
+    "interval": 2,
+    "width": 2680,
+    "height": 2320,
+    "sha256": "95296d3be3561f88845566dc538dd41b5595ed5d68b527a08a7456038e361c87",
+    "vectorDiagnostics": {
+      "paths": 46,
+      "chains": 13,
+      "labels": 38,
+      "labelled": 13,
+      "inferred": 0,
+      "unresolved": 0,
+      "labelDisagreements": 0,
+      "contradictoryRegions": 93,
+      "coverage": 1
+    },
+    "url": "https://pubs.usgs.gov/sim/3486/sim3486_sheet01.pdf",
+    "qa": {
+      "sourceZipSha256": "d28c4e555f4d7a4036c358854cb0958749037025672f23cb954141904420871d",
+      "rawPoints": 6643691,
+      "qaPoints": 33364,
+      "crs": "EPSG:6344",
+      "medianLocation": [
+        39.74698780173085,
+        -94.0378226672873
+      ],
+      "bounds": [
+        -94.04240671769661,
+        39.743542586642185,
+        -94.03576431954916,
+        39.75066995673813
+      ],
+      "elevationRangeFt": [
+        907.534896,
+        919.93632
+      ],
+      "catalogUrl": "https://www.sciencebase.gov/catalog/item/5f6b8fc282ce38aaa24541e1",
+      "url": "https://www.sciencebase.gov/catalog/file/get/5f6b8fc282ce38aaa24541e1?f=__disk__01%2Fc4%2F22%2F01c422d5b2e795f1e89cc887246c6af402685355"
+    },
+    "outlineProvenance": {
+      "retrieved": "2026-09-23",
+      "service": "https://topostack.app",
+      "fixture": "fixtures/hamilton-lake.json",
+      "provider": "HydroLAKES",
+      "attributionUrl": "https://www.hydrosheds.org/products/hydrolakes",
+      "role": "Frozen map lookup input; not independent survey shoreline truth."
+    }
+  },
+  {
+    "id": "willow",
+    "name": "Willow Brook Lake",
+    "surface": 908,
+    "area": [
+      1280,
+      240,
+      3110,
+      1260
+    ],
+    "styles": [
+      "#9b9c9f/0.40",
+      "#2c2e35/0.70"
+    ],
+    "marks": [
+      {
+        "x": 2951.4581948730465,
+        "y": 646.8507995117188,
+        "value": 890,
+        "reach": 4
+      },
+      {
+        "x": 2845.858188769531,
+        "y": 692.8128051269532,
+        "value": 890,
+        "reach": 4
+      },
+      {
+        "x": 2845.858188769531,
+        "y": 692.8128051269532,
+        "value": 890,
+        "reach": 4
+      },
+      {
+        "x": 2796.595199984741,
+        "y": 674.2042001983641,
+        "value": 892,
+        "reach": 4
+      },
+      {
+        "x": 3168.3401994659425,
+        "y": 509.10419965667734,
+        "value": 888,
+        "reach": 4
+      },
+      {
+        "x": 2985.4780046386722,
+        "y": 390.06719304199214,
+        "value": 906,
+        "reach": 4
+      },
+      {
+        "x": 2977.7217948730467,
+        "y": 415.99180170898444,
+        "value": 904,
+        "reach": 4
+      },
+      {
+        "x": 2989.833608789062,
+        "y": 439.2949988098144,
+        "value": 902,
+        "reach": 4
+      },
+      {
+        "x": 2912.9805892578124,
+        "y": 468.7226003662108,
+        "value": 900,
+        "reach": 4
+      },
+      {
+        "x": 2968.6382000000003,
+        "y": 466.8167848632811,
+        "value": 898,
+        "reach": 4
+      },
+      {
+        "x": 2968.6382000000003,
+        "y": 466.8167848632811,
+        "value": 898,
+        "reach": 4
+      },
+      {
+        "x": 2959.7243902343753,
+        "y": 486.9563986572266,
+        "value": 896,
+        "reach": 4
+      },
+      {
+        "x": 2984.6274234374996,
+        "y": 500.088389013672,
+        "value": 894,
+        "reach": 4
+      },
+      {
+        "x": 2432.6074000915523,
+        "y": 827.0903998359681,
+        "value": 894,
+        "reach": 4
+      },
+      {
+        "x": 2025.8478000457762,
+        "y": 897.2343998912811,
+        "value": 896,
+        "reach": 4
+      },
+      {
+        "x": 1831.7981998474124,
+        "y": 1021.4128000036953,
+        "value": 898,
+        "reach": 4
+      },
+      {
+        "x": 1728.6829999771116,
+        "y": 1024.8836000686647,
+        "value": 898,
+        "reach": 4
+      },
+      {
+        "x": 1601.8867976196289,
+        "y": 973.98840100708,
+        "value": 898,
+        "reach": 4
+      },
+      {
+        "x": 1540.4450058593757,
+        "y": 897.5457997558592,
+        "value": 904,
+        "reach": 4
+      },
+      {
+        "x": 1600.0494180664064,
+        "y": 944.4938002441404,
+        "value": 900,
+        "reach": 4
+      },
+      {
+        "x": 1236.9453974365233,
+        "y": 980.4521990844728,
+        "value": 902,
+        "reach": 4
+      },
+      {
+        "x": 1216.8393984436034,
+        "y": 988.1061984130861,
+        "value": 902,
+        "reach": 4
+      },
+      {
+        "x": 1004.1069998397829,
+        "y": 1121.2278000054835,
+        "value": 904,
+        "reach": 4
+      },
+      {
+        "x": 764.1230148925783,
+        "y": 1114.287001098633,
+        "value": 906,
+        "reach": 4
+      }
+    ],
+    "units": "ft",
+    "labels": "elevation",
+    "interval": 2,
+    "width": 3660,
+    "height": 2040,
+    "sha256": "bd9774d3789faa0f9e883346ed9121bd9efb13040276184fb7672c4e31b1fd84",
+    "vectorDiagnostics": {
+      "paths": 137,
+      "chains": 50,
+      "labels": 83,
+      "labelled": 23,
+      "inferred": 1,
+      "unresolved": 26,
+      "labelDisagreements": 3,
+      "contradictoryRegions": 26,
+      "coverage": 0.6706101368751313
+    },
+    "url": "https://pubs.usgs.gov/sim/3486/sim3486_sheet03.pdf",
+    "qa": {
+      "sourceZipSha256": "0f83a2b96e34900114f27c78c96effe1a38ce4e1b79249dbb3822aa7fcf0d8d4",
+      "rawPoints": 7027909,
+      "qaPoints": 58397,
+      "crs": "EPSG:6344",
+      "medianLocation": [
+        39.870773208097766,
+        -94.38295815584745
+      ],
+      "bounds": [
+        -94.39326192952345,
+        39.86949266846413,
+        -94.38008222474757,
+        39.87319203378641
+      ],
+      "elevationRangeFt": [
+        888.309408,
+        902.088768
+      ],
+      "catalogUrl": "https://www.sciencebase.gov/catalog/item/5f6ba15c82ce38aaa2455fb9",
+      "url": "https://www.sciencebase.gov/catalog/file/get/5f6ba15c82ce38aaa2455fb9?f=__disk__61%2F51%2Ff1%2F6151f153cfa5b75711e83848aea13fe87c95f6ed"
+    },
+    "outlineProvenance": {
+      "retrieved": "2026-09-23",
+      "service": "https://topostack.app",
+      "fixture": "fixtures/willow-lake.json",
+      "provider": "OpenStreetMap contributors",
+      "attributionUrl": "https://www.openstreetmap.org/copyright",
+      "role": "Frozen map lookup input; not independent survey shoreline truth."
+    }
+  },
+  {
+    "id": "viking",
+    "name": "Lake Viking",
+    "url": "https://pubs.usgs.gov/sim/3486/sim3486_sheet07.pdf",
+    "sha256": "e345ee6736011a9475bc4d24c8b5dc55e5c33ed87fdc2ae59eb6ea5157a1fc65",
+    "cropPagePoints": [
+      1260,
+      280,
+      2380,
+      1620
+    ],
+    "renderDpi": 144,
+    "units": "ft",
+    "labels": "elevation",
+    "surface": 863.8,
+    "interval": 5,
+    "location": [
+      39.925,
+      -94.073
+    ],
+    "vectorDiagnostics": {
+      "paths": 124,
+      "chains": 21,
+      "labels": 38,
+      "labelled": 15,
+      "inferred": 4,
+      "unresolved": 2,
+      "labelDisagreements": 1,
+      "contradictoryRegions": 662,
+      "coverage": 0.9986969709362018
+    },
+    "sourceLakeLabels": [
+      {
+        "x": 2103.3083,
+        "y": 529.7936993133544,
+        "value": 805,
+        "label": "805"
+      },
+      {
+        "x": 2006.8751998836517,
+        "y": 683.0245001049043,
+        "value": 815,
+        "label": "815"
+      },
+      {
+        "x": 2009.9347988708496,
+        "y": 695.1027026855468,
+        "value": 810,
+        "label": "810"
+      },
+      {
+        "x": 2008.846299970913,
+        "y": 734.4693999992846,
+        "value": 840,
+        "label": "840"
+      },
+      {
+        "x": 1972.3470999866486,
+        "y": 800.7731999828338,
+        "value": 820,
+        "label": "820"
+      },
+      {
+        "x": 1979.8643999532699,
+        "y": 803.4505990692137,
+        "value": 815,
+        "label": "815"
+      },
+      {
+        "x": 1956.5181998168946,
+        "y": 972.4086037841798,
+        "value": 825,
+        "label": "825"
+      },
+      {
+        "x": 1882.0776000610351,
+        "y": 963.3314000133514,
+        "value": 830,
+        "label": "830"
+      },
+      {
+        "x": 1846.314198779297,
+        "y": 1242.946698840332,
+        "value": 840,
+        "label": "840"
+      },
+      {
+        "x": 1779.480594140625,
+        "y": 994.32849810791,
+        "value": 835,
+        "label": "835"
+      },
+      {
+        "x": 1760.4582977416992,
+        "y": 1253.9660022583007,
+        "value": 845,
+        "label": "845"
+      },
+      {
+        "x": 1684.341699967575,
+        "y": 1316.4882999998808,
+        "value": 850,
+        "label": "850"
+      },
+      {
+        "x": 1626.114099824524,
+        "y": 1396.487100717163,
+        "value": 855,
+        "label": "855"
+      },
+      {
+        "x": 1527.0180999694824,
+        "y": 1461.5113008239746,
+        "value": 860,
+        "label": "860"
+      },
+      {
+        "x": 1567.15040390625,
+        "y": 1081.56590100708,
+        "value": 850,
+        "label": "850"
+      },
+      {
+        "x": 2083.8012016479493,
+        "y": 817.8677102539064,
+        "value": 830,
+        "label": "830"
+      },
+      {
+        "x": 2218.8808998550417,
+        "y": 901.0152102539064,
+        "value": 850,
+        "label": "850"
+      },
+      {
+        "x": 1928.7861946289063,
+        "y": 539.502700946045,
+        "value": 830,
+        "label": "830"
+      },
+      {
+        "x": 1875.3841000019074,
+        "y": 609.1449020141604,
+        "value": 850,
+        "label": "850"
+      },
+      {
+        "x": 2060.7777999980926,
+        "y": 567.2626999997615,
+        "value": 810,
+        "label": "810"
+      },
+      {
+        "x": 2126.28710100708,
+        "y": 527.483400038147,
+        "value": 810,
+        "label": "810"
+      }
+    ],
+    "area": [
+      1260,
+      280,
+      2380,
+      1620
+    ],
+    "width": 2240,
+    "height": 2680,
+    "marks": [
+      {
+        "x": 1686.6166000000003,
+        "y": 499.5873986267088,
+        "value": 805,
+        "reach": 4
+      },
+      {
+        "x": 1493.7503997673034,
+        "y": 806.0490002098086,
+        "value": 815,
+        "reach": 4
+      },
+      {
+        "x": 1499.8695977416992,
+        "y": 830.2054053710935,
+        "value": 810,
+        "reach": 4
+      },
+      {
+        "x": 1497.6925999418258,
+        "y": 908.9387999985693,
+        "value": 840,
+        "reach": 4
+      },
+      {
+        "x": 1424.6941999732971,
+        "y": 1041.5463999656677,
+        "value": 820,
+        "reach": 4
+      },
+      {
+        "x": 1439.7287999065397,
+        "y": 1046.9011981384274,
+        "value": 815,
+        "reach": 4
+      },
+      {
+        "x": 1393.0363996337892,
+        "y": 1384.8172075683597,
+        "value": 825,
+        "reach": 4
+      },
+      {
+        "x": 1244.1552001220703,
+        "y": 1366.6628000267028,
+        "value": 830,
+        "reach": 4
+      },
+      {
+        "x": 1172.6283975585939,
+        "y": 1925.8933976806638,
+        "value": 840,
+        "reach": 4
+      },
+      {
+        "x": 1038.96118828125,
+        "y": 1428.65699621582,
+        "value": 835,
+        "reach": 4
+      },
+      {
+        "x": 1000.9165954833984,
+        "y": 1947.9320045166014,
+        "value": 845,
+        "reach": 4
+      },
+      {
+        "x": 848.6833999351502,
+        "y": 2072.9765999997617,
+        "value": 850,
+        "reach": 4
+      },
+      {
+        "x": 732.2281996490478,
+        "y": 2232.974201434326,
+        "value": 855,
+        "reach": 4
+      },
+      {
+        "x": 534.0361999389647,
+        "y": 2363.022601647949,
+        "value": 860,
+        "reach": 4
+      },
+      {
+        "x": 614.3008078124999,
+        "y": 1603.1318020141598,
+        "value": 850,
+        "reach": 4
+      },
+      {
+        "x": 1647.6024032958985,
+        "y": 1075.7354205078127,
+        "value": 830,
+        "reach": 4
+      },
+      {
+        "x": 1917.7617997100833,
+        "y": 1242.0304205078128,
+        "value": 850,
+        "reach": 4
+      },
+      {
+        "x": 1337.5723892578126,
+        "y": 519.00540189209,
+        "value": 830,
+        "reach": 4
+      },
+      {
+        "x": 1230.7682000038149,
+        "y": 658.2898040283208,
+        "value": 850,
+        "reach": 4
+      },
+      {
+        "x": 1601.5555999961853,
+        "y": 574.525399999523,
+        "value": 810,
+        "reach": 4
+      },
+      {
+        "x": 1732.5742020141597,
+        "y": 494.966800076294,
+        "value": 810,
+        "reach": 4
+      }
+    ],
+    "qa": {
+      "sourceZipSha256": "233e74deaeb9e9dc039371f9ae34a333b20aee47b251af8bc75cabbffbc56848",
+      "rawPoints": 7379809,
+      "qaPoints": 52620,
+      "crs": "EPSG:6344",
+      "medianLocation": [
+        39.92955694115314,
+        -94.0634712346162
+      ],
+      "bounds": [
+        -94.06865853925405,
+        39.92073720464806,
+        -94.05690730002375,
+        39.93724062795186
+      ],
+      "elevationRangeFt": [
+        803.008608,
+        852.614304
+      ],
+      "catalogUrl": "https://www.sciencebase.gov/catalog/item/5f6cb4c382ce38aaa2476366",
+      "url": "https://www.sciencebase.gov/catalog/file/get/5f6cb4c382ce38aaa2476366?f=__disk__f0%2F50%2F6b%2Ff0506bb85df6fd767e227c2701845886c9e10c23"
+    },
+    "outlineProvenance": {
+      "retrieved": "2026-09-23",
+      "service": "https://topostack.app",
+      "fixture": "fixtures/viking-lake.json",
+      "provider": "HydroLAKES",
+      "attributionUrl": "https://www.hydrosheds.org/products/hydrolakes",
+      "role": "Frozen map lookup input; not independent survey shoreline truth."
+    }
+  },
+  {
+    "id": "king-city",
+    "name": "King City South Lake",
+    "url": "https://pubs.usgs.gov/sim/3486/sim3486_sheet02.pdf",
+    "sha256": "fa79e13715a4037bd4a3b412676363c1e451a377eac01d958dbe417d400ec5c6",
+    "cropPagePoints": [
+      1045,
+      210,
+      2235,
+      1600
+    ],
+    "renderDpi": 144,
+    "units": "ft",
+    "labels": "elevation",
+    "surface": 1028.5,
+    "interval": 2,
+    "location": [
+      40.04144,
+      -94.5007
+    ],
+    "vectorDiagnostics": {
+      "paths": 40,
+      "chains": 11,
+      "labels": 33,
+      "labelled": 10,
+      "inferred": 1,
+      "unresolved": 0,
+      "labelDisagreements": 0,
+      "contradictoryRegions": 12,
+      "coverage": 1
+    },
+    "sourceLakeLabels": [
+      {
+        "x": 1609.7041993896485,
+        "y": 899.2748012512207,
+        "value": 1020,
+        "label": "1,020"
+      },
+      {
+        "x": 1480.737299938965,
+        "y": 782.9340000877382,
+        "value": 1022,
+        "label": "1,022"
+      },
+      {
+        "x": 1406.7406000610351,
+        "y": 667.9628999934434,
+        "value": 1024,
+        "label": "1,024"
+      },
+      {
+        "x": 1353.8406873046874,
+        "y": 578.239789501953,
+        "value": 1026,
+        "label": "1,026"
+      },
+      {
+        "x": 1713.0077,
+        "y": 1056.8926000000001,
+        "value": 1018,
+        "label": "1,018"
+      },
+      {
+        "x": 1781.245799900818,
+        "y": 1133.3421003509523,
+        "value": 1016,
+        "label": "1,016"
+      },
+      {
+        "x": 1781.245799900818,
+        "y": 1133.3421003509523,
+        "value": 1016,
+        "label": "1,016"
+      },
+      {
+        "x": 1984.9534002746582,
+        "y": 1337.6591974975586,
+        "value": 1014,
+        "label": "1,014"
+      },
+      {
+        "x": 1984.9534002746582,
+        "y": 1337.6591974975586,
+        "value": 1014,
+        "label": "1,014"
+      },
+      {
+        "x": 1288.6077000071525,
+        "y": 433.1527998970032,
+        "value": 1028,
+        "label": "1,028"
+      }
+    ],
+    "area": [
+      1045,
+      210,
+      2235,
+      1600
+    ],
+    "width": 2380,
+    "height": 2780,
+    "marks": [
+      {
+        "x": 1129.408398779297,
+        "y": 1378.5496025024413,
+        "value": 1020,
+        "reach": 4
+      },
+      {
+        "x": 871.4745998779299,
+        "y": 1145.8680001754765,
+        "value": 1022,
+        "reach": 4
+      },
+      {
+        "x": 723.4812001220703,
+        "y": 915.9257999868869,
+        "value": 1024,
+        "reach": 4
+      },
+      {
+        "x": 617.6813746093749,
+        "y": 736.4795790039061,
+        "value": 1026,
+        "reach": 4
+      },
+      {
+        "x": 1336.0154000000002,
+        "y": 1693.7852000000003,
+        "value": 1018,
+        "reach": 4
+      },
+      {
+        "x": 1472.4915998016359,
+        "y": 1846.6842007019045,
+        "value": 1016,
+        "reach": 4
+      },
+      {
+        "x": 1472.4915998016359,
+        "y": 1846.6842007019045,
+        "value": 1016,
+        "reach": 4
+      },
+      {
+        "x": 1879.9068005493164,
+        "y": 2255.318394995117,
+        "value": 1014,
+        "reach": 4
+      },
+      {
+        "x": 1879.9068005493164,
+        "y": 2255.318394995117,
+        "value": 1014,
+        "reach": 4
+      },
+      {
+        "x": 487.21540001430503,
+        "y": 446.3055997940064,
+        "value": 1028,
+        "reach": 4
+      }
+    ],
+    "qa": {
+      "sourceZipSha256": "02f542477b8f79c02042dff31090c95bae1f2f4fc07e98662ac0ece1b2ab4ac8",
+      "rawPoints": 1242378,
+      "qaPoints": 25782,
+      "crs": "EPSG:6344",
+      "medianLocation": [
+        40.04141122469774,
+        -94.50067041165573
+      ],
+      "bounds": [
+        -94.50190062800128,
+        40.04097343817722,
+        -94.49918785571546,
+        40.04199937494774
+      ],
+      "elevationRangeFt": [
+        1014.75144,
+        1022.264472
+      ],
+      "catalogUrl": "https://www.sciencebase.gov/catalog/item/5f6b9ce482ce38aaa24556f7",
+      "url": "https://www.sciencebase.gov/catalog/file/get/5f6b9ce482ce38aaa24556f7?f=__disk__7c%2F3e%2Fb2%2F7c3eb21a26b48117a94c3eb688bc9e9490864b68"
+    },
+    "outlineProvenance": {
+      "retrieved": "2026-09-23",
+      "service": "https://topostack.app",
+      "fixture": "fixtures/king-city-lake.json",
+      "provider": "OpenStreetMap contributors",
+      "attributionUrl": "https://www.openstreetmap.org/copyright",
+      "role": "Frozen map lookup input; not independent survey shoreline truth."
+    }
+  }
+]

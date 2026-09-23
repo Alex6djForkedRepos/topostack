@@ -6,11 +6,12 @@
   import { assembleWater, boundsForProject, loadLakeAreas, loadSurveyedLakeDepths, loadTerrain, loadVectorMarkings, type PlaceResult } from "$lib/domain/data-provider";
   import { applySurveyProvenance } from "$lib/domain/bathymetry";
   import { resolveLakeOutlines } from "$lib/domain/lake-outlines";
+  import { CustomDataActions } from "$lib/studio/customdata/custom-data-actions.svelte";
   import { theme } from "$lib/site/theme";
   import { trackUsage } from "$lib/site/usage";
   import { createSamplePreviewSource } from "$lib/domain/sample-preview";
   import { exportBlockReason } from "@topostack/core";
-  import { loadProject, parseProject, saveProject } from "$lib/storage/storage";
+  import { loadProject, parseProject, saveProject, saveProjectUnloadCopy } from "$lib/storage/storage";
   import { connectAtomm } from "$lib/atomm/atomm-bridge";
   import type { DownloadOption } from "$lib/studio/native-export";
   import { downloadProject as downloadWithNotice, ExportNotice } from "$lib/studio/export-notice";
@@ -24,7 +25,7 @@
   import * as edits from "$lib/studio/project-edits";
   import { isAbortError, PreviewPipeline } from "$lib/studio/preview-pipeline";
   import { LazyComponent } from "$lib/studio/lazy-component";
-  import { availablePlaceables, hiddenMarkingPrefixes, placementPatch, PLACEABLES, type PlaceableId, type PlacementSession } from "$lib/studio/placement/placeables";
+  import { addGraphicToSession, canPlace, draftProject, graphicPlaceableId, hiddenMarkingPrefixes, placeableFor, placementPatch, type PlaceableId, type PlacementSession } from "$lib/studio/placement/placeables";
   import { placementMarginMm } from "$lib/studio/placement/viewport";
   import { createProjectPreviewSource } from "$lib/studio/project-preview";
   import { restoreStartupProject } from "$lib/studio/startup-restore";
@@ -35,6 +36,7 @@
   import { changedProjectKeys, projectPatch } from "$lib/studio/project-patch";
   import type { SourcePreparationCache } from "$lib/studio/source-refresh";
   import { generationStatus, generationToast, previewPendingStatus, previewUpdatedStatus, type PreviewUpdateKind } from "$lib/studio/status-messages";
+  import { nav } from "$lib/studio/customdata/custom-data-nav.svelte";
   import { provideStudio, type PlacementPhase, type GenerateState, type LineWidthKey, type PreviewMode } from "$lib/studio/studio-context";
   import ProjectControls from "$lib/studio/panels/ProjectControls.svelte";
   import StudioMenu from "$lib/studio/panels/StudioMenu.svelte";
@@ -51,6 +53,8 @@
 
   const MENU_STATE_KEY = "topostack-menu-sections-v1";
   const MAX_PROJECT_FILE_BYTES = 2_000_000;
+  /** A project file carrying traced depth charts is mostly their depth grids. */
+  const MAX_PROJECT_BUNDLE_BYTES = 24_000_000;
   function previewFor(config: ProjectConfigV1, source: SourceBundleV1): GeometryIRV1 {
     const result = generateGeometry(config, source);
     addPreviewWarning(result, source);
@@ -85,9 +89,15 @@
   let explodedDrag = $state.raw<number | undefined>(undefined);
   let searchOpen = $state(false);
   let mapAspectLocked = $state(false);
-  /** Map clicks place markers while on; any other preview mode ends it. */
-  let placingMarker = $state(false);
-  $effect(() => { if (mode !== "map") placingMarker = false; });
+  // Placing markers, drawing paths, names and depth charts: the maker's own data.
+  const customData = new CustomDataActions({
+    project: () => project,
+    replaceProject: (next) => { project = next; },
+    recordHistory: (from, keys) => projectHistory.record(from, keys),
+    updateFabrication: (patch) => updateFabrication(patch),
+    setStatus: (message) => { status = message; },
+  });
+  $effect(() => { customData.disarmOutside(mode, nav.section); });
   let locationTrigger: HTMLButtonElement;
   let lineworkOpen = $state(false);
   let menuStateReady = $state(false);
@@ -150,7 +160,18 @@
   const placementStage = new LazyComponent(() => import("$lib/studio/placement/PlacementStage.svelte"), (error) => {
     console.error("TopoStack could not load placement mode.", error); placement = undefined; status = "Placement could not load · reload to update TopoStack";
   });
+  const customDataView = new LazyComponent(() => import("$lib/studio/customdata/CustomDataView.svelte"), (error) => {
+    console.error("TopoStack could not load the custom data view.", error);
+    if (mode === "custom") { mode = project.outputMode === "engraving" ? "engraving" : threeUnavailable ? "2d" : "3d"; previewNotice = "Custom data could not load · reload to update TopoStack"; }
+  });
+  // The custom data sidebar carries every tool for tracing a chart, so it is
+  // loaded with that view rather than waited for on the studio's first paint.
+  const customDataNav = new LazyComponent(() => import("$lib/studio/customdata/CustomDataNav.svelte"), (error) => {
+    console.error("TopoStack could not load the custom data controls.", error);
+  });
   const LocationDialog = $derived(locationDialog.component);
+  const CustomDataView = $derived(customDataView.component);
+  const CustomDataNav = $derived(customDataNav.component);
   const MapCanvas = $derived(mapCanvas.component);
   const EngravingPreview = $derived(engravingPreview.component);
   const TwoDPreview = $derived(twoDPreview.component);
@@ -179,16 +200,33 @@
   const placementMargin = $derived(placementMarginMm(geometry.widthMm, geometry.heightMm));
   const placementHiddenPrefixes = $derived(placement ? hiddenMarkingPrefixes(project) : []);
   function startPlacement(id: PlaceableId): void {
-    if (!PLACEABLES[id].available(project)) return;
     if (placement) {
       // A second Move button while placing only switches the selection.
-      if (placementPhase === "editing") placement = { ...placement, selected: id };
+      if (placementPhase === "editing" && placeableFor(id).available(draftProject(project, placement))) placement = { ...placement, selected: id };
       return;
     }
-    placement = { selected: id, draft: {} };
+    if (!placeableFor(id).available(project)) return;
+    openPlacement({ selected: id, draft: {} });
+  }
+  function openPlacement(session: PlacementSession): void {
+    placement = session;
     placementPhase = "editing";
     placementStage.load();
     pulsePlacementFade();
+  }
+  /** Adds a use of an uploaded graphic to the piece as a draft, opening placement mode on it. */
+  function placeGraphic(graphicId: string): void {
+    if (placement && placementPhase !== "editing") return;
+    const next = addGraphicToSession(project, placement, graphicId, crypto.randomUUID());
+    if (!next) { status = "The piece already holds as many graphics as it can. Remove one before adding another."; return; }
+    if (placement) placement = next;
+    else openPlacement(next);
+  }
+  /** Opens placement on the first placed graphic, or places the first uploaded one. */
+  function placeGraphics(): void {
+    const first = project.placedGraphics?.find((placed) => placeableFor(graphicPlaceableId(placed.id)).available(project));
+    if (first) startPlacement(graphicPlaceableId(first.id));
+    else if (project.customGraphics?.[0]) placeGraphic(project.customGraphics[0].id);
   }
   function closePlacement(): void {
     const closingSession = placement;
@@ -211,14 +249,14 @@
   function cancelPlacement(): void {
     if (placement && placementPhase === "editing") closePlacement();
   }
-  // Turning every placeable off leaves nothing to place.
+  // Turning every placeable off, with no graphic left to add, leaves nothing to place.
   $effect(() => {
-    if (placement && !availablePlaceables(project).length) untrack(cancelPlacement);
+    if (placement && !canPlace(draftProject(project, placement))) untrack(cancelPlacement);
   });
 
   $effect(() => {
     const outputMode = project.outputMode;
-    if (outputMode === "engraving" && mode !== "map" && mode !== "engraving") mode = "engraving";
+    if (outputMode === "engraving" && mode !== "map" && mode !== "engraving" && mode !== "custom") mode = "engraving";
     else if (outputMode === "stack" && mode === "engraving") mode = threeUnavailable ? "2d" : "3d";
   });
 
@@ -232,7 +270,15 @@
   // no fallback view, so they wait for the Retry button instead of looping.
   $effect(() => {
     if (searchOpen) locationDialog.load();
-    if (mode === "map") mapCanvas.load();
+    if (mode === "custom") { customDataView.load(); customDataNav.load(); }
+    // Markers, paths and imported files are placed on the same map as map view.
+    if (mode === "map" || (mode === "custom" && nav.section !== "graphics")) mapCanvas.load();
+    // Graphics are shown on the piece, in the view the output uses.
+    else if (mode === "custom" && nav.section === "graphics") {
+      if (project.outputMode === "engraving") engravingPreview.ensure();
+      else if (threeUnavailable) twoDPreview.ensure();
+      else threePreview.load();
+    }
     else if (mode === "engraving") engravingPreview.ensure();
     else if (mode === "2d") twoDPreview.ensure();
     else if (mode === "3d") threePreview.load();
@@ -331,10 +377,7 @@
     return updateFabrication({ lineStyle: { ...project.lineStyle, [key]: storedLength(shown) } });
   }
 
-  /** Apply a marker or path edit from `project-edits`; `undefined` means the edit was rejected. */
-  function applyCustomDataEdit(patch: Partial<ProjectConfigV1> | undefined): void {
-    if (patch) void updateFabrication(patch);
-  }
+  const applyCustomDataEdit = (patch: Partial<ProjectConfigV1> | undefined) => customData.applyEdit(patch);
 
   function trailPatternDash(style: LineStyleV1): string | undefined {
     if (style.trailPattern === "solid") return undefined;
@@ -361,8 +404,11 @@
     openSections = { ...openSections, [section]: !openSections[section] };
   }
 
+  /** Sidebar sections on screen: markers and paths live in the custom data view outside the Atomm embed. */
+  const shownSections = $derived(embeddedInPlatform ? CONFIG_SECTION_IDS : CONFIG_SECTION_IDS.filter((section) => section !== "customData"));
+
   function setAllSections(open: boolean): void {
-    openSections = Object.fromEntries(CONFIG_SECTION_IDS.map((section) => [section, open])) as Record<ConfigSectionId, boolean>;
+    openSections = { ...openSections, ...Object.fromEntries(shownSections.map((section) => [section, open])) };
   }
 
   function sectionSummary(section: ConfigSectionId): string {
@@ -445,12 +491,18 @@
     try { localStorage.setItem(MENU_STATE_KEY, JSON.stringify(current)); } catch { /* Preferences are optional. */ }
   });
 
+  /**
+   * Never persist a project that would fail validation on the next load —
+   * parse failures there would silently reset the user to the default project.
+   */
+  function canPersist(current: ProjectConfigV1): boolean {
+    try { validateProject(current); } catch { return false; }
+    return Number.isFinite(current.explodedPreview) && current.explodedPreview >= 0 && current.explodedPreview <= 1;
+  }
+
   /** Persist one snapshot, unless it could not be read back. */
   function persistProject(current: ProjectConfigV1): void {
-    // Never persist a project that would fail validation on the next load —
-    // parse failures there would silently reset the user to the default project.
-    try { validateProject(current); } catch { return; }
-    if (!Number.isFinite(current.explodedPreview) || current.explodedPreview < 0 || current.explodedPreview > 1) return;
+    if (!canPersist(current)) return;
     void saveProject(current).catch(() => status = "Local save is unavailable in this browser");
   }
 
@@ -461,21 +513,31 @@
     let timeout = 0;
     const write = () => { if (written) return; written = true; window.clearTimeout(timeout); persistProject(current); };
     timeout = window.setTimeout(write, 450);
-    // A closing, reloading or backgrounded tab gets this snapshot now: the
-    // debounce lost whatever was edited in its last 450 ms, because unmount
-    // only cleared the timer. `pagehide` covers close, reload and back/forward
-    // cache; `visibilitychange` covers a mobile tab switch that never unloads.
-    const onHidden = () => { if (document.hidden) write(); };
-    window.addEventListener("pagehide", write);
+    // A closing, reloading or backgrounded tab must keep this snapshot, but an
+    // unloading page abandons IndexedDB transactions it starts (an edit then
+    // an immediate reload was lost every time), and can abandon one the
+    // debounce started moments earlier. So the snapshot also goes to
+    // localStorage synchronously, even when the debounced write already ran;
+    // `loadProject` prefers that copy while it is newer. `pagehide` covers
+    // close, reload and back/forward cache; `visibilitychange` covers a mobile
+    // tab switch that never unloads, where the IndexedDB write does finish.
+    const flush = () => {
+      if (canPersist(current)) saveProjectUnloadCopy(current);
+      write();
+    };
+    const onHidden = () => { if (document.hidden) flush(); };
+    window.addEventListener("pagehide", flush);
     document.addEventListener("visibilitychange", onHidden);
     return () => {
       window.clearTimeout(timeout);
-      window.removeEventListener("pagehide", write);
+      window.removeEventListener("pagehide", flush);
       document.removeEventListener("visibilitychange", onHidden);
     };
   });
 
   const COSMETIC_KEYS: ReadonlySet<string> = new Set(["name", "explodedPreview"]);
+  /** Keys whose edits refresh the preview as custom data rather than a fabrication change. */
+  const CUSTOM_DATA_KEYS: ReadonlySet<string> = new Set(["markers", "markerIcons", "customLines", "customGraphics", "placedGraphics"]);
   // Stroke and text styling never changes the terrain request, so a running
   // Generate keeps going and re-renders with the latest style when it finishes.
   const GENERATION_STYLE_KEYS: ReadonlySet<string> = new Set(["lineStyle", "textStyle"]);
@@ -545,7 +607,7 @@
     project = { ...project, location: { ...project.location, ...patch, ...(("lat" in patch || "lon" in patch || "zoom" in patch) && !("bounds" in patch) ? { bounds: undefined } : {}) } };
     status = "Map area changed · regenerate terrain data";
   }
-  function closeLocationDialog(): void {
+    function closeLocationDialog(): void {
     searchOpen = false;
     window.requestAnimationFrame(() => locationTrigger?.focus());
   }
@@ -580,7 +642,7 @@
     status = `${action} applied`;
     // A cosmetic change leaves any pending refresh to finish on its own.
     if (keepsWork || !sourceChanged.some((key) => !COSMETIC_KEYS.has(key))) return;
-    const kind: PreviewUpdateKind = sourceChanged.some((key) => key.startsWith("show")) ? "details" : sourceChanged.every((key) => key === "markers" || key === "customLines") ? "customData" : "fabrication";
+    const kind: PreviewUpdateKind = sourceChanged.some((key) => key.startsWith("show")) ? "details" : sourceChanged.every((key) => CUSTOM_DATA_KEYS.has(key)) ? "customData" : "fabrication";
     void refreshPreview(kind, 0);
   }
   function resetProject(): void {
@@ -665,7 +727,7 @@
   }
 
   function updateFabrication(patch: Partial<ProjectConfigV1>, delayMs = PREVIEW_REFRESH_DELAY_MS): Promise<void> {
-    const updatesCustomData = patch.markers !== undefined || patch.customLines !== undefined;
+    const updatesCustomData = patch.markers !== undefined || patch.customLines !== undefined || "customGraphics" in patch || "placedGraphics" in patch;
     const nextWidth = patch.widthMm ?? project.widthMm;
     const nextHeight = patch.heightMm ?? project.heightMm;
     const maximumNorthArrowSize = edits.northArrowMaximumMm(nextWidth, nextHeight);
@@ -679,6 +741,15 @@
   }
 
   async function generate(): Promise<void> {
+    // A chart saved again since a lake took it (a project imported with a newer
+    // copy) carves as it is now, so the project says so before it is built:
+    // otherwise the design's fingerprint would name content that was not carved.
+    // This is bookkeeping, not an edit, so it is not an undo step.
+    if (project.userDepthCharts) {
+      const { currentChartReferences } = await import("$lib/storage/user-charts");
+      const current = await currentChartReferences(project.userDepthCharts);
+      if (current !== project.userDepthCharts) project = { ...project, userDepthCharts: current };
+    }
     invalidatePendingPreview();
     const revision = pipeline.revision;
     const controller = new AbortController(); generationAbort = controller;
@@ -707,13 +778,18 @@
       }
       if (loaded.fallback) next.warnings.push({ code: "DATA_FALLBACK", message: `The map service was unavailable, so this preview uses deterministic sample terrain.${loaded.fallbackReason ? ` (${loaded.fallbackReason})` : ""}` });
       if (loaded.waterWarning) next.warnings.push({ code: "LAKE_DATA_UNAVAILABLE", message: `Water outlines could not be applied, so the terrain has no water adjustment. (${loaded.waterWarning})` });
+      for (const lake of loaded.missingCharts ?? []) next.warnings.push({ code: "BATHYMETRY_FALLBACK", message: `The depth chart for ${lake} is unavailable or has not completed contour review, so it is carved without it. Import a reviewed project file or recreate the chart from its source.` });
       // Cosmetic edits deliberately do not cancel expensive terrain work. Merge
       // their latest values instead of replacing them with the request snapshot.
-      const completedProject = { ...builtProject, name: project.name, explodedPreview: project.explodedPreview };
+      // Names are bookkeeping and do not cancel a run either; keep the ones typed meanwhile.
+      const completedProject = { ...builtProject, name: project.name, explodedPreview: project.explodedPreview, markers: edits.withLiveNames(builtProject.markers, project.markers), customLines: edits.withLiveNames(builtProject.customLines, project.customLines) };
       const completedGeometry = { ...next, projectName: completedProject.name };
       dismissedWarnings = [];
       void sourcePreparation?.then((cache) => cache.clear(), () => undefined);
-      geometry = completedGeometry; project = completedProject; activeSource = loaded.source; sourceProject = completedProject; selectedLayer = featuredLayerIndex(completedGeometry); mode = completedProject.outputMode === "engraving" ? "engraving" : threeUnavailable ? "2d" : "3d"; generationState = "ready";
+      geometry = completedGeometry; project = completedProject; activeSource = loaded.source; sourceProject = completedProject; selectedLayer = featuredLayerIndex(completedGeometry);
+      // Show the result, unless the maker is at work in the custom data view.
+      if (mode !== "custom") mode = completedProject.outputMode === "engraving" ? "engraving" : threeUnavailable ? "2d" : "3d";
+      generationState = "ready";
       trackUsage(exportBlockReason(completedGeometry, completedProject) ? "generation_failed" : "generation_succeeded", completedProject.outputMode);
       const outcome = {
         fallback: loaded.fallback, fallbackReason: loaded.fallbackReason, waterWarning: loaded.waterWarning,
@@ -750,8 +826,19 @@
     if (!file) return;
     // A rejected file leaves a running Generate alone: report it on the status line only.
     const reportImportError = (message: string) => { status = message; if (generationState !== "loading") generationState = "error"; };
-    if (file.size > MAX_PROJECT_FILE_BYTES) { reportImportError("Project file must be 2 MB or smaller."); return; }
-    try { const parsed: unknown = JSON.parse(await file.text()); const candidate = parsed && typeof parsed === "object" && "project" in parsed ? (parsed as { project: unknown }).project : parsed; const imported = parseProject(candidate); const source = createProjectPreviewSource(imported); invalidatePendingPreview(); projectHistory.push(project); dismissedWarnings = []; replaceSourceProject(imported, source); generationState = "ready"; status = "Project imported · generate to refresh its terrain"; }
+    if (file.size > MAX_PROJECT_BUNDLE_BYTES) { reportImportError("Project file must be 24 MB or smaller."); return; }
+    try {
+      const parsed: unknown = JSON.parse(await file.text());
+      const envelope = parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : undefined;
+      const charts = envelope && Array.isArray(envelope.charts) ? envelope.charts : [];
+      // Only a file carrying traced depth charts may be large; everything else keeps the old ceiling.
+      if (!charts.length && file.size > MAX_PROJECT_FILE_BYTES) { reportImportError("Project file must be 2 MB or smaller."); return; }
+      const candidate = envelope && "project" in envelope ? envelope.project : parsed;
+      const imported = parseProject(candidate);
+      const saved = charts.length ? await (await import("$lib/storage/user-charts")).saveProjectCharts(charts, imported) : { saved: 0, skipped: 0 };
+      const source = createProjectPreviewSource(imported); invalidatePendingPreview(); projectHistory.push(project); dismissedWarnings = []; replaceSourceProject(imported, source); generationState = "ready";
+      status = saved.saved ? `Project imported with ${saved.saved === 1 ? "its depth chart" : `${saved.saved} depth charts`} · generate to refresh its terrain` : "Project imported · generate to refresh its terrain";
+    }
     catch (error) { reportImportError(error instanceof Error ? error.message : "Could not import this project."); }
   }
 
@@ -828,6 +915,9 @@
     get engravingPreview() { return engravingPreview; },
     get twoDPreview() { return twoDPreview; },
     get PlacementStage() { return PlacementStage; },
+    get CustomDataView() { return CustomDataView; },
+    get customDataView() { return customDataView; },
+    get mapCanvas() { return mapCanvas; },
     get placement() { return placement; },
     set placement(value) { placement = value; },
     get placementBackdrop() { return placementBackdrop; },
@@ -854,13 +944,23 @@
     set resetOpen(value) { resetOpen = value; },
     get mapAspectLocked() { return mapAspectLocked; },
     set mapAspectLocked(value) { mapAspectLocked = value; },
-    get placingMarker() { return placingMarker; },
-    set placingMarker(value) { placingMarker = value; },
+    get placingMarker() { return customData.placingMarker; },
+    set placingMarker(value) { customData.setPlacingMarker(value); },
+    get lineDraft() { return customData.lineDraft; },
     get lineworkOpen() { return lineworkOpen; },
     set lineworkOpen(value) { lineworkOpen = value; },
     get locationTrigger() { return locationTrigger; },
     set locationTrigger(value) { locationTrigger = value; },
-    shownLength, shownDepth, shownLineWidth, shownTextSize, storedLength, workAreaLength, updateProject, updateFabrication, updateMapDetails, updateLocation, updateVerticalExaggeration, updateDepthLayerLimit, setLakeDepth, setLineWidth, applyCustomDataEdit, choosePlace, startPlacement, commitPlacement, cancelPlacement, undo, redo, importProject, copyShareLink, importCustomData, generate, cancelGeneration, toggleSection, setAllSections, sectionSummary, navigateChoice, dismissPreviewWarning, previewMarkingPath, trailPatternDash, getFeedbackContext,
+    shownLength, shownDepth, shownLineWidth, shownTextSize, storedLength, workAreaLength, updateProject, updateFabrication, updateMapDetails, updateLocation, updateVerticalExaggeration, updateDepthLayerLimit, setLakeDepth, setLineWidth, applyCustomDataEdit,
+    renameCustomData: (patch) => customData.rename(patch),
+    startLineDraft: () => customData.startLineDraft(),
+    extendLineDraft: (point) => customData.extendLineDraft(point),
+    commitLineDraft: (closed) => customData.commitLineDraft(closed),
+    cancelLineDraft: () => customData.cancelLineDraft(),
+    saveChartToLibrary: (record) => customData.saveChartToLibrary(record),
+    useChartForLake: (key, reference) => customData.useChartForLake(key, reference),
+    clearDepthChart: (key) => customData.clearDepthChart(key),
+    importMarkerIcon: (file, markerId) => customData.importMarkerIcon(file, markerId), importGraphic: (file) => customData.importGraphic(file), choosePlace, startPlacement, placeGraphic, placeGraphics, commitPlacement, cancelPlacement, undo, redo, importProject, copyShareLink, importCustomData, generate, cancelGeneration, toggleSection, setAllSections, sectionSummary, navigateChoice, dismissPreviewWarning, previewMarkingPath, trailPatternDash, getFeedbackContext,
   });
 </script>
 
@@ -879,8 +979,8 @@
 {#if embeddedInPlatform}
   {#if AtommWorkbench}<AtommWorkbench ready={atommReady} blockedReason={exportBlockedBy} preparing={exportPhase === "preparing"} {exportPhase} {exportTitle} {exportDetail}>
     {#snippet leadHeader()}<ProjectControls />{/snippet}
-    {#snippet lead()}<OutputSwitch /><SetupSection /><CustomDataSection />{/snippet}
-    {#snippet generate()}<GenerationDock />{/snippet}
+    {#snippet lead()}<OutputSwitch />{#if mode === "custom"}{#if CustomDataNav}<CustomDataNav />{:else if customDataNav.failed}<p class="panel-loading" role="alert">Custom data tools could not load. <button type="button" class="btn btn-secondary" onclick={() => customDataNav.load()}>Retry</button></p>{:else}<p class="panel-loading" role="status">Loading custom data tools…</p>{/if}{:else}<SetupSection /><CustomDataSection />{/if}{/snippet}
+    {#snippet generate()}{#if mode !== "custom"}<GenerationDock />{/if}{/snippet}
     {#snippet parameterHeader()}
       <UnitSwitch />
       <button type="button" class="btn btn-secondary" onclick={() => void updateFabrication({ ...DEFAULT_PROJECT, id: project.id, name: project.name, location: project.location, outputMode: project.outputMode })}>Reset</button>
@@ -916,20 +1016,32 @@
     {#snippet sidebar()}
     <Sidebar class="config-panel">
       <div class="panel-scroll">
-        <div class="panel-intro">
-          <span class="section-kicker panel-eyebrow">Project controls</span>
-          <h1>{project.outputMode === "engraving" ? "Draw the landscape." : "Build the landscape."}</h1>
-          <p>Work through the essentials, then open details only when you need them.</p>
-          <div class="section-tools" aria-label="Section display controls">
-            <button type="button" onclick={() => setAllSections(true)} disabled={CONFIG_SECTION_IDS.every((section) => openSections[section])}>Expand all</button>
-            <button type="button" onclick={() => setAllSections(false)} disabled={CONFIG_SECTION_IDS.every((section) => !openSections[section])}>Collapse all</button>
+        {#if mode === "custom"}
+          <!-- The custom data view is its own job. The project's size, terrain
+               and linework controls have nothing to say about tracing a chart,
+               so the sidebar becomes a menu over what that view shows. -->
+          <div class="panel-intro">
+            <span class="section-kicker panel-eyebrow">Custom data</span>
+            <h1>Bring your own data.</h1>
+            <p>Charts you trace, points you place, routes you import. Markers and paths join the project as you add them; a chart carves a lake only when you say so.</p>
           </div>
-        </div>
-        <SetupSection />
+          {#if CustomDataNav}<CustomDataNav />{:else if customDataNav.failed}<p class="panel-loading" role="alert">Custom data tools could not load. <button type="button" class="btn btn-secondary" onclick={() => customDataNav.load()}>Retry</button></p>{:else}<p class="panel-loading" role="status">Loading custom data tools…</p>{/if}
+        {:else}
+          <div class="panel-intro">
+            <span class="section-kicker panel-eyebrow">Project controls</span>
+            <h1>{project.outputMode === "engraving" ? "Draw the landscape." : "Build the landscape."}</h1>
+            <p>Work through the essentials, then open details only when you need them.</p>
+            <div class="section-tools" aria-label="Section display controls">
+              <button type="button" onclick={() => setAllSections(true)} disabled={shownSections.every((section) => openSections[section])}>Expand all</button>
+              <button type="button" onclick={() => setAllSections(false)} disabled={shownSections.every((section) => !openSections[section])}>Collapse all</button>
+            </div>
+          </div>
+          <SetupSection />
 
-        <ParameterSections />
+          <ParameterSections />
+        {/if}
       </div>
-      <GenerationDock />
+      {#if mode !== "custom"}<GenerationDock />{/if}
     </Sidebar>
     {/snippet}
 

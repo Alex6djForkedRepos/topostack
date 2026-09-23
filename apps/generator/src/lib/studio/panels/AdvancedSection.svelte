@@ -12,7 +12,7 @@
 
 <Section class="config-section advanced-section" aria-labelledby="atomm-advanced-title">
   <button type="button" class="section-disclosure" id="atomm-advanced-title" aria-expanded={studio.openSections.advanced} aria-controls="section-advanced" onclick={() => toggleSection("advanced")}>
-    <span class="section-number">08</span>
+    <span class="section-number">07</span>
     <span class="section-title">{studio.project.outputMode === "engraving" ? "Artwork settings" : "Fabrication settings"}<small>{sectionSummary("advanced")}</small></span>
     <ChevronDown size={16} class={studio.openSections.advanced ? "kicker-chevron kicker-chevron--open" : "kicker-chevron"} />
   </button>

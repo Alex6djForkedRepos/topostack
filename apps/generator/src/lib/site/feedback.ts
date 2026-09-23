@@ -1,4 +1,5 @@
 import type { ProjectConfigV1, SourceBundleV1, GeometryIRV1 } from '@topostack/core';
+import type { FeedbackKind, FeedbackSubmission } from '@topostack/data-contracts/feedback';
 
 export const ISSUE_TRACKER = 'https://github.com/Echo-Foxtrot-Works/topostack/issues';
 export const FEEDBACK_TYPES = {
@@ -6,8 +7,8 @@ export const FEEDBACK_TYPES = {
   feature: { label: 'Feature request', prefix: 'Feature', hint: 'What would you like to do, and how would it help your workflow?' },
   terrain: { label: 'Terrain data quality', prefix: 'Terrain data', hint: 'Where is the terrain coarse, missing, or inaccurate? Include a better elevation source if you know one.' },
   lake: { label: 'Lake data quality', prefix: 'Lake data', hint: 'Which lake has coarse, missing, or inaccurate outlines or depths? Include a survey or source link if you know one.' },
-} as const;
-export type FeedbackType = keyof typeof FEEDBACK_TYPES;
+} as const satisfies Record<FeedbackKind, { label: string; prefix: string; hint: string }>;
+export type FeedbackType = FeedbackKind;
 export type FeedbackContext = Record<string, unknown>;
 
 /** Explicit allowlist: never include project names, custom geometry, URL queries, or raw grids. */
@@ -25,7 +26,7 @@ export function studioFeedbackContext(project: ProjectConfigV1, source: SourceBu
 }
 
 export function feedbackReport(type: FeedbackType, details: string, context?: FeedbackContext): string {
-  return `## ${FEEDBACK_TYPES[type].prefix}\n\n${details.trim()}${context ? `\n\n## Diagnostic context (shared by reporter)\n\n\`\`\`json\n${JSON.stringify(context, null, 2)}\n\`\`\`` : ''}\n\n---\nCreated with TopoStack feedback. Screenshots or project settings can be attached on GitHub after checking for private information.`;
+  return `## ${FEEDBACK_TYPES[type].prefix}\n\n${details.trim()}${context ? `\n\n## Diagnostic context (shared by reporter)\n\n\`\`\`json\n${JSON.stringify(context, null, 2)}\n\`\`\`` : ''}\n\n---\nCreated with TopoStack feedback.`;
 }
 
 export function feedbackLink(type: FeedbackType, summary: string, body: string): { url: string; needsPaste: boolean } {
@@ -36,4 +37,15 @@ export function feedbackLink(type: FeedbackType, summary: string, body: string):
   const needsPaste = url.href.length > 7000;
   if (needsPaste) url.searchParams.delete('body');
   return { url: url.href, needsPaste };
+}
+
+export type FeedbackResult = 'sent' | 'rate-limited' | 'failed';
+
+/** Emails the report through the app's own Worker; no account needed. */
+export async function sendFeedback(submission: FeedbackSubmission, fetcher: typeof fetch = fetch): Promise<FeedbackResult> {
+  try {
+    const response = await fetcher('/v1/feedback', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(submission), credentials: 'omit', referrerPolicy: 'no-referrer' });
+    if (response.ok) return 'sent';
+    return response.status === 429 ? 'rate-limited' : 'failed';
+  } catch { return 'failed'; }
 }

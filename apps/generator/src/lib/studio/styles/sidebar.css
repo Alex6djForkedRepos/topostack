@@ -279,3 +279,20 @@
 .detail-group + .detail-group {
   margin-top: var(--panel-space-3);
 }
+
+/* The custom data sections carry an icon beside the disclosure's number,
+   because their names ("Markers", "Import") are shorter than the project's
+   and the view they open is a different kind of work. */
+.section-icon {
+  display: flex;
+  flex: 0 0 auto;
+  color: var(--loidolt-text-muted);
+}
+
+/* While the custom data tools are still being fetched. */
+.panel-loading {
+  margin: 0;
+  padding: 12px 20px;
+  color: var(--loidolt-text-muted);
+  font-size: var(--panel-font-caption);
+}

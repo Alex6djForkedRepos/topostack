@@ -1,4 +1,4 @@
-import { DEFAULT_PROJECT, FONT_CATALOG, markerSymbolPaths, northArrowMarkings, type CustomLineKind, type LineStyleV1, type MarkerSymbol, type NorthArrowStyle, type OperationPath, type Point2D, type RoadCap, type RoadStyle, type FontCatalogEntry, type FontKind, type TrailPattern, type WaterFillPattern } from "@topostack/core";
+import { DEFAULT_PROJECT, FONT_CATALOG, markerSymbolPaths, northArrowMarkings, type CustomLineKind, type LineStyleV1, type BuiltInMarkerSymbol, type NorthArrowStyle, type OperationPath, type Point2D, type RoadCap, type RoadStyle, type FontCatalogEntry, type FontKind, type TrailPattern, type WaterFillPattern } from "@topostack/core";
 import type { PlaceResult } from "$lib/domain/data-provider";
 
 /** Fixed choices for the studio controls. */
@@ -10,8 +10,11 @@ export const PRESETS: PlaceResult[] = [
 ];
 export const UNIT_OPTIONS = [{ value: "metric", label: "Metric" }, { value: "imperial", label: "Imperial" }];
 export const SHAPE_OPTIONS = [{ value: "rectangle", label: "Rectangle" }, { value: "circle", label: "Circle" }];
-export const STACK_MODE_OPTIONS = [{ value: "map", label: "Map" }, { value: "2d", label: "Cut layers" }, { value: "3d", label: "3D stack" }];
-export const ENGRAVING_MODE_OPTIONS = [{ value: "map", label: "Map" }, { value: "engraving", label: "Engraving" }];
+// "Custom data" is the workspace for data the maker brings: depth charts
+// today, and the markers and paths that still live in the sidebar later. It is
+// absent from engraving output, which carries no lake bed to replace.
+export const STACK_MODE_OPTIONS = [{ value: "map", label: "Map" }, { value: "2d", label: "Cut layers" }, { value: "3d", label: "3D stack" }, { value: "custom", label: "Custom data" }];
+export const ENGRAVING_MODE_OPTIONS = [{ value: "map", label: "Map" }, { value: "engraving", label: "Engraving" }, { value: "custom", label: "Custom data" }];
 /** The engraving fonts, grouped by how a laser runs them. */
 export const FONT_GROUPS: Array<{ kind: FontKind; label: string; hint: string; fonts: FontCatalogEntry[] }> = ([
   { kind: "bitmap", label: "Built-in", hint: "Compact capitals drawn as short strokes." },
@@ -31,7 +34,7 @@ const NORTH_ARROW_CHOICES: Array<{ value: NorthArrowStyle; label: string }> = [
   { value: "minimal", label: "Minimal" }, { value: "classic", label: "Classic" }, { value: "mariner", label: "Mariner" },
 ];
 export const NORTH_ARROW_OPTIONS: Array<{ value: NorthArrowStyle; label: string; markings: OperationPath[] }> = NORTH_ARROW_CHOICES.map((option) => ({ ...option, markings: northArrowMarkings({ ...DEFAULT_PROJECT, northArrowStyle: option.value, northArrowSizeMm: 100, northArrowPlacement: { anchor: "center", offset: { x: 0, y: 0 } } }) }));
-export const MARKER_OPTIONS: Array<{ value: MarkerSymbol; label: string; paths: Point2D[][] }> = [
+export const MARKER_OPTIONS: Array<{ value: BuiltInMarkerSymbol; label: string; paths: Point2D[][] }> = [
   { value: "pin", label: "Pin", paths: markerSymbolPaths("pin", { x: 0, y: 0 }, 20) },
   { value: "circle", label: "Circle", paths: markerSymbolPaths("circle", { x: 0, y: 0 }, 20) },
   { value: "triangle", label: "Triangle", paths: markerSymbolPaths("triangle", { x: 0, y: 0 }, 20) },

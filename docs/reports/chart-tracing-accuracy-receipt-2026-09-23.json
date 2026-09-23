@@ -1,0 +1,599 @@
+{
+  "date": "2026-09-23",
+  "reproduction": "All 25 scores exactly equal after rerendering pinned PDFs and rerunning 20 engine variants. Four browser records reused from earlier UI stress run; curated vector record pre-existing.",
+  "qaPoints": 170163,
+  "traces": [
+    {
+      "id": "hamilton-original",
+      "lake": "hamilton",
+      "seconds": 1.91634375,
+      "report": {
+        "publishable": true,
+        "georefRmsM": 75.53,
+        "contours": 82,
+        "contourPoints": 1711,
+        "waterCells": 674,
+        "deepestM": 3.7,
+        "grid": {
+          "width": 50,
+          "height": 53,
+          "resolutionM": 20.00000002
+        },
+        "coverage": 0.594,
+        "labelled": 11,
+        "inferred": 71,
+        "iou": 0.501,
+        "snapUncertain": true,
+        "placements": 1,
+        "placement": 0,
+        "ambiguous": false
+      }
+    },
+    {
+      "id": "hamilton-low-resolution",
+      "lake": "hamilton",
+      "seconds": 0.942473917,
+      "report": {
+        "publishable": true,
+        "georefRmsM": 64.29,
+        "contours": 180,
+        "contourPoints": 3029,
+        "waterCells": 674,
+        "deepestM": 2.5,
+        "grid": {
+          "width": 50,
+          "height": 53,
+          "resolutionM": 20.00000002
+        },
+        "coverage": 0.807,
+        "labelled": 9,
+        "inferred": 171,
+        "iou": 0.61,
+        "snapUncertain": true,
+        "placements": 1,
+        "placement": 0,
+        "ambiguous": false
+      }
+    },
+    {
+      "id": "hamilton-jpeg-40",
+      "lake": "hamilton",
+      "seconds": 1.777467792,
+      "report": {
+        "publishable": true,
+        "georefRmsM": 76.29,
+        "contours": 93,
+        "contourPoints": 11184,
+        "waterCells": 674,
+        "deepestM": 3.7,
+        "grid": {
+          "width": 50,
+          "height": 53,
+          "resolutionM": 20.00000002
+        },
+        "coverage": 0.651,
+        "labelled": 11,
+        "inferred": 82,
+        "iou": 0.588,
+        "snapUncertain": true,
+        "placements": 1,
+        "placement": 0,
+        "ambiguous": false
+      }
+    },
+    {
+      "id": "hamilton-blur-1px",
+      "lake": "hamilton",
+      "seconds": 1.737161583,
+      "report": {
+        "publishable": true,
+        "georefRmsM": 70.7,
+        "contours": 120,
+        "contourPoints": 2378,
+        "waterCells": 674,
+        "deepestM": 6.2,
+        "grid": {
+          "width": 50,
+          "height": 53,
+          "resolutionM": 20.00000002
+        },
+        "coverage": 0.658,
+        "labelled": 11,
+        "inferred": 109,
+        "iou": 0.589,
+        "snapUncertain": true,
+        "placements": 1,
+        "placement": 0,
+        "ambiguous": false
+      }
+    },
+    {
+      "id": "hamilton-rotated-7deg",
+      "lake": "hamilton",
+      "seconds": 1.6647913330000002,
+      "report": {
+        "publishable": true,
+        "georefRmsM": 36.87,
+        "contours": 256,
+        "contourPoints": 4083,
+        "waterCells": 674,
+        "deepestM": 4.3,
+        "grid": {
+          "width": 50,
+          "height": 53,
+          "resolutionM": 20.00000002
+        },
+        "coverage": 0.836,
+        "labelled": 11,
+        "inferred": 245,
+        "iou": 0.677,
+        "snapUncertain": true,
+        "placements": 1,
+        "placement": 0,
+        "ambiguous": false
+      }
+    },
+    {
+      "id": "willow-original",
+      "lake": "willow",
+      "seconds": 1.4201067909999991,
+      "report": {
+        "publishable": true,
+        "georefRmsM": 60.34,
+        "contours": 4,
+        "contourPoints": 223,
+        "waterCells": 1407,
+        "deepestM": 5.5,
+        "grid": {
+          "width": 115,
+          "height": 45,
+          "resolutionM": 20.00000002
+        },
+        "coverage": 0.055,
+        "labelled": 4,
+        "inferred": 0,
+        "iou": 0.591,
+        "snapUncertain": true,
+        "placements": 1,
+        "placement": 0,
+        "ambiguous": false
+      }
+    },
+    {
+      "id": "willow-low-resolution",
+      "lake": "willow",
+      "seconds": 0.912890292,
+      "report": {
+        "publishable": true,
+        "georefRmsM": 59.65,
+        "contours": 130,
+        "contourPoints": 1327,
+        "waterCells": 1407,
+        "deepestM": 2.4,
+        "grid": {
+          "width": 115,
+          "height": 45,
+          "resolutionM": 20.00000002
+        },
+        "coverage": 0.563,
+        "labelled": 10,
+        "inferred": 120,
+        "iou": 0.647,
+        "snapUncertain": true,
+        "placements": 1,
+        "placement": 0,
+        "ambiguous": false
+      }
+    },
+    {
+      "id": "willow-jpeg-40",
+      "lake": "willow",
+      "seconds": 1.2862615839999998,
+      "report": {
+        "publishable": true,
+        "georefRmsM": 62.11,
+        "contours": 4,
+        "contourPoints": 305,
+        "waterCells": 1407,
+        "deepestM": 5.5,
+        "grid": {
+          "width": 115,
+          "height": 45,
+          "resolutionM": 20.00000002
+        },
+        "coverage": 0.074,
+        "labelled": 4,
+        "inferred": 0,
+        "iou": 0.621,
+        "snapUncertain": true,
+        "placements": 1,
+        "placement": 0,
+        "ambiguous": false
+      }
+    },
+    {
+      "id": "willow-blur-1px",
+      "lake": "willow",
+      "seconds": 1.3705427500000005,
+      "report": {
+        "publishable": true,
+        "georefRmsM": 70.38,
+        "contours": 289,
+        "contourPoints": 4584,
+        "waterCells": 1407,
+        "deepestM": 7.3,
+        "grid": {
+          "width": 115,
+          "height": 45,
+          "resolutionM": 20.00000002
+        },
+        "coverage": 0.681,
+        "labelled": 14,
+        "inferred": 275,
+        "iou": 0.57,
+        "snapUncertain": true,
+        "placements": 1,
+        "placement": 0,
+        "ambiguous": false
+      }
+    },
+    {
+      "id": "willow-rotated-7deg",
+      "lake": "willow",
+      "seconds": 1.3785902920000008,
+      "report": {
+        "publishable": true,
+        "georefRmsM": 70.9,
+        "contours": 5,
+        "contourPoints": 66,
+        "waterCells": 1407,
+        "deepestM": 2.7,
+        "grid": {
+          "width": 115,
+          "height": 45,
+          "resolutionM": 20.00000002
+        },
+        "coverage": 0.032,
+        "labelled": 5,
+        "inferred": 0,
+        "iou": 0.555,
+        "snapUncertain": true,
+        "placements": 1,
+        "placement": 0,
+        "ambiguous": false
+      }
+    },
+    {
+      "id": "viking-original",
+      "lake": "viking",
+      "seconds": 2.4861014170000018,
+      "report": {
+        "publishable": true,
+        "georefRmsM": 174.99,
+        "contours": 889,
+        "contourPoints": 20027,
+        "waterCells": 4433,
+        "deepestM": 26.3,
+        "grid": {
+          "width": 130,
+          "height": 170,
+          "resolutionM": 20.00000002
+        },
+        "coverage": 0.663,
+        "labelled": 20,
+        "inferred": 869,
+        "iou": 0.498,
+        "snapUncertain": true,
+        "placements": 1,
+        "placement": 0,
+        "ambiguous": false
+      }
+    },
+    {
+      "id": "viking-low-resolution",
+      "lake": "viking",
+      "seconds": 1.0950767500000003,
+      "report": {
+        "publishable": true,
+        "georefRmsM": 228.03,
+        "contours": 456,
+        "contourPoints": 3472,
+        "waterCells": 4433,
+        "deepestM": 17.9,
+        "grid": {
+          "width": 130,
+          "height": 170,
+          "resolutionM": 20.00000002
+        },
+        "coverage": 0.556,
+        "labelled": 20,
+        "inferred": 436,
+        "iou": 0.412,
+        "snapUncertain": true,
+        "placements": 1,
+        "placement": 0,
+        "ambiguous": false
+      }
+    },
+    {
+      "id": "viking-jpeg-40",
+      "lake": "viking",
+      "seconds": 2.546473582999999,
+      "report": {
+        "publishable": true,
+        "georefRmsM": 243.74,
+        "contours": 791,
+        "contourPoints": 16746,
+        "waterCells": 4433,
+        "deepestM": 22.5,
+        "grid": {
+          "width": 130,
+          "height": 170,
+          "resolutionM": 20.00000002
+        },
+        "coverage": 0.607,
+        "labelled": 20,
+        "inferred": 771,
+        "iou": 0.298,
+        "snapUncertain": true,
+        "placements": 1,
+        "placement": 0,
+        "ambiguous": false
+      }
+    },
+    {
+      "id": "viking-blur-1px",
+      "lake": "viking",
+      "seconds": 2.360481082999999,
+      "report": {
+        "publishable": true,
+        "georefRmsM": 206.15,
+        "contours": 961,
+        "contourPoints": 15671,
+        "waterCells": 4433,
+        "deepestM": 16.4,
+        "grid": {
+          "width": 130,
+          "height": 170,
+          "resolutionM": 20.00000002
+        },
+        "coverage": 0.693,
+        "labelled": 20,
+        "inferred": 941,
+        "iou": 0.392,
+        "snapUncertain": true,
+        "placements": 1,
+        "placement": 0,
+        "ambiguous": false
+      }
+    },
+    {
+      "id": "viking-rotated-7deg",
+      "lake": "viking",
+      "seconds": 2.399573042,
+      "report": {
+        "publishable": true,
+        "georefRmsM": 192.85,
+        "contours": 825,
+        "contourPoints": 14804,
+        "waterCells": 4433,
+        "deepestM": 16.4,
+        "grid": {
+          "width": 130,
+          "height": 170,
+          "resolutionM": 20.00000002
+        },
+        "coverage": 0.652,
+        "labelled": 20,
+        "inferred": 805,
+        "iou": 0.425,
+        "snapUncertain": true,
+        "placements": 1,
+        "placement": 0,
+        "ambiguous": false
+      }
+    },
+    {
+      "id": "king-city-original",
+      "lake": "king-city",
+      "seconds": 1.7241589159999966,
+      "report": {
+        "publishable": true,
+        "georefRmsM": 32.91,
+        "contours": 117,
+        "contourPoints": 14494,
+        "waterCells": 296,
+        "deepestM": 0.2,
+        "grid": {
+          "width": 26,
+          "height": 32,
+          "resolutionM": 20.00000002
+        },
+        "coverage": 0.694,
+        "labelled": 8,
+        "inferred": 109,
+        "iou": 0.597,
+        "snapUncertain": true,
+        "placements": 1,
+        "placement": 0,
+        "ambiguous": false
+      }
+    },
+    {
+      "id": "king-city-low-resolution",
+      "lake": "king-city",
+      "seconds": 0.9455801250000004,
+      "report": {
+        "publishable": true,
+        "georefRmsM": 33.48,
+        "contours": 123,
+        "contourPoints": 2810,
+        "waterCells": 296,
+        "deepestM": 6.6,
+        "grid": {
+          "width": 26,
+          "height": 32,
+          "resolutionM": 20.00000002
+        },
+        "coverage": 0.697,
+        "labelled": 6,
+        "inferred": 117,
+        "iou": 0.526,
+        "snapUncertain": true,
+        "placements": 1,
+        "placement": 0,
+        "ambiguous": false
+      }
+    },
+    {
+      "id": "king-city-jpeg-40",
+      "lake": "king-city",
+      "seconds": 1.7605422499999985,
+      "report": {
+        "publishable": true,
+        "georefRmsM": 31.21,
+        "contours": 182,
+        "contourPoints": 15001,
+        "waterCells": 296,
+        "deepestM": 0.8,
+        "grid": {
+          "width": 26,
+          "height": 32,
+          "resolutionM": 20.00000002
+        },
+        "coverage": 0.762,
+        "labelled": 8,
+        "inferred": 174,
+        "iou": 0.651,
+        "snapUncertain": true,
+        "placements": 1,
+        "placement": 0,
+        "ambiguous": false
+      }
+    },
+    {
+      "id": "king-city-blur-1px",
+      "lake": "king-city",
+      "seconds": 1.600295708999998,
+      "report": {
+        "publishable": true,
+        "georefRmsM": 31.92,
+        "contours": 110,
+        "contourPoints": 1175,
+        "waterCells": 296,
+        "deepestM": 4.4,
+        "grid": {
+          "width": 26,
+          "height": 32,
+          "resolutionM": 20.00000002
+        },
+        "coverage": 0.639,
+        "labelled": 8,
+        "inferred": 102,
+        "iou": 0.509,
+        "snapUncertain": true,
+        "placements": 1,
+        "placement": 0,
+        "ambiguous": false
+      }
+    },
+    {
+      "id": "king-city-rotated-7deg",
+      "lake": "king-city",
+      "seconds": 1.6681023339999992,
+      "report": {
+        "publishable": true,
+        "georefRmsM": 57.72,
+        "contours": 157,
+        "contourPoints": 11863,
+        "waterCells": 296,
+        "deepestM": 0.5,
+        "grid": {
+          "width": 26,
+          "height": 32,
+          "resolutionM": 20.00000002
+        },
+        "coverage": 0.686,
+        "labelled": 8,
+        "inferred": 149,
+        "iou": 0.366,
+        "snapUncertain": true,
+        "placements": 1,
+        "placement": 0,
+        "ambiguous": false
+      }
+    }
+  ],
+  "recordHashes": {
+    "viking-blur-1px-record.json": "b24a85bb48b40a3a8eecad15f7613affb462c327e3907bb6c6bbdf9dd98477d5",
+    "hamilton-blur-1px-record.json": "aba9233ac0122443b2c55b3ce801c14160c60644587bca6645bf9c3a51107838",
+    "hamilton-low-resolution-record.json": "70bf85f20ba50dd46755c20b1c2b9a87593cd77b544eeda9b1f26a47f3c394b3",
+    "willow-blur-1px-record.json": "c67d5ddd5713059ff3f3c41159dd0c38a5c6c7f319ec8945cf4c3926ab0f081c",
+    "viking-rotated-7deg-record.json": "dd7c980b2b5e828c8e86670cf079b618edb1fe3c3d8b4a12e1fc2692af7a9716",
+    "willow-low-resolution-record.json": "04114951d88d3901e9731b9db82c4cdac85ccc3e14833a4730d8fbd0c2a876c9",
+    "king-city-jpeg-40-record.json": "0a71caf938c8748f9cdfe25eac8952662a9b414eb1b574ff0db0a9b6cbe054ff",
+    "king-city-blur-1px-record.json": "dd18271854cb80ef07c15c01efc70dfbc3bbb3508da6c4ff0d39867f363d7005",
+    "hamilton-rotated-7deg-record.json": "0670b4b988ae7219af18b34a80b42e3a58589846c14f17a6f0d4f0999c984d56",
+    "viking-jpeg-40-record.json": "93f40365c43ecf6af94cafea4762bb0a10b8aeb2cf303dc5a44092a78afc4958",
+    "viking-low-resolution-record.json": "64263dd98e6e2b20bd9c684ca4436d9391cd43f15ec1f753aa77b3744d909258",
+    "willow-jpeg-40-record.json": "1261e504fafa9b45fc363abd96927bd630fa485e944e08f9bebebeb9ece8587e",
+    "king-city-low-resolution-record.json": "47ed739e6c94d414540a9a5ec992451f31e4eacb020562404439d8e525f432dc",
+    "king-city-original-record.json": "ba6838a66f62622917c756a7e4395f8242902c4a12153574da19945e37085cde",
+    "hamilton-original-record.json": "aba001b423b7dd141cc7c2baf6d07e91a3346622b6e449627f8a3f0523686b57",
+    "viking-original-record.json": "94bd66f2650f5eca347f54b824c4908424d6413714fefa34ee39a6fa2ae9af7a",
+    "willow-original-record.json": "1548e40f27bdd012e486c1fb32373b707da6da334c7a620ec1c95ba5fd0cb2cf",
+    "willow-rotated-7deg-record.json": "ae77637d8780401f4d6e389bac9543fa41c73664938e24c2798599f4ef071b45",
+    "hamilton-jpeg-40-record.json": "40866545b7e39c7276202f51d25394e003e82d131e8a94f9be1beb3026d2f7ec",
+    "king-city-rotated-7deg-record.json": "4511976e2934a06f476327303e12b223380a7d696ea8a5784ccbb54685ed14f8"
+  },
+  "preview": {
+    "result": [
+      {
+        "title": "Browser raster crop \u2014 inaccurate basin distribution",
+        "layers": 12,
+        "widthMm": 234.1179085951032,
+        "heightMm": 299.99999999999994,
+        "polygons": [
+          1,
+          1,
+          3,
+          3,
+          3,
+          5,
+          9,
+          15,
+          21,
+          30,
+          22,
+          23
+        ]
+      },
+      {
+        "title": "Curated vector + control points \u2014 stronger QA agreement",
+        "layers": 12,
+        "widthMm": 258.99583969890045,
+        "heightMm": 300,
+        "polygons": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          4,
+          9,
+          14,
+          21,
+          10
+        ]
+      }
+    ],
+    "failures": []
+  },
+  "images": {
+    "viking-fabrication-comparison.png": "b4071981fc105f03f307c7699eb62060308b5a6afba126e1dde320e4994eee72",
+    "viking-accuracy-comparison.png": "1b0e90c822b04d18e34c2a742ba875e06f1cae0e505aff10e4a0dde5f48336bf",
+    "raster-appearance-stress.png": "38d5e1a63b7d6b032c256930127fb4020a9bd71ba330d4568f9e7de801c4c3c0"
+  }
+}

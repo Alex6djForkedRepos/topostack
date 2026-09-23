@@ -25,7 +25,10 @@ vi.mock("$lib/atomm/atomm-bridge", () => ({ connectAtomm: vi.fn(() => () => unde
 vi.mock("$app/navigation", () => ({ replaceState: (url: URL) => window.history.replaceState(window.history.state, "", url) }));
 vi.mock("$lib/studio/ThreePreview.svelte", async () => ({ default: (await import("$lib/studio/TestPreview.svelte")).default }));
 
+import { PROJECT_UNLOAD_COPY_KEY } from "$lib/storage/storage";
 import App from "$lib/studio/App.svelte";
+import { nav } from "$lib/studio/customdata/custom-data-nav.svelte";
+import { resetDraft } from "$lib/studio/customdata/chart-draft.svelte";
 
 /** Opens a header menu if it is closed and returns the item whose text starts with `name`. */
 async function menuItem(target: HTMLElement, menu: string, name: string) {
@@ -35,6 +38,20 @@ async function menuItem(target: HTMLElement, menu: string, name: string) {
     await tick();
   }
   return [...target.querySelectorAll<HTMLElement>('[role="menu"] [role^="menuitem"]')].find((item) => item.textContent?.trim().startsWith(name))! as HTMLButtonElement;
+}
+
+/**
+ * Opens the custom data view, where markers, paths, file import and depth
+ * charts are edited. Every section's tools mount with the sidebar; `expand`
+ * names the one whose disclosure should also be opened.
+ */
+async function openCustomData(target: HTMLElement, expand?: string) {
+  [...target.querySelectorAll<HTMLButtonElement>('.mode-switch [role="radio"]')].find((button) => button.textContent?.includes("Custom data"))!.click();
+  await vi.waitFor(() => expect(target.querySelector(".custom-data-section")).not.toBeNull());
+  if (!expand) return;
+  const header = [...target.querySelectorAll<HTMLButtonElement>(".custom-data-section .section-disclosure")].find((button) => button.textContent?.includes(expand))!;
+  header.click();
+  await tick();
 }
 
 describe("TopoStack Svelte shell", () => {
@@ -67,7 +84,7 @@ describe("TopoStack Svelte shell", () => {
     } });
     await import("$lib/studio/ThreePreview.svelte");
   });
-  afterEach(async () => { if (component) await unmount(component); component = undefined; loadTerrainMock.mockReset(); loadVectorMarkingsMock.mockReset(); loadLakeAreasMock.mockReset(); Object.values(noaaArchive).forEach((mock) => mock.mockReset()); theme.preference = "system"; localStorage.removeItem("topostack-theme"); localStorage.removeItem("topostack-menu-sections-v1"); delete window.atomm; });
+  afterEach(async () => { if (component) await unmount(component); component = undefined; loadTerrainMock.mockReset(); loadVectorMarkingsMock.mockReset(); loadLakeAreasMock.mockReset(); Object.values(noaaArchive).forEach((mock) => mock.mockReset()); theme.preference = "system"; localStorage.removeItem("topostack-theme"); localStorage.removeItem("topostack-menu-sections-v1"); delete window.atomm; nav.section = "charts"; nav.expanded = true; resetDraft(); });
 
   it("title edits survive committing an open placement draft", async () => {
     const { saveProject } = await import("$lib/storage/storage");
@@ -93,6 +110,38 @@ describe("TopoStack Svelte shell", () => {
     window.dispatchEvent(new Event("pagehide"));
     expect(vi.mocked(saveProject).mock.lastCall![0].plaque?.text).toBe("Updated title");
   });
+  it("uploads a graphic, then places, turns and cuts it on the preview as one edit", async () => {
+    const { saveProject } = await import("$lib/storage/storage");
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await tick();
+    await openCustomData(target, "Graphics");
+    const input = target.querySelector<HTMLInputElement>("input[data-graphic-import]")!;
+    const file = new File([`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 10"><rect width="20" height="10"/></svg>`], "badge.svg", { type: "image/svg+xml" });
+    Object.defineProperty(input, "files", { value: [file], configurable: true });
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    await vi.waitFor(() => expect(target.querySelector('[aria-label="Uploaded graphics"]')?.textContent).toBeDefined());
+    await vi.waitFor(() => expect(target.querySelector<HTMLInputElement>('[aria-label="Name for graphic badge"]')).not.toBeNull());
+    [...target.querySelectorAll<HTMLButtonElement>(".graphic-place")].find((button) => button.textContent?.includes("Place"))!.click();
+    await vi.waitFor(() => expect(target.querySelector('[data-placeable^="graphic:"]')).not.toBeNull(), { timeout: 5_000 });
+    // Nothing is saved until Done.
+    window.dispatchEvent(new Event("pagehide"));
+    expect(vi.mocked(saveProject).mock.lastCall![0].placedGraphics).toBeUndefined();
+    const handle = target.querySelector('[data-placeable^="graphic:"]')!;
+    handle.dispatchEvent(new KeyboardEvent("keydown", { key: "]", bubbles: true }));
+    await tick();
+    expect(target.querySelector(".placement-toolbar")?.textContent).toContain("15°");
+    [...target.querySelectorAll<HTMLButtonElement>('.placement-operation [role="radio"]')].find((button) => button.textContent === "Cut")!.click();
+    await tick();
+    expect(target.querySelector(".placement-cut-draft")).not.toBeNull();
+    [...target.querySelectorAll<HTMLButtonElement>(".placement-toolbar button")].find((button) => button.textContent?.trim() === "Done")!.click();
+    await vi.waitFor(() => expect(target.querySelector("[data-placement-layer]")).toBeNull(), { timeout: 6_000 });
+    window.dispatchEvent(new Event("pagehide"));
+    const saved = vi.mocked(saveProject).mock.lastCall![0];
+    expect(saved.placedGraphics).toEqual([expect.objectContaining({ graphicId: saved.customGraphics![0]!.id, rotationDeg: 15, operation: "cut" })]);
+    expect(target.querySelector('[aria-label="Graphics on the piece"]')?.textContent).toContain("15°");
+  });
+
   it("toolbar undo is paused during placement", async () => {
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
@@ -191,6 +240,9 @@ describe("TopoStack Svelte shell", () => {
     vi.mocked(saveProject).mockClear();
     window.dispatchEvent(new Event("pagehide"));
     expect(saveProject).toHaveBeenLastCalledWith(DEFAULT_PROJECT);
+    // The unloading page may abandon that IndexedDB write, so a synchronous copy lands too.
+    expect(JSON.parse(localStorage.getItem(PROJECT_UNLOAD_COPY_KEY)!).value).toEqual(DEFAULT_PROJECT);
+    localStorage.removeItem(PROJECT_UNLOAD_COPY_KEY);
     expect(target.textContent).not.toContain("Sample terrain generated");
   });
 
@@ -867,7 +919,7 @@ describe("TopoStack Svelte shell", () => {
     await tick();
 
     const sections = [...target.querySelectorAll<HTMLButtonElement>(".section-disclosure")];
-    expect(sections).toHaveLength(7);
+    expect(sections).toHaveLength(6);
     expect(sections[0]?.getAttribute("aria-expanded")).toBe("true");
     expect(sections.slice(1).every((section) => section.getAttribute("aria-expanded") === "false")).toBe(true);
     expect(target.querySelector<HTMLElement>("#section-size")?.hidden).toBe(true);
@@ -1452,6 +1504,7 @@ describe("TopoStack Svelte shell", () => {
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
     await vi.waitFor(() => expect(saveProject).toHaveBeenCalled(), { timeout: 2_000 });
+    await openCustomData(target, "Import");
     const { lat, lon } = DEFAULT_PROJECT.location;
     const gpx = `<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1"><wpt lat="${lat}" lon="${lon}"/><trk><trkseg><trkpt lat="${lat}" lon="${lon}"/><trkpt lat="${lat + 0.01}" lon="${lon + 0.01}"/><trkpt lat="${lat + 0.02}" lon="${lon}"/></trkseg></trk></gpx>`;
     const input = target.querySelector<HTMLInputElement>("input[data-custom-import]")!;
@@ -1472,21 +1525,77 @@ describe("TopoStack Svelte shell", () => {
     await vi.waitFor(() => expect(target.textContent).toContain("This GPX file is not valid XML."));
   });
 
-  it("opens the map to place markers and ends placement when the map cannot be shown", async () => {
+  it("places markers on the custom data view's own map, and ends placement when that map cannot be shown", async () => {
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await tick();
+    await openCustomData(target, "Markers");
     const place = () => [...target.querySelectorAll<HTMLButtonElement>(".marker-add-button")].find((button) => button.title === "Click the map to place markers")!;
     await vi.waitFor(() => expect(place()).toBeDefined());
     expect(place().getAttribute("aria-pressed")).toBe("false");
     place().click();
     await tick();
-    expect(place().getAttribute("aria-pressed")).toBe("true");
-    expect(place().textContent).toContain("Done placing");
-    expect(target.querySelector('.mode-switch [aria-checked="true"]')?.textContent).toContain("Map");
-    // jsdom has no WebGL, so the map falls back to another preview, and a
-    // placement mode with no map to click must not stay on.
-    await vi.waitFor(() => expect(target.querySelector('.mode-switch [aria-checked="true"]')?.textContent).not.toContain("Map"));
+    // Earlier map loading can report unavailable before this click.
+    // Only the final disarmed state matters when WebGL is unavailable.
+    // Placing no longer leaves this view: its viewport shows the same map.
+    expect(target.querySelector('.mode-switch [aria-checked="true"]')?.textContent).toContain("Custom data");
+    // jsdom has no WebGL, so the map says so, and a placement mode with no map
+    // to click must not stay on.
+    await vi.waitFor(() => expect(target.textContent).toContain("The map is unavailable in this browser"));
     await vi.waitFor(() => expect(place().getAttribute("aria-pressed")).toBe("false"));
+    expect(target.querySelector('.mode-switch [aria-checked="true"]')?.textContent).toContain("Custom data");
+  });
+
+  it("swaps the sidebar for the custom data sections and opens one at a time", async () => {
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await tick();
+    await openCustomData(target);
+    // The project's size, terrain and linework controls say nothing about a
+    // chart or a marker, so they give way entirely while this view is open.
+    expect(target.querySelector("#section-size")).toBeNull();
+    const headers = () => [...target.querySelectorAll<HTMLButtonElement>(".custom-data-section .section-disclosure")];
+    expect(headers().map((header) => header.querySelector(".section-title")!.textContent)).toEqual([
+      "Depth chartsTrace a printed chart",
+      "MarkersNone yet",
+      "Trails & boundariesNone yet",
+      "GraphicsLogos and artwork",
+      "ImportGPX, KML or GeoJSON",
+    ]);
+    // Depth charts opens first, and its tools are in the sidebar beside the
+    // chart the viewport shows.
+    expect(headers()[0]!.getAttribute("aria-expanded")).toBe("true");
+    expect(target.querySelector<HTMLElement>("#custom-data-charts")?.hidden).toBe(false);
+    expect(target.querySelector("#custom-data-charts")?.textContent).toContain("Search a lake or nearby town");
+    expect(target.querySelector(".chart-lake-map")?.textContent).toContain("Choose the lake your chart shows");
+    expect(target.querySelector(".generate-dock")).toBeNull();
+
+    // The active section can close without switching or unmounting the workspace.
+    const chartStage = target.querySelector(".chart-lake-map");
+    headers()[0]!.click();
+    await tick();
+    expect(headers().every((header) => header.getAttribute("aria-expanded") === "false")).toBe(true);
+    expect(target.querySelector<HTMLElement>("#custom-data-charts")?.hidden).toBe(true);
+    expect(target.querySelector(".chart-lake-map")).toBe(chartStage);
+    headers()[0]!.click();
+    await tick();
+    expect(headers()[0]!.getAttribute("aria-expanded")).toBe("true");
+
+    // Every data type supports open → close → reopen, including switching from closed.
+    for (const header of headers().slice(1)) {
+      header.click();
+      await tick();
+      expect(header.getAttribute("aria-expanded")).toBe("true");
+      header.click();
+      await tick();
+      expect(headers().every((item) => item.getAttribute("aria-expanded") === "false")).toBe(true);
+      expect(target.querySelector<HTMLElement>(`#${header.getAttribute("aria-controls")}`)?.hidden).toBe(true);
+    }
+    headers()[4]!.click();
+    await tick();
+    expect(headers()[0]!.getAttribute("aria-expanded")).toBe("false");
+    expect(target.querySelector<HTMLElement>("#custom-data-import")?.hidden).toBe(false);
+    expect(target.querySelector(".chart-lake-map"), "the map takes the viewport for anything placed on it").toBeNull();
   });
 
   it("adds, edits, symbolizes, and removes an arbitrary marker list", async () => {
@@ -1496,6 +1605,7 @@ describe("TopoStack Svelte shell", () => {
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
     // Wait for startup restore to enable autosave before editing the marker.
     await vi.waitFor(() => expect(saveProject).toHaveBeenCalled(), { timeout: 2_000 });
+    await openCustomData(target, "Markers");
 
     [...target.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes("Add marker"))!.click();
     await vi.waitFor(() => expect(target.querySelectorAll(".marker-card")).toHaveLength(1));
@@ -1522,11 +1632,57 @@ describe("TopoStack Svelte shell", () => {
     await vi.waitFor(() => expect(target.querySelector<HTMLElement>(".preview-stage")?.dataset.markerMarkings).toBe("0"));
   });
 
+  it("names a marker and a path, and keeps the name out of the export fingerprint", async () => {
+    const { saveProject } = await import("$lib/storage/storage");
+    vi.mocked(saveProject).mockClear();
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await vi.waitFor(() => expect(saveProject).toHaveBeenCalled(), { timeout: 2_000 });
+    await openCustomData(target, "Markers");
+    [...target.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes("Add marker"))!.click();
+    await vi.waitFor(() => expect(target.querySelectorAll(".marker-card")).toHaveLength(1));
+    const exportStatus = () => target.querySelector(".context-export-status")?.textContent;
+    const before = exportStatus();
+
+    const name = target.querySelector<HTMLInputElement>('input[aria-label="Name for marker 1"]')!;
+    // Until one is typed, the card is called by its number.
+    expect(name.value).toBe("");
+    expect(name.placeholder).toBe("Marker 1");
+    name.value = "Trailhead";
+    name.dispatchEvent(new Event("input", { bubbles: true }));
+    await tick();
+    expect(target.querySelector('button[aria-label="Remove Trailhead"]')).not.toBeNull();
+    // A name carves nothing, so it must not make the export stale.
+    expect(exportStatus()).toBe(before);
+
+    await openCustomData(target, "Trails & boundaries");
+    [...target.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes("Add path"))!.click();
+    await vi.waitFor(() => expect(target.querySelectorAll(".custom-line-card")).toHaveLength(1));
+    const pathName = target.querySelector<HTMLInputElement>('input[aria-label="Name for path 1"]')!;
+    pathName.value = "  North boundary  ";
+    pathName.dispatchEvent(new Event("input", { bubbles: true }));
+    await tick();
+
+    window.dispatchEvent(new Event("pagehide"));
+    const saved = vi.mocked(saveProject).mock.lastCall![0];
+    expect(saved.markers[0]).toMatchObject({ name: "Trailhead" });
+    expect(saved.customLines[0], "a name is stored trimmed").toMatchObject({ name: "North boundary" });
+
+    // Blanking it removes the name rather than storing an empty one.
+    name.value = "";
+    name.dispatchEvent(new Event("input", { bubbles: true }));
+    await tick();
+    window.dispatchEvent(new Event("pagehide"));
+    expect(vi.mocked(saveProject).mock.lastCall![0].markers[0]).not.toHaveProperty("name");
+    expect(target.querySelector('button[aria-label="Remove marker 1"]')).not.toBeNull();
+  });
+
   it("adds custom trail and boundary paths with arbitrary coordinate points", async () => {
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
     await tick();
 
+    await openCustomData(target, "Trails & boundaries");
     [...target.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes("Add path"))!.click();
     await vi.waitFor(() => expect(target.querySelectorAll(".custom-line-card")).toHaveLength(1));
     expect(target.querySelectorAll<HTMLInputElement>('input[aria-label^="Path 1 point"]')).toHaveLength(4);

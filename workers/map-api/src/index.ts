@@ -3,6 +3,7 @@ import { measureBucket } from "./data-metrics";
 import { clientKey, corsHeaders, isAllowedOrigin, json, rateLimitExceeded, withCors } from "./http";
 import { buildManifest } from "./manifest";
 import { ARCHIVE_ROUTES, bathymetryArchives, type ArchiveRoute, isArchiveMetadataRequest, parseRangeHeader, pmtilesResponse, terrainArchives } from "./routes/archive";
+import { FEEDBACK_PATH, feedbackResponse } from "./routes/feedback";
 import { geocodeLimit, geocodeResponse, isGeocoderConfigured, normalizeGeoapify } from "./routes/geocode";
 import { healthResponse, probeUpstreams, readinessResponse, upstreamHealth } from "./routes/health";
 import { isHighVolumeCacheHit, REQUEST_LOG_SAMPLE_RATE, shouldLogRequest } from "./request-log";
@@ -71,12 +72,17 @@ const EXACT_ROUTES = new Map<string, Handler>([
 
 async function route(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const url = new URL(request.url);
-  if (url.pathname === "/v1/events" && !isAllowedOrigin(request.headers.get("origin"), env)) return json({ error: "Origin is not allowed." }, { status: 403 });
+  const isWrite = url.pathname === "/v1/events" || url.pathname === FEEDBACK_PATH;
+  if (isWrite && !isAllowedOrigin(request.headers.get("origin"), env)) return json({ error: "Origin is not allowed." }, { status: 403 });
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(request, env) });
   if (url.pathname === "/v1/events") {
     if (request.method !== "POST") return json({ error: "Method not allowed." }, { status: 405, headers: { allow: "POST,OPTIONS" } });
     if (!(await withinRequestBudget(request, env, "events"))) return rateLimitExceeded("Rate limit exceeded.");
     return collectUsage(request, env.ENVIRONMENT);
+  }
+  if (url.pathname === FEEDBACK_PATH) {
+    if (request.method !== "POST") return json({ error: "Method not allowed." }, { status: 405, headers: { allow: "POST,OPTIONS" } });
+    return feedbackResponse(request, env);
   }
   if (request.method !== "GET" && request.method !== "HEAD") return json({ error: "Method not allowed." }, { status: 405, headers: { allow: "GET,HEAD,OPTIONS" } });
 

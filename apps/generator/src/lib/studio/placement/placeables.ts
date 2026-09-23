@@ -1,5 +1,5 @@
-import { activePlaque, groundWidthMFor, NORTH_ARROW_MIN_SIZE_MM, PLAQUE_MAX_SIZE_MM, PLAQUE_MIN_SIZE_MM, northArrowCenter, northArrowFootprint, northArrowMarkings, northArrowPlacementAt, plaqueBox, plaqueMarkings, plaquePlacementAt, scaleBarCenter, scaleBarFootprint, scaleBarMarkings, scaleBarPlacementAt, type PlaqueV1, type GeometryIRV1, type OperationPath, type Point2D, type ProjectConfigV1 } from "@topostack/core";
-import { northArrowMaximumMm, plaqueSettings } from "$lib/studio/project-edits";
+import { activePlaque, GRAPHIC_MIN_SIZE_MM, groundWidthMFor, placedGraphicCenter, placedGraphicFootprint, placedGraphicMarkingPrefix, placedGraphicMarkings, placedGraphicPlacementAt, placedGraphicSource, type GraphicOperation, type PlacedGraphicV1, NORTH_ARROW_MIN_SIZE_MM, PLAQUE_MAX_SIZE_MM, PLAQUE_MIN_SIZE_MM, northArrowCenter, northArrowFootprint, northArrowMarkings, northArrowPlacementAt, plaqueBox, plaqueMarkings, plaquePlacementAt, scaleBarCenter, scaleBarFootprint, scaleBarMarkings, scaleBarPlacementAt, type PlaqueV1, MAX_PLACED_GRAPHICS, type GeometryIRV1, type OperationPath, type Point2D, type ProjectConfigV1 } from "@topostack/core";
+import { graphicMaximumMm, newPlacedGraphic, northArrowMaximumMm, plaqueSettings } from "$lib/studio/project-edits";
 
 /**
  * Everything placement mode can move. Each entry reads and writes its position
@@ -8,7 +8,12 @@ import { northArrowMaximumMm, plaqueSettings } from "$lib/studio/project-edits";
  * hands the patch to the normal generation pipeline, which bakes the item into
  * whichever sheets it lands on. See docs/placement.md.
  */
-export type PlaceableId = "north" | "plaque" | "scale";
+export type FixedPlaceableId = "north" | "plaque" | "scale";
+/** The fixed annotations, and each placed graphic by its own id. */
+export type PlaceableId = FixedPlaceableId | `graphic:${string}`;
+
+export const graphicPlaceableId = (placedId: string): PlaceableId => `graphic:${placedId}`;
+const placedIdOf = (id: PlaceableId): string | undefined => (id.startsWith("graphic:") ? id.slice("graphic:".length) : undefined);
 
 /** Facts from the generated preview that some placeables are sized by. */
 export interface PlacementContext {
@@ -23,6 +28,8 @@ export function placementContext(geometry: Pick<GeometryIRV1, "bounds">): Placem
 export interface Placeable {
   id: PlaceableId;
   label: string;
+  /** What the toolbar calls this item when it has its own name, as an uploaded graphic does. */
+  name?(project: ProjectConfigV1): string;
   available(project: ProjectConfigV1): boolean;
   /** Center in artwork millimeters, origin at the artwork center, y down. */
   center(project: ProjectConfigV1, context: PlacementContext): Point2D;
@@ -36,6 +43,12 @@ export interface Placeable {
   bakedMarkingPrefixes: readonly string[];
   /** Present when the placeable can be resized in place: which size, its range and the patch that sets it. */
   resize?: PlaceableSize;
+  /** Present when it can be turned: its clockwise angle in degrees and the patch that sets it. */
+  rotate?: { value(project: ProjectConfigV1): number; set(project: ProjectConfigV1, degrees: number): PlacementPatch };
+  /** Present when the laser operation is the maker's to choose in place. */
+  operation?: { value(project: ProjectConfigV1): GraphicOperation; set(project: ProjectConfigV1, operation: GraphicOperation): PlacementPatch };
+  /** Present when it can be taken off the piece during the session. */
+  remove?(project: ProjectConfigV1): PlacementPatch;
 }
 
 export interface PlaceableSize {
@@ -51,7 +64,7 @@ export interface PlaceableSize {
 /** Matches the clearance core keeps between an anchored annotation and the crop edge. */
 const PLAQUE_HANDLE_PAD_MM = 3;
 
-export const PLACEABLES: Record<PlaceableId, Placeable> = {
+export const PLACEABLES: Record<FixedPlaceableId, Placeable> = {
   north: {
     id: "north",
     label: "North arrow",
@@ -110,16 +123,105 @@ export const PLACEABLES: Record<PlaceableId, Placeable> = {
   },
 };
 
-export const PLACEABLE_ORDER: readonly PlaceableId[] = ["north", "plaque", "scale"];
+export const PLACEABLE_ORDER: readonly FixedPlaceableId[] = ["north", "plaque", "scale"];
+
+const GRAPHIC_OPERATION_LABELS: Record<GraphicOperation, string> = { engrave: "engraved", score: "scored", cut: "cut out" };
+
+function withPlaced(project: ProjectConfigV1, placedId: string, change: (placed: PlacedGraphicV1) => PlacedGraphicV1): PlacementPatch {
+  return { placedGraphics: (project.placedGraphics ?? []).map((placed) => placed.id === placedId ? change(placed) : placed) };
+}
+
+/**
+ * One placed graphic as a placeable. Its position, size, angle and operation
+ * all live on its entry in `placedGraphics`, so every change is a new list.
+ * Turning and resizing keep its center, since both change how far it may travel.
+ */
+function graphicPlaceable(placedId: string): Placeable {
+  const find = (project: ProjectConfigV1) => project.placedGraphics?.find((placed) => placed.id === placedId);
+  const recentered = (project: ProjectConfigV1, change: (placed: PlacedGraphicV1) => PlacedGraphicV1): PlacementPatch => {
+    const placed = find(project);
+    if (!placed) return {};
+    const center = placedGraphicCenter(project, placed) ?? { x: 0, y: 0 };
+    return withPlaced(project, placedId, (current) => {
+      const next = change(current);
+      return { ...next, placement: placedGraphicPlacementAt(project, next, center) };
+    });
+  };
+  return {
+    id: graphicPlaceableId(placedId),
+    label: "Graphic",
+    name: (project) => {
+      const placed = find(project);
+      const graphic = placed && placedGraphicSource(project, placed);
+      return graphic ? `${graphic.name}, ${GRAPHIC_OPERATION_LABELS[placed.operation]}` : "Graphic";
+    },
+    available: (project) => {
+      const placed = find(project);
+      return Boolean(placed && placedGraphicSource(project, placed));
+    },
+    center: (project) => {
+      const placed = find(project);
+      return (placed && placedGraphicCenter(project, placed)) ?? { x: 0, y: 0 };
+    },
+    outline: (project) => {
+      const placed = find(project);
+      return (placed && placedGraphicFootprint(project, placed)) ?? [];
+    },
+    markings: (project) => {
+      const placed = find(project);
+      return placed ? placedGraphicMarkings(project, placed) : [];
+    },
+    moveTo: (project, center) => withPlaced(project, placedId, (placed) => ({ ...placed, placement: placedGraphicPlacementAt(project, placed, center) })),
+    bakedMarkingPrefixes: [placedGraphicMarkingPrefix(placedId)],
+    resize: {
+      label: "Size",
+      value: (project) => find(project)?.sizeMm ?? GRAPHIC_MIN_SIZE_MM,
+      range: (project) => ({ min: GRAPHIC_MIN_SIZE_MM, max: graphicMaximumMm(project.widthMm, project.heightMm) }),
+      step: 1,
+      set: (project, sizeMm) => withPlaced(project, placedId, (placed) => ({ ...placed, sizeMm })),
+    },
+    rotate: {
+      value: (project) => find(project)?.rotationDeg ?? 0,
+      set: (project, degrees) => recentered(project, (placed) => ({ ...placed, rotationDeg: normalizedDegrees(degrees) })),
+    },
+    operation: {
+      value: (project) => find(project)?.operation ?? "engrave",
+      set: (project, operation) => withPlaced(project, placedId, (placed) => ({ ...placed, operation })),
+    },
+    remove: (project) => ({ placedGraphics: (project.placedGraphics ?? []).filter((placed) => placed.id !== placedId) }),
+  };
+}
+
+/** An angle in [0, 360), to a tenth of a degree. */
+function normalizedDegrees(degrees: number): number {
+  const rounded = Math.round(degrees * 10) / 10;
+  return ((rounded % 360) + 360) % 360;
+}
+
+/** The placeable an id names: a fixed annotation, or a placed graphic. */
+export function placeableFor(id: PlaceableId): Placeable {
+  const placedId = placedIdOf(id);
+  return placedId === undefined ? PLACEABLES[id as FixedPlaceableId] : graphicPlaceable(placedId);
+}
 
 /** Only fields owned by placement, so unrelated live edits cannot be overwritten. */
-export type PlacementPatch = Partial<Pick<ProjectConfigV1, "northArrowPlacement" | "northArrowSizeMm" | "scaleBarPlacement">> & {
+export type PlacementPatch = Partial<Pick<ProjectConfigV1, "northArrowPlacement" | "northArrowSizeMm" | "scaleBarPlacement" | "placedGraphics">> & {
   plaque?: Partial<Pick<PlaqueV1, "placement" | "sizeMm">>;
 };
 
 export function placementPatch(project: ProjectConfigV1, draft: PlacementPatch): Partial<ProjectConfigV1> {
-  const { plaque, ...rest } = draft;
-  return { ...rest, ...(plaque ? { plaque: plaqueSettings(project, plaque) } : {}) };
+  const { plaque, placedGraphics, ...rest } = draft;
+  return {
+    ...rest,
+    ...(plaque ? { plaque: plaqueSettings(project, plaque) } : {}),
+    // Artwork removed from the library while placing takes its drafts with it; an empty list leaves no field.
+    ...(placedGraphics ? { placedGraphics: liveGraphics(project, placedGraphics) } : {}),
+  };
+}
+
+function liveGraphics(project: ProjectConfigV1, placedGraphics: PlacedGraphicV1[]): PlacedGraphicV1[] | undefined {
+  const live = placedGraphics.filter((placed) => placedGraphicSource(project, placed));
+  return live.length ? live : undefined;
 }
 
 function mergeDraft(draft: PlacementPatch, patch: PlacementPatch): PlacementPatch {
@@ -136,15 +238,55 @@ export function draftProject(project: ProjectConfigV1, session: PlacementSession
   return { ...project, ...placementPatch(project, session.draft) };
 }
 
-/** Placeables shown in a session, in tab order. */
+/** Placeables shown in a session, in tab order: the fixed annotations, then graphics in project order. */
 export function availablePlaceables(project: ProjectConfigV1): Placeable[] {
-  return PLACEABLE_ORDER.map((id) => PLACEABLES[id]).filter((placeable) => placeable.available(project));
+  const fixed: Placeable[] = PLACEABLE_ORDER.map((id) => PLACEABLES[id]);
+  const graphics = (project.placedGraphics ?? []).map((placed) => graphicPlaceable(placed.id));
+  return [...fixed, ...graphics].filter((placeable) => placeable.available(project));
+}
+
+/** Whether a session has anything to do: an item to move, or a graphic that could be added. */
+export function canPlace(project: ProjectConfigV1): boolean {
+  return availablePlaceables(project).length > 0 || Boolean(project.customGraphics?.length);
 }
 
 /** The session with `id` moved to `center`, merged into the existing draft. */
 export function movePlaceable(project: ProjectConfigV1, session: PlacementSession, id: PlaceableId, center: Point2D, context: PlacementContext): PlacementSession {
-  const patch = PLACEABLES[id].moveTo(draftProject(project, session), center, context);
+  const patch = placeableFor(id).moveTo(draftProject(project, session), center, context);
   return { selected: id, draft: mergeDraft(session.draft, patch) };
+}
+
+/** The session with `id` turned to `degrees` about its center. */
+export function rotatePlaceable(project: ProjectConfigV1, session: PlacementSession, id: PlaceableId, degrees: number): PlacementSession {
+  const rotate = placeableFor(id).rotate;
+  if (!rotate || !Number.isFinite(degrees)) return session;
+  return { selected: id, draft: mergeDraft(session.draft, rotate.set(draftProject(project, session), degrees)) };
+}
+
+/** The session with a graphic's laser operation changed. */
+export function setPlaceableOperation(project: ProjectConfigV1, session: PlacementSession, id: PlaceableId, operation: GraphicOperation): PlacementSession {
+  const control = placeableFor(id).operation;
+  if (!control) return session;
+  return { selected: id, draft: mergeDraft(session.draft, control.set(draftProject(project, session), operation)) };
+}
+
+/** The session with a new use of `graphicId`, centered and selected; undefined when the graphic is unknown or the piece is full. */
+export function addGraphicToSession(project: ProjectConfigV1, session: PlacementSession | undefined, graphicId: string, placedId: string): PlacementSession | undefined {
+  const draft = session ? draftProject(project, session) : project;
+  if (!draft.customGraphics?.some((graphic) => graphic.id === graphicId) || (draft.placedGraphics?.length ?? 0) >= MAX_PLACED_GRAPHICS) return undefined;
+  const placedGraphics = [...draft.placedGraphics ?? [], newPlacedGraphic(draft, graphicId, placedId)];
+  return { selected: graphicPlaceableId(placedId), draft: mergeDraft(session?.draft ?? {}, { placedGraphics }) };
+}
+
+/** The session with `id` taken off the piece, selecting the next item if there is one. */
+export function removePlaceable(project: ProjectConfigV1, session: PlacementSession, id: PlaceableId): PlacementSession {
+  const remove = placeableFor(id).remove;
+  if (!remove) return session;
+  const before = availablePlaceables(draftProject(project, session)).map((placeable) => placeable.id);
+  const next = { ...session, draft: mergeDraft(session.draft, remove(draftProject(project, session))) };
+  const after = availablePlaceables(draftProject(project, next)).map((placeable) => placeable.id);
+  const index = Math.max(0, before.indexOf(id));
+  return { ...next, selected: after[Math.min(index, after.length - 1)] ?? session.selected };
 }
 
 /**
@@ -153,7 +295,7 @@ export function movePlaceable(project: ProjectConfigV1, session: PlacementSessio
  * is recomputed for the new size rather than kept.
  */
 export function resizePlaceable(project: ProjectConfigV1, session: PlacementSession, id: PlaceableId, sizeMm: number, context: PlacementContext): PlacementSession {
-  const placeable = PLACEABLES[id];
+  const placeable = placeableFor(id);
   if (!placeable.resize || !Number.isFinite(sizeMm)) return session;
   const draft = draftProject(project, session);
   const { min, max } = placeable.resize.range(draft);
@@ -166,8 +308,12 @@ export function resizePlaceable(project: ProjectConfigV1, session: PlacementSess
 
 /** Prefixes to hide in a backdrop while these placeables are drawn as drafts. */
 export function hiddenMarkingPrefixes(project: ProjectConfigV1): string[] {
-  return availablePlaceables(project).flatMap((placeable) => placeable.bakedMarkingPrefixes);
+  const fixed = PLACEABLE_ORDER.map((id) => PLACEABLES[id]).filter((placeable) => placeable.available(project));
+  // Every graphic is drafted while placing, including ones the session adds or removes.
+  return [...fixed.flatMap((placeable) => placeable.bakedMarkingPrefixes), ...(project.placedGraphics?.length ? [GRAPHIC_MARKING_PREFIX] : [])];
 }
+
+const GRAPHIC_MARKING_PREFIX = "graphic-";
 
 export function hiddenByPrefix(id: string, prefixes: readonly string[]): boolean {
   return prefixes.some((prefix) => id.startsWith(prefix));

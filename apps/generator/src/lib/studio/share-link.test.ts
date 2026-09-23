@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { deflateSync } from "fflate";
-import { DEFAULT_PROJECT, MAX_CUSTOM_LINE_POINTS, type ProjectConfigV1 } from "@topostack/core";
+import { DEFAULT_PROJECT, MAX_CUSTOM_LINE_POINTS, MAX_MARKER_ICON_POINTS, type ProjectConfigV1 } from "@topostack/core";
 import { hasShareLink, MAX_SHARE_URL_LENGTH, projectFromShareLink, ShareLinkTooLongError, shareLinkFor } from "$lib/studio/share-link";
 
 const STUDIO = "https://topostack.app/studio?lake=Old&bounds=1,2,3,4";
@@ -23,6 +23,20 @@ describe("share links", () => {
 
   it("keeps a default project well under the link length limit", () => {
     expect(shareLinkFor(DEFAULT_PROJECT, STUDIO).length).toBeLessThan(1_500);
+  });
+
+  it("carries uploaded marker icons, and fits a project with a full-budget icon in a link", () => {
+    // 800 points of irregular outline: the most one icon may hold, and it compresses poorly.
+    const outer = Array.from({ length: MAX_MARKER_ICON_POINTS }, (_, index) => {
+      const angle = index / MAX_MARKER_ICON_POINTS * Math.PI * 2;
+      const radius = 400 + Math.round(Math.sin(index * 12.9898) * 90);
+      return [Math.round(Math.cos(angle) * radius) || 0, Math.round(Math.sin(angle) * radius) || 0];
+    }).flat();
+    const icon = { id: "icon-0001", name: "Detailed", shapes: [{ outer }] };
+    const project: ProjectConfigV1 = { ...DEFAULT_PROJECT, markerIcons: [icon], markers: [{ id: "m1", lat: 42.94, lon: -122.1, symbol: "custom", sizeMm: 8, iconId: icon.id }] };
+    const link = shareLinkFor(project, STUDIO);
+    expect(link.length).toBeLessThanOrEqual(MAX_SHARE_URL_LENGTH);
+    expect(projectFromShareLink(hashOf(link))).toMatchObject({ markerIcons: [icon], markers: project.markers });
   });
 
   it("refuses to build a link that is too long to share", () => {

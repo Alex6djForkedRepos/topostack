@@ -21,10 +21,13 @@
    * like the placement layer's viewBox, orbiting is off, and generated markings
    * matching `hiddenPrefixes` are left out while their drafts are drawn above.
    */
-  let { geometry, exploded, placement, onUnavailable }: {
-    geometry: GeometryIRV1;
+  let { geometry, exploded, placement, onUnavailable, rememberCamera = true }: {
+    geometry: Pick<GeometryIRV1, "widthMm" | "heightMm" | "layers" | "waterSurfaces" | "lineStyle">;
+    /** Isolated representative previews must not replace the project camera. */
+    rememberCamera?: boolean;
     exploded: number;
-    placement?: { hiddenPrefixes: readonly string[]; marginMm: number; hideMarkings?: boolean };
+    /** `toolbarRows` is how many rows the placement toolbar has; the stage reserves more space above the drawing for two. */
+    placement?: { hiddenPrefixes: readonly string[]; marginMm: number; hideMarkings?: boolean; toolbarRows?: number };
     onUnavailable?: () => void;
   } = $props();
   import AtommZoom from "$lib/atomm/AtommZoom.svelte";
@@ -40,7 +43,7 @@
     runtime.camera.position.copy(runtime.controls.target).addScaledVector(direction, fitDistance / value);
     runtime.controls.update(); runtime.requestRender();
   }
-  function fitView() {
+  export function fitView() {
     if (!runtime) return;
     runtime.controls.target.copy(fitTarget);
     setZoom(1);
@@ -221,11 +224,34 @@
     content.add(object);
   }
 
+  /**
+   * Placement draws below its toolbar, in the stage minus the top
+   * `--placement-toolbar-space`. The canvas keeps its full size, since resizing
+   * a WebGL canvas clears it and would flash (and bare a strip behind the
+   * toolbar); the cameras shift their frame down instead, by `viewOffset` of it.
+   */
+  let toolbarSpace = 0;
+  let viewOffset = 0;
+  const readToolbarSpace = () => parseFloat(getComputedStyle(container).getPropertyValue("--placement-toolbar-space")) || 0;
+  const placementHeight = () => Math.max(container.clientHeight - toolbarSpace, 1);
+
+  /** Aim the perspective camera at the stage below `fraction` of the toolbar space. */
+  function applyViewOffset(fraction: number): void {
+    if (!runtime) return;
+    viewOffset = fraction;
+    const { camera } = runtime; const width = Math.max(container.clientWidth, 1); const height = Math.max(container.clientHeight, 1);
+    const shift = Math.min(toolbarSpace * fraction, height - 1);
+    camera.aspect = width / (height - shift);
+    if (shift > 0) camera.setViewOffset(width, height - shift, 0, -shift, width, height); else camera.clearViewOffset();
+    camera.updateProjectionMatrix();
+  }
+
   /** Frame the top-down camera exactly like the placement layer's meet-fitted viewBox. */
   function fitTopCamera(): void {
     if (!runtime || !placement) return;
-    const { halfWidth, halfHeight } = placementFrustum(placementViewBox(geometry.widthMm, geometry.heightMm, placement.marginMm), container.clientWidth, container.clientHeight);
-    Object.assign(runtime.topCamera, { left: -halfWidth, right: halfWidth, top: halfHeight, bottom: -halfHeight });
+    const available = placementHeight();
+    const { halfWidth, halfHeight } = placementFrustum(placementViewBox(geometry.widthMm, geometry.heightMm, placement.marginMm), container.clientWidth, available);
+    Object.assign(runtime.topCamera, { left: -halfWidth, right: halfWidth, top: halfHeight + toolbarSpace * (2 * halfHeight / available), bottom: -halfHeight });
     runtime.topCamera.updateProjectionMatrix();
   }
 
@@ -255,7 +281,7 @@
    * ease does not jump. A hair of y offset keeps OrbitControls' lookAt defined.
    */
   function overheadPosition(): THREE.Vector3 {
-    const { halfHeight } = placementFrustum(placementViewBox(geometry.widthMm, geometry.heightMm, placement?.marginMm ?? 0), container.clientWidth, container.clientHeight);
+    const { halfHeight } = placementFrustum(placementViewBox(geometry.widthMm, geometry.heightMm, placement?.marginMm ?? 0), container.clientWidth, placementHeight());
     return new THREE.Vector3(0, -0.001, halfHeight / Math.tan(THREE.MathUtils.degToRad(runtime!.camera.fov) / 2));
   }
 
@@ -266,6 +292,7 @@
     orbitBeforePlacement = { position: camera.position.clone(), target: controls.target.clone(), minDistance: controls.minDistance };
     controls.enabled = false;
     controls.minDistance = 0;
+    toolbarSpace = readToolbarSpace();
     fitTopCamera();
     const fromPosition = camera.position.clone(); const fromTarget = controls.target.clone();
     const toPosition = overheadPosition(); const toTarget = new THREE.Vector3(0, 0, 0);
@@ -274,6 +301,7 @@
       camera.position.lerpVectors(fromPosition, toPosition, fraction);
       controls.target.lerpVectors(fromTarget, toTarget, fraction);
       applyExploded(content, fromExploded * (1 - fraction));
+      applyViewOffset(fraction);
     }, () => { if (runtime) runtime.topDown = true; });
   }
 
@@ -289,6 +317,7 @@
       camera.position.lerpVectors(fromPosition, back.position, fraction);
       controls.target.lerpVectors(fromTarget, back.target, fraction);
       applyExploded(content, toExploded * fraction);
+      applyViewOffset(1 - fraction);
     }, () => { controls.minDistance = back.minDistance; controls.enabled = true; });
   }
 
@@ -309,7 +338,7 @@
     const rig = new THREE.Group(); const content = new THREE.Group(); content.scale.y = -1; rig.add(content); scene.add(rig);
     const topCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 20_000); topCamera.position.set(0, 0, 5_000); topCamera.lookAt(0, 0, 0);
     const controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.dampingFactor = 0.065; controls.maxPolarAngle = Math.PI * 0.95; controls.minDistance = 120; controls.maxDistance = 1800; controls.target.set(0, 0, 10); camera.position.set(15, -165, 270); controls.update();
-    if (savedCamera) { camera.position.set(...savedCamera.position); controls.target.set(...savedCamera.target); controls.update(); fitDistance = savedCamera.fitDistance; fitTarget = new THREE.Vector3(...savedCamera.fitTarget); }
+    if (rememberCamera && savedCamera) { camera.position.set(...savedCamera.position); controls.target.set(...savedCamera.target); controls.update(); fitDistance = savedCamera.fitDistance; fitTarget = new THREE.Vector3(...savedCamera.fitTarget); }
     const texture = makeWoodTexture();
     let contextLost = false;
     const requestRender = () => {
@@ -328,7 +357,7 @@
     controls.addEventListener("change", requestRender);
     const updateZoom = () => { zoom = fitDistance / controls.getDistance(); };
     controls.addEventListener("change", updateZoom);
-    const resizeObserver = new ResizeObserver(([entry]) => { const width = entry?.contentRect.width ?? 0; const height = entry?.contentRect.height ?? 0; if (width <= 0 || height <= 0) return; camera.aspect = width / height; camera.updateProjectionMatrix(); renderer.setSize(width, height, false); fitTopCamera(); requestRender(); }); resizeObserver.observe(container);
+    const resizeObserver = new ResizeObserver(([entry]) => { const width = entry?.contentRect.width ?? 0; const height = entry?.contentRect.height ?? 0; if (width <= 0 || height <= 0) return; if (placement) toolbarSpace = readToolbarSpace(); applyViewOffset(viewOffset); renderer.setSize(width, height, false); fitTopCamera(); stopFrame(); render(); }); resizeObserver.observe(container);
     const stopFrame = () => { if (runtime) { cancelAnimationFrame(runtime.frame); runtime.frame = 0; } };
     const onVisibilityChange = () => { if (document.hidden) stopFrame(); else requestRender(); };
     const onContextLost = (event: Event) => { event.preventDefault(); contextLost = true; stopFrame(); };
@@ -343,13 +372,13 @@
       controls.removeEventListener("change", requestRender);
       controls.removeEventListener("change", updateZoom);
     };
-    runtime = { renderer, camera, topCamera, topDown: false, controls, rig, content, resizeObserver, frame: 0, environmentTarget, texture, keyLight, detachContextHandlers, requestRender, sceneResources: [], layerMeshes: new Map(), fitSignature: savedCamera?.fitSignature };
+    runtime = { renderer, camera, topCamera, topDown: false, controls, rig, content, resizeObserver, frame: 0, environmentTarget, texture, keyLight, detachContextHandlers, requestRender, sceneResources: [], layerMeshes: new Map(), fitSignature: rememberCamera ? savedCamera?.fitSignature : undefined };
     requestRender();
     return () => {
       if (!runtime) return;
       const { position, target } = orbitBeforePlacement ?? { position: runtime.camera.position, target: runtime.controls.target };
       cancelAnimationFrame(easeFrame);
-      savedCamera = { position: [position.x, position.y, position.z], target: [target.x, target.y, target.z], fitSignature: runtime.fitSignature, fitDistance, fitTarget: [fitTarget.x, fitTarget.y, fitTarget.z] };
+      if (rememberCamera) savedCamera = { position: [position.x, position.y, position.z], target: [target.x, target.y, target.z], fitSignature: runtime.fitSignature, fitDistance, fitTarget: [fitTarget.x, fitTarget.y, fitTarget.z] };
       cancelAnimationFrame(runtime.frame); runtime.detachContextHandlers(); runtime.resizeObserver.disconnect(); disposeContent(runtime.content, runtime.sceneResources); disposeLayerCache(runtime.layerMeshes); runtime.texture.dispose(); runtime.environmentTarget.dispose(); scene.environment = null; runtime.keyLight.shadow.dispose(); runtime.controls.dispose(); runtime.renderer.dispose();
       // Browsers cap live WebGL contexts; release this one now instead of at GC.
       runtime.renderer.forceContextLoss(); runtime.renderer.domElement.remove(); runtime = undefined;
@@ -529,13 +558,22 @@
   $effect(() => {
     if (placing) untrack(enterTopDown); else untrack(leaveTopDown);
   });
-  // Draft edits can replace the placement prop. Refit only when its margin
-  // changes: otherwise every nudge schedules an expensive terrain render.
+  // Draft edits can replace the placement prop. Refit only when its margin or
+  // toolbar changes: otherwise every nudge schedules an expensive terrain render.
+  // A toolbar row appearing mid-session (the first uploaded graphic) changes the
+  // reserved space without resizing anything, so it is read again here.
   const topMargin = $derived(placement?.marginMm);
+  const toolbarRows = $derived(placement?.toolbarRows);
   $effect(() => {
-    void topMargin; void widthMm; void heightMm;
-    untrack(() => { fitTopCamera(); runtime?.requestRender(); });
+    void topMargin; void toolbarRows; void widthMm; void heightMm;
+    untrack(() => {
+      if (placement && runtime) { toolbarSpace = readToolbarSpace(); applyViewOffset(viewOffset); }
+      fitTopCamera(); runtime?.requestRender();
+    });
   });
+
+  export function rotateView(): void { handleKeyDown(new KeyboardEvent("keydown", { key: "ArrowLeft" })); }
+  export function zoomView(closer: boolean): void { handleKeyDown(new KeyboardEvent("keydown", { key: closer ? "+" : "-" })); }
 
   function handleKeyDown(event: KeyboardEvent): void {
     if (!runtime || placement) return; if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "+", "-"].includes(event.key)) event.preventDefault();

@@ -67,7 +67,9 @@ npx wrangler secret put GEOCODER_API_KEY --env development
 npx wrangler secret put GEOCODER_API_KEY --env production
 ```
 
-CI normally synchronizes this secret from the matching GitHub environment during deployment, so the interactive commands are for recovery or local administration only. Copy `.dev.vars.example` to `.dev.vars` and replace its value for local development. Review Geoapify plan limits and attribution terms before launch.
+The `/v1/feedback` route emails studio feedback through Cloudflare Email Service and needs the `FEEDBACK_EMAIL_TO` secret plus an onboarded sender domain; see [docs/feedback.md](../../docs/feedback.md#email-delivery).
+
+CI normally synchronizes these secrets from the matching GitHub environment during deployment, so the interactive commands are for recovery or local administration only. Copy `.dev.vars.example` to `.dev.vars` and replace its value for local development. Review Geoapify plan limits and attribution terms before launch.
 
 ## GitHub deployment mapping
 

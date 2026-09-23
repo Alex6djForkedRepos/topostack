@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_PROJECT, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_MAP_MARKERS, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, type CustomLineFeatureV1, type ProjectConfigV1 } from "@topostack/core";
-import { addCustomLine, addCustomLinePoint, addMarker, addMarkerAt, appendCustomData, canAddCustomLine, clampPlaqueSize, customDataCapacity, plaqueSettings, plaqueText, plaqueWithFont, northArrowMaximumMm, removeCustomLine, removeCustomLinePoint, removeMarker, updateCustomLine, updateCustomLinePoint, updateMarker } from "$lib/studio/project-edits";
+import { DEFAULT_PROJECT, MAX_CUSTOM_DATA_NAME_LENGTH, MAX_CUSTOM_DATA_POINTS, projectFingerprint, MAX_CUSTOM_LINE_POINTS, MAX_MAP_MARKERS, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, type CustomLineFeatureV1, type ProjectConfigV1 } from "@topostack/core";
+import { addCustomGraphic, addPlacedGraphic, graphicMaximumMm, removeCustomGraphic, removePlacedGraphic, renameCustomGraphic, updatePlacedGraphic, addMarkerIcon, removeMarkerIcon, renameMarkerIcon, setMarkerIconAnchor, addCustomLine, addCustomLinePoint, addDrawnCustomLine, canExtendDrawnLine, renameCustomLine, renameMarker, addMarker, addMarkerAt, appendCustomData, canAddCustomLine, clampPlaqueSize, customDataCapacity, plaqueSettings, plaqueText, plaqueWithFont, northArrowMaximumMm, removeCustomLine, removeCustomLinePoint, removeMarker, updateCustomLine, updateCustomLinePoint, updateMarker, withLiveNames } from "$lib/studio/project-edits";
 
 const line = (id: string, count = 2): CustomLineFeatureV1 => ({ id, kind: "trail", points: Array.from({ length: count }, (_, index) => ({ lat: 40, lon: -105 + index * 0.01 })) });
 const withData = (patch: Partial<ProjectConfigV1>): ProjectConfigV1 => ({ ...DEFAULT_PROJECT, ...patch });
@@ -33,6 +33,45 @@ describe("marker edits", () => {
     expect(updateMarker(project, "a", { lon: Number.NaN })).toBeUndefined();
     expect(updateMarker(project, "missing", { lat: 1 })).toBeUndefined();
     expect(removeMarker(project, "a").markers.map((marker) => marker.id)).toEqual(["b"]);
+  });
+});
+
+describe("marker icon edits", () => {
+  const icon = { id: "icon-0001", name: "Cabin", shapes: [{ outer: [-500, 500, 500, 500, 0, -500] }] };
+  const project = withData({ markers: [{ id: "a", lat: 1, lon: 2, symbol: "pin" }, { id: "b", lat: 3, lon: 4, symbol: "star" }] });
+
+  it("adds an icon once, reusing the same drawing when it is uploaded again", () => {
+    const added = addMarkerIcon(project, icon)!;
+    expect(added).toEqual({ iconId: icon.id, patch: { markers: project.markers, markerIcons: [icon] } });
+    const withIcon = { ...project, ...added.patch };
+    expect(addMarkerIcon(withIcon, { ...icon, id: "icon-0002", name: "Again" })?.iconId).toBe(icon.id);
+    expect(addMarkerIcon(withIcon, { ...icon, id: "icon-0002", anchor: "bottom" })?.iconId).toBe("icon-0002");
+    const full = { ...project, markerIcons: Array.from({ length: 24 }, (_, index) => ({ ...icon, id: `icon-${String(index).padStart(4, "0")}`, shapes: [{ outer: [index, 0, 1, 1, 2, 0] }] })) };
+    expect(addMarkerIcon(full, { ...icon, id: "icon-9999" })).toBeUndefined();
+  });
+
+  it("gives markers only icons the project has, and drops the icon with the symbol", () => {
+    const withIcon = { ...project, markerIcons: [icon] };
+    const custom = updateMarker(withIcon, "a", { symbol: "custom", iconId: icon.id })!;
+    expect(custom.markers[0]).toEqual({ id: "a", lat: 1, lon: 2, symbol: "custom", iconId: icon.id });
+    expect(updateMarker(withIcon, "a", { symbol: "custom", iconId: "missing" })).toBeUndefined();
+    expect(updateMarker(project, "a", { symbol: "custom", iconId: icon.id })).toBeUndefined();
+    // Resizing a custom marker keeps its icon; choosing a built-in lets it go.
+    const resized = updateMarker({ ...withIcon, ...custom }, "a", { sizeMm: 12 })!;
+    expect(resized.markers[0]).toMatchObject({ symbol: "custom", iconId: icon.id, sizeMm: 12 });
+    expect(updateMarker({ ...withIcon, ...custom }, "a", { symbol: "circle" })?.markers[0]).toEqual({ id: "a", lat: 1, lon: 2, symbol: "circle" });
+  });
+
+  it("renames and re-anchors icons, and removing one turns its markers into pins", () => {
+    const withIcon = { ...project, markerIcons: [icon], markers: [{ id: "a", lat: 1, lon: 2, symbol: "custom" as const, iconId: icon.id }, project.markers[1]!] };
+    expect(renameMarkerIcon(withIcon, icon.id, "  Hut ")?.markerIcons?.[0]!.name).toBe("Hut");
+    expect(renameMarkerIcon(withIcon, icon.id, "  ")).toBeUndefined();
+    expect(setMarkerIconAnchor(withIcon, icon.id, "bottom")?.markerIcons?.[0]).toEqual({ ...icon, anchor: "bottom" });
+    expect(setMarkerIconAnchor({ ...withIcon, markerIcons: [{ ...icon, anchor: "bottom" }] }, icon.id, "center")?.markerIcons?.[0]).toEqual(icon);
+    const removed = removeMarkerIcon(withIcon, icon.id);
+    expect(removed.markerIcons).toBeUndefined();
+    expect(removed.markers[0]).toEqual({ id: "a", lat: 1, lon: 2, symbol: "pin" });
+    expect(removed.markers[1]).toBe(project.markers[1]);
   });
 });
 
@@ -101,5 +140,106 @@ describe("placing markers on the map", () => {
     expect(addMarkerAt(DEFAULT_PROJECT, "polar", { lat: 89, lon: 0 })).toBeUndefined();
     const full = { ...DEFAULT_PROJECT, markers: Array.from({ length: MAX_MAP_MARKERS }, (_, index) => ({ id: String(index), lat: 1, lon: 1, symbol: "pin" as const, sizeMm: 8 })) };
     expect(addMarkerAt(full, "extra", { lat: 1, lon: 1 })).toBeUndefined();
+  });
+});
+
+describe("drawing a path on the map", () => {
+  const drawn = [{ lat: 42.95, lon: -122.1 }, { lat: 42.96, lon: -122.09 }, { lat: 42.96, lon: -122.11 }];
+
+  it("adds an open path as a trail", () => {
+    const patch = addDrawnCustomLine(DEFAULT_PROJECT, "drawn", drawn.slice(0, 2), false);
+    expect(patch?.customLines).toEqual([{ id: "drawn", kind: "trail", points: drawn.slice(0, 2) }]);
+  });
+
+  it("closes a path back to where it started, as a boundary", () => {
+    const patch = addDrawnCustomLine(DEFAULT_PROJECT, "drawn", drawn, true);
+    // Geometry draws the points it is given and closes nothing itself.
+    expect(patch?.customLines[0]).toEqual({ id: "drawn", kind: "boundary", points: [...drawn, drawn[0]] });
+  });
+
+  it("refuses a path too short to be one, or off the supported map", () => {
+    expect(addDrawnCustomLine(DEFAULT_PROJECT, "drawn", drawn.slice(0, 1), false), "a trail needs two points").toBeUndefined();
+    expect(addDrawnCustomLine(DEFAULT_PROJECT, "drawn", drawn.slice(0, 2), true), "a boundary needs three").toBeUndefined();
+    expect(addDrawnCustomLine(DEFAULT_PROJECT, "drawn", [{ lat: 89, lon: 0 }, { lat: 88, lon: 0 }], false)).toBeUndefined();
+  });
+
+  it("stops the drawing at the point limits, counting the draft that is not in the project yet", () => {
+    expect(canExtendDrawnLine(DEFAULT_PROJECT, 2)).toBe(true);
+    // One point is held back so a full-length drawing can still be closed.
+    expect(canExtendDrawnLine(DEFAULT_PROJECT, MAX_CUSTOM_LINE_POINTS - 2)).toBe(true);
+    expect(canExtendDrawnLine(DEFAULT_PROJECT, MAX_CUSTOM_LINE_POINTS - 1)).toBe(false);
+    expect(addDrawnCustomLine(DEFAULT_PROJECT, "full", Array.from({ length: MAX_CUSTOM_LINE_POINTS - 1 }, (_, index) => ({ lat: 40, lon: -105 + index * 1e-4 })), true), "the most a drawing can hold still closes").toBeDefined();
+    const nearlyFull = withData({ customLines: [line("existing", MAX_CUSTOM_DATA_POINTS - 4)] });
+    expect(canExtendDrawnLine(nearlyFull, 2)).toBe(true);
+    expect(canExtendDrawnLine(nearlyFull, 3)).toBe(false);
+  });
+});
+
+describe("naming markers and paths", () => {
+  const named = withData({
+    markers: [{ id: "m1", lat: 40, lon: -105, symbol: "pin" as const, sizeMm: 8 }],
+    customLines: [line("l1")],
+  });
+
+  it("stores a trimmed name, and drops it again when it is blanked", () => {
+    expect(renameMarker(named, "m1", "  Trailhead  ")?.markers[0]).toEqual({ id: "m1", lat: 40, lon: -105, symbol: "pin", sizeMm: 8, name: "Trailhead" });
+    const cleared = renameMarker(withData({ markers: [{ ...named.markers[0]!, name: "Trailhead" }] }), "m1", "   ");
+    expect(cleared?.markers[0], "an empty name is no name, not an empty one").toEqual({ id: "m1", lat: 40, lon: -105, symbol: "pin", sizeMm: 8 });
+    expect(cleared?.markers[0]).not.toHaveProperty("name");
+  });
+
+  it("keeps a name within the contract's limit", () => {
+    const long = "x".repeat(MAX_CUSTOM_DATA_NAME_LENGTH + 20);
+    expect(renameMarker(named, "m1", long)?.markers[0]?.name).toHaveLength(MAX_CUSTOM_DATA_NAME_LENGTH);
+    expect(renameCustomLine(named, "l1", long)?.customLines[0]?.name).toHaveLength(MAX_CUSTOM_DATA_NAME_LENGTH);
+  });
+
+  it("names a path and leaves everything else about it alone", () => {
+    const patch = renameCustomLine(named, "l1", "North boundary");
+    expect(patch?.customLines[0]).toEqual({ ...named.customLines[0], name: "North boundary" });
+    expect(renameCustomLine(named, "missing", "Nowhere")).toBeUndefined();
+    expect(renameMarker(named, "missing", "Nowhere")).toBeUndefined();
+  });
+
+  it("leaves the fingerprint alone, because a name carves nothing", () => {
+    const renamed = { ...named, ...renameMarker(named, "m1", "Trailhead")!, ...renameCustomLine(named, "l1", "North boundary")! };
+    expect(projectFingerprint(renamed)).toBe(projectFingerprint(named));
+  });
+});
+
+describe("names typed during a generation", () => {
+  it("puts the names typed since onto what the run was built from", () => {
+    const built = [{ id: "a", name: "Old" }, { id: "b" }, { id: "c", name: "Gone" }];
+    const live = [{ id: "a", name: "New" }, { id: "b", name: "Added" }, { id: "c" }];
+    expect(withLiveNames(built, live)).toEqual([{ id: "a", name: "New" }, { id: "b", name: "Added" }, { id: "c" }]);
+    // Something removed since keeps what it was built with, minus a name.
+    expect(withLiveNames([{ id: "x", name: "Kept" }], [])).toEqual([{ id: "x" }]);
+  });
+});
+
+describe("custom graphic edits", () => {
+  const graphic = { id: "graphic-0001", name: "Logo", shapes: [{ outer: [-500, -500, 500, -500, 0, 500] }] };
+  const project: ProjectConfigV1 = { ...DEFAULT_PROJECT, cropShape: "rectangle", widthMm: 200, heightMm: 120 };
+
+  it("adds graphics once each and renames them without blanking", () => {
+    const added = addCustomGraphic(project, graphic)!;
+    expect(added.graphicId).toBe(graphic.id);
+    const withGraphic = { ...project, ...added.patch };
+    expect(addCustomGraphic(withGraphic, { ...graphic, id: "graphic-0002" })?.graphicId).toBe(graphic.id);
+    expect(renameCustomGraphic(withGraphic, graphic.id, "  ")).toBeUndefined();
+    expect(renameCustomGraphic(withGraphic, graphic.id, "Badge")?.customGraphics?.[0]!.name).toBe("Badge");
+  });
+
+  it("places a graphic centered at a quarter of the shorter side, then edits and removes it", () => {
+    const withGraphic = { ...project, customGraphics: [graphic] };
+    expect(addPlacedGraphic(project, graphic.id, "placed-0001")).toBeUndefined();
+    const placed = { ...withGraphic, ...addPlacedGraphic(withGraphic, graphic.id, "placed-0001")! };
+    expect(placed.placedGraphics).toEqual([{ id: "placed-0001", graphicId: graphic.id, placement: { anchor: "center", offset: { x: 0, y: 0 } }, sizeMm: 30, rotationDeg: 0, operation: "engrave" }]);
+    expect(updatePlacedGraphic(placed, "placed-0001", { operation: "cut", rotationDeg: -15 })?.placedGraphics?.[0]).toMatchObject({ operation: "cut", rotationDeg: 345 });
+    expect(updatePlacedGraphic(placed, "placed-0001", { sizeMm: 1000 })?.placedGraphics?.[0]!.sizeMm).toBe(graphicMaximumMm(200, 120));
+    expect(removePlacedGraphic(placed, "placed-0001")).toEqual({ placedGraphics: undefined });
+    // Removing artwork removes its uses, and empty lists leave no fields.
+    expect(removeCustomGraphic(placed, graphic.id)).toEqual({ customGraphics: undefined, placedGraphics: undefined });
+    expect(projectFingerprint({ ...placed, ...removeCustomGraphic(placed, graphic.id) })).toBe(projectFingerprint(project));
   });
 });

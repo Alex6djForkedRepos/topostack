@@ -89,7 +89,10 @@ export async function downloadProject({ option, geometry, project, notice, track
   await nextFrame();
   try {
     const download = option === "project"
-      ? prepareProjectSettings(project)
+      ? prepareProjectSettings(project, await (async () => {
+        if (!project.userDepthCharts || !Object.keys(project.userDepthCharts).length) return [];
+        return (await import("$lib/storage/user-charts")).chartsForProject(project);
+      })())
       : await (async () => {
         const { buildProjectPackage, loadGuideFonts } = await import("$lib/studio/export-policy");
         // Only the booklet uses the fonts; skip fetching them for files without it.

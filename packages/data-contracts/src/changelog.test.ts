@@ -82,7 +82,10 @@ describe("versions and helpers", () => {
     expect(isValidDate(20260921)).toBe(false);
   });
 
-  it("tokenizes code and links, leaving everything else as text", () => {
+  it("tokenizes code, bold and links, leaving everything else as text", () => {
+    expect(inlineTokens("Choose **Done** or *cancel* **")).toEqual([
+      { kind: "text", text: "Choose " }, { kind: "strong", text: "Done" }, { kind: "text", text: " or *cancel* **" },
+    ]);
     expect(inlineTokens("Use `Ctrl+S` or read [the guide](/guides) <b>now</b>.")).toEqual([
       { kind: "text", text: "Use " }, { kind: "code", text: "Ctrl+S" }, { kind: "text", text: " or read " },
       { kind: "link", text: "the guide", href: "/guides" }, { kind: "text", text: " <b>now</b>." },

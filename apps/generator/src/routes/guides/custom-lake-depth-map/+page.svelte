@@ -5,7 +5,7 @@
 
 <Article title="How to make a custom lake depth map" intro="A layered lake map steps down layer by layer from the shoreline to the deepest hole, so the bays, drop-offs and islands people know from the water show up in wood. Here is how to make one of a real lake with TopoStack.">
   <h2>What makes a good lake map</h2>
-  <p>The difference between a lake map and a flat cutout is the lake floor. TopoStack includes surveyed depth data for thousands of lakes, so the layers follow measured depths rather than an even slope. Where a lake has no survey, the studio models depths from the shoreline and the surrounding terrain and tells you so. Surveyed lakes give the most recognizable result.</p>
+  <p>The difference between a lake map and a flat cutout is the lake floor. TopoStack includes surveyed depth data for thousands of lakes, so the layers follow measured depths rather than an even slope. Where a lake has no survey, the studio models depths from the shoreline and the surrounding terrain and tells you so. Surveyed lakes give the most recognizable result. If yours has no survey but you have a printed depth chart of it, you can <a href={`${base}/guides/trace-a-depth-chart`}>trace the chart</a> and carve the lake from that instead.</p>
 
   <h2>1. Find your lake</h2>
   <p>Browse <a href={`${base}/lakes`}>lake depth maps by region</a>. Minnesota is listed by county, and Ontario, Finland and Norway by name. You can also <a href={`${base}/guides/lake-depth-data`}>search the lake directory</a> by name, county or survey ID. Select a lake to open the studio framed to its survey area.</p>
@@ -19,7 +19,7 @@
   <p>Lakes are shallow compared with their width, so depth is exaggerated to make it visible. If the lake needs more depth sheets than you want to cut, turn on <strong>Limit depth layers</strong>, set <strong>Maximum depth layers</strong>, and turn on <strong>Fit lake depth to available layers</strong>. TopoStack then compresses the depths into that many sheets while the shoreline stays where it is. The <a href={`${base}/guides/settings-reference`}>settings reference</a> lists each control.</p>
 
   <h2>4. Add the details that make it personal</h2>
-  <p>In <strong>Map details</strong>, choose roads, trails and labels for context, and keep <strong>Water depth</strong> on. To mark a cabin, a dock or a favorite fishing spot, add a marker in <strong>Custom Data</strong> from its coordinates, or import a GPX track of a paddling route. See <a href={`${base}/guides/custom-markers-and-paths`}>custom markers and paths</a>.</p>
+  <p>In <strong>Map details</strong>, choose roads, trails and labels for context, and keep <strong>Water depth</strong> on. To mark a cabin, a dock or a favorite fishing spot, add a marker in the <strong>Custom data</strong> view by clicking the map or entering its coordinates, or import a GPX track of a paddling route. See <a href={`${base}/guides/custom-markers-and-paths`}>custom markers and paths</a>.</p>
 
   <h2>5. Paint the water</h2>
   <p>Many lake maps are painted or stained blue in the lake, often darker toward the deepest layers. Turn on <strong>Water paint templates</strong> and TopoStack cuts a paper stencil for each layer, open only where water stays visible once the stack is glued. The <a href={`${base}/guides/water-paint-templates`}>paint template guide</a> covers the process.</p>

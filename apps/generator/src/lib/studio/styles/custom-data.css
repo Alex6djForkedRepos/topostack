@@ -40,9 +40,17 @@
   background: var(--loidolt-surface-alt);
 }
 
+/* In a narrow sidebar the two actions move below the label together rather
+   than stacking one above the other beside it. */
+.marker-editor .subgroup-heading--action,
+.custom-line-editor .subgroup-heading--action {
+  flex-wrap: wrap;
+  row-gap: var(--panel-space-1);
+}
+
 .marker-add-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
   gap: var(--panel-space-2);
 }
@@ -110,6 +118,39 @@
   letter-spacing: 0.08em;
 }
 
+/* The card's title is its name, typed in place. It keeps the header's shape
+   but not its uppercasing: a name should read the way it was written, while
+   the placeholder still reads as the label it replaces. */
+.custom-data-name {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 4px 2px 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--panel-font-label, 11px);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.custom-data-name::placeholder {
+  color: var(--loidolt-text-muted);
+  font-size: var(--panel-font-micro, 8px);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.custom-data-name:hover {
+  border-bottom-color: var(--loidolt-border);
+}
+
+.custom-data-name:focus {
+  outline: none;
+  border-bottom-color: var(--loidolt-accent);
+}
+
 .marker-card__header button {
   display: grid;
   width: 26px;
@@ -165,6 +206,100 @@
   stroke-linejoin: round;
 }
 
+/* Uploaded icons are drawn filled at their true outline; the built-in
+   hairline stroke would blur fine detail. */
+.marker-symbol-options__icon svg {
+  stroke: none;
+}
+
+.marker-icon-upload {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--loidolt-text-muted);
+  font-size: var(--panel-font-caption);
+  cursor: pointer;
+}
+
+.marker-icon-upload:hover:not(:disabled) {
+  color: var(--loidolt-text);
+}
+
+.marker-icon-upload:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.marker-icon-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.marker-icon-row {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto 26px;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 4px 6px 8px;
+  border: 1px solid var(--loidolt-border);
+  background: var(--loidolt-surface);
+}
+
+.marker-icon-row > svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
+
+.marker-icon-anchor {
+  display: flex;
+}
+
+.marker-icon-anchor button {
+  padding: 3px 6px;
+  border: 1px solid var(--loidolt-border);
+  background: var(--loidolt-surface-input);
+  color: var(--loidolt-text-muted);
+  font-size: var(--panel-font-caption);
+  cursor: pointer;
+}
+
+.marker-icon-anchor button + button {
+  border-left: 0;
+}
+
+.marker-icon-anchor button[data-state="on"] {
+  border-color: var(--loidolt-accent);
+  background: var(--loidolt-surface-alt);
+  color: var(--loidolt-text);
+}
+
+.marker-icon-remove {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--loidolt-text-muted);
+  cursor: pointer;
+}
+
+.marker-icon-remove:hover {
+  color: var(--loidolt-text-danger);
+}
+
+.marker-icon-upload:focus-visible,
+.graphic-place:focus-visible,
+.preview-place-graphics:focus-visible,
+.marker-icon-anchor button:focus-visible,
+.marker-icon-remove:focus-visible,
 .marker-card__header button:focus-visible,
 .marker-symbol-options button:focus-visible,
 .custom-line-kind-options button:focus-visible,
@@ -273,4 +408,164 @@
 .custom-data-import__button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+/* Give the primary map action room and a clear hit target at sidebar widths. */
+.custom-data-section .section-title small {
+  font-size: var(--panel-font-caption);
+}
+
+.marker-add-actions {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.subgroup-heading--action .marker-add-button {
+  justify-content: center;
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 1px solid var(--loidolt-border-control);
+  background: var(--loidolt-surface);
+  color: var(--loidolt-text);
+  font-size: var(--panel-font-label);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.subgroup-heading--action .marker-add-button:first-child {
+  border-color: var(--loidolt-accent);
+  color: var(--loidolt-accent);
+}
+
+.subgroup-heading--action .marker-add-button[aria-pressed="true"] {
+  background: var(--loidolt-accent);
+  color: var(--loidolt-on-accent);
+}
+
+.subgroup-heading--action .marker-add-button:hover:not(:disabled),
+.custom-data-import__button:hover:not(:disabled),
+.custom-point-expand:hover {
+  background: var(--loidolt-surface-alt);
+}
+
+.marker-empty,
+.marker-note,
+.custom-data-tool-status {
+  font-size: var(--panel-font-caption);
+}
+
+.custom-data-tool-status {
+  margin: 0;
+  padding: 10px;
+  border-left: 2px solid var(--loidolt-accent);
+  background: var(--loidolt-surface);
+  color: var(--loidolt-text);
+  line-height: 1.5;
+}
+
+.custom-data-import__button,
+.custom-point-expand,
+.custom-point-add {
+  min-height: 34px;
+  font-size: var(--panel-font-caption);
+  text-transform: none;
+}
+
+.custom-data-import__button {
+  padding: 12px;
+  border-style: solid;
+  background: var(--loidolt-surface-alt);
+}
+
+/* Graphics share the marker editor's frame: the uploaded library, then each use on the piece. */
+.graphic-row {
+  grid-template-columns: 22px minmax(0, 1fr) auto 26px;
+}
+
+.graphic-place {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid var(--loidolt-border);
+  background: var(--loidolt-surface-input);
+  color: var(--loidolt-text);
+  font-size: var(--panel-font-caption);
+  cursor: pointer;
+}
+
+.graphic-place:hover:not(:disabled) {
+  border-color: var(--loidolt-accent);
+}
+
+.graphic-place:disabled,
+.graphic-operation button:disabled,
+.marker-icon-remove:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.graphic-placed {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 4px 8px 8px;
+  border: 1px solid var(--loidolt-border);
+  background: var(--loidolt-surface);
+}
+
+.graphic-placed__header {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto 26px;
+  align-items: center;
+  gap: 6px;
+}
+
+.graphic-placed__header > svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
+
+.graphic-placed__name {
+  display: grid;
+  font-size: var(--panel-font-body);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.graphic-placed__name small {
+  color: var(--loidolt-text-muted);
+  font-size: var(--panel-font-caption);
+}
+
+/* Opens placement from a view of the piece. */
+.preview-place-graphics {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 6px 12px;
+  border: 1px solid var(--loidolt-accent);
+  background: var(--loidolt-surface);
+  color: var(--loidolt-text);
+  box-shadow: var(--loidolt-shadow-popover);
+  font: var(--panel-font-micro) var(--loidolt-font-utility);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.preview-place-graphics:hover {
+  background: var(--loidolt-accent);
+  color: var(--loidolt-on-accent);
 }

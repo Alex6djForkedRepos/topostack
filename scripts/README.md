@@ -42,11 +42,19 @@ Raster and vector processing that needs rasterio, fiona, scipy, and shapely. One
 | `build-lake-outlines.py` | Build provider lake outlines for the outline archive | manual: [lake-bathymetry.md](../docs/lake-bathymetry.md) |
 | `build-noaa-bathymetry.py` | Build Great Lakes depth tiles from NOAA/NCEI rasters | manual: [noaa-bathymetry.md](../docs/noaa-bathymetry.md) |
 | `build-survey-bathymetry.py` | Build surveyed lake-floor archives from registered survey sources | manual: [lake-bathymetry.md](../docs/lake-bathymetry.md) |
+| `chart_records.py` | Turn the published depth chart records in `scripts/data/depth-charts/` into the `community-charts-v1` archive's grids and source pins (library for build-survey-bathymetry.py) | manual: [depth-chart-tracing.md](../docs/depth-chart-tracing.md) |
+| `make-chart-trace-fixture.py` | Regenerate `packages/chart-trace/src/fixtures/tin-parity.json` from `survey_regions.contour_grid`, the parity target for the TypeScript TIN grid | manual, after changing `contour_grid`: [depth-chart-tracing.md](../docs/depth-chart-tracing.md) |
 | `discover-terrain.py` | Discover and register candidate terrain sources for a region | manual: [terrain-coverage.md](../docs/terrain-coverage.md), [terrain-selection.md](../docs/terrain-selection.md), [terrain-expansion-plan.md](../docs/terrain-expansion-plan.md) |
 | `snapshot-survey-service.py` | Snapshot a survey web service into a local raster for the survey builder | manual |
 | `survey_regions.py` | Regional contour and reservoir adapters used by build-survey-bathymetry.py (library) | manual |
 | `terrain_release.py` | Offline terrain registry helpers: immutable manifests and atomic catalog snapshots (library) | manual |
 | `tile_writer.py` | Shared raster tile helpers for the survey bathymetry and HRDEM terrain builders (library) | manual: [terrain-expansion-plan.md](../docs/terrain-expansion-plan.md) |
+
+One Node builder lives here too, because its output feeds the survey build:
+
+| Script | Purpose | Run by |
+| --- | --- | --- |
+| `trace-depth-charts.mjs` | Trace the curated charts in `scripts/data/depth-charts.json` into depth chart records with `@topostack/chart-trace`. Sources are downloaded to `.topostack/depth-charts/` and checked against their sha256 pins. Publishable records go to `scripts/data/depth-charts/`; the rest stay local with `report.json`. Scanned PDFs need poppler's `pdftoppm`. Library: `lib/depth-charts.mjs`. | manual: `node scripts/data-build/trace-depth-charts.mjs [--only <id>]`, see [depth-chart-tracing.md](../docs/depth-chart-tracing.md) |
 
 ## Provisioning (`provision/`)
 
@@ -68,6 +76,7 @@ Check deployed services, SEO output, and data quality. CI and the production mon
 
 | Script | Purpose | Run by |
 | --- | --- | --- |
+| `stress-depth-charts.mjs` | Fetch pinned USGS charts; probe uploads, tracing, persistence, and screenshots | manual: [real-chart stress report](../docs/reports/real-depth-chart-stress-2026-09-23.md) |
 | `benchmark-data-layer.mjs` | Measure data-layer latency for representative projects (build core first) | `npm run data:benchmark` |
 | `verify-atomm-dist.mjs` | Check the Atomm build output for forbidden endpoints and required files | CI/workflows |
 | `verify-lake-directory.mjs` | Browser check of the lake directory and studio place links | `npm run data:verify-lake-directory` |
@@ -93,3 +102,6 @@ The changelog, version consistency, and the Atomm marketplace bundle. See [chang
 | `publish-atomm-release.mjs` | Tag, draft, upload, and publish the Atomm GitHub release for a version, with the changelog since the previous one | CI/workflows (automatically after production CI) |
 | `validate-submission-env.mjs` | Fail-closed gate for Atomm packaging: the embedded map API URL must be production | manual |
 | `versions.mjs` | Check or bump the one release version across workspaces, the lockfile, and the Atomm manifest | `npm run version:check`; `npm run version:main`; CI/workflows |
+- [`verify/chart-accuracy/`](verify/chart-accuracy/README.md): opt-in, pinned USGS charts and independent QA soundings; 20 raster variants, spatial error scoring, appearance diagnostics, and reproducible figures.
+
+Reviewed depth-chart release checks and real-source capture instructions: [chart-release/README.md](verify/chart-release/README.md).

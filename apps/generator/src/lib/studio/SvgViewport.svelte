@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { onDestroy, onMount, getContext, type Snippet } from "svelte";
+  import { onDestroy, onMount, getContext, untrack, type Snippet } from "svelte";
   import { IconButton } from "@loidolt/theme-svelte";
   import AtommZoom from "$lib/atomm/AtommZoom.svelte";
   const isEmbedded = getContext<() => boolean>("atomm-embedded") ?? (() => false);
   import { Minus, Plus, RotateCcw } from "@lucide/svelte";
 
-  let { widthMm, heightMm, label, svgLabel, controlsLabel, resetLabel, children }: {
+  let { widthMm, heightMm, label, svgLabel, controlsLabel, resetLabel, children, editable = false, topLeft = false, padding = 5, svg = $bindable(), onactivate, onkeydown, onviewchange }: {
     widthMm: number;
     heightMm: number;
     label: string;
@@ -13,6 +13,14 @@
     controlsLabel: string;
     resetLabel: string;
     children: Snippet;
+    /** Editable surfaces keep clicks distinct from pan/pinch gestures. */
+    editable?: boolean;
+    topLeft?: boolean;
+    padding?: number;
+    svg?: SVGSVGElement;
+    onactivate?: (event: MouseEvent) => void;
+    onkeydown?: (event: KeyboardEvent) => void;
+    onviewchange?: () => void;
   } = $props();
 
   // Use a compositor transform during gestures, then redraw the SVG sharply
@@ -21,7 +29,8 @@
   const MAX_ZOOM = 6;
   const ZOOM_STEP = 0.5;
   const ZOOM_SETTLE_MS = 180;
-  let viewport: HTMLButtonElement;
+  let viewport: HTMLElement;
+  let suppressClick = false;
   let panLayer: HTMLSpanElement;
   let canvas: HTMLSpanElement;
   let zoom = $state(MIN_ZOOM);
@@ -45,10 +54,10 @@
   let canvasWidth = $state(0);
   let canvasHeight = $state(0);
   let artworkSize = "";
-  const baseX = $derived(-widthMm / 2 - 5);
-  const baseY = $derived(-heightMm / 2 - 5);
-  const baseWidth = $derived(widthMm + 10);
-  const baseHeight = $derived(heightMm + 10);
+  const baseX = $derived((topLeft ? 0 : -widthMm / 2) - padding);
+  const baseY = $derived((topLeft ? 0 : -heightMm / 2) - padding);
+  const baseWidth = $derived(widthMm + padding * 2);
+  const baseHeight = $derived(heightMm + padding * 2);
   const residualScale = $derived(zoom / renderZoom);
   const visibleWidth = $derived(baseWidth / zoom);
   const visibleHeight = $derived(baseHeight / zoom);
@@ -158,11 +167,20 @@
   }
 
   function startPan(event: PointerEvent): void {
+    if (!dragStart && !touches.size) suppressClick = false;
+    if (editable) {
+      // Native focus can scroll a clipped, zoomed canvas before its click lands.
+      event.preventDefault();
+      const target = event.target instanceof Element ? event.target.closest<HTMLElement | SVGElement>("[tabindex]") : null;
+      (target ?? viewport).focus({ preventScroll: true });
+    }
     if (event.pointerType === "touch") {
       touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
-      viewport.setPointerCapture(event.pointerId);
+      if (!editable) viewport.setPointerCapture(event.pointerId);
       const pair = touchPair();
       if (pair) {
+        suppressClick = true;
+        viewport.setPointerCapture(event.pointerId);
         if (dragStart) {
           setPan(dragStart.panX - dragOffsetX * dragStart.unitsPerPixel, dragStart.panY - dragOffsetY * dragStart.unitsPerPixel, zoom);
           dragStart = undefined;
@@ -178,9 +196,9 @@
     cancelZoomCommit();
     const scale = panUnitsPerPixel();
     if (scale === undefined) return;
-    viewport.setPointerCapture(event.pointerId);
+    if (!editable) viewport.setPointerCapture(event.pointerId);
     resetDragLayer();
-    dragging = true;
+    dragging = !editable;
     dragStart = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, panX, panY, unitsPerPixel: scale };
   }
 
@@ -204,6 +222,12 @@
       }
     }
     if (!dragStart || dragStart.pointerId !== event.pointerId) return;
+    if (editable && !suppressClick) {
+      if (Math.hypot(event.clientX - dragStart.x, event.clientY - dragStart.y) < 4) return;
+      suppressClick = true;
+      viewport.setPointerCapture(event.pointerId);
+      dragging = true;
+    }
     // Preview the same bounded camera that finishPan commits. Unbounded
     // screen offsets here would snap back to the pan limits on release.
     const next = clampedPan(
@@ -232,6 +256,12 @@
       }
     }
     if (!dragStart || dragStart.pointerId !== event.pointerId) return;
+    if (editable && !suppressClick) {
+      dragStart = undefined;
+      dragging = false;
+      scheduleVectorZoom();
+      return;
+    }
     const finalOffsetX = event.type === "pointerup" ? event.clientX - dragStart.x : dragOffsetX;
     const finalOffsetY = event.type === "pointerup" ? event.clientY - dragStart.y : dragOffsetY;
     const nextX = dragStart.panX - finalOffsetX * dragStart.unitsPerPixel;
@@ -245,6 +275,8 @@
   }
 
   function handleKeyDown(event: KeyboardEvent): void {
+    onkeydown?.(event);
+    if (event.defaultPrevented) return;
     if (event.key === "+" || event.key === "=") setZoom(zoom + ZOOM_STEP);
     else if (event.key === "-" || event.key === "_") setZoom(zoom - ZOOM_STEP);
     else if (event.key === "0" || event.key === "Home") resetView();
@@ -255,6 +287,18 @@
     else return;
     event.preventDefault();
   }
+
+  function filterClick(event: MouseEvent): void {
+    if (editable && suppressClick && event.detail !== 0) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+  }
+
+  $effect(() => {
+    void zoom; void renderZoom; void panX; void panY; void canvasWidth; void canvasHeight;
+    untrack(() => onviewchange?.());
+  });
 
   $effect(() => {
     const nextSize = `${widthMm}:${heightMm}`;
@@ -279,6 +323,14 @@
 
 </script>
 
+<!-- Editable surfaces defer capture until a drag is distinct from a click.
+     Keep tracking a pointer that leaves the surface before that threshold. -->
+<svelte:window
+  onpointermove={event => { if (editable && dragStart && !viewport.contains(event.target as Node)) movePan(event); }}
+  onpointerup={event => { if (editable) finishPan(event); }}
+  onpointercancel={event => { if (editable) finishPan(event); }}
+/>
+
 <div class="svg-viewer">
   {#if isEmbedded()}<AtommZoom value={zoom} min={MIN_ZOOM} max={MAX_ZOOM} onZoom={setZoom} onFit={resetView} />{:else}
   <div class="svg-zoom-controls" aria-label={controlsLabel}>
@@ -288,15 +340,19 @@
     <IconButton label={resetLabel} size="sm" disabled={zoom === MIN_ZOOM && panX === 0 && panY === 0} onclick={resetView}><RotateCcw size={14} /></IconButton>
   </div>
   {/if}
-  <button
-    type="button"
+  <svelte:element this={editable ? "div" : "button"}
+    type={editable ? undefined : "button"}
+    role={editable ? "application" : undefined}
+    tabindex={editable ? 0 : undefined}
     bind:this={viewport}
-    class="svg-viewport" class:dragging class:detail-view={renderZoom >= 2}
+    class="svg-viewport" class:editable class:dragging class:detail-view={renderZoom >= 2}
     data-svg-viewport
     data-zoom={zoom.toFixed(2)}
     data-render-zoom={renderZoom.toFixed(2)}
     data-rendering={zoom === renderZoom ? "sharp" : "preview"}
     aria-label={`Interactive ${label} preview. Scroll or use plus and minus to zoom, drag or use arrow keys to pan, and press zero to reset.`}
+    onclickcapture={filterClick}
+    onclick={onactivate}
     onwheel={handleWheel}
     onpointerdown={startPan}
     onpointermove={movePan}
@@ -307,12 +363,12 @@
   >
     <span bind:this={panLayer} class="svg-pan-layer">
     <span bind:this={canvas} class="svg-canvas" style:transform={`translate3d(${previewX}px, ${previewY}px, 0) scale(${residualScale})`}>
-  <svg viewBox={viewBox} role="img" aria-label={svgLabel}>
+  <svg bind:this={svg} viewBox={viewBox} role="img" aria-label={svgLabel}>
     {@render children()}
   </svg>
     </span>
     </span>
-  </button>
+  </svelte:element>
 </div>
 
 <style>
@@ -377,6 +433,8 @@
   overflow: visible;
   pointer-events: none;
 }
+
+.svg-viewport.editable svg { pointer-events: auto; }
 
 .svg-zoom-controls {
   position: absolute;

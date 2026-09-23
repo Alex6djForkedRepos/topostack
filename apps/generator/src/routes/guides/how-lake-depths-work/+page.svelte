@@ -29,6 +29,7 @@
         {/each}
       </ul>
     </details>
+    <p>If your lake has no survey but you have a printed depth chart of it, you can <a href={`${base}/guides/trace-a-depth-chart`}>review and trace the chart in the studio</a> and carve the lake from it. The chart needs contour confirmation, geographic alignment, and a separate layer review. See <a href={`${base}/guides/how-depth-chart-tracing-works`}>how chart tracing works</a> for interpolation choices and current limits.</p>
     <p><a href={`${base}/guides/lake-depth-data`}>Find your lake in the surveyed-depth directory</a>, or visit <a href={`${base}/attribution#surveys`}>source credits and processing notes</a> for dataset-specific details.</p>
   </section>
 
@@ -78,8 +79,9 @@
       <p><strong>Surveyed:</strong> the floor uses survey coverage or underwater relief already present in the terrain data. Grids can themselves contain interpolation; this does not mean every displayed point was directly measured.</p>
       <p><strong>Modeled or user-adjusted:</strong> the floor is predicted, even if its maximum depth comes from a measurement or a value you entered.</p>
       <p><strong>Mixed:</strong> available survey samples are retained, with gaps filled from terrain or modeled depths where possible. A maximum depth you enter for a partly surveyed lake keeps it mixed.</p>
+      <p><strong>Traced from your chart:</strong> the floor follows a depth chart you traced in the studio, recorded as a user source. Uncovered cells use existing terrain, modeled depths, or estimates near surveyed shores where possible; cells without enough information remain at the waterline.</p>
     </div>
-    <p>The studio displays <strong>“Some lake depths are estimated rather than surveyed”</strong> when any lake in the output is not fully surveyed, and a separate warning for each lake with incomplete survey coverage. Exported project metadata keeps depth provenance, applied depth fitting, and warnings. Source credits accompany the export.</p>
+    <p>The studio displays <strong>“Some lake depths are estimated rather than surveyed”</strong> when any lake in the output is not fully surveyed, and a separate warning for each lake with incomplete survey coverage. A lake carved from your own chart shows <strong>“Some lake floors come from a traced depth chart”</strong> instead: it is only as accurate as the chart and the depths you placed on it. Exported project metadata keeps depth provenance, applied depth fitting, and warnings. Source credits accompany the export.</p>
     <p>Nearby hills cannot reveal every submerged channel, sediment deposit, dam, or glacially carved hollow. Our terrain-based model has not been calibrated to promise a particular real-world accuracy. Even a surveyed floor is simplified and scaled for fabrication. Use the result as decorative terrain artwork, not a navigation or engineering depth map.</p>
     <div class="next-links"><a href={`${base}/guides/lake-depth-data`}>Find surveyed lakes →</a><a href={`${base}/studio`}>Try it in the studio →</a></div>
   </section>
