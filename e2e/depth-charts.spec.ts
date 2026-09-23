@@ -11,7 +11,7 @@ async function openCharts(page: Page, fromMap = false, withoutSearch = false): P
     if (url.endsWith("/lakes.pmtiles")) {
       const range = /bytes=(\d+)-(\d+)/.exec(route.request().headers().range ?? "");
       const start = Number(range?.[1] ?? 0), end = Math.min(Number(range?.[2] ?? archive.length - 1), archive.length - 1);
-      return route.fulfill({ status: 206, headers: { "content-type": "application/octet-stream", etag: '"test-lake"', "content-range": `bytes ${start}-${end}/${archive.length}` }, body: archive.subarray(start, end + 1) });
+      return route.fulfill({ status: 206, headers: { "content-type": "application/octet-stream", "access-control-expose-headers": "ETag, Content-Range", etag: '"test-lake"', "content-range": `bytes ${start}-${end}/${archive.length}` }, body: archive.subarray(start, end + 1) });
     }
     return route.abort();
   });
