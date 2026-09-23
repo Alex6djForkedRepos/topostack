@@ -27,7 +27,7 @@
 
   /** What a chart in use is doing, in the maker's terms. */
   function inUseState(key: string, lakeName: string | undefined): string {
-    if (lakesInMap.has(key)) return `Carving ${lakesInMap.get(key)}`;
+    if (lakesInMap.has(key)) return `Selected for ${lakesInMap.get(key)} · regenerate terrain after changes`;
     // A chart can be set up before its lake is framed; say so rather than claiming it carves.
     if (!key.startsWith("outline:")) return `Ready for ${lakeName ?? "its lake"} · not in this map area`;
     return `In use for ${lakeName ?? "its lake"} · carves it when it is in the map`;
@@ -44,7 +44,8 @@
 <div class="chart-tools">
   <div class="subgroup-heading"><p>Your charts <span>{library.saved.length}</span></p></div>
   {#if library.note}<p class="chart-hint" role="status">{library.note}</p>{/if}
-  {#if listed && missing.length}
+  {#if library.error}<p class="chart-error" role="alert">{library.error} <button type="button" class="chart-plain-action" onclick={() => void refreshLibrary()}>Try again</button></p>{/if}
+  {#if listed && !library.error && missing.length}
     <ul class="chart-saved">
       {#each missing as [key] (key)}
         <li>
@@ -55,9 +56,10 @@
       {/each}
     </ul>
   {/if}
-  {#if !library.saved.length}
+  {#if !listed}<p class="chart-hint" role="status">Loading saved charts…</p>
+  {:else if !library.saved.length && !library.error}
     <p class="chart-hint">Nothing kept yet. Charts you keep stay in this browser and travel inside exported project files.</p>
-  {:else}
+  {:else if library.saved.length}
     <ul class="chart-saved">
       {#each library.saved as chart (chart.id)}
         {@const key = depthChartLakeKey(chart)}

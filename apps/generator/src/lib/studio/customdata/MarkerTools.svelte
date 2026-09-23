@@ -30,7 +30,10 @@
       <button type="button" class="marker-add-button" onclick={() => applyCustomDataEdit(edits.addMarker(studio.project, crypto.randomUUID()))} disabled={!edits.canAddMarker(studio.project)}><Plus size={13} />Add marker</button>
     </span>
   </div>
-  {#if studio.project.markers.length === 0}
+  {#if studio.placingMarker}
+    <p class="custom-data-tool-status" role="status">Click the map to add a marker. Choose Done placing when you’re finished.</p>
+  {/if}
+  {#if studio.project.markers.length === 0 && !studio.placingMarker}
     <small class="marker-empty">Place markers by clicking the map, or add one and enter its latitude and longitude, then choose the symbol to engrave.</small>
   {:else}
     <div class="marker-list">

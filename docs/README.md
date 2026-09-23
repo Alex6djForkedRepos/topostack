@@ -45,3 +45,5 @@ Dated snapshots kept for history. Do not update them; write a new one.
 - [Launch-readiness remediation, 2026-09-12](reports/launch-readiness-remediation-2026-09-12.md)
 - [SEO discoverability audit, 2026-09-15](reports/seo-discoverability-audit-2026-09-15.md)
 - [Canadian terrain packaging benchmark, 2026-09-16](reports/terrain-benchmark-20260916.md) ([data](reports/data/terrain-benchmark-20260916.json))
+
+- [Depth chart readiness review, 2026-09-23](reports/depth-chart-readiness-2026-09-23.md)

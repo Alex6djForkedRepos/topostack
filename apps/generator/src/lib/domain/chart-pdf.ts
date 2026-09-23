@@ -39,6 +39,7 @@ export async function renderPdfPage(data: Uint8Array, page: number, maxSide: num
   try {
     document = await task.promise;
   } catch (cause) {
+    await task.destroy();
     throw new Error(cause instanceof Error && cause.name === "PasswordException" ? "This PDF is password protected. Open it, and save the chart page as a picture." : "This file could not be read as a PDF.", { cause });
   }
   try {

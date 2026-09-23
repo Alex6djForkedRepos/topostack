@@ -1,3 +1,4 @@
+import { detectChartContours, type ChartContour } from "$lib/domain/chart-contours";
 import { buildChartFromImage, type ChartBuildRequest, type ChartBuildResult } from "$lib/domain/chart-build";
 import { palette, type Swatch } from "@topostack/chart-trace/raster";
 
@@ -22,6 +23,7 @@ interface WorkerReply {
   ready?: boolean;
   swatches?: Swatch[];
   built?: ChartBuildResult;
+  contours?: ChartContour[];
   error?: string;
 }
 
@@ -49,6 +51,10 @@ export class ChartTraceClient {
   /** The image's main colours, for choosing which ink is contour line. */
   palette(image: ChartBuildRequest["image"], count = 8): Promise<Swatch[]> {
     return this.send<Swatch[]>({ kind: "palette", image, count }, () => this.swatchesOf(image, count));
+  }
+
+  contours(image: ChartBuildRequest["image"]): Promise<ChartContour[]> {
+    return this.send<ChartContour[]>({ kind: "contours", image }, () => detectChartContours(image));
   }
 
   /** Trace, place and grid one chart. */
@@ -108,7 +114,7 @@ export class ChartTraceClient {
     if (!pending) return;
     this.pending.delete(reply.id);
     if (reply.error !== undefined) pending.reject(new Error(reply.error));
-    else pending.resolve((reply.built ?? reply.swatches) as never);
+    else pending.resolve((reply.built ?? reply.swatches ?? reply.contours) as never);
   }
 
   private fail(error: Error): void {

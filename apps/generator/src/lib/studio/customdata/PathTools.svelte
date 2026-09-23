@@ -34,8 +34,9 @@
     </span>
   </div>
   {#if drawing}
-    <small class="marker-empty" role="status">
-      {#if points < 2}Click the map where the path starts.
+    <small class="custom-data-tool-status" role="status">
+      {#if points === 0}Click the map where the path starts.
+      {:else if points === 1}First point placed. Click the next point on your route.
       {:else if points < 3}{points} points placed. Double-click or press Enter to finish a trail; from three points, clicking the first one closes a boundary.
       {:else}{points} points placed. Click the first point to close a boundary, or double-click or press Enter to finish a trail.
       {/if}
@@ -59,9 +60,11 @@
               </button>
             {/each}
           </div>
-          {#if line.points.length > LONG_PATH_POINTS && !expandedPaths[line.id]}
-            <button type="button" class="custom-point-expand" aria-expanded="false" onclick={() => { expandedPaths[line.id] = true; }}><ChevronDown size={13} />Edit {line.points.length.toLocaleString()} points</button>
-          {:else}
+          {#if line.points.length > LONG_PATH_POINTS}
+            <button type="button" class="custom-point-expand" aria-expanded={!!expandedPaths[line.id]} aria-controls={`path-points-${line.id}`} onclick={() => { expandedPaths[line.id] = !expandedPaths[line.id]; }}><ChevronDown size={13} class={expandedPaths[line.id] ? "kicker-chevron--open" : ""} />{expandedPaths[line.id] ? "Hide" : "Edit"} {line.points.length.toLocaleString()} points</button>
+          {/if}
+          <div id={`path-points-${line.id}`}>
+          {#if line.points.length <= LONG_PATH_POINTS || expandedPaths[line.id]}
           <div class="custom-point-list">
             {#each line.points as point, pointIndex}
               <div class="custom-point-row">
@@ -77,6 +80,7 @@
             {/each}
           </div>
           {/if}
+          </div>
           <button type="button" class="custom-point-add" onclick={() => applyCustomDataEdit(edits.addCustomLinePoint(studio.project, line.id))} disabled={!edits.canAddCustomLinePoint(studio.project, line)}><Plus size={13} />Add point</button>
         </div>
       {/each}

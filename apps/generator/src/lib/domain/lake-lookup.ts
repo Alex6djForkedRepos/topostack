@@ -250,3 +250,35 @@ export async function wholeLake(lake: ChartableLake, signal?: AbortSignal, load:
   if (current.clipped) throw new Error(`${lake.name} is too large to place a chart on from here.`);
   return current;
 }
+
+/** Whether a map click falls inside a lake outline. */
+export function lakeContains(lake: ChartableLake, lat: number, lon: number): boolean {
+  let inside = false;
+  const ring = lake.outline;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [x, y] = ring[i]!, [px, py] = ring[j]!;
+    if ((y > lat) !== (py > lat) && lon < (px - x) * (lat - y) / (py - y) + x) inside = !inside;
+  }
+  return inside;
+}
+
+/** Resolve the clicked water body, including lakes outside a search's shortlist. */
+export async function lakeAt(lat: number, lon: number, signal?: AbortSignal, load: LakeLoader = loadLakeAreas, loadWater: MapWaterLoader = loadMapWater): Promise<ChartableLake | undefined> {
+  // A close-up tile window can miss a lake represented at a coarser zoom or
+  // retain only a disconnected part. Retry the same wider window as search;
+  // still require containment so nearby land never selects an arbitrary lake.
+  for (const span of [0.08, LAKE_WINDOW_DEG]) {
+    signal?.throwIfAborted();
+    const { lakes } = await loadWindow(lakeWindow(lat, lon, span), { lat, lon }, load, loadWater, signal);
+    signal?.throwIfAborted();
+    const found = lakes.filter(lake => lakeContains(lake, lat, lon)).sort((a, b) => a.footprint - b.footprint)[0];
+    if (found) return found;
+  }
+  return undefined;
+}
+
+/** All chartable lakes in the visible map, without the search shortlist limits. */
+export async function lakesInView(bounds: GeoBounds, signal?: AbortSignal): Promise<ChartableLake[]> {
+  const place = { lat: (bounds.north + bounds.south) / 2, lon: (bounds.west + bounds.east) / 2 };
+  return (await loadWindow(bounds, place, loadLakeAreas, loadMapWater, signal)).lakes;
+}

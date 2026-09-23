@@ -255,7 +255,7 @@
     if (searchOpen) locationDialog.load();
     if (mode === "custom") { customDataView.load(); customDataNav.load(); }
     // Markers, paths and imported files are placed on the same map as map view.
-    if (mode === "map" || (mode === "custom" && nav.section !== "charts")) mapCanvas.load();
+    if (mode === "map" || mode === "custom") mapCanvas.load();
     else if (mode === "engraving") engravingPreview.ensure();
     else if (mode === "2d") twoDPreview.ensure();
     else if (mode === "3d") threePreview.load();

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { GeoBounds, WaterAreaV1 } from "@topostack/core";
-import { lakesNear, lakeWindow, wholeLake } from "$lib/domain/lake-lookup";
+import { lakeAt, lakesNear, lakeWindow, wholeLake } from "$lib/domain/lake-lookup";
 
 const square = (cx: number, cy: number, half: number) => ({
   outer: [{ x: cx - half, y: cy - half }, { x: cx + half, y: cy - half }, { x: cx + half, y: cy + half }, { x: cx - half, y: cy + half }],
@@ -141,5 +141,26 @@ describe("wholeLake", () => {
   it("refuses a lake still cut off at the widest window it will load", async () => {
     const load = vi.fn(async () => [lake("lake-5-0", { hylakId: 5, polygon: square(0, 0, 60), clipped: true })]);
     await expect(wholeLake(cut, undefined, load, noMapWater)).rejects.toThrow(/too large/);
+  });
+});
+
+
+describe("lakeAt", () => {
+  it("recovers a lake absent from close-up tiles using the search window", async () => {
+    const load = vi.fn(async (bounds: GeoBounds) => bounds.north - bounds.south < 0.1 ? [] : [lake("crater", { name: "Crater Lake", hylakId: 9092 })]);
+    const found = await lakeAt(42.9446, -122.109, undefined, load, noMapWater);
+    expect(found?.name).toBe("Crater Lake");
+    expect(load).toHaveBeenCalledTimes(2);
+  });
+  it("does not substitute a nearby lake when the click remains outside its outline", async () => {
+    const load = vi.fn(async () => [lake("nearby", { polygon: square(70, 70, 10) })]);
+    expect(await lakeAt(42.9446, -122.109, undefined, load, noMapWater)).toBeUndefined();
+    expect(load).toHaveBeenCalledTimes(2);
+  });
+  it("stops before fallback when cancelled", async () => {
+    const controller = new AbortController();
+    const load = vi.fn(async () => { controller.abort(); return []; });
+    await expect(lakeAt(42.9446, -122.109, controller.signal, load, noMapWater)).rejects.toMatchObject({ name: "AbortError" });
+    expect(load).toHaveBeenCalledTimes(1);
   });
 });

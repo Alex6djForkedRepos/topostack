@@ -1,7 +1,7 @@
 <script lang="ts">
   import { ChevronDown, FileUp, MapPin, Route, Waves } from "@lucide/svelte";
   import { Section } from "@loidolt/theme-svelte";
-  import { nav, sectionsFor, type CustomDataSectionId } from "$lib/studio/customdata/custom-data-nav.svelte";
+  import { nav, openCustomDataSection, sectionsFor, toggleCustomDataSection, type CustomDataSectionId } from "$lib/studio/customdata/custom-data-nav.svelte";
   import { getStudio } from "$lib/studio/studio-context";
   import ChartTools from "$lib/studio/customdata/ChartTools.svelte";
   import ImportTools from "$lib/studio/customdata/ImportTools.svelte";
@@ -13,17 +13,15 @@
    * data the maker brings, holding that kind's tools, drawn like every other
    * sidebar section.
    *
-   * Exactly one is open, because the section that is open is also what the
-   * viewport shows: the chart being clicked, or the map markers and paths sit
-   * on. Reopening the section you are already in would leave the viewport
-   * showing something with no controls beside it, so the open one stays open.
+   * At most one is open. Collapsing tools keeps the active workspace and
+   * work in progress; choosing another section changes the workspace.
    */
 
   const studio = getStudio();
   const sections = $derived(sectionsFor(studio.project.outputMode));
   // A section the project cannot use is never left open.
   $effect(() => {
-    if (!sections.some((section) => section.id === nav.section)) nav.section = sections[0]!.id;
+    if (!sections.some((section) => section.id === nav.section)) openCustomDataSection(sections[0]!.id);
   });
 
   const summaries = $derived<Record<CustomDataSectionId, string>>({
@@ -47,9 +45,9 @@
 </script>
 
 {#each sections as section, index (section.id)}
-  {@const open = nav.section === section.id}
+  {@const open = nav.section === section.id && nav.expanded}
   <Section class="config-section custom-data-section" aria-labelledby={`custom-data-${section.id}-title`}>
-    <button type="button" class="section-disclosure" id={`custom-data-${section.id}-title`} aria-expanded={open} aria-controls={`custom-data-${section.id}`} onclick={() => { nav.section = section.id; }}>
+    <button type="button" class="section-disclosure" id={`custom-data-${section.id}-title`} aria-expanded={open} aria-controls={`custom-data-${section.id}`} onclick={() => toggleCustomDataSection(section.id)}>
       <span class="section-number">0{index + 1}</span>
       <span class="section-title">{section.label}<small>{summaries[section.id]}</small></span>
       <span class="section-icon" aria-hidden="true">

@@ -33,6 +33,15 @@ describe("ChartTraceClient", () => {
     await expect(pending).resolves.toBe(built);
   });
 
+  it("returns unlabelled contours from the worker", async () => {
+    const { client, worker } = clientWithWorker();
+    const pending = client.contours(image);
+    expect(worker().posted[0]).toMatchObject({ kind: "contours", id: 1 });
+    const contours = [{ points: [[0, 0], [10, 10]], closed: false }];
+    worker().reply({ id: 1, contours });
+    await expect(pending).resolves.toEqual(contours);
+  });
+
   it("reports a failed trace as an error, not a hang", async () => {
     const { client, worker } = clientWithWorker();
     const pending = client.build(request);
