@@ -7,6 +7,9 @@
 
   const studio = getStudio();
   const { cancelGeneration, generate, getFeedbackContext } = studio;
+  // The platform embed loads terrain on its own, so it offers a button only
+  // when that failed, was cancelled, or has not caught up with the map area.
+  const needsTerrain = $derived(!studio.previewBusy && (studio.generationState === "error" || studio.generationState === "idle" || studio.activeSource.sourceKind !== "real" || studio.terrainDataStale));
 </script>
 
 <div class="generate-dock">
@@ -23,5 +26,9 @@
     </details>
   {/if}
   <div class={`status-line status-${studio.previewBusy ? "loading" : studio.generationState}`} role="status" aria-live="polite"><span></span>{statusLine({ generationState: studio.generationState, status: studio.status, detailsUpdating: studio.detailsUpdating, terrainDataStale: studio.terrainDataStale, terrainDataAction: studio.terrainDataAction, verticalExaggerationStale: studio.verticalExaggerationStale, exportReady: studio.exportReady, exportBlockedBy: studio.exportBlockedBy, sourceKind: studio.geometry.sourceKind })}</div>
+  {#if studio.embeddedInPlatform}
+    {#if needsTerrain}<button type="button" class="btn btn-secondary generate-retry" onclick={() => void generate()}>{studio.generationState === "error" ? "Try again" : "Load terrain"}</button>{/if}
+  {:else}
   <Button variant="primary" class="generate-button" onclick={() => studio.generationState === "loading" ? cancelGeneration() : void generate()}>{#if studio.generationState === "loading"}<X size={18} /> Cancel generation{:else}<Sparkles size={18} /> {studio.geometry.sourceKind === "real" ? studio.terrainDataStale ? "Regenerate terrain data" : "Regenerate terrain" : "Generate terrain"}{/if}</Button>
+  {/if}
 </div>

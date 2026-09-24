@@ -183,6 +183,15 @@ jobs:
         env:
           VITE_SITE_ENV: development
 
+      # The release package is built only on main, where a broken Atomm build
+      # would surface after the release is cut. Build it on every run instead.
+      - name: Verify Atomm package build
+        run: |
+          npm run build -w @topostack/generator
+          node scripts/verify/verify-atomm-dist.mjs --require-sdk-entry --skip-endpoint-scan
+        env:
+          VITE_SITE_ENV: atomm
+
   browser-tests:
     name: Browser E2E (${{ matrix.browser }})
     strategy:

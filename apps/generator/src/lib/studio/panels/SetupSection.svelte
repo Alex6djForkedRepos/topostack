@@ -40,9 +40,10 @@
     <Switch checked={studio.mapAspectLocked || studio.project.cropShape === "circle"} disabled={studio.project.cropShape === "circle"} onCheckedChange={(locked) => studio.mapAspectLocked = locked} aria-label="Lock aspect ratio"><span class="toggle-label">Lock aspect ratio</span></Switch>
     <p class="terrain-data-note">{studio.project.cropShape === "circle" ? "Circle proportions are always locked." : "Keep proportions when resizing the map selection. Hold Shift to lock temporarily; Esc cancels a resize."}</p>
   {/if}
-  <p class:pending={studio.terrainDataStale} class="terrain-data-note" aria-live="polite">
+  <!-- The embed reloads terrain as the area moves, so it has nothing to regenerate. -->
+  {#if !studio.embeddedInPlatform}<p class:pending={studio.terrainDataStale} class="terrain-data-note" aria-live="polite">
     {#if studio.terrainDataStale}<strong>Terrain data is from the previous map area.</strong> Generate it before export.{:else}Changing the location or map area requires terrain regeneration.{/if}
     <span>Sidebar settings update the preview automatically. Changing the cut aspect ratio loads terrain for the updated map area.</span>
-  </p>
+  </p>{/if}
   </div>
 </Section>

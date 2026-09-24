@@ -1,9 +1,22 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 // Startup prepares sample geometry before mounting the embedded workbench.
 // Deep stacks also take longer than a normal DOM assertion on CI workers.
 const STARTUP_TIMEOUT_MS = 30_000;
 const PREVIEW_TIMEOUT_MS = 30_000;
+
+/**
+ * The embed loads terrain on its own at startup. Holding the geometry worker's
+ * second fetch (the first builds the page's bundled preview) pauses that run
+ * at its last step, so a test can watch it or cancel it.
+ */
+async function holdAutomaticTerrain(page: Page): Promise<() => void> {
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  let requests = 0;
+  await page.route("**/geometry.worker-*.js", async route => { if (++requests > 1) await gate; await route.continue(); });
+  return release;
+}
 
 test("Atomm uses the platform export hook and template layout across desktop, RTL, and narrow frames", async ({ page }) => {
   test.setTimeout(120_000);
@@ -42,20 +55,34 @@ test("Atomm uses the platform export hook and template layout across desktop, RT
       return { files: await Promise.all(files.map(async file => ({ filename: file.filename, text: file.filename.endsWith(".svg") ? await file.blob.text() : "", bytes: file.blob.size }))), error: "" };
     } catch (error) { return { files: [], error: (error as Error).message }; }
   }, intent);
-  expect((await invoke("download")).error).toMatch(/real terrain/i);
+  // The embed has no Generate step: it loads real terrain on its own.
+  await expect(studio.getByRole("button", { name: "Generate terrain", exact: true })).toHaveCount(0);
+  await expect(studio.locator(".status-line")).toContainText("Real terrain ready", { timeout: 45_000 });
+  expect([...await studio.locator('.mode-switch [role="radio"]').allTextContents()].map(text => text.trim())).toEqual(["Map", "2D", "3D", "Export"]);
   await studio.getByRole("button", { name: "Cut size", exact: true }).click();
   const width = studio.getByRole("spinbutton", { name: "Width", exact: true });
   expect(await width.evaluate(el => el.closest(".number-input")!.getBoundingClientRect().width)).toBe(92);
   expect(await width.evaluate(el => el.closest(".number-input")!.getBoundingClientRect().height)).toBe(28);
-  await studio.getByRole("button", { name: "Generate terrain", exact: true }).click();
-  await expect(studio.locator(".status-line")).toContainText("Real terrain ready", { timeout: 45_000 });
+  // An active segment is the white item on the grey track, with no border of its own.
+  const rectangle = studio.getByRole("radio", { name: "Rectangle", exact: true });
+  expect(await rectangle.evaluate(el => ({ outline: getComputedStyle(el).outlineStyle, border: getComputedStyle(el).borderTopWidth }))).toEqual({ outline: "none", border: "0px" });
   const master = await invoke("openInStudio");
   expect(master.error).toBe("");
   expect(master.files).toHaveLength(1);
   expect(master.files[0]!.filename).toMatch(/-master\.svg$/);
   expect(master.files[0]!.text).toContain('stroke="#FE0002"');
   expect(master.files[0]!.text).toContain('stroke="#2366FF"');
-  await expect(studio.locator(".atomm-export-footer")).toContainText("blue lines → Score; red → Cut");
+  await studio.getByRole("radio", { name: "Export", exact: true }).click();
+  const manifest = studio.locator(".export-manifest");
+  await expect(manifest).toContainText(master.files[0]!.filename, { timeout: PREVIEW_TIMEOUT_MS });
+  await expect(manifest).toContainText("Red · Cut");
+  await expect(manifest).toContainText("Blue · Score");
+  // Credits share the zoom cluster's row, as light text without a plate.
+  const zoomBox = await studio.locator(".atomm-zoom-cluster").boundingBox();
+  const creditBox = await studio.locator(".preview-attribution").boundingBox();
+  expect(Math.abs((zoomBox!.y + zoomBox!.height / 2) - (creditBox!.y + creditBox!.height / 2))).toBeLessThan(1);
+  expect(await studio.locator(".preview-attribution").evaluate(el => getComputedStyle(el).backgroundColor)).toBe("rgba(0, 0, 0, 0)");
+  await studio.getByRole("radio", { name: "3D", exact: true }).click();
   expect(await page.evaluate(svg => {
     const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
     return !doc.querySelector("parsererror") && [...doc.querySelectorAll("path")].every(path =>
@@ -88,8 +115,8 @@ test("Atomm uses the platform export hook and template layout across desktop, RT
   const lakeHelp = studio.locator("#section-details").getByRole("button", { name: "How lake depths work", exact: true });
   await lakeHelp.click();
   const helpDialog = studio.getByRole("dialog", { name: "Fabrication tips" });
-  await expect(helpDialog.getByRole("heading", { name: "How lake depths work" })).toBeFocused();
-  await expect(helpDialog).toContainText("A modeled floor is not a measured survey.");
+  await expect(helpDialog.getByRole("heading", { name: "How lake depths work" })).toBeVisible();
+  await expect(helpDialog).toContainText("Neither reflects today's water level.");
   await expect(helpDialog.locator("a")).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(lakeHelp).toBeFocused();
@@ -140,9 +167,20 @@ test("Atomm uses the platform export hook and template layout across desktop, RT
   expect(lead!.x).toBeGreaterThan(params!.x);
   expect(await studio.locator(".preview-stage").evaluate(el => getComputedStyle(el).direction)).toBe("ltr");
   await studio.getByRole("button", { name: "Tips", exact: true }).click();
-  await expect(studio.getByRole("dialog", { name: "Fabrication tips" })).toBeVisible();
+  const tipsDialog = studio.getByRole("dialog", { name: "Fabrication tips" });
+  await expect(tipsDialog).toBeVisible();
+  // One step at a time, as the platform's walkthrough does.
+  await expect(tipsDialog.getByRole("heading", { level: 3 })).toHaveText("Pick a place");
+  await tipsDialog.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(tipsDialog.getByRole("heading", { level: 3 })).toHaveText("Terrain layers");
+  await tipsDialog.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(tipsDialog.getByRole("button", { name: "Back", exact: true })).toBeDisabled();
   await page.keyboard.press("Escape");
   await expect(studio.getByRole("button", { name: "Tips", exact: true })).toBeFocused();
+  // Collapsed, the lead rail keeps its title in the canvas corner.
+  await studio.getByRole("button", { name: "Collapse Terrain project", exact: true }).click();
+  await expect(studio.getByRole("button", { name: "Expand Terrain project", exact: true })).toContainText("Terrain project");
+  await studio.getByRole("button", { name: "Expand Terrain project", exact: true }).click();
   await page.setViewportSize({ width: 700, height: 800 });
   await expect.poll(() => studio.locator(".gen-rail-params").evaluate(el => el.getBoundingClientRect().width)).toBe(700);
   expect(await studio.locator("body").evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -272,7 +310,7 @@ test("Atomm layer and exploded controls stay above expanded settings", async ({ 
   const studio = page.frameLocator("iframe");
   const dock = studio.locator(".gen-rail-params .layer-dock");
   await expect(dock).toBeVisible({ timeout: STARTUP_TIMEOUT_MS });
-  await expect(studio.locator(".gen-params-content > :first-child")).toHaveClass("layer-dock");
+  await expect(studio.locator(".gen-params-content > :first-child")).toHaveClass(/\blayer-dock\b/);
   for (const name of ["Cut size", "Terrain layers", "Map details", "Linework", "Fabrication settings"]) {
     const section = studio.getByRole("button", { name, exact: true });
     if (await section.getAttribute("aria-expanded") === "false") await section.click();
@@ -389,25 +427,31 @@ test("Atomm depth allowance is explicit and fitting actions use readable theme b
   await page.route("**/v1/**", route => route.abort("internetdisconnected"));
   await page.route("https://static-res.makextool.com/**", route => route.fulfill({ contentType: "application/javascript", body: "window.atomm = { lifecycle: { on() {} }, app: { getLocale: async () => 'en', getSupportedLocales: async () => [{ code: 'en', name: 'English' }] } };" }));
   await page.route("**/atomm-test", route => route.fulfill({ contentType: "text/html", body: '<iframe title="Atomm generator" src="/studio" style="position:fixed;inset:0;width:100%;height:100%;border:0"></iframe>' }));
+  const releaseTerrain = await holdAutomaticTerrain(page);
   await page.goto("/atomm-test");
   const studio = page.frameLocator("iframe");
   await expect(studio.locator(".atomm-workbench")).toBeVisible({ timeout: STARTUP_TIMEOUT_MS });
+  // Cancelling the automatic load keeps the bundled Crater Lake preview, whose lake this test needs.
+  await studio.getByRole("button", { name: "Cancel generation", exact: true }).click();
+  await expect(studio.locator(".status-line")).toContainText("Generation canceled");
+  await expect(studio.getByRole("button", { name: "Load terrain", exact: true })).toBeVisible();
+  releaseTerrain();
   await studio.getByRole("button", { name: "Terrain layers", exact: true }).click();
-  const terrainSlider = studio.getByRole("slider", { name: "Vertical exaggeration slider", exact: true });
-  await expect(terrainSlider).toHaveAttribute("max", "10");
-  await terrainSlider.focus();
-  await page.keyboard.press("Home");
-  await page.keyboard.press("ArrowRight");
-  await expect(studio.getByRole("spinbutton", { name: "Vertical exaggeration", exact: true })).toHaveValue("1.1");
-  await studio.getByRole("spinbutton", { name: "Vertical exaggeration", exact: true }).fill("8");
+  // Each range is one numeric field; the duplicate slider is not shown in the embed.
+  await expect(studio.getByRole("slider", { name: "Vertical exaggeration slider", exact: true })).toBeHidden();
+  const terrainField = studio.getByRole("spinbutton", { name: "Vertical exaggeration", exact: true });
+  await expect(terrainField).toHaveAttribute("max", "10");
+  await terrainField.fill("1");
+  await terrainField.press("ArrowUp");
+  await expect(terrainField).toHaveValue("1.1");
+  await terrainField.fill("8");
   await studio.getByRole("button", { name: "Map details", exact: true }).click();
-  const depthSlider = studio.getByRole("slider", { name: "Water depth exaggeration slider", exact: true });
-  await expect(depthSlider).toHaveAttribute("min", "0.25");
-  await expect(depthSlider).toHaveAttribute("max", "4");
-  await depthSlider.focus();
-  await page.keyboard.press("Home");
-  await page.keyboard.press("ArrowRight");
-  await expect(studio.getByRole("spinbutton", { name: "Water depth exaggeration", exact: true })).toHaveValue("0.3");
+  const depthField = studio.getByRole("spinbutton", { name: "Water depth exaggeration", exact: true });
+  await expect(depthField).toHaveAttribute("min", "0.25");
+  await expect(depthField).toHaveAttribute("max", "4");
+  await depthField.fill("0.25");
+  await depthField.press("ArrowUp");
+  await expect(depthField).toHaveValue("0.3");
   const limit = studio.getByRole("checkbox", { name: "Limit depth layers", exact: true });
   await expect(limit).not.toBeChecked();
   await expect(studio.getByRole("spinbutton", { name: "Maximum depth layers", exact: true })).toHaveCount(0);
@@ -452,12 +496,16 @@ for (const embedded of [true, false]) {
     let releaseWorker!: () => void;
     const workerGate = new Promise<void>(resolve => { releaseWorker = resolve; });
     try {
+      // The embed starts loading terrain on its own, so it is held from the start.
+      if (embedded) { const release = await holdAutomaticTerrain(page); void workerGate.then(release); }
       await page.goto(embedded ? "/atomm-test" : "/studio");
       const studio = embedded ? page.frameLocator("iframe") : page;
       if (embedded) await expect(studio.locator(".atomm-workbench")).toBeVisible({ timeout: STARTUP_TIMEOUT_MS });
-      await expect(studio.getByRole("button", { name: "Generate terrain", exact: true })).toBeVisible();
-      await page.route("**/geometry.worker-*.js", async route => { await workerGate; await route.continue(); });
-      await studio.getByRole("button", { name: "Generate terrain", exact: true }).click();
+      else {
+        await expect(studio.getByRole("button", { name: "Generate terrain", exact: true })).toBeVisible();
+        await page.route("**/geometry.worker-*.js", async route => { await workerGate; await route.continue(); });
+        await studio.getByRole("button", { name: "Generate terrain", exact: true }).click();
+      }
       const overlay = studio.locator(".generation-overlay");
       await expect(overlay).toBeVisible();
       await expect(overlay).toContainText("Step 3 of 3");

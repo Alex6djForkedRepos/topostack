@@ -1,0 +1,81 @@
+<script lang="ts">
+  import { buildProjectPackage, exportBlockReason, type GeometryIRV1, type ProjectConfigV1 } from "@topostack/core";
+  import SvgViewport from "$lib/studio/SvgViewport.svelte";
+
+  /**
+   * What leaves the generator: the artwork Open in Studio sends, drawn from
+   * the exported file itself, and the files a download holds.
+   */
+  let { geometry, project, busy = false }: { geometry: GeometryIRV1; project: ProjectConfigV1; busy?: boolean } = $props();
+
+  type Built = { url: string; filename: string; bytes: number; width: number; height: number; files: Array<{ filename: string; bytes: number }> };
+  let built = $state.raw<Built | undefined>();
+  let failure = $state("");
+  const blocked = $derived(exportBlockReason(geometry, project));
+
+  function formatBytes(bytes: number): string {
+    return bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  }
+
+  // The shown artwork's object URL, released when a newer build replaces it or the view closes.
+  let shownUrl: string | undefined;
+  function show(next: Built | undefined): void {
+    if (shownUrl && shownUrl !== next?.url) URL.revokeObjectURL(shownUrl);
+    shownUrl = next?.url;
+    built = next;
+  }
+  $effect(() => () => show(undefined));
+
+  $effect(() => {
+    // Packaging serializes every sheet, so it waits for a settled preview and
+    // yields a frame first; a newer edit cancels it before it starts. The last
+    // artwork stays up while the preview refreshes.
+    if (busy) return;
+    if (blocked) { show(undefined); failure = ""; return; }
+    const current = { geometry, project };
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const output = buildProjectPackage(current.geometry, current.project);
+          const svg = await output.master.blob.text();
+          if (cancelled) return;
+          // The image fills the file's own viewBox size, so the sheet keeps its proportions.
+          const [, , width = current.geometry.widthMm, height = current.geometry.heightMm] = (/viewBox="([^"]+)"/.exec(svg)?.[1] ?? "").split(/\s+/).map(Number);
+          show({ url: URL.createObjectURL(output.master.blob), filename: output.master.filename, bytes: output.master.blob.size, width, height, files: output.files.map((file) => ({ filename: file.filename, bytes: file.blob.size })) });
+          failure = "";
+        } catch (error) {
+          if (!cancelled) failure = error instanceof Error ? error.message : "The export preview could not be prepared.";
+        }
+      })();
+    }, 60);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  });
+
+  const totalBytes = $derived(built?.files.reduce((total, file) => total + file.bytes, 0) ?? 0);
+</script>
+
+<div class="export-preview">
+  {#if built}
+    <div class="export-sheet">
+      <SvgViewport widthMm={built.width} heightMm={built.height} topLeft label="export" svgLabel={`Export preview of ${built.filename}`} controlsLabel="Export preview zoom controls" resetLabel="Reset export view">
+        <rect x="0" y="0" width={built.width} height={built.height} fill="#fff" />
+        <image href={built.url} x="0" y="0" width={built.width} height={built.height} />
+      </SvgViewport>
+    </div>
+    <section class="export-manifest" aria-label="Export contents">
+      <h2>Export contents</h2>
+      <p class="export-manifest-row"><span>Open in Studio</span><strong title={built.filename}>{built.filename}</strong><small>{formatBytes(built.bytes)}</small></p>
+      <details>
+        <summary><span>Download</span><strong>{built.files.length} files</strong><small>{formatBytes(totalBytes)}</small></summary>
+        <ul>{#each built.files as file (file.filename)}<li><span title={file.filename}>{file.filename}</span><small>{formatBytes(file.bytes)}</small></li>{/each}</ul>
+      </details>
+      <p class="export-key">{#if project.outputMode === "stack"}<i class="export-key-cut" aria-hidden="true"></i>Red · Cut{/if}<i class="export-key-score" aria-hidden="true"></i>Blue · Score</p>
+    </section>
+  {:else}
+    <p class="export-preview-state" role="status">{failure || blocked || (busy ? "The export preview appears once the terrain is ready." : "Preparing export preview…")}</p>
+  {/if}
+</div>

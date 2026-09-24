@@ -8,12 +8,11 @@ import type { ExportPhase } from "$lib/studio/export-notice";
 import type { HistoryAvailability } from "$lib/studio/history";
 import type { LazyComponent } from "$lib/studio/lazy-component";
 import type { PlaceableId, PlacementSession } from "$lib/studio/placement/placeables";
-import type { ENGRAVING_MODE_OPTIONS, STACK_MODE_OPTIONS } from "$lib/studio/options";
 import type { ConfigSectionId, countDetailMarkings, modeledLakes, visibleWarnings } from "$lib/studio/preview-summary";
 
 /** Editing, waiting for Done's regeneration, or fading out. */
 export type PlacementPhase = "editing" | "settling" | "closing";
-export type PreviewMode = "map" | "engraving" | "2d" | "3d" | "custom";
+export type PreviewMode = "map" | "engraving" | "2d" | "3d" | "custom" | "export";
 export type GenerateState = "idle" | "loading" | "ready" | "error";
 export type LineWidthKey = Exclude<keyof LineStyleV1, "trailPattern" | "roadStyle" | "roadCap">;
 
@@ -47,7 +46,7 @@ export interface StudioContext {
   readonly layerTicks: number[];
   readonly terrainDataStale: boolean;
   readonly verticalExaggerationStale: boolean;
-  readonly terrainDataAction: "regenerate" | "generate";
+  readonly terrainDataAction: "regenerate" | "generate" | "load";
   readonly lakeDepthFittingOn: boolean;
   readonly visibleWarnings: ReturnType<typeof visibleWarnings>;
 
@@ -56,6 +55,8 @@ export interface StudioContext {
   readonly generationStep: number;
   readonly status: string;
   readonly detailsUpdating: boolean;
+  /** True while a refresh fetches terrain for a moved map area. */
+  readonly terrainRefreshing: boolean;
   readonly previewBusy: boolean;
   readonly previewBusyLabel: string;
   readonly exportPhase: ExportPhase;
@@ -74,7 +75,7 @@ export interface StudioContext {
   selectedLayer: number;
   explodedDrag: number | undefined;
   readonly explodedPreview: number;
-  readonly previewModeOptions: typeof STACK_MODE_OPTIONS | typeof ENGRAVING_MODE_OPTIONS;
+  readonly previewModeOptions: ReadonlyArray<{ value: string; label: string }>;
   readonly MapCanvas: typeof import("$lib/studio/MapCanvas.svelte").default | undefined;
   readonly EngravingPreview: typeof import("$lib/studio/EngravingPreview.svelte").default | undefined;
   readonly TwoDPreview: typeof import("$lib/studio/TwoDPreview.svelte").default | undefined;
@@ -85,6 +86,8 @@ export interface StudioContext {
   readonly CustomDataView: typeof import("$lib/studio/customdata/CustomDataView.svelte").default | undefined;
   readonly customDataView: LazyComponent<typeof import("$lib/studio/customdata/CustomDataView.svelte").default>;
   readonly mapCanvas: LazyComponent<typeof import("$lib/studio/MapCanvas.svelte").default>;
+  readonly ExportPreview: typeof import("$lib/studio/ExportPreview.svelte").default | undefined;
+  readonly exportPreview: LazyComponent<typeof import("$lib/studio/ExportPreview.svelte").default>;
 
   // Placement mode
   /** The open placement session, or undefined outside placement mode. */

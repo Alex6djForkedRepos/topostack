@@ -715,11 +715,12 @@ html:has(.atomm-workbench), body:has(.atomm-workbench) { height: 100%; margin: 0
   .preview-toolbar > .mode-switch { pointer-events: auto; width: auto; background: var(--color-bg-control); box-shadow: var(--shadow-100); }
   .preview-toolbar .preview-readout { display: none; }
   .atomm-tips { position: absolute; inset-block-start: var(--gutter); inset-inline-end: var(--gutter); z-index: 2; }
-  .gen-rail-collapsed { z-index: 2; width: 40px; padding: 0; justify-content: center; }
-  .mode-switch .ldt-toggle-group__item { padding-inline: 8px; font-size: 12px; gap: 4px; }
+  .gen-rail-collapsed { z-index: 2; color: var(--color-text-secondary); }
+  .mode-switch .ldt-toggle-group__item { min-width: 64px; padding-inline: 8px; font-size: 12px; gap: 4px; }
   .mode-switch svg { display: none; }
-  .preview-attribution { inset-block-end: 56px; max-width: calc(100% - 32px); inset-inline-start: auto; inset-inline-end: 16px; font-size: 11px; z-index: 1; }
-  .preview-attribution a { display: inline-flex; min-height: 24px; align-items: center; }
+  /* Credits share the zoom cluster's row at the opposite corner: light text, no plate. */
+  .preview-attribution { inset-block-end: var(--gutter); inset-inline-start: auto; inset-inline-end: var(--gutter); display: block; height: var(--control-md); line-height: var(--control-md); max-width: calc(100% - 240px); padding: 0; background: none; color: var(--color-text-tertiary); font: var(--font-11-regular); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; z-index: 1; }
+  .preview-attribution a { display: inline-flex; min-height: var(--min-target); align-items: center; color: var(--color-text-secondary); }
   .svg-zoom-controls, .atomm-three-zoom { inset: auto; inset-block-end: var(--gutter); inset-inline-start: var(--gutter); z-index: 2; border-radius: 8px; padding: 0; gap: 0; box-shadow: none; background: var(--color-bg-default); direction: inherit; }
   .svg-zoom-controls button, .atomm-three-zoom button { height: 32px; min-width: 32px; border-radius: 0; }
   .svg-zoom-value { height: 32px; font: var(--font-12-regular); }
@@ -736,12 +737,15 @@ html:has(.atomm-workbench), body:has(.atomm-workbench) { height: 100%; margin: 0
   .preview-warning p { color: var(--color-text-primary); font-size: 12px; }
   .preview-warning .lake-depth-help { display: inline; height: auto; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-decoration: underline; }
   .warning-dismiss, .warning-action { min-width: 24px; min-height: 24px; }
-  .generation-overlay { z-index: 3; gap: 8px; background: var(--color-bg-default); color: var(--color-text-primary); padding: 16px; }
+  /* Computing is a card over the previous preview (the template's progress block), so the
+   * view tabs and Tips stay in reach: a stage name, the step, and a way to cancel. */
+  .generation-overlay { z-index: 2; inset: auto; top: 50%; left: 50%; translate: -50% -50%; width: min(320px, calc(100% - 32px)); gap: 8px; padding: var(--space-200); border: 1px solid var(--color-stroke-divider); border-radius: var(--radius-large); background: var(--color-bg-default); box-shadow: var(--shadow-100); color: var(--color-text-primary); text-align: center; }
   .preview-update-overlay .contour-loader { display: none; }
   .generation-overlay strong { margin: 0; font: var(--font-14-medium); }
   .generation-overlay small { margin: 0; color: var(--color-text-secondary); opacity: 1; font: var(--font-12-regular); }
-  .generation-overlay.preview-update-overlay { inset: auto 16px 60px auto; display: flex; align-items: flex-start; gap: 4px; width: min(280px, calc(100% - 32px)); border-radius: 8px; }
-  .generation-overlay.preview-update-overlay small { white-space: normal; overflow-wrap: anywhere; }
+  .generation-overlay.preview-update-overlay { inset: auto auto var(--gutter) 50%; translate: -50% 0; display: flex; flex-direction: row; align-items: center; width: auto; max-width: 200px; height: var(--control-md); padding: 0 var(--space-150); border: 0; border-radius: var(--radius-large); background: var(--color-bg-default); box-shadow: none; backdrop-filter: none; }
+  .generation-overlay.preview-update-overlay strong { font: var(--font-12-regular); color: var(--color-text-secondary); white-space: nowrap; }
+  .generation-overlay.preview-update-overlay small { display: none; }
   .gen-params-header .unit-switch { width: auto; }
   .project-identity { display: contents; }
   .project-name { width: 100%; border: 0; padding: 0; gap: 8px; }
@@ -797,7 +801,8 @@ html:has(.atomm-workbench), body:has(.atomm-workbench) { height: 100%; margin: 0
   .number-input:has(input:disabled), input:disabled { background: var(--color-bg-subtlest); color: var(--color-text-disabled); }
   .ldt-toggle-group { display: inline-flex; height: 32px; min-height: 32px; padding: 2px; gap: 0; border: 0; border-radius: 6px; background: var(--color-bg-hover); }
   .ldt-toggle-group__item { height: 28px; min-height: 28px; padding: 0 8px; border: 0; border-radius: 4px; font: var(--font-12-medium); background: transparent; color: var(--color-text-secondary); }
-  .ldt-toggle-group__item[data-state="on"] { background: var(--color-bg-default); color: var(--color-text-primary); box-shadow: var(--shadow-100); outline: 2px solid var(--color-brand-default); outline-offset: -2px; }
+  /* The active segment is the white item on the grey track, per the segmented control: no border. */
+  .ldt-toggle-group__item[data-state="on"] { background: var(--color-bg-default); color: var(--color-text-primary); box-shadow: var(--shadow-100); }
   .ldt-button { height: 32px; min-height: 32px; padding: 0 12px; border-radius: 6px; font: var(--font-14-medium); }
   .atomm-switch-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 16px; min-height: 40px; cursor: pointer; }
   .atomm-switch-row .toggle-label { color: var(--color-text-primary); font: var(--font-12-regular); }
@@ -873,7 +878,9 @@ html:has(.atomm-workbench), body:has(.atomm-workbench) { height: 100%; margin: 0
   .swatch-options button, .line-presets button { min-height: 32px; padding: 6px 4px; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
   .swatch-options svg, .line-presets svg { width: 24px; height: 24px; flex: none; }
   .line-presets small { display: none; }
-  .line-presets button[data-state="on"] { background: var(--color-bg-default); color: var(--color-text-primary); border-color: var(--color-stroke-active); }
+  .line-presets button, .swatch-options button { border: 1px solid transparent; }
+  .line-presets button:hover, .swatch-options button:hover { background: var(--color-bg-hover); }
+  .line-presets button[data-state="on"], .swatch-options button[data-state="on"] { background: var(--color-bg-default); color: var(--color-text-primary); border-color: var(--color-stroke-active); }
   .linework-customize { width: calc(100% - 32px); margin-inline: 16px; text-transform: none; letter-spacing: normal; }
   .marker-add-button, .linework-customize, .subgroup-heading--action button, .custom-point-add, .placement-start { height: 32px; min-height: 32px; border-radius: 6px; padding: 0 8px; font: var(--font-12-medium); }
   .marker-card__header button, .custom-point-heading button { width: 24px; height: 24px; min-height: 24px !important; border-radius: 4px; }
@@ -881,9 +888,84 @@ html:has(.atomm-workbench), body:has(.atomm-workbench) { height: 100%; margin: 0
   .marker-symbol-options svg { width: 16px; height: 16px; }
   .marker-card, .custom-line-card { border-radius: 8px 8px 0 0; }
   .custom-line-kind-options button { height: 32px; padding: 0 6px; border-radius: 6px; }
-  .gen-rail [role="radio"][aria-checked="true"] { outline: 2px solid var(--color-brand-default); outline-offset: -2px; }
   .field-row label { text-transform: none; letter-spacing: normal; }
   .gen-rail .history-actions .ldt-icon-button svg { min-width: 16px; min-height: 16px; }
 }
 
 .atomm-workbench.atomm-workbench:dir(rtl) .atomm-zoom-cluster { direction: rtl; }
+
+/* Review follow-ups (2026-09): one control per value, sentence-case headings,
+ * the layer card, the Export view and the Tips walkthrough. */
+.atomm-workbench.atomm-workbench {
+  /* A range is one grey numeric field (drag it, or type): the slider duplicated it. */
+  .range-field { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: var(--space-100); min-height: 44px; }
+  .range-field input[type="range"], .range-field > small, .range-field .terrain-data-badge { display: none; }
+  .range-field__label b { font-weight: 400; color: var(--color-text-primary); }
+  .range-field__row { flex: none; }
+  /* Panel text is 12px sentence case; only the built-in engraving font previews in capitals. */
+  .gen-rail *:not(.plaque-text) { text-transform: none; letter-spacing: normal; }
+  .gen-rail :is(.subgroup-heading, .subsection-label) { font: var(--font-12-medium); color: var(--color-text-primary); }
+  .gen-rail .subgroup-heading--action button, .gen-rail .placement-start { font: var(--font-12-medium); }
+
+  .layer-dock.prop-card { min-height: 0; padding: var(--space-50) 0; border-radius: var(--radius-large); box-shadow: var(--shadow-100); }
+  .layer-dock .field-row { min-height: 40px; }
+  .layer-dock .layer-heading { display: block; flex: none; font: var(--font-12-regular); color: var(--color-text-primary); white-space: nowrap; }
+  .layer-dock .control { min-width: 0; }
+  .layer-dock .slider { flex: 1 1 auto; min-width: 72px; }
+  .layer-dock .value { min-width: 56px; }
+
+  .generate-retry { width: 100%; }
+  .detail-group > .font-picker { margin-inline: var(--gutter); }
+
+  /* Markers & paths: one card of rows and secondary buttons, not boxes in boxes. */
+  .custom-data-import { display: flex; flex-direction: column; gap: var(--space-100); margin: var(--space-100) var(--gutter); }
+  .custom-data-import__button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-75); width: 100%; height: var(--control-md); border: 1px solid var(--color-stroke-default); border-radius: var(--radius-medium); background: var(--color-bg-default); color: var(--color-text-secondary); font: var(--font-12-medium); }
+  .custom-data-import__button:hover { border-color: var(--color-stroke-strong); background: var(--color-bg-hover); }
+  .custom-data-import small, .marker-note { color: var(--color-text-tertiary); font: var(--font-12-regular); }
+  .marker-editor, .custom-line-editor { margin: 0 var(--gutter); padding: var(--space-150) 0; border: 0; border-top: 1px solid var(--color-stroke-divider); border-radius: 0; background: transparent; }
+  .marker-editor .subgroup-heading > p > span, .custom-line-editor .subgroup-heading > p > span { background: var(--color-bg-active); }
+  .marker-add-button { border: 1px solid var(--color-stroke-default); background: var(--color-bg-default); color: var(--color-text-secondary); }
+  .marker-add-button:hover:not(:disabled) { border-color: var(--color-stroke-strong); background: var(--color-bg-hover); }
+  .marker-add-button[aria-pressed="true"] { border-color: var(--color-stroke-active); background: var(--color-bg-active); color: var(--color-text-primary); }
+  .marker-card, .custom-line-card { border: 1px solid var(--color-stroke-divider); border-radius: var(--radius-large); }
+  .custom-data-name, .custom-data-name::placeholder { text-transform: none; letter-spacing: normal; font: var(--font-12-medium); color: var(--color-text-primary); }
+  /* Derived results read as a quiet note in the card, not a callout with a rule. */
+  .relief-summary { margin: var(--space-100) var(--gutter); padding: var(--space-100) var(--space-150); border: 0; border-radius: var(--radius-medium); background: var(--color-bg-surface); }
+
+  /* Every view stands on the platform's canvas ground; the cut view's dark mat hid the overlays. */
+  .two-d-stage { background: var(--color-bg-editor); }
+  .export-preview { position: absolute; inset: 0; }
+  .export-sheet { position: absolute; inset: 0; }
+  .export-sheet .svg-viewer, .export-sheet .svg-viewport { width: 100%; height: 100%; }
+  .export-preview-state { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; padding: var(--space-300); color: var(--color-text-secondary); font: var(--font-12-regular); text-align: center; }
+  .export-manifest { position: absolute; inset-block-start: 64px; inset-inline-start: var(--gutter); z-index: 2; display: flex; flex-direction: column; gap: var(--space-100); width: 260px; max-width: calc(100% - 32px); max-height: calc(100% - 128px); overflow-y: auto; padding: var(--space-150); border: 1px solid var(--color-stroke-divider); border-radius: var(--radius-large); background: var(--color-bg-default); box-shadow: var(--shadow-100); font: var(--font-12-regular); }
+  .export-manifest h2 { margin: 0; font: var(--font-12-medium); color: var(--color-text-primary); }
+  .export-manifest-row, .export-manifest summary { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-100); margin: 0; min-height: var(--min-target); color: var(--color-text-tertiary); }
+  .export-manifest summary { cursor: pointer; list-style: none; }
+  .export-manifest summary::-webkit-details-marker { display: none; }
+  .export-manifest strong { overflow: hidden; color: var(--color-text-primary); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; text-align: end; }
+  .export-manifest small { color: var(--color-text-secondary); font: var(--font-11-regular); font-variant-numeric: tabular-nums; }
+  .export-manifest ul { display: flex; flex-direction: column; gap: 2px; margin: var(--space-50) 0 0; padding: 0; list-style: none; }
+  .export-manifest li { display: flex; justify-content: space-between; gap: var(--space-100); color: var(--color-text-secondary); font: var(--font-11-regular); }
+  .export-manifest li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .export-key { display: flex; align-items: center; gap: var(--space-50); margin: 0; padding-top: var(--space-100); border-top: 1px solid var(--color-stroke-divider); color: var(--color-text-secondary); }
+  .export-key i { width: 12px; height: 2px; border-radius: 1px; }
+  .export-key i + i, .export-key-score { margin-inline-start: var(--space-100); }
+  .export-key-cut { background: var(--color-red-default); }
+  .export-key-score { background: var(--color-blue-default); }
+
+  .atomm-tips-dialog .dialog-header h2 { flex: none; }
+  .atomm-tips-dialog .dialog-media { height: 200px; }
+  .atomm-tips-dialog .dialog-body { min-height: 120px; }
+  .tip-art { width: 240px; height: auto; overflow: visible; }
+  .tip-art :is(.tip-sheet, .tip-ground, .tip-file) { fill: var(--color-bg-default); stroke: var(--color-stroke-strong); stroke-width: 1.25; stroke-linejoin: round; }
+  .tip-art .tip-sheet-alt { fill: var(--color-bg-surface); }
+  .tip-art :is(.tip-line, .tip-select) { fill: none; stroke: var(--color-text-secondary); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  .tip-art .tip-select { stroke-dasharray: 4 3; }
+  .tip-art .tip-pin { fill: var(--color-brand-default); }
+  .tip-art .tip-pin-eye { fill: var(--color-bg-default); }
+  .tip-art .tip-water { fill: var(--color-blue-default); fill-opacity: 0.25; stroke: none; }
+  .tip-art .tip-cut { fill: none; stroke: var(--color-red-default); stroke-width: 2; }
+  .tip-art .tip-score { fill: none; stroke: var(--color-blue-default); stroke-width: 2; stroke-linecap: round; }
+  .tip-art .tip-text { fill: var(--color-text-secondary); font: var(--font-11-regular); }
+}

@@ -21,7 +21,7 @@
   import { readAtommLocale } from "$lib/atomm/atomm-locale";
   import { ProjectHistory } from "$lib/studio/history";
   import { historyShortcut } from "$lib/studio/history-keys";
-  import { ENGRAVING_MODE_OPTIONS, PRESETS, STACK_MODE_OPTIONS } from "$lib/studio/options";
+  import { ATOMM_ENGRAVING_MODE_OPTIONS, ATOMM_STACK_MODE_OPTIONS, ENGRAVING_MODE_OPTIONS, PRESETS, STACK_MODE_OPTIONS } from "$lib/studio/options";
   import * as edits from "$lib/studio/project-edits";
   import { isAbortError, PreviewPipeline } from "$lib/studio/preview-pipeline";
   import { LazyComponent } from "$lib/studio/lazy-component";
@@ -81,6 +81,8 @@
   let generationStep = $state(1);
   let status = $state("Real-data sample preview ready");
   let detailsUpdating = $state(false);
+  // A refresh that fetches terrain for a moved map area, not just a restyle.
+  let terrainRefreshing = $state(false);
   let selectedLayer = $state(featuredLayerIndex(defaultPreviewGeometry));
   // Live exploded-slider position. Committing every tick into `project`
   // replaced the whole config at 60 Hz, which re-ran the export fingerprint,
@@ -157,6 +159,9 @@
     if (placement) threeUnavailable = true;
     if (mode === "3d") { threeUnavailable = true; mode = "2d"; previewNotice = "3D preview could not load · reload to update TopoStack"; }
   });
+  const exportPreview = new LazyComponent(() => import("$lib/studio/ExportPreview.svelte"), (error) => {
+    console.error("TopoStack could not load the export preview.", error); status = "Export preview could not load · retry or reload to update TopoStack";
+  });
   const placementStage = new LazyComponent(() => import("$lib/studio/placement/PlacementStage.svelte"), (error) => {
     console.error("TopoStack could not load placement mode.", error); placement = undefined; status = "Placement could not load · reload to update TopoStack";
   });
@@ -177,6 +182,7 @@
   const TwoDPreview = $derived(twoDPreview.component);
   const ThreePreview = $derived(threePreview.component);
   const PlacementStage = $derived(placementStage.component);
+  const ExportPreview = $derived(exportPreview.component);
 
   // Placement mode: an uncommitted project patch moved on a top-down view of
   // the piece. Done applies it as one edit, which generation bakes into the
@@ -256,7 +262,7 @@
 
   $effect(() => {
     const outputMode = project.outputMode;
-    if (outputMode === "engraving" && mode !== "map" && mode !== "engraving" && mode !== "custom") mode = "engraving";
+    if (outputMode === "engraving" && mode !== "map" && mode !== "engraving" && mode !== "custom" && mode !== "export") mode = "engraving";
     else if (outputMode === "stack" && mode === "engraving") mode = threeUnavailable ? "2d" : "3d";
   });
 
@@ -282,6 +288,7 @@
     else if (mode === "engraving") engravingPreview.ensure();
     else if (mode === "2d") twoDPreview.ensure();
     else if (mode === "3d") threePreview.load();
+    else if (mode === "export") exportPreview.ensure();
     if (placementBackdrop === "3d") threePreview.load();
   });
 
@@ -292,15 +299,17 @@
   const stackPlan = $derived(planTerrainStack(project, geometry.landReliefM, geometry.bounds, geometry.waterDepthBelowLandM));
   // Sea-level alignment can add a sheet; report the generated count once current.
   const stackLayerCount = $derived(geometry.configFingerprint === projectFingerprint(project) ? geometry.layers.length : stackPlan.layerCount);
-  const previewModeOptions = $derived(project.outputMode === "engraving" ? ENGRAVING_MODE_OPTIONS : STACK_MODE_OPTIONS);
+  const previewModeOptions = $derived(embeddedInPlatform
+    ? project.outputMode === "engraving" ? ATOMM_ENGRAVING_MODE_OPTIONS : ATOMM_STACK_MODE_OPTIONS
+    : project.outputMode === "engraving" ? ENGRAVING_MODE_OPTIONS : STACK_MODE_OPTIONS);
   const previewBusy = $derived(generationState === "loading" || detailsUpdating);
-  const previewBusyLabel = $derived(generationState === "loading" ? "Building your terrain" : "Refreshing preview");
+  const previewBusyLabel = $derived(generationState === "loading" ? "Building your terrain" : terrainRefreshing ? "Loading terrain for this area" : "Refreshing preview");
   const contourInterval = $derived(geometry.landReliefM / (project.engravingContourCount + 1));
   const fabricationPanelCount = $derived(geometry.layers.length - geometry.fabricationNests.length);
   const getFeedbackContext = () => studioFeedbackContext(project, activeSource, geometry, !sameMapArea(sourceProject, project));
   const terrainDataStale = $derived(!sameMapArea(sourceProject, project));
   const verticalExaggerationStale = $derived(project.outputMode === "stack" && sourceProject.verticalExaggeration !== project.verticalExaggeration);
-  const terrainDataAction = $derived(geometry.sourceKind === "real" ? "regenerate" : "generate");
+  const terrainDataAction = $derived(embeddedInPlatform ? "load" : geometry.sourceKind === "real" ? "regenerate" : "generate");
   const exportBlockedBy = $derived(exportBlockReason(geometry, project));
   const exportReady = $derived(!exportBlockedBy);
   const exportStatusLabel = $derived(exportPhase === "preparing" ? "Preparing files" : exportPhase === "ready" ? "Export ready" : exportPhase === "error" ? "Export failed" : exportReady ? "Ready to export" : "Generate before export");
@@ -481,6 +490,7 @@
       // Autosave must start even when restoring failed, or later edits are lost,
       // unless it would overwrite a saved project that could not be backed up.
       if (!cancelled && autosave) booted = true;
+      if (!cancelled) loadRealTerrain();
     });
     return () => { cancelled = true; disconnectAtomm(); exportNotice.dispose(); generationAbort?.abort(); pipeline.dispose(); };
   });
@@ -605,7 +615,20 @@
     invalidatePendingPreview();
     projectHistory.record(project, ["location"]);
     project = { ...project, location: { ...project.location, ...patch, ...(("lat" in patch || "lon" in patch || "zoom" in patch) && !("bounds" in patch) ? { bounds: undefined } : {}) } };
-    status = "Map area changed · regenerate terrain data";
+    if (!followMapArea()) status = "Map area changed · regenerate terrain data";
+  }
+
+  // The platform embed has no Generate step. A moved map area reloads its
+  // terrain once the edits settle, as a resized cut already does, and a
+  // preview still showing bundled or restored data loads real terrain.
+  const AREA_REFRESH_DELAY_MS = 450;
+  function followMapArea(): boolean {
+    if (!embeddedInPlatform) return false;
+    void refreshPreview("fabrication", AREA_REFRESH_DELAY_MS);
+    return true;
+  }
+  function loadRealTerrain(): void {
+    if (embeddedInPlatform && activeSource.sourceKind !== "real" && generationState !== "loading") void generate({ automatic: true });
   }
     function closeLocationDialog(): void {
     searchOpen = false;
@@ -618,7 +641,7 @@
     project = { ...project, name: (place.surveyedLake ? place.label : place.label.split(",")[0] ?? "Terrain project").slice(0, MAX_PROJECT_NAME_LENGTH),
       ...(place.surveyedLake ? { outputMode: "stack" as const, showWaterDepth: true } : {}),
       location: { ...project.location, lat: place.lat, lon: place.lon, label: place.label, zoom: place.zoom ?? 11, bounds: place.bounds } };
-    status = "Map area changed · regenerate terrain data";
+    if (!followMapArea()) status = "Map area changed · regenerate terrain data";
     searchOpen = false;
   }
 
@@ -638,7 +661,7 @@
     if (changed.includes("name")) geometry = { ...geometry, projectName: target.name };
     // Still loading here means the change was kept; generation adopts it on completion.
     if (generationState === "loading") return;
-    if (!sameMapArea(sourceProject, target) && changed.includes("location")) { status = "Map area changed · regenerate terrain data"; return; }
+    if (!embeddedInPlatform && !sameMapArea(sourceProject, target) && changed.includes("location")) { status = "Map area changed · regenerate terrain data"; return; }
     status = `${action} applied`;
     // A cosmetic change leaves any pending refresh to finish on its own.
     if (keepsWork || !sourceChanged.some((key) => !COSMETIC_KEYS.has(key))) return;
@@ -656,6 +679,7 @@
     replaceSourceProject(structuredClone(DEFAULT_PROJECT), createSamplePreviewSource());
     generationState = "ready";
     status = "Project reset to Crater Lake defaults · Undo restores your previous settings";
+    loadRealTerrain();
   }
 
   function undo(): void { if (placement) return; const previous = projectHistory.undo(project); if (previous) restoreProject(previous, "Undo"); }
@@ -674,6 +698,7 @@
     generationAbort?.abort();
     pipeline.invalidate();
     detailsUpdating = false;
+    terrainRefreshing = false;
     if (wasGenerating) generationState = "idle";
   }
 
@@ -692,6 +717,7 @@
     const fromSource = activeSource;
     const patch = projectPatch(fromProject, previewProject);
     detailsUpdating = true;
+    terrainRefreshing = areaChanged;
     if (!quiet) status = areaChanged ? "Fetching terrain for the updated map area…" : previewPendingStatus(kind, nextProject);
     return pipeline.runPreviewUpdate({
       config: previewProject,
@@ -710,14 +736,14 @@
         selectedLayer = (kind === "details" ? layerForEnabledDetail(next, patch) : undefined) ?? Math.min(selectedLayer, Math.max(0, next.layers.length - 1));
         if (quiet) return;
         if (generationState === "error") generationState = "ready";
-        status = previewUpdatedStatus(kind, source, nextProject, sourceRequirements(nextProject));
+        status = embeddedInPlatform && areaChanged && source.sourceKind === "real" ? "Terrain loaded for the new map area" : previewUpdatedStatus(kind, source, nextProject, sourceRequirements(nextProject));
       },
       onError: (error) => {
         if (quiet) { console.error("TopoStack could not restyle the preview.", error); return; }
         generationState = "error";
         status = error instanceof Error ? error.message : kind === "details" ? "Could not update map details." : "Could not update the output geometry.";
       },
-      onSettled: (current) => { if (current) detailsUpdating = false; },
+      onSettled: (current) => { if (current) { detailsUpdating = false; terrainRefreshing = false; } },
     }, delayMs);
   }
 
@@ -740,7 +766,8 @@
     return refreshPreview(updatesCustomData ? "customData" : "fabrication", delayMs);
   }
 
-  async function generate(): Promise<void> {
+  /** An `automatic` run is the embed loading terrain on its own: it keeps the current view and skips the progress toasts. */
+  async function generate({ automatic = false }: { automatic?: boolean } = {}): Promise<void> {
     // A chart saved again since a lake took it (a project imported with a newer
     // copy) carves as it is now, so the project says so before it is built:
     // otherwise the design's fingerprint would name content that was not carved.
@@ -756,7 +783,7 @@
     const generationProject: ProjectConfigV1 = { ...project, location: { ...project.location, bounds: boundsForProject(project) } };
     generationState = "loading"; generationStep = 1; status = "Fetching elevation and map details…";
     trackUsage("generation_started", generationProject.outputMode);
-    const progressToast = showToast({ type: "info", message: "Building terrain layers…", duration: 0 });
+    const progressToast = automatic ? Promise.resolve(undefined) : showToast({ type: "info", message: "Building terrain layers…", duration: 0 });
     // Throws at each await boundary once canceled (AbortError) or superseded by a newer edit.
     const checkpoint = () => { controller.signal.throwIfAborted(); if (!pipeline.isCurrent(revision)) throw new DOMException("Generation superseded", "AbortError"); };
     try {
@@ -788,7 +815,7 @@
       void sourcePreparation?.then((cache) => cache.clear(), () => undefined);
       geometry = completedGeometry; project = completedProject; activeSource = loaded.source; sourceProject = completedProject; selectedLayer = featuredLayerIndex(completedGeometry);
       // Show the result, unless the maker is at work in the custom data view.
-      if (mode !== "custom") mode = completedProject.outputMode === "engraving" ? "engraving" : threeUnavailable ? "2d" : "3d";
+      if (!automatic && mode !== "custom") mode = completedProject.outputMode === "engraving" ? "engraving" : threeUnavailable ? "2d" : "3d";
       generationState = "ready";
       trackUsage(exportBlockReason(completedGeometry, completedProject) ? "generation_failed" : "generation_succeeded", completedProject.outputMode);
       const outcome = {
@@ -797,7 +824,7 @@
         lakeUnavailable: generationProject.outputMode === "stack" && generationProject.showWaterDepth && next.lakeDataStatus !== "available",
       };
       status = generationStatus(outcome, generationProject, next);
-      void showToast(generationToast(outcome, generationProject));
+      if (!automatic) void showToast(generationToast(outcome, generationProject));
     } catch (error) {
       if (!pipeline.isCurrent(revision)) { trackUsage("generation_cancelled", generationProject.outputMode); return; }
       const canceled = controller.signal.aborted || isAbortError(error);
@@ -812,7 +839,12 @@
       void progressToast.then((toast) => toast && window.atomm ? window.atomm.ui.closeToast(toast) : undefined).catch(() => undefined);
     }
   }
-  function cancelGeneration(): void { generationAbort?.abort(); pipeline.cancelGeometry(new DOMException("Generation canceled", "AbortError")); }
+  function cancelGeneration(): void {
+    // Loading terrain for a moved map area is a refresh, not a Generate run.
+    // Stopping it keeps the previous terrain, and the lead rail offers to load it again.
+    if (terrainRefreshing) { invalidatePendingPreview(); generationState = "idle"; status = "Terrain loading canceled"; return; }
+    generationAbort?.abort(); pipeline.cancelGeometry(new DOMException("Generation canceled", "AbortError"));
+  }
 
   function showToast(options: Parameters<NonNullable<typeof window.atomm>["ui"]["toast"]>[0]): Promise<string | undefined> {
     if (!window.atomm) return Promise.resolve(undefined);
@@ -838,6 +870,7 @@
       const saved = charts.length ? await (await import("$lib/storage/user-charts")).saveProjectCharts(charts, imported) : { saved: 0, skipped: 0 };
       const source = createProjectPreviewSource(imported); invalidatePendingPreview(); projectHistory.push(project); dismissedWarnings = []; replaceSourceProject(imported, source); generationState = "ready";
       status = saved.saved ? `Project imported with ${saved.saved === 1 ? "its depth chart" : `${saved.saved} depth charts`} · generate to refresh its terrain` : "Project imported · generate to refresh its terrain";
+      loadRealTerrain();
     }
     catch (error) { reportImportError(error instanceof Error ? error.message : "Could not import this project."); }
   }
@@ -897,6 +930,7 @@
     get generationStep() { return generationStep; },
     get status() { return status; },
     get detailsUpdating() { return detailsUpdating; },
+    get terrainRefreshing() { return terrainRefreshing; },
     get previewBusy() { return previewBusy; },
     get previewBusyLabel() { return previewBusyLabel; },
     get exportPhase() { return exportPhase; },
@@ -918,6 +952,8 @@
     get CustomDataView() { return CustomDataView; },
     get customDataView() { return customDataView; },
     get mapCanvas() { return mapCanvas; },
+    get ExportPreview() { return ExportPreview; },
+    get exportPreview() { return exportPreview; },
     get placement() { return placement; },
     set placement(value) { placement = value; },
     get placementBackdrop() { return placementBackdrop; },
@@ -977,7 +1013,7 @@
 {/snippet}
 
 {#if embeddedInPlatform}
-  {#if AtommWorkbench}<AtommWorkbench ready={atommReady} blockedReason={exportBlockedBy} preparing={exportPhase === "preparing"} {exportPhase} {exportTitle} {exportDetail}>
+  {#if AtommWorkbench}<AtommWorkbench ready={atommReady} blockedReason={previewBusy ? undefined : activeSource.sourceKind !== "real" || terrainDataStale ? "Export is available once the terrain for this area has loaded." : exportBlockedBy} preparing={exportPhase === "preparing"} {exportPhase} {exportTitle} {exportDetail}>
     {#snippet leadHeader()}<ProjectControls />{/snippet}
     {#snippet lead()}<OutputSwitch />{#if mode === "custom"}{#if CustomDataNav}<CustomDataNav />{:else if customDataNav.failed}<p class="panel-loading" role="alert">Custom data tools could not load. <button type="button" class="btn btn-secondary" onclick={() => customDataNav.load()}>Retry</button></p>{:else}<p class="panel-loading" role="status">Loading custom data tools…</p>{/if}{:else}<SetupSection /><CustomDataSection />{/if}{/snippet}
     {#snippet generate()}{#if mode !== "custom"}<GenerationDock />{/if}{/snippet}
