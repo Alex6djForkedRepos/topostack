@@ -17,7 +17,7 @@ For layered projects, set your material width and height and let automatic nesti
 
 Open in Studio sends one editable SVG containing the entire layout. Download provides the complete project bundle, including artwork, project settings and source credits, plus an assembly guide for layered reliefs. Flat designs export as SVG artwork at your chosen physical size.
 
-Generate fresh terrain before exporting, then review the artwork, material and machine settings before fabrication. The opening design is a bundled preview. Current media shows freshly generated Crater Lake terrain in the 0.6.0 development candidate, including real survey data where available. Images and videos are software previews, not physical builds or machine runs.
+Generate fresh terrain before exporting, then review the artwork, material and machine settings before fabrication. The opening design is a bundled preview. Current media shows freshly generated Crater Lake terrain in the 0.6.0 release candidate, including real survey data where available. Images and videos are software previews, not physical builds or machine runs.
 
 ## Upload media
 
@@ -38,7 +38,7 @@ All nine PNGs are 3200 × 2400; both videos are 1920 × 1440. The eight gallery 
 
 Import `media-project-v6.json` to reproduce the starting project: Crater Lake, 406.4 × 270.933 mm, 3.175 mm material, 4× terrain exaggeration, 1.75× depth exaggeration, and 600 × 400 mm sheets. `media-export-v6.json` records the final export after changing sheets to 700 × 500 mm. Survey coverage is incomplete; terrain or modeled depths fill gaps. Flat artwork shows surface contours, not submerged 3D relief.
 
-`media-provenance.json` records the capture source commit, development base, source attribution and file hashes. Capture uses the actual embedded UI with an SDK mount/export stand-in; these images do not claim a native Studio import. Real platform validation is performed separately through Atomm Local Debug. The code is a development candidate, not a published 0.6.0 release.
+`media-provenance.json` records the capture source commit, development base, source attribution and file hashes. Capture uses the actual embedded UI with an SDK mount/export stand-in; these images do not claim a native Studio import. Real platform validation is performed separately through Atomm Local Debug. Media capture predates release preparation; the versioned release receipt identifies the final packaged code and its tested commit.
 
 The current upload bundle contains 11 media files. Historical captures and `media-provenance-v5.json` remain in the repository for reference; they are excluded from this refreshed upload set.
 
