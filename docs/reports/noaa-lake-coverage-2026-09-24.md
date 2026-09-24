@@ -6,7 +6,7 @@ Which lakes NOAA can supply depths for, beyond the six in `noaa-great-lakes-v1`.
 
 - **NCEI Great Lakes Bathymetry**, the product TopoStack uses, covers only Superior (still a draft), Michigan, Huron, Erie, Ontario and St. Clair. It contains nothing else, so there are no more lakes to take from it.
 - **More NOAA coverage comes from three other products:**
-  - **National Bathymetric Source (NBS) Modeling:** the most useful. Numeric 4–16 m grids in the public bucket `noaa-ocs-nationalbathymetry-pds`, built from measured surveys, CC0 per source. They cover 32 lakes and reservoirs beyond the Great Lakes, plus the Great Lakes themselves at much finer resolution than the 3″ (~90 m) NCEI grids.
+  - **National Bathymetric Source (NBS) Modeling:** the most useful. Numeric 4–16 m grids in the public bucket `noaa-ocs-nationalbathymetry-pds`, built from measured surveys. Most sources are CC0 or CC-BY 4.0; a few are non-commercial, internal-use or pending and must be excluded (see the correction below). They cover 31 lakes and reservoirs beyond the Great Lakes, plus the Great Lakes themselves at much finer resolution than the 3″ (~90 m) NCEI grids.
   - **BlueTopo:** a subset of the same Gulf and Florida lakes.
   - **NCEI CUDEM 1/9″:** also covers the Gulf lakes, Lake Washington and Lake Union.
 - **About 20 more lakes have depths only on NOAA nautical charts.** All paper charts were retired by January 2025; the ENC (electronic chart) cells that replaced them carry depth contours and soundings in metres. They would need the contour-to-grid path already used for Ontario and Minnesota.
@@ -61,7 +61,6 @@ Depths are NBS band-1 elevations (negative is below the water) or CUDEM NAVD88 e
 | Lake Pontchartrain | LA | Modeling, BlueTopo, CUDEM 2020v1 | 4 m / ~3 m | −4.8 m point | 94% valid |
 | Lake Maurepas | LA | Modeling, BlueTopo, CUDEM 2020v1 | 4 m | −3.7 m point | 94% valid |
 | Lake Borgne | LA/MS | Modeling, BlueTopo, CUDEM 2020v1 | 8 m | −3.2 m point | brackish lagoon |
-| Lake Salvador | LA | Modeling | 4 m | −2.4 m point | CUDEM reads −0.1 m (flattened) |
 | Sabine Lake | TX/LA | Modeling, BlueTopo, CUDEM 2021v2 | 4 m | −2.3 m point | |
 | Calcasieu Lake | LA | Modeling, BlueTopo, CUDEM 2021v1 | 4 m | −2.0 m point | the −14 m tile minimum is the ship channel |
 | Lake Mattamuskeet | NC | CUDEM 2018v1 | ~3 m | −1.1 m NAVD88 | plausible for a ~1 m lake; bed shape not checked |
@@ -121,11 +120,21 @@ The following were probed against NBS and CUDEM, and searched for a chart:
 
 NOAA-hosted USACE topobathy lidar exists for Lake Seminole and West Point Lake, but lidar reaches only shallow margins.
 
+## Correction after the full tile scan
+
+The phase 0 inventory later on 2026-09-24 read the attribute table of all 12,140 delivered Modeling tiles, and measured coverage over Natural Earth lake polygons. See [data/nbs-inventory-preview-20260924.json](data/nbs-inventory-preview-20260924.json). It changes two things above:
+
+- **Licences are mixed.** Tiles by licence: 12,109 carry CC0 sources and 1,357 carry CC-BY 4.0 sources (a tile can carry both). Another 65 tiles include sources licensed CC-BY-NC 4.0, internal use (`IUO-rel-HSD`) or `Pending`. Those source cells must be excluded, and CC-BY sources need attribution.
+- **Lake Salvador is filler, not survey.** It has no surveyed cells and 87% `NBS Generalization`; the −2.4 m point read earlier was fill. It is removed from section 2.
+
+The scan also settled several section 3 lakes. Lake Charlevoix (1.6% surveyed), Grand Lake (LA, 1%), and Mullett and Burt lakes (fill only) have no usable NBS survey. The St. Marys River lakes are only 20% surveyed. Lake Butte des Morts (WI) is 36% surveyed, all from 1948.
+
 ## Using NBS Modeling tiles
 
 - **Format:** three-band COGs (elevation, uncertainty, contributor) with a raster attribute table per source. Each tile's GeoTIFF URL and SHA-256 are listed in the dated tile-scheme GeoPackage.
 - **Status:** the product sits under `Test-and-Evaluation/`. Tile names and dates change between releases, so pin the scheme file and the tile digests.
-- **Filler cells:** every source row carries `license_name: cc0-1.0`. Rows with `source_survey_id: NBS Generalization` (dated 1807-02-10, `data_assessment: 3`) are a generalized fill, not measurements. Mask them out the way land and NoData are masked today.
+- **Licences:** not uniform (see the correction below). Filter each source row by `license_name`.
+- **Filler cells:** rows with `source_survey_id: NBS Generalization` (dated 1807-02-10, `data_assessment: 3`) are a generalized fill, not measurements. Mask them out the way land and NoData are masked today.
 - **Vertical reference:** not stated in the tile. Lake Washington sources are named `…_MLLW`, and the Great Lakes sources are US Lake Survey sheets. Establish each lake's reference before anchoring depths to the HydroLAKES waterline, as `noaa-bathymetry.md` does for the low-water datum.
 - **Interpolated cells:** many cells are flagged `.interpolated` or `.upsampled` from sparse 1940s soundings. A 4 m grid does not mean 4 m survey density.
 

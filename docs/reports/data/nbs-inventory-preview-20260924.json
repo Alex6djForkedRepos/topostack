@@ -1,0 +1,852 @@
+{
+ "date": "2026-09-24",
+ "scheme": {
+  "product": "modeling",
+  "key": "Test-and-Evaluation/Modeling/_Modeling_Tile_Scheme/Modeling_Tile_Scheme_20260923_175019.gpkg",
+  "sha256": "0debc1fdec609fa3ffc2f6a7bcc4a6bd9e2c7e7f60c8fca719f7d385568c063e"
+ },
+ "deliveredTiles": 12140,
+ "unreadableTiles": 0,
+ "tilesWithRestrictedSources": 65,
+ "cells": {
+  "survey": 36360365417,
+  "chart": 145173,
+  "restricted": 16279963,
+  "generalization": 51331320153
+ },
+ "tilesByLicence": {
+  "cc0-1.0": 12109,
+  "cc-by-4.0": 1350,
+  "iuo-rel-hsd": 4,
+  "cc-by": 3,
+  "ccby": 4,
+  "pending": 2,
+  "cc-by-nc-4.0": 8,
+  "cc0.1.0": 2
+ },
+ "lakeSource": "Natural Earth 10m lakes and North American supplement (preview only; small lakes and coastal lakes such as Pontchartrain are absent). The canonical inventory uses HydroLAKES.",
+ "method": "scripts/data-build/nbs_inventory.py --measure: coverage is the share of lake cells inside delivered tiles by source kind, read at no more than 512 px per tile side; footprint is the share of the lake inside delivered tile bounds.",
+ "lakes": [
+  {
+   "name": "Lake Michigan",
+   "naturalEarthId": "1159113005",
+   "bounds": [
+    -88.04342,
+    41.62791,
+    -84.77451,
+    46.1152
+   ],
+   "footprint": 1.0,
+   "coverage": {
+    "survey": 0.934,
+    "chart": 0.0,
+    "restricted": 0.0,
+    "generalization": 0.056,
+    "empty": 0.01
+   },
+   "surveyYears": [
+    1903,
+    2026
+   ],
+   "resolutions": [
+    "16m",
+    "4m"
+   ],
+   "tiles": 635
+  },
+  {
+   "name": "Whitefish Bay",
+   "naturalEarthId": "1159113039",
+   "bounds": [
+    -85.05577,
+    46.4234,
+    -84.35622,
+    47.0189
+   ],
+   "footprint": 0.811,
+   "coverage": {
+    "survey": 0.904,
+    "chart": 0.0,
+    "restricted": 0.0,
+    "generalization": 0.07,
+    "empty": 0.026
+   },
+   "surveyYears": [
+    1945,
+    2026
+   ],
+   "resolutions": [
+    "16m",
+    "4m"
+   ],
+   "tiles": 35
+  },
+  {
+   "name": "Lake Winnebago",
+   "naturalEarthId": "1159106917",
+   "bounds": [
+    -88.51602,
+    43.80562,
+    -88.30379,
+    44.22332
+   ],
+   "footprint": 1.0,
+   "coverage": {
+    "survey": 0.896,
+    "chart": 0.0,
+    "restricted": 0.0,
+    "generalization": 0.075,
+    "empty": 0.029
+   },
+   "surveyYears": [
+    1948,
+    1948
+   ],
+   "resolutions": [
+    "4m"
+   ],
+   "tiles": 19
+  },
+  {
+   "name": null,
+   "naturalEarthId": "1159107033",
+   "bounds": [
+    -90.59291,
+    30.17626,
+    -90.40113,
+    30.35406
+   ],
+   "footprint": 1.0,
+   "coverage": {
+    "survey": 0.895,
+    "chart": 0.0,
+    "restricted": 0.0,
+    "generalization": 0.035,
+    "empty": 0.069
+   },
+   "surveyYears": [
+    1897,
+    2020
+   ],
+   "resolutions": [
+    "4m"
+   ],
+   "tiles": 9
+  },
+  {
+   "name": "Crescent Lake",
+   "naturalEarthId": "1159109209.0",
+   "bounds": [
+    -81.56014,
+    29.38261,
+    -81.44137,
+    29.53488
+   ],
+   "footprint": 1.0,
+   "coverage": {
+    "survey": 0.889,
+    "chart": 0.0,
+    "restricted": 0.0,
+    "generalization": 0.059,
+    "empty": 0.052
+   },
+   "surveyYears": [
+    1925,
+    2026
+   ],
+   "resolutions": [
+    "4m",
+    "8m"
+   ],
+   "tiles": 7
+  },
+  {
+   "name": "Lake Erie",
+   "naturalEarthId": "1159106757",
+   "bounds": [
+    -83.46621,
+    41.3936,
+    -78.8675,
+    43.10621
+   ],
+   "footprint": 0.797,
+   "coverage": {
+    "survey": 0.872,
+    "chart": 0.0,
+    "restricted": 0.0,
+    "generalization": 0.082,
+    "empty": 0.046
+   },
+   "surveyYears": [
+    1903,
+    2026
+   ],
+   "resolutions": [
+    "16m",
+    "4m"
+   ],
+   "tiles": 179
+  },
+  {
+   "name": "Lake Superior",
+   "naturalEarthId": "1159112991",
+   "bounds": [
+    -92.11418,
+    46.4234,
+    -84.35622,
+    49.02764
+   ],
+   "footprint": 0.745,
+   "coverage": {
+    "survey": 0.862,
+    "chart": 0.0,
+    "restricted": 0.0,
+    "generalization": 0.115,
+    "empty": 0.024
+   },
+   "surveyYears": [
+    1941,
+    2026
+   ],
+   "resolutions": [
+    "16m",
+    "4m"
+   ],
+   "tiles": 488
+  },
+  {
+   "name": "Lake Saint Clair",
+   "naturalEarthId": "1159106775",
+   "bounds": [
+    -83.08162,
+    42.30436,
+    -82.40753,
+    42.70205
+   ],
+   "footprint": 0.999,
+   "coverage": {
+    "survey": 0.84,
+    "chart": 0.0,
+    "restricted": 0.0,
+    "generalization": 0.129,
+    "empty": 0.031
+   },
+   "surveyYears": [
+    1948,
+    2026
+   ],
+   "resolutions": [
+    "4m"
+   ],
+   "tiles": 36
+  },
+  {
+   "name": "Lake Huron",
+   "naturalEarthId": "1159113021",
+   "bounds": [
+    -84.78084,
+    43.01731,
+    -79.66258,
+    46.3554
+   ],
+   "footprint": 0.473,
+   "coverage": {
+    "survey": 0.831,
+    "chart": 0.0,
+    "restricted": 0.0,
+    "generalization": 0.15,
+    "empty": 0.019
+   },
+   "surveyYears": [
+    1945,
+    2026
+   ],
+   "resolutions": [
+    "16m",
+    "4m"
+   ],
+   "tiles": 272
+  },
+  {
+   "name": "Lake George",
+   "naturalEarthId": "1159108003",
+   "bounds": [
+    -81.68501,
+    29.19927,
+    -81.51973,
+    29.51071
+   ],
+   "footprint": 1.0,
+   "coverage": {
+    "survey": 0.815,
+    "chart": 0.0,
+    "restricted": 0.0,
+    "generalization": 0.073,
+    "empty": 0.112
+   },
+   "surveyYears": [
+    1935,
+    2026
+   ],
+   "resolutions": [
+    "4m",
+    "8m"
+   ],
+   "tiles": 14
+  },
+  {
+   "name": "Lake Ontario",
+   "naturalEarthId": "1159106765",
+   "bounds": [
+    -79.77473,
+    43.1901,
+    -75.77021,
+    44.50444
+   ],
+   "footprint": 0.636,
+   "coverage": {
+    "survey": 0.805,
+    "chart": 0.0,
+    "restricted": 0.0,
+    "generalization": 0.161,
+    "empty": 0.033
+   },
+   "surveyYears": [
+    1941,
+    2026
+   ],
+   "resolutions": [
+    "16m",
+    "4m"
+   ],
+   "tiles": 133
+  },
+  {
+   "name": "Lake Pend Oreille",
+   "naturalEarthId": "1159107335",
+   "bounds": [
+    -116.57113,
+    47.95674,
+    -116.18949,
+    48.31292
+   ],
+   "footprint": 0.97,
+   "coverage": {
+    "survey": 0.801,
+    "chart": 0.0,
+    "restricted": 0.0,
+    "generalization": 0.052,
+    "empty": 0.146
+   },
+   "surveyYears": [
+    1948,
+    1948
+   ],
+   "resolutions": [
+    "4m"
+   ],
+   "tiles": 19
+  },
+  {
+   "name": "Lake Washington",
+   "naturalEarthId": "1159106655.0",
+   "bounds": [
+    -122.34403,
+    47.50386,
+    -122.19102,
+    47.75706
+   ],
+   "footprint": 1.0,
+   "coverage": {
+    "survey": 0.78,
+    "chart": 0.0,
+    "restricted": 0.0,
+    "generalization": 0.055,
+    "empty": 0.165
+   },
+   "surveyYears": [
+    1902,
+    2026
+   ],
+   "resolutions": [
+    "4m"
+   ],
+   "tiles": 9
+  },
+  {
+   "name": null,
+   "naturalEarthId": "1159110463",
+   "bounds": [
+    -93.4506,
+    29.83333,
+    -93.24822,
+    30.09355
+   ],
+   "footprint": 1.0,
+   "coverage": {
+    "survey": 0.759,
+    "chart": 0.0,
+    "restricted": 0.0,
+    "generalization": 0.12,
+    "empty": 0.122
+   },
+   "surveyYears": [
+    1885,
+    2026
+   ],
+   "resolutions": [
+    "4m",
+    "8m"
+   ],
+   "tiles": 9
+  },
+  {
+   "name": "Lake Monroe",
+   "naturalEarthId": "1159109295.0",
+   "bounds": [
+    -81.30288,
+    28.70258,
+    -81.13794,
+    28.86585
+   ],
+   "footprint": 1.0,
+   "coverage": {
+    "survey": 0.726,
+    "chart": 0.0,
+    "restricted": 0.0,
+    "generalization": 0.158,
+    "empty": 0.116
+   },
+   "surveyYears": [
+    1938,
+    2026
+   ],
+   "resolutions": [
+    "8m"
+   ],
+   "tiles": 3
+  },
+  {
+   "name": "Saginaw Bay",
+   "naturalEarthId": "1159113055",
+   "bounds": [
+    -83.94955,
+    43.6081,
+    -83.01833,
+    44.36726
+   ],
+   "footprint": 1.0,
+   "coverage": {
+    "survey": 0.655,
+    "chart": 0.0,
+    "restricted": 0.0,
+    "generalization": 0.341,
+    "empty": 0.003
+   },
+   "surveyYears": [
+    1946,
+    2026
+   ],
+   "resolutions": [
+    "16m",
+    "4m"
+   ],
+   "tiles": 82
+  },
+  {
+   "name": "Franklin D. Roosevelt Lake",
+   "naturalEarthId": "1159124331",
+   "bounds": [
+    -118.22723,
+    48.23226,
+    -118.07195,
+    48.685
+   ],
+   "footprint": 0.961,
+   "coverage": {
+    "survey": 0.509,
+    "chart": 0.0,
+    "restricted": 0.0,
+    "generalization": 0.081,
+    "empty": 0.41
+   },
+   "surveyYears": [
+    1948,
+    1949
+   ],
+   "resolutions": [
+    "4m"
+   ],
+   "tiles": 11
+  },
+  {
+   "name": "Lake Harney",
+   "naturalEarthId": "1159109335.0",
+   "bounds": [
+    -81.08114,
+    28.65071,
+    -81.00513,
+    28.78803
+   ],
+   "footprint": 1.0,
+   "coverage": {
+    "survey": 0.456,
+    "chart": 0.0,
+    "restricted": 0.0,
+    "generalization": 0.121,
+    "empty": 0.423
+   },
+   "surveyYears": [
+    1939,
+    2018
+   ],
+   "resolutions": [
+    "8m"
+   ],
+   "tiles": 1
+  },
+  {
+   "name": "Lake Butte Des Morts",
+   "naturalEarthId": "1159107031.0",
+   "bounds": [
+    -88.71351,
+    44.04066,
+    -88.58387,
+    44.09657
+   ],
+   "footprint": 1.0,
+   "coverage": {
+    "survey": 0.361,
+    "chart": 0.0,
+    "restricted": 0.0,
+    "generalization": 0.038,
+    "empty": 0.601
+   },
+   "surveyYears": [
+    1948,
+    1948
+   ],
+   "resolutions": [
+    "4m"
+   ],
+   "tiles": 2
+  },
+  {
+   "name": "St. Marys River",
+   "naturalEarthId": "1159127385",
+   "bounds": [
+    -84.49383,
+    46.3448,
+    -84.07275,
+    46.55281
+   ],
+   "footprint": 1.0,
+   "coverage": {
+    "survey": 0.205,
+    "chart": 0.0,
+    "restricted": 0.0,
+    "generalization": 0.437,
+    "empty": 0.357
+   },
+   "surveyYears": [
+    1945,
+    2026
+   ],
+   "resolutions": [
+    "16m",
+    "4m"
+   ],
+   "tiles": 18
+  },
+  {
+   "name": "Lake Charlevoix",
+   "naturalEarthId": "1159106889.0",
+   "bounds": [
+    -85.24108,
+    45.22187,
+    -85.01824,
+    45.33277
+   ],
+   "footprint": 1.0,
+   "coverage": {
+    "survey": 0.016,
+    "chart": 0.0,
+    "restricted": 0.0,
+    "generalization": 0.582,
+    "empty": 0.402
+   },
+   "surveyYears": [
+    1922,
+    2026
+   ],
+   "resolutions": [
+    "16m",
+    "4m"
+   ],
+   "tiles": 9
+  },
+  {
+   "name": "Grand Lake",
+   "naturalEarthId": "1159109171.0",
+   "bounds": [
+    -91.52662,
+    29.695,
+    -91.09728,
+    29.97645
+   ],
+   "footprint": 0.643,
+   "coverage": {
+    "survey": 0.01,
+    "chart": 0.0,
+    "restricted": 0.0,
+    "generalization": 0.508,
+    "empty": 0.481
+   },
+   "surveyYears": [
+    1934,
+    2026
+   ],
+   "resolutions": [
+    "4m"
+   ],
+   "tiles": 9
+  },
+  {
+   "name": "Lake Ocklawaha",
+   "naturalEarthId": "1746328809.0",
+   "bounds": [
+    -81.91938,
+    29.3756,
+    -81.78889,
+    29.53671
+   ],
+   "footprint": 0.649,
+   "coverage": {
+    "survey": 0.0,
+    "chart": 0.0,
+    "restricted": 0.0,
+    "generalization": 0.0,
+    "empty": 1.0
+   },
+   "surveyYears": [
+    1935,
+    2021
+   ],
+   "resolutions": [
+    "8m"
+   ],
+   "tiles": 1
+  },
+  {
+   "name": "Lake Charlevoix",
+   "naturalEarthId": "1159106921.0",
+   "bounds": [
+    -85.18047,
+    45.16871,
+    -85.12682,
+    45.2711
+   ],
+   "footprint": 1.0,
+   "coverage": {
+    "survey": 0.0,
+    "chart": 0.0,
+    "restricted": 0.0,
+    "generalization": 0.276,
+    "empty": 0.724
+   },
+   "surveyYears": [
+    1993,
+    1993
+   ],
+   "resolutions": [
+    "4m"
+   ],
+   "tiles": 2
+  },
+  {
+   "name": "Elk Lake",
+   "naturalEarthId": "1159106965.0",
+   "bounds": [
+    -85.40484,
+    44.80414,
+    -85.29534,
+    44.93177
+   ],
+   "footprint": 1.0,
+   "coverage": {
+    "survey": 0.0,
+    "chart": 0.0,
+    "restricted": 0.0,
+    "generalization": 0.0,
+    "empty": 1.0
+   },
+   "surveyYears": [
+    1922,
+    2019
+   ],
+   "resolutions": [
+    "16m",
+    "4m"
+   ],
+   "tiles": 3
+  },
+  {
+   "name": "Mullett Lake",
+   "naturalEarthId": "1159106865.0",
+   "bounds": [
+    -84.58299,
+    45.43919,
+    -84.46275,
+    45.56642
+   ],
+   "footprint": 1.0,
+   "coverage": {
+    "survey": 0.0,
+    "chart": 0.0,
+    "restricted": 0.0,
+    "generalization": 0.88,
+    "empty": 0.119
+   },
+   "surveyYears": [
+    1948,
+    2021
+   ],
+   "resolutions": [
+    "4m"
+   ],
+   "tiles": 5
+  },
+  {
+   "name": "Burt Lake",
+   "naturalEarthId": "1159106871.0",
+   "bounds": [
+    -84.71443,
+    45.40255,
+    -84.6271,
+    45.53017
+   ],
+   "footprint": 1.0,
+   "coverage": {
+    "survey": 0.0,
+    "chart": 0.0,
+    "restricted": 0.0,
+    "generalization": 0.957,
+    "empty": 0.042
+   },
+   "surveyYears": [
+    2015,
+    2026
+   ],
+   "resolutions": [
+    "4m"
+   ],
+   "tiles": 6
+  },
+  {
+   "name": "Torch Lake",
+   "naturalEarthId": "1159106939.0",
+   "bounds": [
+    -85.34561,
+    44.85555,
+    -85.27395,
+    45.09609
+   ],
+   "footprint": 1.0,
+   "coverage": {
+    "survey": 0.0,
+    "chart": 0.0,
+    "restricted": 0.0,
+    "generalization": 0.0,
+    "empty": 1.0
+   },
+   "surveyYears": [
+    1922,
+    2015
+   ],
+   "resolutions": [
+    "16m",
+    "4m"
+   ],
+   "tiles": 2
+  },
+  {
+   "name": "Lake Mattamuskeet",
+   "naturalEarthId": "1159108257.0",
+   "bounds": [
+    -76.31741,
+    35.4497,
+    -76.07486,
+    35.5528
+   ],
+   "footprint": 0.003,
+   "coverage": {
+    "survey": 0.0,
+    "chart": 0.0,
+    "restricted": 0.0,
+    "generalization": 0.0,
+    "empty": 1.0
+   },
+   "surveyYears": [
+    1874,
+    2023
+   ],
+   "resolutions": [
+    "4m"
+   ],
+   "tiles": 2
+  },
+  {
+   "name": "Chautauqua Lake",
+   "naturalEarthId": "1159107187.0",
+   "bounds": [
+    -79.48414,
+    42.10718,
+    -79.32218,
+    42.24888
+   ],
+   "footprint": 0.647,
+   "coverage": {
+    "survey": 0.0,
+    "chart": 0.0,
+    "restricted": 0.0,
+    "generalization": 0.0,
+    "empty": 1.0
+   },
+   "surveyYears": [
+    1948,
+    2022
+   ],
+   "resolutions": [
+    "16m"
+   ],
+   "tiles": 1
+  },
+  {
+   "name": null,
+   "naturalEarthId": "1159110475",
+   "bounds": [
+    -90.34697,
+    29.66319,
+    -90.14724,
+    29.87454
+   ],
+   "footprint": 0.77,
+   "coverage": {
+    "survey": 0.0,
+    "chart": 0.0,
+    "restricted": 0.0,
+    "generalization": 0.87,
+    "empty": 0.13
+   },
+   "surveyYears": [
+    1933,
+    2024
+   ],
+   "resolutions": [
+    "4m",
+    "8m"
+   ],
+   "tiles": 9
+  }
+ ]
+}

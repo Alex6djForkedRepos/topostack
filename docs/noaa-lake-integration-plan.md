@@ -47,33 +47,63 @@ Phase 4 reads ENCs through the GDAL build inside the pinned fiona wheel. The fio
 
 Goal: the real lake list, tile counts and archive sizes, pinned so later builds are reproducible.
 
-1. Add `scripts/data-build/nbs_inventory.py`, with a test beside it.
-   - It downloads the dated tile schemes into the cache:
-     - `Test-and-Evaluation/Modeling/_Modeling_Tile_Scheme/*.gpkg`
-     - `BlueTopo/_BlueTopo_Tile_Scheme/*.gpkg`
-   - It records their SHA-256.
-   - For each delivered tile, it reads the `.aux.xml` raster attribute table. Each row gives `source_survey_id`, `source_institution`, `survey_date_*`, `data_assessment`, `license_name` and a cell count.
-   - It classifies each tile against lake outlines (HydroLAKES polygons through the existing outline pipeline, or `lake-outline-coverage.json`):
-     - **inland lake:** the tile covers a lake polygon, and the covered cells come from survey sources rather than `NBS Generalization`
-     - **Great Lakes**
-     - **ocean or estuary**
-   - Output is written to the cache: `nbs-inventory.json`, with lake → tiles → sources, measured cell counts and survey years.
-2. Review the inventory by hand.
-   - Confirm each lake has measured cells, not filler.
-   - Settle the section 3 lakes from the report: Charlevoix, the Keweenaw lakes, Pere Marquette and the St. Marys lakes.
-   - Decide the regional grouping. The proposed groups follow what the report confirmed:
+**Done:**
 
-   | Dataset ID | Lakes | Bounding box (approx.) |
+- `scripts/data-build/nbs_inventory.py` is in place, with tests. For every delivered tile it:
+  - records the scheme digest and each tile's published SHA-256
+  - checks each attribute table against its published digest
+  - classifies cells as `survey`, `chart` (digitized from an ENC), `restricted` (a non-open licence) or `generalization` (modelled fill)
+- With `--lakes` it matches lake polygons to tiles. With `--measure` it estimates each lake's share of each kind.
+- A preview run against Natural Earth lakes is in the [report correction](reports/noaa-lake-coverage-2026-09-24.md#correction-after-the-full-tile-scan).
+  - It read 12,140 tiles in about 5 minutes with none unreadable.
+  - Licences are mixed, so a builder must filter per source.
+  - Lake Salvador, Charlevoix, Mullett, Burt and Grand Lake (LA) have no usable survey.
+
+**What the scan showed about NOAA's data**, which shapes everything below:
+
+- **No history is kept.** NOAA keeps only the current tile scheme and one version of each tile, and re-delivered about 10,000 tiles in September 2026. Pinned tiles will disappear.
+  - A build therefore downloads each pinned tile into the cache and checks its SHA-256.
+  - Keep that cache, or copy the pinned tiles to R2 under `sources/nbs/`, so a released archive can be rebuilt.
+  - A mismatch fails the build. It is resolved by re-running the inventory and reviewing the changed tiles, never by skipping the check.
+- **Where pins go.** `lake-outlines-release.json` pins the SHA-256 of `lake-survey-sources.json`, so editing that file forces a lake outline release. Keep NBS pins in a separate `scripts/data/noaa-nbs-sources.json` until phase 2 registers the datasets.
+
+**Remaining, run locally with HydroLAKES** (which this environment could not download):
+
+1. Run the canonical inventory:
+
+   ```sh
+   /tmp/topostack-surveys-venv/bin/python scripts/data-build/nbs_inventory.py \
+     --cache /tmp/topostack-nbs --out /tmp/topostack-nbs/nbs-inventory.json \
+     --lakes /path/to/HydroLAKES_polys_v10.shp --min-area-km2 0.5 --measure
+   ```
+
+   The defaults read the HydroLAKES fields `Hylak_id`, `Lake_name` and `Lake_area`. The run covers the small and coastal lakes Natural Earth lacks:
+   - Pontchartrain, Borgne and Sabine
+   - Lake Union
+   - the Columbia and Snake pools
+   - the Michigan harbour lakes
+   - Dexter, Worth and Wimico
+
+   Restrict `--lakes` to North America first, to keep the measure step short.
+2. Review the result:
+   - Keep lakes where `coverage.survey` is at least about 0.5 of the covered area, and `footprint` is close to 1.
+   - List the rest with their reason.
+   - Settle the Great Lakes-adjacent lakes (Keweenaw, Pere Marquette, St. Marys). HydroLAKES separates them from the Great Lakes, which Natural Earth does not always do.
+   - Adjust the regional grouping below.
+
+   | Dataset ID | Lakes (confirmed so far) | Bounding box (approx.) |
    | --- | --- | --- |
    | `noaa-nbs-pacific-northwest-v1` | Washington, Union, Pend Oreille, Lake Roosevelt, Columbia and Snake pools | −123, 45.5, −116, 49 |
-   | `noaa-nbs-michigan-harbors-v1` | Portage (Onekama), Muskegon, White, Spring, Macatawa, Manistee (plus any confirmed in step 2) | −86.6, 42.7, −84, 47.3 |
-   | `noaa-nbs-wisconsin-v1` | Winnebago | −88.7, 43.7, −88.2, 44.3 |
-   | `noaa-nbs-florida-v1` | St. Johns lakes, Crescent, Lake Worth Lagoon, Wimico | −85.5, 26.5, −80, 29.6 |
-   | `noaa-nbs-gulf-lakes-v1` | Pontchartrain, Maurepas, Borgne, Salvador, Sabine, Calcasieu | −94, 29.5, −89.5, 30.5 |
+   | `noaa-nbs-michigan-harbors-v1` | Portage (Onekama), Muskegon, White, Spring, Macatawa, Manistee | −86.6, 42.7, −84, 47.3 |
+   | `noaa-nbs-wisconsin-v1` | Winnebago, possibly Butte des Morts | −88.8, 43.7, −88.2, 44.3 |
+   | `noaa-nbs-florida-v1` | George, Dexter, Monroe, Harney, Crescent, Lake Worth Lagoon, Wimico | −85.5, 26.5, −80, 29.6 |
+   | `noaa-nbs-gulf-lakes-v1` | Pontchartrain, Maurepas, Borgne, Sabine, Calcasieu | −94, 29.5, −89.5, 30.5 |
 
-3. Pin each selected tile in `scripts/data/lake-survey-sources.json`.
-   - Fields: `id`, `dataset`, `url`, `sha256` taken from the scheme GeoPackage, `resolutionM`, `epsg`, and `verticalReference` text.
-   - Commit the inventory summary under `docs/reports/data/`.
+3. Write the selected tiles to `scripts/data/noaa-nbs-sources.json`:
+   - the scheme key and SHA-256
+   - per lake: HydroLAKES ID, name, and tiles with `tile`, `url`, `sha256` and `resolution`
+   - the survey kinds and licences to keep
+4. Commit a summary of the canonical inventory under `docs/reports/data/`, replacing the Natural Earth preview.
 
 Exit: the pins and inventory report are merged. No registry change, so nothing reaches users.
 
@@ -96,7 +126,7 @@ Depth is then `-elevation` below that datum, and the browser anchors it to the t
 
 1. **Builder.** Add an `nbs()` handler to `build-survey-bathymetry.py`, or a `survey_nbs.py` module in the style of `survey_regions.py`, and an `elif dataset.startswith('noaa-nbs-')` branch in `main`. For each lake in the dataset:
    - Download or stream each pinned tile through rasterio (the `rasterio.Env` pattern in `build-hrdem-terrain.py`) and check its SHA-256.
-   - Mask `NBS Generalization` cells by reading the contributor band and the raster attribute table, together with NoData and above-water values.
+   - Keep only cells whose contributor is a `survey` source with an open licence, using `nbs_inventory.parse_rat`. Mask `generalization`, `restricted` and `chart` cells, together with NoData and above-water values.
    - Mosaic in UTM, convert to positive depth with `depth_from_elevation`, and clip to the lake outline so neighbouring water is not carried.
    - Write one prepared GeoTIFF per lake, then call `TileWriter.add` at `maxZoom` 14 (the tiles are 4 m) and 13 where only 8–16 m tiles exist.
    - Set `title`, `aliases` and `note` on each grid for the directory.
@@ -106,6 +136,7 @@ Depth is then `-elevation` below that datum, and the browser anchors it to the t
    - datum handling
    - clipping to the outline
    - pin mismatch
+   - restricted-licence masking
    - Use a small committed tile fixture cut from a real CC0 NBS tile, and document it in the fixtures README.
 3. **Build:**
 
@@ -117,7 +148,7 @@ Depth is then `-elevation` below that datum, and the browser anchors it to the t
 
    Repeat for each dataset. Copy each receipt's digest, size, tile count and grid count into `scripts/data/lake-survey-builds.json`.
 4. **Registration** in one commit per dataset:
-   - `scripts/data/lake-bathymetry.json`: an entry **after** the existing providers, with the tight box from phase 0, `depth-terrarium-v1` encoding, and the licence "CC0 1.0; acknowledge NOAA Office of Coast Survey".
+   - `scripts/data/lake-bathymetry.json`: an entry **after** the existing providers, with the tight box from phase 0, `depth-terrarium-v1` encoding, and the licence "CC0 1.0 and CC BY 4.0 sources; acknowledge NOAA Office of Coast Survey and the listed survey institutions". CC-BY sources need their institutions in the attribution.
    - `build-lake-directory.py`: `REGIONS` and `GROUPS`. `noaa*` currently maps to "Great Lakes", so give `noaa-nbs-*` the "United States" group.
    - `apps/generator/src/lib/site/lake-pages.ts`: add the IDs to the `united-states` region.
    - `apps/generator/src/routes/attribution/+page.svelte`: `surveyNotes` for the new IDs.
