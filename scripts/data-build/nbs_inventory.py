@@ -3,8 +3,9 @@
 NBS publishes one current version of each tile and replaces the tile scheme in
 place, so every run records the scheme digest and each tile's published
 SHA-256. Cells are classified from each tile's raster attribute table: survey
-sources are measurements, "NBS Generalization" is a modelled fill, and sources
-named after a chart were digitized from an ENC.
+sources are measurements, "NBS Generalization" is a modelled fill, sources
+named after a chart were digitized from an ENC, and any source whose licence is
+not open (for example non-commercial or internal-use) is restricted.
 """
 import argparse
 from concurrent.futures import ThreadPoolExecutor
@@ -38,6 +39,9 @@ PRODUCTS = {
 }
 GENERALIZATION = 'NBS Generalization'
 CHART_SOURCE = re.compile(r'\bChart \d+')
+# Licence spellings seen in NBS attribute tables that allow reuse with attribution at most.
+OPEN_LICENSES = {'cc0-1.0', 'cc0.1.0', 'cc-by-4.0', 'cc-by', 'ccby'}
+KINDS = ('survey', 'chart', 'restricted', 'generalization')
 RAT_FIELDS = ('value', 'count', 'source_survey_id', 'source_institution',
               'survey_date_start', 'survey_date_end', 'license_name')
 MEASURE_SIZE = 512
@@ -121,14 +125,20 @@ def parse_rat(xml):
             'start': values['survey_date_start'],
             'end': values['survey_date_end'],
             'license': values['license_name'],
-            'kind': source_kind(values['source_survey_id']),
+            'kind': source_kind(values['source_survey_id'], values['license_name']),
         })
     return rows
 
 
-def source_kind(source):
+def normalize_license(name):
+    return re.sub(r'\s+', '-', name.strip().lower())
+
+
+def source_kind(source, license_name):
     if source.startswith(GENERALIZATION):
         return 'generalization'
+    if normalize_license(license_name) not in OPEN_LICENSES:
+        return 'restricted'
     if CHART_SOURCE.search(source):
         return 'chart'
     return 'survey'
@@ -136,7 +146,7 @@ def source_kind(source):
 
 def summarize_rat(rows):
     """Cell counts by kind, survey years, institutions and licences for one tile."""
-    cells = {'survey': 0, 'chart': 0, 'generalization': 0}
+    cells = dict.fromkeys(KINDS, 0)
     for row in rows:
         cells[row['kind']] += row['count']
     surveys = [row for row in rows if row['kind'] == 'survey']
@@ -145,7 +155,7 @@ def summarize_rat(rows):
         'cells': cells,
         'surveyYears': [years[0], years[-1]] if years else None,
         'institutions': sorted({row['institution'] for row in surveys if row['institution']}),
-        'licenses': sorted({row['license'] for row in rows if row['license']}),
+        'licenses': sorted({normalize_license(row['license']) for row in rows if row['license']}),
     }
 
 
@@ -201,7 +211,7 @@ def match_lakes(tiles, lakes):
 
 
 def measure_lake(lake, env_options=None):
-    """Share of the lake's area covered by surveyed, chart-derived or generalized cells.
+    """Share of the lake's area covered by each kind of source.
 
     Reads each tile's contributor band at no more than MEASURE_SIZE pixels a side,
     so the fractions are estimates suitable for triage, not for building. They
@@ -214,16 +224,20 @@ def measure_lake(lake, env_options=None):
 
 
 def measure_tiles(lake, env_options):
-    counted = {'survey': 0, 'chart': 0, 'generalization': 0, 'empty': 0}
+    counted = dict.fromkeys(KINDS + ('empty',), 0)
     with rasterio.Env(GDAL_DISABLE_READDIR_ON_OPEN='EMPTY_DIR', **(env_options or {})):
         for tile in lake['tiles']:
+            # Clip before reprojecting: a whole Great Lake projected into a distant UTM zone distorts.
+            part = lake['geometry'].intersection(box(*tile['bounds']))
+            if part.is_empty:
+                continue
             with rasterio.open(f"/vsicurl/{tile['url']}") as dataset:
                 scale = max(1, math.ceil(max(dataset.width, dataset.height) / MEASURE_SIZE))
                 shape_out = (math.ceil(dataset.height / scale), math.ceil(dataset.width / scale))
                 elevation = dataset.read(1, out_shape=shape_out, resampling=Resampling.nearest, masked=True)
                 contributor = dataset.read(3, out_shape=shape_out, resampling=Resampling.nearest)
                 transform = from_bounds(*dataset.bounds, shape_out[1], shape_out[0])
-                geometry = transform_geom('EPSG:4326', dataset.crs, mapping(lake['geometry']))
+                geometry = transform_geom('EPSG:4326', dataset.crs, mapping(part))
                 inside = ~geometry_mask([geometry], shape_out, transform)
             for kind, count in classify_cells(inside, elevation, contributor, tile['valueKinds']).items():
                 counted[kind] += count
@@ -236,7 +250,7 @@ def classify_cells(inside, elevation, contributor, value_kinds):
     valid = inside & ~np.ma.getmaskarray(elevation)
     counts = {'empty': int((inside & ~valid).sum())}
     known = np.zeros(valid.shape, dtype=bool)
-    for kind in ('survey', 'chart'):
+    for kind in ('survey', 'chart', 'restricted'):
         values = [value for value, name in value_kinds.items() if name == kind]
         cells = valid & np.isin(contributor, values)
         counts[kind] = int(cells.sum())

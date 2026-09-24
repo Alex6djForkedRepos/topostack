@@ -26,15 +26,18 @@ ROWS = [
     ['7', '2000', '1', 'L02188.interpolated', 'DOD/USACE -- United States Lake Survey', '1948-01-01', '1948-01-01', 'cc0-1.0'],
     ['9', '50', '1', 'H11810_MB_1m_LLL_2of4', 'DOC/NOAA/NOS/OCS -- Office of Coast Survey', '2008-06-01', '2008-07-01', 'cc0-1.0'],
     ['12', '400', '2', 'US,US,graph,Chart 14916_20160301_US5WI2UL_20241016', '', '', '', 'cc0-1.0'],
+    ['14', '80', '1', 'W00455', 'University survey', '2019-05-01', '2019-05-02', 'CC BY-NC 4.0'],
+    ['15', '20', '1', 'H13001', 'DOC/NOAA/NOS/OCS -- Office of Coast Survey', '2021-01-01', '2021-01-02', 'CC-BY-4.0'],
 ]
 
 
 class RatTests(unittest.TestCase):
     def test_rows_are_read_by_field_name(self):
         rows = parse_rat(rat_xml(ROWS))
-        self.assertEqual([row['value'] for row in rows], [0, 7, 9, 12])
+        self.assertEqual([row['value'] for row in rows], [0, 7, 9, 12, 14, 15])
         self.assertEqual(rows[1]['source'], 'L02188.interpolated')
-        self.assertEqual([row['kind'] for row in rows], ['generalization', 'survey', 'survey', 'chart'])
+        self.assertEqual([row['kind'] for row in rows],
+                         ['generalization', 'survey', 'survey', 'chart', 'restricted', 'survey'])
 
     def test_missing_fields_are_rejected(self):
         with self.assertRaisesRegex(ValueError, 'lacks'):
@@ -43,16 +46,21 @@ class RatTests(unittest.TestCase):
             parse_rat('<PAMDataset/>')
 
     def test_source_kinds(self):
-        self.assertEqual(source_kind('NBS Generalization'), 'generalization')
-        self.assertEqual(source_kind('US,US,graph,Chart 11369_20120601'), 'chart')
-        self.assertEqual(source_kind('H02609.interpolated'), 'survey')
+        self.assertEqual(source_kind('NBS Generalization', 'cc0-1.0'), 'generalization')
+        self.assertEqual(source_kind('US,US,graph,Chart 11369_20120601', 'cc0-1.0'), 'chart')
+        self.assertEqual(source_kind('H02609.interpolated', 'CC0-1.0'), 'survey')
+
+    def test_sources_without_an_open_licence_are_restricted(self):
+        for name in ('CC BY-NC 4.0', 'cc-by-nc-4.0', 'IUO-rel-HSD', 'Pending', ''):
+            self.assertEqual(source_kind('H12345', name), 'restricted', name)
+        self.assertEqual(source_kind('US,US,graph,Chart 14916', 'Pending'), 'restricted')
 
     def test_summary_separates_measurements_from_fill(self):
         summary = summarize_rat(parse_rat(rat_xml(ROWS)))
-        self.assertEqual(summary['cells'], {'survey': 2050, 'chart': 400, 'generalization': 300})
-        # The generalization's placeholder 1807 date is not a survey year.
-        self.assertEqual(summary['surveyYears'], [1948, 2008])
-        self.assertEqual(summary['licenses'], ['cc0-1.0'])
+        self.assertEqual(summary['cells'], {'survey': 2070, 'chart': 400, 'restricted': 80, 'generalization': 300})
+        # The generalization's placeholder 1807 date is not a survey year, and restricted surveys do not count.
+        self.assertEqual(summary['surveyYears'], [1948, 2021])
+        self.assertEqual(summary['licenses'], ['cc-by-4.0', 'cc-by-nc-4.0', 'cc0-1.0'])
         self.assertNotIn('', summary['institutions'])
 
 
@@ -62,7 +70,7 @@ class CellTests(unittest.TestCase):
         elevation = np.ma.masked_array([[-5.0, -3.0, -1.0, -9.0]], mask=[[False, False, True, False]])
         contributor = np.array([[7, 12, 7, 7]])
         counts = classify_cells(inside, elevation, contributor, {0: 'generalization', 7: 'survey', 12: 'chart'})
-        self.assertEqual(counts, {'survey': 1, 'chart': 1, 'generalization': 0, 'empty': 1})
+        self.assertEqual(counts, {'survey': 1, 'chart': 1, 'restricted': 0, 'generalization': 0, 'empty': 1})
 
     def test_unknown_contributors_count_as_fill(self):
         inside = np.ones((1, 2), dtype=bool)
