@@ -1,4 +1,6 @@
-# Atomm 0.5.1 audit corrections
+# Atomm review corrections
+
+**Release plan updated:** these fixes now target `dev` for inclusion in 0.6.0 alongside its performance improvements. The 0.5.1 ZIP and audit measurements below are historical validation artifacts, not the next submission. Rebuild and validate the combined release before re-review.
 
 All eight identified code findings have been addressed in the `claude/atomm-hotfix-0.5.1` worktree. The original [review](README.md) is retained as historical evidence. Nothing has been uploaded or published.
 
