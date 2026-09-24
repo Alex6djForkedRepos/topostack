@@ -42,7 +42,10 @@
           if (cancelled) return;
           // The image fills the file's own viewBox size, so the sheet keeps its proportions.
           const [, , width = current.geometry.widthMm, height = current.geometry.heightMm] = (/viewBox="([^"]+)"/.exec(svg)?.[1] ?? "").split(/\s+/).map(Number);
-          show({ url: URL.createObjectURL(output.master.blob), filename: output.master.filename, bytes: output.master.blob.size, width, height, files: output.files.map((file) => ({ filename: file.filename, bytes: file.blob.size })) });
+          // Real line widths (0.1 mm and up) rasterize to faint dots at fit zoom,
+          // so the on-screen copy draws every line as a hairline. The file itself is unchanged.
+          const display = svg.replace(/<svg\b[^>]*>/, (open) => `${open}<style>*{vector-effect:non-scaling-stroke;stroke-width:1px}</style>`);
+          show({ url: URL.createObjectURL(new Blob([display], { type: "image/svg+xml" })), filename: output.master.filename, bytes: output.master.blob.size, width, height, files: output.files.map((file) => ({ filename: file.filename, bytes: file.blob.size })) });
           failure = "";
         } catch (error) {
           if (!cancelled) failure = error instanceof Error ? error.message : "The export preview could not be prepared.";

@@ -936,6 +936,9 @@ html:has(.atomm-workbench), body:has(.atomm-workbench) { height: 100%; margin: 0
   .two-d-stage { background: var(--color-bg-editor); }
   .export-preview { position: absolute; inset: 0; }
   .export-sheet { position: absolute; inset: 0; }
+  /* With room for it (a canvas of 760px or more beside the two 320px rails), the
+   * artwork starts after the contents card instead of under it. */
+  @container (min-width: 1400px) { .export-sheet { inset-inline-start: 292px; } }
   .export-sheet .svg-viewer, .export-sheet .svg-viewport { width: 100%; height: 100%; }
   .export-preview-state { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; padding: var(--space-300); color: var(--color-text-secondary); font: var(--font-12-regular); text-align: center; }
   .export-manifest { position: absolute; inset-block-start: 64px; inset-inline-start: var(--gutter); z-index: 2; display: flex; flex-direction: column; gap: var(--space-100); width: 260px; max-width: calc(100% - 32px); max-height: calc(100% - 128px); overflow-y: auto; padding: var(--space-150); border: 1px solid var(--color-stroke-divider); border-radius: var(--radius-large); background: var(--color-bg-default); box-shadow: var(--shadow-100); font: var(--font-12-regular); }
@@ -947,7 +950,8 @@ html:has(.atomm-workbench), body:has(.atomm-workbench) { height: 100%; margin: 0
   .export-manifest small { color: var(--color-text-secondary); font: var(--font-11-regular); font-variant-numeric: tabular-nums; }
   .export-manifest ul { display: flex; flex-direction: column; gap: 2px; margin: var(--space-50) 0 0; padding: 0; list-style: none; }
   .export-manifest li { display: flex; justify-content: space-between; gap: var(--space-100); color: var(--color-text-secondary); font: var(--font-11-regular); }
-  .export-manifest li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .export-manifest li span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .export-manifest small { flex: none; white-space: nowrap; }
   .export-key { display: flex; align-items: center; gap: var(--space-50); margin: 0; padding-top: var(--space-100); border-top: 1px solid var(--color-stroke-divider); color: var(--color-text-secondary); }
   .export-key i { width: 12px; height: 2px; border-radius: 1px; }
   .export-key i + i, .export-key-score { margin-inline-start: var(--space-100); }
@@ -955,17 +959,8 @@ html:has(.atomm-workbench), body:has(.atomm-workbench) { height: 100%; margin: 0
   .export-key-score { background: var(--color-blue-default); }
 
   .atomm-tips-dialog .dialog-header h2 { flex: none; }
-  .atomm-tips-dialog .dialog-media { height: 200px; }
-  .atomm-tips-dialog .dialog-body { min-height: 120px; }
-  .tip-art { width: 240px; height: auto; overflow: visible; }
-  .tip-art :is(.tip-sheet, .tip-ground, .tip-file) { fill: var(--color-bg-default); stroke: var(--color-stroke-strong); stroke-width: 1.25; stroke-linejoin: round; }
-  .tip-art .tip-sheet-alt { fill: var(--color-bg-surface); }
-  .tip-art :is(.tip-line, .tip-select) { fill: none; stroke: var(--color-text-secondary); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-  .tip-art .tip-select { stroke-dasharray: 4 3; }
-  .tip-art .tip-pin { fill: var(--color-brand-default); }
-  .tip-art .tip-pin-eye { fill: var(--color-bg-default); }
-  .tip-art .tip-water { fill: var(--color-blue-default); fill-opacity: 0.25; stroke: none; }
-  .tip-art .tip-cut { fill: none; stroke: var(--color-red-default); stroke-width: 2; }
-  .tip-art .tip-score { fill: none; stroke: var(--color-blue-default); stroke-width: 2; stroke-linecap: round; }
-  .tip-art .tip-text { fill: var(--color-text-secondary); font: var(--font-11-regular); }
+  .atomm-tips-dialog .dialog-media { overflow: hidden; }
+  /* Tall enough for the longest slide, so Back and Next stay put from step to step. */
+  .atomm-tips-dialog .dialog-body { min-height: 184px; }
+  .atomm-tips-dialog .dialog-media img { display: block; width: 100%; height: 100%; object-fit: cover; }
 }

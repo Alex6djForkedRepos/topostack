@@ -12,7 +12,7 @@ These follow from Atomm's September 2026 review of 0.1.2, which asked for fewer 
 | View tabs | Map, Cut layers, 3D stack, Custom data | Map, 2D, 3D, **Export** | The platform expects an Export view. It shows the master SVG that Open in Studio sends, with the download's file list and sizes, built from the same `buildProjectPackage` call the export hook uses. |
 | Custom data | Depth charts, markers, paths, file import and graphics in their own view | Markers, paths and file import in the lead rail; no depth charts or graphics | Tracing a depth chart is too involved for the platform's audience, and Atomm's own Studio already places artwork. A project that already uses a chart shows it and can stop using it. |
 | Ranges | Slider plus numeric field | One grey numeric field (drag or type) | The review asked for one control per value. The layer card keeps sliders because they browse a view, and each shows its value as a number. |
-| Tips | Guides on the website | A step-by-step walkthrough: one slide per step, dots, Back and Next | Matches the platform's Fabrication Tips dialog. The lake-depth help opens it on its own slide. |
+| Tips | Guides on the website | A step-by-step walkthrough: one slide per step with a picture of it from the studio itself, dots, Back and Next | Matches the platform's Fabrication Tips dialog. The lake-depth help opens it on its own slide. The pictures are captured by `scripts/dev/capture-atomm-tips.mjs` (see `docs/images/README.md`). |
 
 ## Canvas overlays
 
