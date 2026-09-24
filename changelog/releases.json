@@ -2,6 +2,17 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "0.5.1",
+      "date": "2026-09-24",
+      "entries": [
+        {
+          "type": "improvement",
+          "title": "Atomm terrain updates without a Generate step",
+          "body": "Inside Atomm, the studio loads real terrain when it opens and reloads it whenever you choose a place or move the map selection, so there is no Generate button to remember. A new **Export** view shows the file **Open in Studio** sends and lists everything a download includes, and **Tips** now walk through fabrication one step at a time, each with a picture from the studio."
+        }
+      ]
+    },
+    {
       "version": "0.5.0",
       "date": "2026-09-23",
       "entries": [

@@ -4,6 +4,12 @@ User-facing changes to TopoStack, newest first. Also at https://topostack.app/ch
 
 Generated from `changelog/releases.json` by `npm run changelog:prepare`; do not edit by hand. See [docs/changelog.md](docs/changelog.md).
 
+## 0.5.1 (2026-09-24)
+
+### Improved
+
+- **Atomm terrain updates without a Generate step**: Inside Atomm, the studio loads real terrain when it opens and reloads it whenever you choose a place or move the map selection, so there is no Generate button to remember. A new **Export** view shows the file **Open in Studio** sends and lists everything a download includes, and **Tips** now walk through fabrication one step at a time, each with a picture from the studio.
+
 ## 0.5.0 (2026-09-23)
 
 ### New
