@@ -163,5 +163,104 @@
       "east": -83.784075155079,
       "north": 47.07971884502497
     }
+  },
+  {
+    "name": "Lake George",
+    "sourceLakeId": "849",
+    "dataset": "noaa-nbs-florida-v1",
+    "bounds": {
+      "west": -81.68664715135395,
+      "south": 29.19456122429408,
+      "east": -81.52476412946984,
+      "north": 29.396295852202915
+    }
+  },
+  {
+    "name": "Lake Maurepas",
+    "sourceLakeId": "842",
+    "dataset": "noaa-nbs-gulf-coast-v1",
+    "bounds": {
+      "west": -90.65614310942195,
+      "south": 30.165252618049873,
+      "east": -90.38480146308135,
+      "north": 30.348458584645172
+    }
+  },
+  {
+    "name": "Quantuck Bay",
+    "sourceLakeId": "111964",
+    "dataset": "noaa-nbs-atlantic-coast-v1",
+    "bounds": {
+      "west": -72.6364926303181,
+      "south": 40.80165567575724,
+      "east": -72.60897247970442,
+      "north": 40.82970908693919
+    }
+  },
+  {
+    "name": "Muskegon Lake",
+    "sourceLakeId": "9078",
+    "dataset": "noaa-nbs-great-lakes-basin-v1",
+    "bounds": {
+      "west": -86.33478028120345,
+      "south": 43.213981899338386,
+      "east": -86.2420067579341,
+      "north": 43.262312842420734
+    }
+  },
+  {
+    "name": "Sherman Lake",
+    "sourceLakeId": "112550",
+    "dataset": "noaa-nbs-california-v1",
+    "bounds": {
+      "west": -121.81838399657586,
+      "south": 38.02840489004662,
+      "east": -121.78374647872674,
+      "north": 38.06220090365139
+    }
+  },
+  {
+    "name": "Lake Union",
+    "sourceLakeId": "105136",
+    "dataset": "noaa-nbs-northwest-coast-v1",
+    "bounds": {
+      "west": -122.34716240970276,
+      "south": 47.6274672285401,
+      "east": -122.30774245761201,
+      "north": 47.65375205348968
+    }
+  },
+  {
+    "name": "Lake Pend Oreille",
+    "sourceLakeId": "719",
+    "dataset": "noaa-nbs-inland-northwest-v1",
+    "bounds": {
+      "west": -116.99882147673966,
+      "south": 47.94576088463034,
+      "east": -116.20141562117416,
+      "north": 48.31694210559333
+    }
+  },
+  {
+    "name": "The Salt Chuck",
+    "sourceLakeId": "735968",
+    "dataset": "noaa-nbs-alaska-v1",
+    "bounds": {
+      "west": -133.34539320944214,
+      "south": 57.445116991522326,
+      "east": -133.31837438054342,
+      "north": 57.4535866998711
+    }
+  },
+  {
+    "name": "Unnamed lake, St. Croix Island",
+    "sourceLakeId": "1073448",
+    "dataset": "noaa-nbs-caribbean-v1",
+    "bounds": {
+      "west": -64.69317040527308,
+      "south": 17.74732886921097,
+      "east": -64.68006050687758,
+      "north": 17.753873995747178
+    }
   }
 ]

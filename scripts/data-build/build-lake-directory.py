@@ -34,44 +34,69 @@ REGIONS = {'noaa-great-lakes-v1': 'Great Lakes, USA / Canada', 'usgs-crater-lake
            'syke-finland-lakes-v1': 'Finland', 'ontario-lakes-v1': 'Ontario, Canada',
            'nve-norway-lakes-v1': 'Norway', 'twdb-texas-reservoirs-v1': 'Texas, USA',
            'usbr-reservoirs-v1': 'Colorado, USA',
+           # NBS lakes carry their own county and state; these name each regional archive.
+           'noaa-nbs-florida-v1': 'Florida, USA', 'noaa-nbs-gulf-coast-v1': 'Gulf Coast, USA',
+           'noaa-nbs-atlantic-coast-v1': 'Atlantic Coast, USA', 'noaa-nbs-great-lakes-basin-v1': 'Great Lakes basin, USA / Canada',
+           'noaa-nbs-california-v1': 'California, USA', 'noaa-nbs-northwest-coast-v1': 'Washington / Oregon, USA',
+           'noaa-nbs-inland-northwest-v1': 'Washington / Idaho, USA',
+           'noaa-nbs-alaska-v1': 'Alaska, USA', 'noaa-nbs-caribbean-v1': 'Puerto Rico / U.S. Virgin Islands',
            # Charts are published one lake at a time; each record names its own region.
            'community-charts-v1': 'Published depth charts'}
-GROUPS = {key: ('Canada' if key.startswith('ontario') else 'Norway' if key.startswith('nve-') else 'Finland' if key.startswith('syke') else 'Switzerland & border lakes' if key.startswith('swiss') else 'Great Lakes' if key.startswith('noaa') else 'United States') for key in REGIONS}
+GROUPS = {key: ('Canada' if key.startswith('ontario') else 'Norway' if key.startswith('nve-') else 'Finland' if key.startswith('syke') else 'Switzerland & border lakes' if key.startswith('swiss') else 'Great Lakes' if key == 'noaa-great-lakes-v1' else 'United States') for key in REGIONS}
 # Charts are grouped by how they were made, not by country: the next one may be anywhere.
 GROUPS['community-charts-v1'] = 'Published depth charts'
 
 
-def build(cache, archives):
+def build(cache, archives, previous=None):
+    """previous: a committed directory whose records are kept for datasets with no receipt in `archives`.
+
+    Only records of a dataset whose recorded build is unchanged are reused, and
+    their count must still match that build, so adding one archive does not
+    require rebuilding every other archive to regenerate the directory.
+    """
     catalog = json.loads((DATA / 'lake-bathymetry.json').read_text())['sources']
     builds = json.loads((DATA / 'lake-survey-builds.json').read_text())
     expected = {item['dataset']: item for item in builds['archives']}
     pins = json.loads((DATA / 'lake-survey-sources.json').read_text())
+    reused = {}
+    if previous:
+        for dataset in expected:
+            if not (archives / f'{dataset}.sources.json').exists():
+                records = [lake for lake in previous['lakes'] if lake['sourceId'] == dataset]
+                if len(records) != expected[dataset]['processedGrids']:
+                    raise ValueError(f'The previous directory does not match the recorded build: {dataset}')
+                reused[dataset] = records
     # Names must come from the same pinned regional source downloads as the survey build.
     for pin in pins:
-        if pin['id'] in ('minnesota', 'finland-areas'):
+        if pin['id'] in ('minnesota', 'finland-areas') and not {'mn-dnr-lakes-v1', 'syke-finland-lakes-v1'} <= reused.keys():
             with (cache / pin['file']).open('rb') as stream:
                 if hashlib.file_digest(stream, 'sha256').hexdigest() != pin['sha256']:
                     raise ValueError(f"Source checksum mismatch: {pin['id']}")
     mn_names, mn_counties, mn_aliases, fi_names = defaultdict(set), defaultdict(set), defaultdict(set), defaultdict(set)
-    with fiona.open(cache / 'minnesota/water_lake_bathymetry.gdb', layer='lake_bathymetric_outline') as features:
-        for feature in features:
-            p = feature['properties']
-            if p['LAKE_NAME']: mn_names[p['DOWLKNUM']].add(p['LAKE_NAME'].strip())
-            if p['CTY_NAME']: mn_counties[p['DOWLKNUM']].add(p['CTY_NAME'].strip().title())
-    with fiona.open(cache / 'minnesota/water_lake_bathymetry.gdb', layer='lake_bathymetric_contours') as features:
-        for feature in features:
-            p = feature['properties']
-            if p['LAKE_NAME']: mn_aliases[p['DOWLKNUM']].add(p['LAKE_NAME'].strip())
-    with fiona.open(cache / 'finland-areas/Syvyysalue.shp') as features:
-        for feature in features:
-            p = feature['properties']
-            if p['SyvMitta_1']: fi_names[p['JarviTunnu']].add(p['SyvMitta_1'].strip())
+    # Regional names are read from the pinned downloads only when those archives are regenerated.
+    if not {'mn-dnr-lakes-v1', 'syke-finland-lakes-v1'} <= reused.keys():
+        with fiona.open(cache / 'minnesota/water_lake_bathymetry.gdb', layer='lake_bathymetric_outline') as features:
+            for feature in features:
+                p = feature['properties']
+                if p['LAKE_NAME']: mn_names[p['DOWLKNUM']].add(p['LAKE_NAME'].strip())
+                if p['CTY_NAME']: mn_counties[p['DOWLKNUM']].add(p['CTY_NAME'].strip().title())
+        with fiona.open(cache / 'minnesota/water_lake_bathymetry.gdb', layer='lake_bathymetric_contours') as features:
+            for feature in features:
+                p = feature['properties']
+                if p['LAKE_NAME']: mn_aliases[p['DOWLKNUM']].add(p['LAKE_NAME'].strip())
+        with fiona.open(cache / 'finland-areas/Syvyysalue.shp') as features:
+            for feature in features:
+                p = feature['properties']
+                if p['SyvMitta_1']: fi_names[p['JarviTunnu']].add(p['SyvMitta_1'].strip())
     sources, lakes = [], []
     for source in catalog:
         dataset = source['id']
         contours = dataset in ('mn-dnr-lakes-v1', 'syke-finland-lakes-v1', 'ontario-lakes-v1', 'nve-norway-lakes-v1', 'twdb-texas-reservoirs-v1', 'usbr-reservoirs-v1', 'community-charts-v1')
         sources.append({'id': dataset, 'name': source['name'], 'url': source['url'], 'license': source['license'],
                         'kind': 'contours' if contours else 'grid', 'region': REGIONS[dataset], 'group': GROUPS[dataset]})
+        if dataset in reused:
+            lakes.extend(reused[dataset])
+            continue
         if dataset == 'noaa-great-lakes-v1':
             noaa = json.loads((DATA / 'noaa-great-lakes-sources.json').read_text())
             groups = json.loads((DATA / 'noaa-great-lakes.json').read_text())['lakes']
@@ -112,6 +137,7 @@ def build(cache, archives):
                 name = {'crater': 'Crater Lake', 'tahoe': 'Lake Tahoe', 'mono': 'Mono Lake'}[key]
             else:
                 name, aliases = grid['title'], grid['aliases']
+                region = grid.get('region') or region
             bounds = [round(n, 6) for n in grid['bounds']]
             west, south, east, north = bounds
             if not (-180 <= west < east <= 180 and -85 <= south < north <= 85): raise ValueError(f'Invalid bounds: {key}')
@@ -126,8 +152,11 @@ if __name__ == '__main__':
     parser.add_argument('--cache', type=Path, required=True)
     parser.add_argument('--archives', type=Path, required=True)
     parser.add_argument('--output', type=Path, default=ROOT / 'apps/generator/static/data/lake-depth-directory.json')
+    parser.add_argument('--keep-unchanged', action='store_true',
+                        help='reuse records from the existing output for recorded builds whose receipts are not in --archives')
     args = parser.parse_args()
-    result = build(args.cache, args.archives)
+    previous = json.loads(args.output.read_text()) if args.keep_unchanged and args.output.exists() else None
+    result = build(args.cache, args.archives, previous)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     partial = args.output.with_name(args.output.name + '.part')
     partial.write_text(json.dumps(result, ensure_ascii=False, separators=(',', ':')) + '\n')

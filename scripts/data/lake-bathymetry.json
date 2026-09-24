@@ -153,6 +153,132 @@
       ],
       "encoding": "depth-terrarium-v1",
       "maxZoom": 13
+    },
+    {
+      "id": "noaa-nbs-florida-v1",
+      "name": "NOAA National Bathymetric Source: Florida lakes",
+      "url": "https://nauticalcharts.noaa.gov/learn/nbs.html",
+      "license": "NOAA Office of Coast Survey National Bathymetric Source; survey sources licensed CC0 1.0 or CC BY 4.0. Only measured survey cells are used; modelled fill removed by TopoStack. Not for navigation.",
+      "bounds": [
+        -87.22,
+        24.54,
+        -80.06,
+        30.67
+      ],
+      "encoding": "depth-terrarium-v1",
+      "maxZoom": 14
+    },
+    {
+      "id": "noaa-nbs-gulf-coast-v1",
+      "name": "NOAA National Bathymetric Source: Gulf Coast lakes",
+      "url": "https://nauticalcharts.noaa.gov/learn/nbs.html",
+      "license": "NOAA Office of Coast Survey National Bathymetric Source; survey sources licensed CC0 1.0 or CC BY 4.0. Only measured survey cells are used; modelled fill removed by TopoStack. Not for navigation.",
+      "bounds": [
+        -97.27,
+        27.83,
+        -87.42,
+        30.81
+      ],
+      "encoding": "depth-terrarium-v1",
+      "maxZoom": 14
+    },
+    {
+      "id": "noaa-nbs-atlantic-coast-v1",
+      "name": "NOAA National Bathymetric Source: Atlantic Coast lakes",
+      "url": "https://nauticalcharts.noaa.gov/learn/nbs.html",
+      "license": "NOAA Office of Coast Survey National Bathymetric Source; survey sources licensed CC0 1.0 or CC BY 4.0. Only measured survey cells are used; modelled fill removed by TopoStack. Not for navigation.",
+      "bounds": [
+        -80.1,
+        32.87,
+        -69.95,
+        42.32
+      ],
+      "encoding": "depth-terrarium-v1",
+      "maxZoom": 14
+    },
+    {
+      "id": "noaa-nbs-great-lakes-basin-v1",
+      "name": "NOAA National Bathymetric Source: Great Lakes basin lakes",
+      "url": "https://nauticalcharts.noaa.gov/learn/nbs.html",
+      "license": "NOAA Office of Coast Survey National Bathymetric Source; survey sources licensed CC0 1.0 or CC BY 4.0. Only measured survey cells are used; modelled fill removed by TopoStack. Not for navigation.",
+      "bounds": [
+        -88.93,
+        43.0,
+        -77.5,
+        45.64
+      ],
+      "encoding": "depth-terrarium-v1",
+      "maxZoom": 14
+    },
+    {
+      "id": "noaa-nbs-california-v1",
+      "name": "NOAA National Bathymetric Source: California lakes",
+      "url": "https://nauticalcharts.noaa.gov/learn/nbs.html",
+      "license": "NOAA Office of Coast Survey National Bathymetric Source; survey sources licensed CC0 1.0 or CC BY 4.0. Only measured survey cells are used; modelled fill removed by TopoStack. Not for navigation.",
+      "bounds": [
+        -122.34,
+        33.75,
+        -118.2,
+        38.32
+      ],
+      "encoding": "depth-terrarium-v1",
+      "maxZoom": 14
+    },
+    {
+      "id": "noaa-nbs-northwest-coast-v1",
+      "name": "NOAA National Bathymetric Source: Northwest Coast lakes",
+      "url": "https://nauticalcharts.noaa.gov/learn/nbs.html",
+      "license": "NOAA Office of Coast Survey National Bathymetric Source; survey sources licensed CC0 1.0 or CC BY 4.0. Only measured survey cells are used; modelled fill removed by TopoStack. Not for navigation.",
+      "bounds": [
+        -122.37,
+        47.49,
+        -122.17,
+        47.77
+      ],
+      "encoding": "depth-terrarium-v1",
+      "maxZoom": 14
+    },
+    {
+      "id": "noaa-nbs-inland-northwest-v1",
+      "name": "NOAA National Bathymetric Source: Inland Northwest lakes",
+      "url": "https://nauticalcharts.noaa.gov/learn/nbs.html",
+      "license": "NOAA Office of Coast Survey National Bathymetric Source; survey sources licensed CC0 1.0 or CC BY 4.0. Only measured survey cells are used; modelled fill removed by TopoStack. Not for navigation.",
+      "bounds": [
+        -119.03,
+        47.79,
+        -116.19,
+        48.73
+      ],
+      "encoding": "depth-terrarium-v1",
+      "maxZoom": 14
+    },
+    {
+      "id": "noaa-nbs-alaska-v1",
+      "name": "NOAA National Bathymetric Source: Alaska lakes",
+      "url": "https://nauticalcharts.noaa.gov/learn/nbs.html",
+      "license": "NOAA Office of Coast Survey National Bathymetric Source; survey sources licensed CC0 1.0 or CC BY 4.0. Only measured survey cells are used; modelled fill removed by TopoStack. Not for navigation.",
+      "bounds": [
+        -136.37,
+        55.03,
+        -131.51,
+        58.27
+      ],
+      "encoding": "depth-terrarium-v1",
+      "maxZoom": 14
+    },
+    {
+      "id": "noaa-nbs-caribbean-v1",
+      "name": "NOAA National Bathymetric Source: Puerto Rico and U.S. Virgin Islands lakes",
+      "url": "https://nauticalcharts.noaa.gov/learn/nbs.html",
+      "license": "NOAA Office of Coast Survey National Bathymetric Source; survey sources licensed CC0 1.0 or CC BY 4.0. Only measured survey cells are used; modelled fill removed by TopoStack. Not for navigation.",
+      "bounds": [
+        -66.77,
+        17.73,
+        -64.67,
+        18.33
+      ],
+      "encoding": "depth-terrarium-v1",
+      "maxZoom": 14
     }
   ]
 }

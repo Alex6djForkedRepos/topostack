@@ -327,6 +327,12 @@ def main():
             writer=TileWriter(args.out_dir/f"{source['id']}.pmtiles",source)
             writer.finish(charts(source,args.cache,writer,write_grid))
             continue
+        if source['id'].startswith('noaa-nbs-'):
+            # Pinned in noaa-nbs-sources.json, apart from the pins the lake outline release checksums.
+            from survey_nbs import nbs
+            writer=TileWriter(args.out_dir/f"{source['id']}.pmtiles",source)
+            writer.finish(nbs(source,args.cache,writer,download,write_grid))
+            continue
         pins=[p for p in PINS if p['dataset']==source['id']]
         if not pins:
             raise ValueError('Missing source pins')
