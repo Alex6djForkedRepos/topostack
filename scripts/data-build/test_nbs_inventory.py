@@ -28,16 +28,17 @@ ROWS = [
     ['12', '400', '2', 'US,US,graph,Chart 14916_20160301_US5WI2UL_20241016', '', '', '', 'cc0-1.0'],
     ['14', '80', '1', 'W00455', 'University survey', '2019-05-01', '2019-05-02', 'CC BY-NC 4.0'],
     ['15', '20', '1', 'H13001', 'DOC/NOAA/NOS/OCS -- Office of Coast Survey', '2021-01-01', '2021-01-02', 'CC-BY-4.0'],
+    ['16', '5', '1', 'gsb_f_2m_MLLW', '', '2012-01-01', '2012-01-02', ''],
 ]
 
 
 class RatTests(unittest.TestCase):
     def test_rows_are_read_by_field_name(self):
         rows = parse_rat(rat_xml(ROWS))
-        self.assertEqual([row['value'] for row in rows], [0, 7, 9, 12, 14, 15])
+        self.assertEqual([row['value'] for row in rows], [0, 7, 9, 12, 14, 15, 16])
         self.assertEqual(rows[1]['source'], 'L02188.interpolated')
         self.assertEqual([row['kind'] for row in rows],
-                         ['generalization', 'survey', 'survey', 'chart', 'restricted', 'survey'])
+                         ['generalization', 'survey', 'survey', 'chart', 'restricted', 'survey', 'restricted'])
 
     def test_missing_fields_are_rejected(self):
         with self.assertRaisesRegex(ValueError, 'lacks'):
@@ -57,10 +58,11 @@ class RatTests(unittest.TestCase):
 
     def test_summary_separates_measurements_from_fill(self):
         summary = summarize_rat(parse_rat(rat_xml(ROWS)))
-        self.assertEqual(summary['cells'], {'survey': 2070, 'chart': 400, 'restricted': 80, 'generalization': 300})
+        self.assertEqual(summary['cells'], {'survey': 2070, 'chart': 400, 'restricted': 85, 'generalization': 300})
         # The generalization's placeholder 1807 date is not a survey year, and restricted surveys do not count.
         self.assertEqual(summary['surveyYears'], [1948, 2021])
-        self.assertEqual(summary['licenses'], ['cc-by-4.0', 'cc-by-nc-4.0', 'cc0-1.0'])
+        # A blank licence is reported, so restricted cells always have a licence to explain them.
+        self.assertEqual(summary['licenses'], ['cc-by-4.0', 'cc-by-nc-4.0', 'cc0-1.0', 'unspecified'])
         self.assertNotIn('', summary['institutions'])
 
 

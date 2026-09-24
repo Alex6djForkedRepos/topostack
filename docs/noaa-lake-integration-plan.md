@@ -54,10 +54,11 @@ Goal: the real lake list, tile counts and archive sizes, pinned so later builds 
   - checks each attribute table against its published digest
   - classifies cells as `survey`, `chart` (digitized from an ENC), `restricted` (a non-open licence) or `generalization` (modelled fill)
 - With `--lakes` it matches lake polygons to tiles. With `--measure` it estimates each lake's share of each kind.
-- A preview run against Natural Earth lakes is in the [report correction](reports/noaa-lake-coverage-2026-09-24.md#correction-after-the-full-tile-scan).
-  - It read 12,140 tiles in about 5 minutes with none unreadable.
-  - Licences are mixed, so a builder must filter per source.
-  - Lake Salvador, Charlevoix, Mullett, Burt and Grand Lake (LA) have no usable survey.
+- The canonical run against every HydroLAKES polygon is summarised in [data/nbs-inventory-hydrolakes-20260924.json](reports/data/nbs-inventory-hydrolakes-20260924.json) and the [report correction](reports/noaa-lake-coverage-2026-09-24.md#correction-after-the-full-tile-scan).
+  - It read 12,140 tiles with none unreadable, and measured the 5,965 HydroLAKES lakes they meet in about 13 minutes.
+  - 503 lakes are at least half surveyed, most of them small coastal ponds and lagoons.
+  - Licences are mixed, and 51 tiles carry sources with a blank licence, so a builder must filter per source.
+  - The Michigan harbour lakes other than Muskegon, and the Columbia and Snake pools other than Bonneville, are NBS fill, not survey.
 
 **What the scan showed about NOAA's data**, which shapes everything below:
 
@@ -67,35 +68,30 @@ Goal: the real lake list, tile counts and archive sizes, pinned so later builds 
   - A mismatch fails the build. It is resolved by re-running the inventory and reviewing the changed tiles, never by skipping the check.
 - **Where pins go.** `lake-outlines-release.json` pins the SHA-256 of `lake-survey-sources.json`, so editing that file forces a lake outline release. Keep NBS pins in a separate `scripts/data/noaa-nbs-sources.json` until phase 2 registers the datasets.
 
-**Remaining, run locally with HydroLAKES** (which this environment could not download):
+**Remaining:**
 
-1. Run the canonical inventory:
+1. To repeat the canonical inventory (HydroLAKES v1.0 from `data.hydrosheds.org`, as in `build-lake-data.mjs`):
 
    ```sh
    /tmp/topostack-surveys-venv/bin/python scripts/data-build/nbs_inventory.py \
      --cache /tmp/topostack-nbs --out /tmp/topostack-nbs/nbs-inventory.json \
-     --lakes /path/to/HydroLAKES_polys_v10.shp --min-area-km2 0.5 --measure
+     --lakes /path/to/HydroLAKES_polys_v10.shp --min-area-km2 0 --measure
    ```
 
-   The defaults read the HydroLAKES fields `Hylak_id`, `Lake_name` and `Lake_area`. The run covers the small and coastal lakes Natural Earth lacks:
-   - Pontchartrain, Borgne and Sabine
-   - Lake Union
-   - the Columbia and Snake pools
-   - the Michigan harbour lakes
-   - Dexter, Worth and Wimico
+   The defaults read the HydroLAKES fields `Hylak_id`, `Lake_name` and `Lake_area`. Only lakes that meet a delivered tile are measured, so no regional filter is needed.
+2. Choose the lakes to ship:
+   - `surveyedShare` (footprint × survey share) of at least about 0.5 is the working threshold.
+   - Decide whether the ~490 small, mostly unnamed coastal ponds and lagoons are worth shipping, or only the named lakes. Many are tidal, which phase 1 must reference to MLLW.
+   - Lakes without a HydroLAKES polygon (Lake Bonneville, Lake Worth Lagoon, Lake Wimico, Lake Borgne) need OSM or NHD outlines, or are dropped.
+   - The Great Lakes-adjacent lakes are settled: Charlevoix, Keweenaw, Pere Marquette, Mullett and Burt are fill; HydroLAKES merges the St. Marys lakes into Huron and the Winnebago Pool lakes (Butte des Morts, Poygan) into Winnebago.
 
-   Restrict `--lakes` to North America first, to keep the measure step short.
-2. Review the result:
-   - Keep lakes where `coverage.survey` is at least about 0.5 of the covered area, and `footprint` is close to 1.
-   - List the rest with their reason.
-   - Settle the Great Lakes-adjacent lakes (Keweenaw, Pere Marquette, St. Marys). HydroLAKES separates them from the Great Lakes, which Natural Earth does not always do.
-   - Adjust the regional grouping below.
+   Regional grouping for the named lakes:
 
-   | Dataset ID | Lakes (confirmed so far) | Bounding box (approx.) |
+   | Dataset ID | Lakes | Bounding box (approx.) |
    | --- | --- | --- |
-   | `noaa-nbs-pacific-northwest-v1` | Washington, Union, Pend Oreille, Lake Roosevelt, Columbia and Snake pools | −123, 45.5, −116, 49 |
-   | `noaa-nbs-michigan-harbors-v1` | Portage (Onekama), Muskegon, White, Spring, Macatawa, Manistee | −86.6, 42.7, −84, 47.3 |
-   | `noaa-nbs-wisconsin-v1` | Winnebago, possibly Butte des Morts | −88.8, 43.7, −88.2, 44.3 |
+   | `noaa-nbs-pacific-northwest-v1` | Washington, Union, Pend Oreille, Lake Roosevelt, Bonneville | −123, 45.5, −116, 49 |
+   | `noaa-nbs-wisconsin-v1` | Winnebago (with the Winnebago Pool lakes) | −88.95, 43.75, −88.3, 44.3 |
+   | `noaa-nbs-muskegon-v1` | Muskegon; or fold it into a Great Lakes inland dataset if more harbour lakes qualify | −86.35, 43.2, −86.2, 43.27 |
    | `noaa-nbs-florida-v1` | George, Dexter, Monroe, Harney, Crescent, Lake Worth Lagoon, Wimico | −85.5, 26.5, −80, 29.6 |
    | `noaa-nbs-gulf-lakes-v1` | Pontchartrain, Maurepas, Borgne, Sabine, Calcasieu | −94, 29.5, −89.5, 30.5 |
 
@@ -103,7 +99,6 @@ Goal: the real lake list, tile counts and archive sizes, pinned so later builds 
    - the scheme key and SHA-256
    - per lake: HydroLAKES ID, name, and tiles with `tile`, `url`, `sha256` and `resolution`
    - the survey kinds and licences to keep
-4. Commit a summary of the canonical inventory under `docs/reports/data/`, replacing the Natural Earth preview.
 
 Exit: the pins and inventory report are merged. No registry change, so nothing reaches users.
 
@@ -115,7 +110,7 @@ For each lake, record in its pin:
 
 - **`surface`:** the reference level the grid's zero corresponds to, with its source. Candidates:
   - the NOAA station datum page, for tidal lakes
-  - the USACE pool elevation, for Columbia and Snake reservoirs
+  - the USACE pool elevation, for Lake Bonneville and other river reservoirs
   - Low Water Datum (IGLD85), for Great Lakes-connected lakes
   - the chart datum printed on the lake's chart
 - **`surfaceNote`:** the vertical-reference note shown in the directory, like the reservoir `verticalReference`.
@@ -183,7 +178,7 @@ Depth is then `-elevation` below that datum, and the browser anchors it to the t
 
 8. **Docs and changelog:**
    - Add a source table row in `lake-bathymetry.md`.
-   - Add a changelog fragment (`npm run changelog:new`) for makers, for example "Depths for 30+ more US lakes, including Lake Washington, Pend Oreille and Lake Pontchartrain".
+   - Add a changelog fragment (`npm run changelog:new`) for makers, for example "Depths for about 20 more US lakes, including Lake Washington, Pend Oreille and Lake Pontchartrain".
 
 Exit: one PR per dataset, or one for all five. Production provisioning uses `--prod` with the pinned digests.
 

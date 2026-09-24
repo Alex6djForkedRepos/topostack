@@ -131,7 +131,8 @@ def parse_rat(xml):
 
 
 def normalize_license(name):
-    return re.sub(r'\s+', '-', name.strip().lower())
+    """Lower-case, hyphenated licence name; a blank licence is 'unspecified' and never open."""
+    return re.sub(r'\s+', '-', name.strip().lower()) or 'unspecified'
 
 
 def source_kind(source, license_name):
@@ -155,7 +156,7 @@ def summarize_rat(rows):
         'cells': cells,
         'surveyYears': [years[0], years[-1]] if years else None,
         'institutions': sorted({row['institution'] for row in surveys if row['institution']}),
-        'licenses': sorted({normalize_license(row['license']) for row in rows if row['license']}),
+        'licenses': sorted({normalize_license(row['license']) for row in rows}),
     }
 
 
