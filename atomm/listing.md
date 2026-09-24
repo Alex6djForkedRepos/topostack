@@ -9,49 +9,40 @@
 
 Turn a place you love into something you can make. TopoStack transforms real elevation and map data into layered terrain reliefs and flat topographic engravings.
 
-Choose a location, frame your map, and set its physical size. Create a layered relief with adjustable material thickness and vertical exaggeration, or a flat engraving with customizable contour lines. Use a circular or rectangular crop, then add roads, trails, water details, labels, a compass, a scale bar, or your own markers and paths.
+Choose a location, frame your map, and set its physical size. Create a layered relief with adjustable material thickness and vertical exaggeration, or a flat engraving with customizable contour lines. Add roads, trails, water details, labels, a compass, a scale bar, or your own markers and paths.
 
-Include lake-floor relief using surveyed bathymetry where available. Automatic depth coverage adds the required layers without compressing land relief; optional depth limits and fitting give you control over the stack.
+Include lake-floor relief using surveyed bathymetry where available, with terrain or modeled depths filling gaps. Explore your design in 2D or as an assembled or separated 3D stack.
 
-Explore your design in 2D and preview layered projects as a stacked or exploded 3D model. Inspect individual layers before exporting.
+For layered projects, set your material width and height and let automatic nesting arrange the pieces. Watch the layout improve, or keep the current layout to finish early. Export previews show the actual artwork and explain the processing colors.
 
-When you are ready, use Export to download the files or open the master SVG in xTool Studio. Layered downloads include cut panels, matching engraving panels, and an assembly guide. Flat designs export as SVG artwork at your chosen physical size.
+Open in Studio sends one editable SVG containing the entire layout. Download provides the complete project bundle, including artwork, project settings and source credits, plus an assembly guide for layered reliefs. Flat designs export as SVG artwork at your chosen physical size.
 
-Make a keepsake of a favorite hike, a mountain you climbed, a memorable lake, or the place you call home.
-
-Generate fresh terrain before exporting, then review the artwork, material, and machine settings before fabrication. The opening design is a bundled preview. The gallery and new videos show freshly generated projects from released v0.1.1. These are software previews; physical-build photos are not included.
+Generate fresh terrain before exporting, then review the artwork, material and machine settings before fabrication. The opening design is a bundled preview. Current media shows freshly generated Crater Lake terrain in the 0.6.0 development candidate, including real survey data where available. Images and videos are software previews, not physical builds or machine runs.
 
 ## Upload media
 
-Use **`assets/topostack-cover-loop-v3.mp4`** as the video cover. It is a silent, approximately six-second H.264 loop at 1600 × 1200 and 60 fps, showing the actual 41-layer Crater Lake model separating and reassembling. `assets/topostack-cover-motion-4x3.png` is the still fallback; `assets/topostack-cover-4x3.png` is an assembled alternate. Titles and the model remain inside the center square for cover cropping.
+Use `assets/topostack-cover-loop-v6.mp4` as the silent cover video and `assets/topostack-cover-v6.png` as its still fallback. The movie records the actual 3D canvas while the stack separates and reassembles. Use `assets/topostack-showcase-v6.mp4` for a captioned slideshow of the current interface. Videos are H.264, 30 fps, with fast-start playback and no audio.
 
-Use **`assets/topostack-product-showcase-v3.mp4`** as the main gallery video. The 36-second, 30 fps film combines actual terrain animation with readable feature scenes: different places, exploded layers, flat artwork, personalization, lake depth and the real SVG imported into xTool Studio. Both new videos are silent and have fast-start playback.
-
-The nine gallery cards are 1600 × 1200. They combine actual app renders and UI captures with concise captions. The location examples are Crater Lake, Mount Rainier and Point Reyes. The export scene shows the genuine complete-project master SVG in xTool Studio, imported with **Keep size**; it does not imply a completed machine run.
+All nine PNGs and both videos are 1600 × 1200. The eight gallery cards contain unchanged app pixels with captions outside the screenshots.
 
 | Order | File | Caption / alt text |
 | --- | --- | --- |
-| Cover | `assets/topostack-cover-loop-v3.mp4` | Looping software preview of Crater Lake’s actual layered terrain. |
-| Video | `assets/topostack-product-showcase-v3.mp4` | A 36-second tour from real terrain to personalized SVG fabrication files. |
-| 1 | `assets/topostack-gallery-01-hero.png` | A place, made personal: actual Crater Lake terrain with lake-floor relief. |
-| 2 | `assets/topostack-gallery-02-places.png` | Crater Lake, Mount Rainier and Point Reyes demonstrate different landscapes. |
-| 3 | `assets/topostack-gallery-03-exploded.png` | Compare the assembled relief with its separated layers. |
-| 4 | `assets/topostack-gallery-04-layered-flat.png` | Choose layered relief or flat contour artwork. |
-| 5 | `assets/topostack-gallery-05-personalize.png` | An 18 mm star near Wizard Island, with real marker controls. |
-| 6 | `assets/topostack-gallery-06-lake-depth.png` | Automatic depth coverage and the actual water-depth controls. |
-| 7 | `assets/topostack-gallery-07-export.png` | Real master SVG opened in xTool Studio, alongside export-package contents. |
-| 8 | `assets/topostack-gallery-08-workbench.png` | The current workbench with controls, source notices and terrain preview. |
-| 9 | `assets/topostack-gallery-09-shapes.png` | Rectangular and circular contour designs at physical size. |
+| 1 | `assets/topostack-gallery-01-workbench-v6.png` | Crater Lake in the current Atomm workbench. |
+| 2 | `assets/topostack-gallery-02-layers-v6.png` | Separate the actual terrain stack to inspect the layers. |
+| 3 | `assets/topostack-gallery-03-cut-layer-v6.png` | Inspect a cut layer before fabrication. |
+| 4 | `assets/topostack-gallery-04-flat-v6.png` | Flat surface contour artwork. |
+| 5 | `assets/topostack-gallery-05-depth-v6.png` | Lake-floor relief and water depth controls. |
+| 6 | `assets/topostack-gallery-06-nesting-v6.png` | Live sheet layouts while automatic nesting solves. |
+| 7 | `assets/topostack-gallery-07-export-v6.png` | Actual export artwork and clear Studio/download contents. |
+| 8 | `assets/topostack-gallery-08-material-v6.png` | Layout updated for 700 × 500 mm material. |
 
-The Crater Lake project is 406.4 × 270.933 mm, with 3.175 mm material, 4× terrain exaggeration and 1.75× depth exaggeration. Automatic depth coverage produces 41 layers without an explicit depth limit or depth fitting. Import `media-project-v4.json` and generate terrain to reproduce it. `media-projects-v5.json` records all three locations and data attribution; `media-storyboard-v3.json` records the film sequence and cover motion.
+Import `media-project-v6.json` to reproduce the starting project: Crater Lake, 406.4 × 270.933 mm, 3.175 mm material, 4× terrain exaggeration, 1.75× depth exaggeration, and 600 × 400 mm sheets. `media-export-v6.json` records the final export after changing sheets to 700 × 500 mm. Survey coverage is incomplete; terrain or modeled depths fill gaps. Flat artwork shows surface contours, not submerged 3D relief.
 
-USGS survey samples are used where available. Crater Lake reports mixed depth coverage: terrain, modeled depths or estimates fill uncovered cells. The depth scene and provenance explain this limitation. Flat artwork shows surface contours, not submerged 3D relief. These images do not represent fabricated physical objects.
+`media-provenance.json` records the capture source commit, development base, source attribution and file hashes. Capture uses the actual embedded UI with an SDK mount/export stand-in; these images do not claim a native Studio import. Real platform validation is performed separately through Atomm Local Debug. The code is a development candidate, not a published 0.6.0 release.
 
-**Older capture — historical reference only:** `assets/topostack-exploded-stack-v2.mp4` remains in the bundle at the user’s request. It was captured on 16 September 2026 and shows the former 24-layer fitted model, before the v0.1.1 automatic-depth changes. It is not the new cover or showcase. Its settings and status are retained under `legacyVideo` in `media-provenance.json`. Use the new v3 videos for the current listing.
+The current upload bundle contains 11 media files. Historical captures and `media-provenance-v5.json` remain in the repository for reference; they are excluded from this refreshed upload set.
 
-The bundle contains 14 media files: nine current gallery cards, two still cover alternatives, two current videos and the clearly identified historical video. All current media comes from the released v0.1.1 package; temporary capture files are excluded.
-
-Credits: USGS Crater Lake multibeam bathymetry (public domain); Mapzen Terrain Tiles and their contributing elevation sources; HydroLAKES / GLOBathy; map data © OpenStreetMap contributors, via Protomaps. Full generation attribution is retained in `media-provenance.json`, `media-projects-v5.json` and the app’s exports.
+Credits: USGS Crater Lake multibeam bathymetry (public domain); Mapzen Terrain Tiles and contributing elevation sources; HydroLAKES / GLOBathy; map data © OpenStreetMap contributors, via Protomaps. Full attribution is retained in the provenance and project export.
 
 ## Craft selection notes
 

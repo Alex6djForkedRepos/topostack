@@ -36,3 +36,7 @@ node scripts/dev/capture-atomm-tips.mjs
 ```
 
 It needs cwebp on PATH and honours `TOPOSTACK_CAPTURE_URL` like the other capture scripts. Look at every picture before committing.
+
+## Atomm listing refresh
+
+Run `TOPOSTACK_CAPTURE_URL=http://127.0.0.1:5284 node scripts/dev/capture-atomm-listing.mjs` against a normal frontend with the deployed data API. Requires Playwright Chromium and ffmpeg (`FFMPEG_PATH` can select its executable). The script captures the current embedded UI, records actual 3D canvas motion, and creates captioned gallery cards and a slideshow. It records project settings, source attribution, hashes and successful survey requests in `atomm/media-provenance.json`. Historical assets and their v5 provenance remain on disk. Run Tips capture first and avoid source edits during capture, because hot reload resets the studio. Tips hashes and capture details are recorded beside the WebP assets in `media-provenance.json`.

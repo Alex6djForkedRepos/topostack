@@ -1,17 +1,104 @@
 {
-  "schemaVersion": 6,
-  "capturedAt": "2026-09-24T21:38:19.995Z",
-  "sourceCommit": "eda308596db7b96abe71295936f16b7c69a965e2",
-  "developmentBase": "6eb1a320a9a2972aab99116af3c1416cd8dd648c",
-  "version": "0.6.0 candidate (version preparation pending)",
-  "origin": "http://127.0.0.1:5284",
-  "projectFile": "media-project-v6.json",
-  "exportFile": "media-export-v6.json",
-  "method": "Current embedded studio with genuine live terrain/survey data. Native UI/model screenshots with typography around unchanged app pixels. SDK mount/export stand-in only; no fixture terrain, AI imagery or fabricated UI. Cover movie sequences actual canvas screenshots while the explode control changes, with no generated intermediate frames. Showcase is a captioned screenshot slideshow. Historical v5 media remains on disk but is excluded from this upload set.",
-  "surveyResponses": [
-    "https://topostack.app/v1/bathymetry/usgs-crater-lake-v1.pmtiles"
-  ],
-  "source": {
+  "schemaVersion": 1,
+  "project": {
+    "schemaVersion": 1,
+    "id": "topostack-crater-automatic-depth",
+    "name": "Crater Lake",
+    "location": {
+      "lat": 42.9446,
+      "lon": -122.109,
+      "zoom": 11,
+      "label": "Crater Lake, Oregon",
+      "bounds": {
+        "west": -122.2531955566406,
+        "east": -121.96480444335936,
+        "north": 43.01492835460449,
+        "south": 42.87419120974822
+      }
+    },
+    "cropShape": "rectangle",
+    "units": "metric",
+    "outputMode": "stack",
+    "widthMm": 406.4,
+    "heightMm": 270.933,
+    "engravingContourCount": 12,
+    "engravingIndexInterval": 5,
+    "showEngravingBorder": true,
+    "lineStyle": {
+      "contourMm": 0.16,
+      "indexContourMm": 0.32,
+      "majorRoadMm": 0.38,
+      "localRoadMm": 0.26,
+      "trailMm": 0.22,
+      "waterMm": 0.3,
+      "boundaryMm": 0.24,
+      "coordinateGridMm": 0.16,
+      "annotationMm": 0.2,
+      "borderMm": 0.34,
+      "trailPattern": "dashed",
+      "roadStyle": "centerline",
+      "majorRoadSpacingMm": 0.8,
+      "roadCap": "round"
+    },
+    "materialThicknessMm": 3.175,
+    "verticalExaggeration": 4,
+    "minimumFeatureMm": 0.8,
+    "smoothing": 1,
+    "showRoads": true,
+    "showTrails": true,
+    "showTransportationLabels": false,
+    "showWater": true,
+    "waterFillPattern": "none",
+    "showBoundaries": false,
+    "showCoordinateGrid": false,
+    "showWaterDepth": true,
+    "waterDepthExaggeration": 1.75,
+    "fitLakeDepth": false,
+    "waterDepthOverrides": {},
+    "showAlignmentGuides": true,
+    "optimizeMaterialUse": true,
+    "glueMarginMm": 8,
+    "laserKerfMm": 0.15,
+    "workAreaWidthMm": 0,
+    "workAreaHeightMm": 0,
+    "seamOffsetMm": 10,
+    "seamTabs": true,
+    "showAssemblyLabels": true,
+    "paintTemplates": [],
+    "showElevationLabels": true,
+    "elevationLabelPosition": {
+      "x": -0.55,
+      "y": 0.55
+    },
+    "textStyle": {
+      "font": "technical",
+      "sizeMm": 3.1
+    },
+    "showNorthArrow": true,
+    "northArrowStyle": "classic",
+    "northArrowSizeMm": 24,
+    "northArrowPlacement": {
+      "anchor": "bottom-right",
+      "offset": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    "showScaleBar": true,
+    "markers": [],
+    "customLines": [],
+    "explodedPreview": 0,
+    "sheetNesting": {
+      "sheetWidthMm": 700,
+      "sheetHeightMm": 500,
+      "marginMm": 3,
+      "spacingMm": 2,
+      "rotation": "quarter",
+      "timeBudgetS": 5,
+      "seed": 1
+    }
+  },
+  "result": {
     "projectId": "topostack-crater-automatic-depth",
     "generatedAt": "2026-09-24T21:37:31.983Z",
     "minElevationM": 843.6714477539062,
@@ -2235,122 +2322,6 @@
       ]
     }
   },
-  "media": [
-    {
-      "file": "assets/topostack-cover-v6.png",
-      "bytes": 836652,
-      "sha256": "6bb9a8f6aeb0e32420234d2a8186b3e49289e909a18f3211bf23cf85f3fa1fc8",
-      "width": 1600,
-      "height": 1200,
-      "sourceCommit": "eda308596db7b96abe71295936f16b7c69a965e2",
-      "title": "A place, made personal.",
-      "subtitle": "Real terrain. Layered reliefs. Ready-to-make artwork."
-    },
-    {
-      "file": "assets/topostack-gallery-01-workbench-v6.png",
-      "bytes": 352713,
-      "sha256": "5a1bee95df313caf320584197a4fb44f968fc68aa16a14406d74f2cda373ec14",
-      "width": 1600,
-      "height": 1200,
-      "sourceCommit": "eda308596db7b96abe71295936f16b7c69a965e2",
-      "title": "Your landscape, your way.",
-      "subtitle": "Shape the terrain and preview every change in Atomm."
-    },
-    {
-      "file": "assets/topostack-gallery-02-layers-v6.png",
-      "bytes": 699126,
-      "sha256": "fb57aa7c07e7e4abcc6027b899c0baa0ba29e43058c38683db19a30e2e4e1dd0",
-      "width": 1600,
-      "height": 1200,
-      "sourceCommit": "eda308596db7b96abe71295936f16b7c69a965e2",
-      "title": "See how the layers fit.",
-      "subtitle": "Explore the assembled relief or separate the stack before cutting."
-    },
-    {
-      "file": "assets/topostack-gallery-03-cut-layer-v6.png",
-      "bytes": 233575,
-      "sha256": "e458df868919aea1718e7efbe494160cf49ebcb0e85145ec6e461ec87afc55fd",
-      "width": 1600,
-      "height": 1200,
-      "sourceCommit": "eda308596db7b96abe71295936f16b7c69a965e2",
-      "title": "Inspect every layer.",
-      "subtitle": "Review cut outlines, score lines and alignment before fabrication."
-    },
-    {
-      "file": "assets/topostack-gallery-04-flat-v6.png",
-      "bytes": 289763,
-      "sha256": "1cc0dd5fbc1cd64884e119b9bfac1ce7eb397936929b66374f64e0cd804ad623",
-      "width": 1600,
-      "height": 1200,
-      "sourceCommit": "eda308596db7b96abe71295936f16b7c69a965e2",
-      "title": "One landscape. Two ways to make.",
-      "subtitle": "Choose flat topographic engraving or a layered relief."
-    },
-    {
-      "file": "assets/topostack-gallery-05-depth-v6.png",
-      "bytes": 401373,
-      "sha256": "33f15516266267c64dd81d25a18c0e4c6b3ca303040787ce645c34a9d5c3e980",
-      "width": 1600,
-      "height": 1200,
-      "sourceCommit": "eda308596db7b96abe71295936f16b7c69a965e2",
-      "title": "Explore below the shoreline.",
-      "subtitle": "Surveyed lake floors where available, with adjustable depth relief."
-    },
-    {
-      "file": "assets/topostack-gallery-06-nesting-v6.png",
-      "bytes": 220342,
-      "sha256": "1e3885e02d12221c046e0a84cf629583a9dafd2ccc4094fe2ff8a99fc83692e2",
-      "width": 1600,
-      "height": 1200,
-      "sourceCommit": "eda308596db7b96abe71295936f16b7c69a965e2",
-      "title": "Watch the sheets take shape.",
-      "subtitle": "Automatic nesting, live layouts and a choice to finish early."
-    },
-    {
-      "file": "assets/topostack-gallery-07-export-v6.png",
-      "bytes": 250717,
-      "sha256": "ec5592b1708f27912a65543da0ea17018f974759699dc5713500fbb9166363f1",
-      "width": 1600,
-      "height": 1200,
-      "sourceCommit": "eda308596db7b96abe71295936f16b7c69a965e2",
-      "title": "Know what you are exporting.",
-      "subtitle": "See the actual artwork, file contents and cut/score colors."
-    },
-    {
-      "file": "assets/topostack-gallery-08-material-v6.png",
-      "bytes": 256210,
-      "sha256": "898eb09427b2e32f529d7293860b7501e3c59f3b18bf89d2a127445b4af6a2d0",
-      "width": 1600,
-      "height": 1200,
-      "sourceCommit": "eda308596db7b96abe71295936f16b7c69a965e2",
-      "title": "Fit the material you have.",
-      "subtitle": "Set sheet width and height. The layout updates automatically."
-    },
-    {
-      "file": "assets/topostack-cover-loop-v6.mp4",
-      "bytes": 1523484,
-      "sha256": "80800367b8c1bc152d53f97c5803f6bd2b8f56620b61075b8fb144fd543d1cb1",
-      "width": 1600,
-      "height": 1200,
-      "sourceCommit": "eda308596db7b96abe71295936f16b7c69a965e2",
-      "fullDecodePassed": true,
-      "codec": "H.264",
-      "fps": 30,
-      "audio": false
-    },
-    {
-      "file": "assets/topostack-showcase-v6.mp4",
-      "bytes": 1093485,
-      "sha256": "0d36cdc1cec0a3f2eb0c4fd3331839f5bed56bb3ab88936258117ca8fc1e32b6",
-      "width": 1600,
-      "height": 1200,
-      "sourceCommit": "eda308596db7b96abe71295936f16b7c69a965e2",
-      "fullDecodePassed": true,
-      "codec": "H.264",
-      "fps": 30,
-      "audio": false
-    }
-  ],
   "attribution": [
     {
       "name": "Mapzen Terrain Tiles",

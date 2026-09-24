@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 const root = new URL("../../atomm/", import.meta.url);
 const provenance = JSON.parse(await readFile(new URL("media-provenance.json", root), "utf8"));
 const files = ["listing.md", "listing-copy.txt", "media-provenance.json"];
-for (const reference of [provenance.coverPresentation?.prompt, provenance.projectFile, provenance.video?.recipe, provenance.video?.projectFile, provenance.projectsFile, provenance.storyboardFile, provenance.coverVideo?.recipe, provenance.legacyVideo?.recipe, provenance.legacyVideo?.projectFile]) {
+for (const reference of [provenance.coverPresentation?.prompt, provenance.projectFile, provenance.exportFile, provenance.video?.recipe, provenance.video?.projectFile, provenance.projectsFile, provenance.storyboardFile, provenance.coverVideo?.recipe, provenance.legacyVideo?.recipe, provenance.legacyVideo?.projectFile]) {
   if (!reference) continue;
   assert.match(reference, /^[a-z0-9-]+\.(txt|json)$/);
   files.push(reference);

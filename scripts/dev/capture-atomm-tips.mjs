@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
-import { mkdir, mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile, readFile, copyFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { chromium } from "playwright";
 
@@ -113,7 +114,7 @@ try {
   async function save(id, clip) {
     const png = join(scratch, `${id}.png`);
     await page.screenshot({ path: png, clip, animations: "disabled" });
-    execFileSync("cwebp", ["-quiet", "-q", "82", png, "-o", new URL(`${id}.webp`, output).pathname]);
+    execFileSync("cwebp", ["-quiet", "-resize", "960", "534", "-q", "82", png, "-o", join(scratch, `${id}.webp`)]);
     console.log(`Saved ${id}.webp`);
   }
 
@@ -137,17 +138,49 @@ try {
   await settle(4000);
   await save("place", centered(VIEWPORT.width));
   await view("Export");
-  await settle(3500);
+  await studio.locator('.export-preview[aria-busy="false"] .export-manifest').waitFor({ state: "attached", timeout: 60_000 }).catch(async error => { console.error(await frame().locator("body").innerText()); await page.screenshot({ path: join(scratch, "failure.png") }); console.error("Capture diagnostics:", scratch); throw error; });
+  await settle(1000);
   // A wider canvas keeps the contents card beside the sheets rather than over them.
   await page.setViewportSize({ width: 1440, height: 800 });
   await settle();
   await frame().addStyleTag({ content: ".atomm-workbench .export-manifest { display: flex !important; }" });
-  await save("export", band(0, 40, 860));
+  await save("export", { x: 0, y: 0, width: 1440, height: 800 });
   await frame().addStyleTag({ content: ".atomm-workbench .export-manifest { display: none !important; }" });
   await page.setViewportSize(VIEWPORT);
   await settle();
-  await zoomTo(4);
-  await save("processing", centered(860));
+  await zoomTo(1);
+  // Select a real artwork region containing both processing colors, rather than
+  // zooming into the empty center of a multi-sheet layout.
+  const reader = await browser.newPage();
+  await reader.setContent(`<img src="data:image/png;base64,${(await page.screenshot()).toString("base64")}">`);
+  const processingClip = await reader.locator("img").evaluate(async img => {
+    await img.decode();
+    const canvas = document.createElement("canvas"); canvas.width = 1200; canvas.height = 668;
+    const context = canvas.getContext("2d"); context.drawImage(img, 0, 0, 1200, 668);
+    const pixels = context.getImageData(0, 0, 1200, 668).data;
+    let best = { x: 0, y: 0, width: 600, height: 334 }, score = -1;
+    for (let y = 0; y <= 334; y += 20) for (let x = 0; x <= 600; x += 20) {
+      let red = 0, blue = 0;
+      for (let py = y; py < y + 334; py += 2) for (let px = x; px < x + 600; px += 2) {
+        const i = (py * 1200 + px) * 4, r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
+        if (r > g + 25 && r > b + 25) red++;
+        if (b > r + 25 && b > g + 20) blue++;
+      }
+      const next = Math.min(red, blue);
+      if (next > score) { score = next; best = { x, y, width: 600, height: 334 }; }
+    }
+    if (score < 10) throw new Error("Processing illustration has insufficient cut and score artwork");
+    return best;
+  });
+  await reader.close();
+  await save("processing", processingClip);
+  const images = [];
+  for (const id of ["place", "layers", "size", "lakes", "export", "processing", "assembly"]) {
+    const bytes = await readFile(join(scratch, `${id}.webp`));
+    await copyFile(join(scratch, `${id}.webp`), new URL(`${id}.webp`, output));
+    images.push({ file: `${id}.webp`, width: 960, height: 534, sha256: createHash("sha256").update(bytes).digest("hex") });
+  }
+  await writeFile(new URL("media-provenance.json", output), JSON.stringify({ capturedAt: new Date().toISOString(), sourceCommit: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(), origin, method: "Real-data embedded studio captures; no fixtures. Artwork crops, resized to the Tips media band. Files replaced only after every capture completes.", images }, null, 2) + "\n");
 } finally {
   await browser.close();
 }
