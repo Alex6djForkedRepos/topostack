@@ -39,4 +39,5 @@
   <p class="note">Enter the usable bed size from your laser software, not the machine's nominal size. Cut one split layer as a test before committing the whole stack.</p>
   <h2>Related guides</h2>
   <p>Paint the lakes with <a href={`${base}/guides/water-paint-templates`}>water paint templates</a>, which follow the same pieces. Follow the <a href={`${base}/guides/laser-cut-topographic-map`}>layered map guide</a> for the full workflow, see <a href={`${base}/guides/export-files`}>export files</a> for every file name, and check <a href={`${base}/guides/settings-reference`}>the settings reference</a> for ranges and defaults.</p>
+  <p>For how artwork size affects layer count and how the browser handles larger stacks, read <a href={base + "/guides/how-terrain-generation-works"}>how terrain generation works</a>.</p>
 </Article>
