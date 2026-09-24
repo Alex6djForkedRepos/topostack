@@ -1,6 +1,6 @@
 import { escapeXml } from "./svg-primitives.js";
 import { formatNumber as format } from "../primitives/format.js";
-import { pointInPolygon, ringBounds } from "../primitives/geometry2d.js";
+import { pointInPolygon, ringBounds, simplifyClosedRing } from "../primitives/geometry2d.js";
 import { displayElevation, displayLength, elevationUnit, lengthUnit } from "../primitives/units.js";
 import { PAINT_BLEED_MM } from "../pipeline/paint-regions.js";
 import type { GeometryIRV1, LayerIR, PaintRegionKind, Point2D, Polygon2D, ProjectConfigV1 } from "../types.js";
@@ -25,45 +25,45 @@ export interface GuideSheet {
   included?: Map<number, Set<number>>;
   /** Paint templates actually written for this sheet. */
   paintTemplates?: Array<{ kind: PaintRegionKind; filename: string }>;
+  /** Where each piece sits on a nested stock sheet, drawn so unlabelled pieces can be told apart. */
+  map?: GuideSheetMap;
+}
+
+export interface GuideSheetMap {
+  widthMm: number;
+  heightMm: number;
+  /**
+   * Every piece cut from the sheet, in sheet coordinates: its own terrain
+   * polygon moved and turned exactly as the sheet SVG places it, so islands
+   * of a group and pieces cut from inside another show as they are cut.
+   */
+  pieces: Array<{ label: string; layerIndex: number; polygon: Polygon2D }>;
+}
+
+/**
+ * A nested sheet as it comes off the laser: each piece outlined where it was
+ * placed and named at a point inside it. Lower layers are drawn first, so a
+ * piece cut from inside another shows within its hole.
+ */
+function sheetMapFigure(sheet: GuideSheet, map: GuideSheetMap): string {
+  const fontSize = Math.max(3, Math.min(map.widthMm, map.heightMm) / 28);
+  const tolerance = Math.max(map.widthMm, map.heightMm) / DIAGRAM_RESOLUTION;
+  const pieces = [...map.pieces].sort((left, right) => left.layerIndex - right.layerIndex);
+  // Alternate layers take alternate tints, so a piece cut from inside another stands out from it.
+  const outlines = pieces.map(({ label, layerIndex, polygon }) => `<path data-piece="${escapeXml(label)}"${layerIndex % 2 ? " fill=\"#d3c8ab\"" : ""} d="${polygonPath(polygon, tolerance)}"><title>${escapeXml(label)}</title></path>`).join("");
+  const labels = pieces.map(({ label, polygon }) => {
+    const point = labelPoint(polygon);
+    // A small piece gets a smaller name, so neighbouring names do not run together.
+    const bounds = ringBounds(polygon.outer);
+    const size = Math.max(fontSize / 2, Math.min(fontSize, (bounds.maxX - bounds.minX) / (label.length * 0.62), (bounds.maxY - bounds.minY) * 0.8));
+    return `<text data-piece="${escapeXml(label)}" x="${format(point.x)}" y="${format(point.y)}"${size < fontSize ? ` font-size="${format(size)}"` : ""}>${escapeXml(label)}</text>`;
+  }).join("");
+  return `<figure class="sheet-map"><svg class="diagram" viewBox="0 0 ${format(map.widthMm)} ${format(map.heightMm)}" role="img" aria-label="Pieces on ${escapeXml(sheet.filename)}"><rect width="${format(map.widthMm)}" height="${format(map.heightMm)}" fill="#fbfaf6" stroke="#8d8b83" stroke-width="${format(fontSize / 8)}"/><g fill="#e8e1cf" fill-rule="evenodd" stroke="#20231d" stroke-width="${format(fontSize / 10)}">${outlines}</g><g fill="#20231d" text-anchor="middle" dominant-baseline="middle" font-size="${format(fontSize)}">${labels}</g></svg><figcaption><code>${escapeXml(sheet.filename)}</code></figcaption></figure>`;
 }
 
 // The printed diagram is about 7.5 in wide, so detail finer than a few hundred
 // segments across the model is invisible and only bloats the file.
 const DIAGRAM_RESOLUTION = 900;
-
-/** Douglas-Peucker thinning of a closed ring; the result stays closed. */
-function simplifyRing(ring: Point2D[], tolerance: number): Point2D[] {
-  const open = ring.length > 1 && ring[0]!.x === ring.at(-1)!.x && ring[0]!.y === ring.at(-1)!.y ? ring.slice(0, -1) : ring;
-  if (open.length <= 4) return ring;
-  const keep = new Uint8Array(open.length);
-  keep[0] = 1;
-  keep[open.length - 1] = 1;
-  const stack: Array<[number, number]> = [[0, open.length - 1]];
-  while (stack.length) {
-    const [start, end] = stack.pop()!;
-    const a = open[start]!;
-    const b = open[end]!;
-    const dx = b.x - a.x;
-    const dy = b.y - a.y;
-    const length = Math.hypot(dx, dy);
-    let farthest = -1;
-    let distance = tolerance;
-    for (let index = start + 1; index < end; index += 1) {
-      const point = open[index]!;
-      const d = length ? Math.abs(dy * point.x - dx * point.y + b.x * a.y - b.y * a.x) / length : Math.hypot(point.x - a.x, point.y - a.y);
-      if (d > distance) {
-        distance = d;
-        farthest = index;
-      }
-    }
-    if (farthest >= 0) {
-      keep[farthest] = 1;
-      stack.push([start, farthest], [farthest, end]);
-    }
-  }
-  const kept = open.filter((_, index) => keep[index]);
-  return kept.length >= 3 ? [...kept, kept[0]!] : ring;
-}
 
 function ringPath(ring: Point2D[]): string {
   const round = (value: number) => Number(value.toFixed(1)).toString();
@@ -76,7 +76,7 @@ function polygonPath(polygon: Polygon2D, tolerance: number): string {
       const bounds = ringBounds(ring);
       return Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) > tolerance * 2;
     })
-    .map((ring) => ringPath(simplifyRing(ring, tolerance))).join("");
+    .map((ring) => ringPath(simplifyClosedRing(ring, tolerance))).join("");
 }
 
 /** A point inside the piece near its bounding-box centre, for a label or a callout. */
@@ -178,6 +178,13 @@ export function assemblyGuideToHtml(ir: GeometryIRV1, config: ProjectConfigV1, s
     return diagram(`${stack(layer.index)}<use href="#g-${layer.id}" class="current"/>${callouts}`, `Stack after adding layer ${layerNumber(layer)}`);
   };
 
+  const nestedSheet = sheets.find((sheet) => sheet.map)?.map;
+  /** On a nested sheet, which of the layer's pieces it holds: pieces of many layers share one. */
+  const piecesOn = (sheet: GuideSheet, layerIndex: number) => {
+    const labels = sheet.map?.pieces.filter((piece) => piece.layerIndex === layerIndex).map((piece) => piece.label) ?? [];
+    return labels.length ? ` <span class="muted">(${labels.map(escapeXml).join(", ")})</span>` : "";
+  };
+
   const steps = layers.map((layer, index) => {
     const number = layerNumber(layer);
     const pieces = layer.pieces.length || layer.polygons.length;
@@ -189,9 +196,9 @@ export function assemblyGuideToHtml(ir: GeometryIRV1, config: ProjectConfigV1, s
     if (nestedIn(index).length) notes.push(`<strong>Keep its cutouts.</strong> The pieces that drop out of it belong to layer ${nestedIn(index).map((nested) => layers[nested]).filter((entry): entry is LayerIR => Boolean(entry)).map(layerNumber).join(" and ")}.`);
     if (donors.length) notes.push(`<strong>Nested.</strong> ${pieces === 1 ? "This piece was" : "These pieces were"} cut from inside layer ${donors.map(layerNumber).join(" and ")}; look among that sheet's cutouts.`);
     for (const { kind, files } of templatesFor(index)) notes.push(`<strong>Paint the ${kind} first</strong> with ${files.map(({ filename }) => `<code>${escapeXml(filename)}</code>`).join(", ")}.`);
-    if (index === count - 1 && count > 1) notes.push(`<strong>Top layer.</strong> ${labelsOn && pieces > 1 ? "Its pieces carry no id; place them by the picture." : "The last one."}`);
+    if (index === count - 1 && count > 1) notes.push(`<strong>Top layer.</strong> ${(labelsOn || (nestedSheet && config.showAssemblyLabels)) && pieces > 1 ? `Its pieces carry no id; ${nestedSheet ? "find them on the sheet maps and " : ""}place them by the picture.` : "The last one."}`);
     const facts = [
-      ["Cut from", layerSheets.length ? layerSheets.map((sheet) => `<code>${escapeXml(sheet.filename)}</code>`).join(" ") : "—"],
+      ["Cut from", layerSheets.length ? layerSheets.map((sheet) => `<code>${escapeXml(sheet.filename)}</code>${piecesOn(sheet, index)}`).join(" ") : "—"],
       ["Pieces", String(pieces)],
       ["Elevation", `${elevation(layer.elevationM)} and up`],
     ].map(([term, value]) => `<div><dt>${term}</dt><dd>${value}</dd></div>`).join("");
@@ -206,6 +213,8 @@ export function assemblyGuideToHtml(ir: GeometryIRV1, config: ProjectConfigV1, s
     const ids = sheet.layerIndexes.map((index) => layers[index]).filter((entry): entry is LayerIR => Boolean(entry)).map(layerNumber);
     return `<tr><td><input type="checkbox" aria-label="Cut ${escapeXml(sheet.filename)}"></td><td><code>${escapeXml(sheet.filename)}</code></td><td>${ids.join(", ")}${sheet.cellName ? ` <span class="muted">· cell ${escapeXml(sheet.cellName)}</span>` : ""}</td></tr>`;
   }).join("");
+
+  const sheetMaps = sheets.map((sheet) => sheet.map ? sheetMapFigure(sheet, sheet.map) : "").join("");
 
   const templateRows = templates.map(({ filename, sheet }) => `<tr><td><input type="checkbox" aria-label="Cut ${escapeXml(filename)}"></td><td><code>${escapeXml(filename)}</code></td><td>for <code>${escapeXml(sheet.filename)}</code></td></tr>`).join("");
   const paintSection = painted ? `<section class="page">
@@ -242,6 +251,8 @@ export function assemblyGuideToHtml(ir: GeometryIRV1, config: ProjectConfigV1, s
   const marks = [
     config.showAlignmentGuides ? `<li><strong>Outline and Lxx label.</strong> Each layer carries an engraved outline showing exactly where the next layer sits, plus its layer number. Both end up hidden.</li>` : "",
     labelsOn ? `<li><strong>Piece ids.</strong> Each layer is cut in ${split!.columns} × ${split!.rows} parts. Every piece has a green id like <code>L03-B2</code> (layer 03, column B, row 2) where the next layer will cover it. Top-layer pieces have none.</li>` : "",
+    // Nested sheets mix layers, so the export engraves an id on every covered piece, split or not.
+    nestedSheet && config.showAssemblyLabels && !split ? `<li><strong>Piece ids.</strong> Pieces from different layers share each sheet, so every piece carries a green id like <code>L05</code> or <code>L05-2</code> (layer 05, island 2) where the next layer will cover it. Pieces with no covered room, the top layer's among them, are named on the sheet maps.</li>` : "",
     split && !labelsOn ? `<li><strong>Split layers.</strong> Each layer is cut in ${split.columns} × ${split.rows} parts. Use the step pictures to place them.</li>` : "",
     `<li><strong>Everything else</strong> engraved on the pieces (contours, roads, labels) is part of the artwork.</li>`,
   ].filter(Boolean).join("");
@@ -295,7 +306,9 @@ code{font:12.5px var(--mono);background:var(--surface-alt);border:1px solid var(
 .facts dt{font:11px var(--utility);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .facts dd{margin:4px 0 0;font-size:18px;font-weight:500}
 figure{margin:0;background:var(--canvas);padding:14px;box-shadow:0 18px 23px rgb(32 35 29/.12)}
-.diagram{display:block;width:100%;height:auto;max-height:118mm}
+.diagram{display:block;width:100%;height:auto;max-height:118mm}${sheetMaps ? `
+.sheet-maps{display:grid;grid-template-columns:repeat(auto-fill,minmax(3in,1fr));gap:14px;margin-top:10px}
+.sheet-map figcaption{margin-top:6px}` : ""}
 .diagram use{stroke:#847d6a;stroke-width:.6;vector-effect:non-scaling-stroke;fill-rule:evenodd}
 .diagram use.current{fill:#c65224;stroke:#6e2a10;stroke-width:1.4}
 .diagram .callout{fill:none;stroke:#c65224;stroke-width:1.8;stroke-dasharray:4 3;vector-effect:non-scaling-stroke}
@@ -379,7 +392,7 @@ figure,code,.badge,.diagram,.swatch,.numbered>li::before,input{-webkit-print-col
 <div>
 <p class="label">You will need</p>
 <ul>
-<li>${plural(sheets.length, "sheet")} of ${length(thickness)} material${split ? ` that fit your ${length(config.workAreaWidthMm)} × ${length(config.workAreaHeightMm)} work area` : `, each at least ${width} × ${height}`}</li>
+<li>${plural(sheets.length, "sheet")} of ${length(thickness)} material${nestedSheet ? `, each ${length(nestedSheet.widthMm)} × ${length(nestedSheet.heightMm)}` : split ? ` that fit your ${length(config.workAreaWidthMm)} × ${length(config.workAreaHeightMm)} work area` : `, each at least ${width} × ${height}`}</li>
 <li>Glue suited to the material (wood glue for plywood or MDF)</li>
 <li>A flat board to build on and some weights or clamps</li>
 <li>A small bag or tray per layer, and a pencil</li>
@@ -401,7 +414,7 @@ ${nests.length ? `<li><strong>Keep every cutout.</strong> Some small pieces of h
 <p class="label">Section 1</p>
 <h2>Cut the sheets</h2>
 <p class="muted">Tick each file off as it comes off the laser. The last column says which layers are on that sheet.</p>
-<table><tbody>${sheetRows}</tbody></table>
+<table><tbody>${sheetRows}</tbody></table>${sheetMaps ? `\n<p class="muted">Pieces from different layers share each sheet. Each map shows every piece where the laser cuts it, named by its id; use it for any piece without an engraved id.</p>\n<div class="sheet-maps">${sheetMaps}</div>` : ""}
 </section>
 ${paintSection}
 <section class="page build-intro">

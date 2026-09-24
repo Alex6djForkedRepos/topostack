@@ -203,6 +203,14 @@ describe("project import validation", () => {
     expect(() => parseProject({ ...DEFAULT_PROJECT, paintTemplates: ["water", "water"] })).toThrow(/paint templates/i);
     expect(() => parseProject({ ...DEFAULT_PROJECT, paintTemplates: "water" })).toThrow(/paint templates/i);
   });
+  it("restores sheet nesting settings only when a project has them", () => {
+    expect("sheetNesting" in parseProject(DEFAULT_PROJECT)).toBe(false);
+    const sheetNesting = { sheetWidthMm: 600, sheetHeightMm: 400, marginMm: 3, spacingMm: 2, rotation: "free" as const, timeBudgetS: 30, seed: 4 };
+    expect(parseProject({ ...DEFAULT_PROJECT, sheetNesting }).sheetNesting).toEqual(sheetNesting);
+    expect(() => parseProject({ ...DEFAULT_PROJECT, sheetNesting: { ...sheetNesting, rotation: "diagonal" } })).toThrow(/rotation/i);
+    expect(() => parseProject({ ...DEFAULT_PROJECT, sheetNesting: { ...sheetNesting, spacingMm: "2" } })).toThrow(/numbers/i);
+    expect(() => parseProject({ ...DEFAULT_PROJECT, sheetNesting: "wide" })).toThrow(/sheet nesting/i);
+  });
   it("validates and restores fabrication typography", () => {
     expect(parseProject({ ...DEFAULT_PROJECT, textStyle: { font: "stencil", sizeMm: 5 } }).textStyle).toEqual({ font: "stencil", sizeMm: 5 });
     expect(parseProject({ ...DEFAULT_PROJECT, textStyle: { font: "relief", sizeMm: 5 } }).textStyle).toEqual({ font: "relief", sizeMm: 5 });

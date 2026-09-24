@@ -5,7 +5,8 @@ import { executeGeometryTask, type GeometryBatch } from "./generation-tasks.js";
 import { createSyntheticSource } from "./synthetic-source.js";
 
 const comparable = (result: GeometryIRV1) => ({ ...result, generatedAt: "" });
-const config = { ...DEFAULT_PROJECT, widthMm: 1200, heightMm: 1200 };
+// Smallest fixture that stays above the 32-layer parallel threshold and still splits.
+const config = { ...DEFAULT_PROJECT, widthMm: 700, heightMm: 700, materialThicknessMm: 2 };
 const execute = async (batch: GeometryBatch) => {
   // Cross a real serialization boundary, then deliberately vary completion order.
   const copy = structuredClone(batch);
@@ -19,17 +20,21 @@ const execute = async (batch: GeometryBatch) => {
 
 describe("parallel generation stages", () => {
   it("matches synchronous output including roads, split pieces, and cached edits", async () => {
-    const source = createSyntheticSource(config, 64);
-    source.markings = [{ id: "road", kind: "road", operation: "engrave", points: [{ x: -500, y: 10 }, { x: 500, y: 200 }] }];
+    const source = createSyntheticSource(config, 48);
+    source.markings = [{ id: "road", kind: "road", operation: "engrave", points: [{ x: -300, y: 10 }, { x: 300, y: 120 }] }];
     const generate = createParallelGeometryGenerator();
     const stages: string[] = [];
-    for (const project of [config, { ...config, showElevationLabels: false }, { ...config, workAreaWidthMm: 650, workAreaHeightMm: 650 }]) {
-      const result = await generate(project, source, { execute: async batch => { stages.push(batch.tasks[0]!.kind); return execute(batch); } });
+    let result!: GeometryIRV1;
+    for (const project of [config, { ...config, showElevationLabels: false }, { ...config, workAreaWidthMm: 400, workAreaHeightMm: 400 }]) {
+      result = await generate(project, source, { execute: async batch => { stages.push(batch.tasks[0]!.kind); return execute(batch); } });
       expect(comparable(result)).toEqual(comparable(generateGeometry(project, source)));
     }
+    // Guard the fixture: it must keep exercising split pieces and routed roads.
+    expect(result.layers.some(layer => layer.pieces.length > 0)).toBe(true);
+    expect(result.layers.some(layer => layer.markings.some(marking => marking.kind === "road"))).toBe(true);
     expect(stages).toContain("alignment");
     expect(stages).toContain("elevation-labels");
-  }, 20_000);
+  }, 60_000);
 
   it("keeps small maps and shared-face engravings on the synchronous path", async () => {
     for (const project of [DEFAULT_PROJECT, { ...config, outputMode: "engraving" as const, engravingContourCount: 40 }]) {

@@ -15,11 +15,11 @@ export function layerToSvg(ir: GeometryIRV1, layer: LayerIR): string {
   return svgDocument(width, height, body, `${ir.projectName} — ${layer.id}`);
 }
 
-type Operation = "cut" | "score" | "engrave" | "assembly";
+export type Operation = "cut" | "score" | "engrave" | "assembly";
 export const OPERATIONS: readonly Operation[] = ["engrave", "assembly", "score", "cut"];
 export const ENGRAVE_ONLY: readonly Operation[] = ["engrave", "assembly"];
 /** A panel's per-operation layer groups in panel coordinates, built once and shared by every file that shows the panel. */
-type PanelBodies = Record<Operation, string>;
+export type PanelBodies = Record<Operation, string>;
 
 /**
  * One sheet's share of a layer's markings.
@@ -97,6 +97,7 @@ export function panelBodies(ir: GeometryIRV1, panel: FabricationPanel): PanelBod
 }
 
 function panelId(panel: FabricationPanel): string {
+  if (panel.sheetIndex !== undefined) return `fabrication-sheet-${String(panel.sheetIndex + 1).padStart(2, "0")}`;
   return `fabrication-panel-${panel.rootLayerIndex + 1}${panel.cellName ? `-${panel.cellName.toLowerCase()}` : ""}`;
 }
 
@@ -107,7 +108,7 @@ function panelOperationGroup(ir: GeometryIRV1, panel: FabricationPanel, operatio
   return `<g id="${panelId(panel)}-${operation.toUpperCase()}" data-layers="${escapeXml(layerIds)}"${cell}${transform}>${body}</g>`;
 }
 
-function operationGroup(operation: Operation, body: string, style: LineStyleV1): string {
+export function operationGroup(operation: Operation, body: string, style: LineStyleV1): string {
   if (operation === "assembly") {
     // Omitted entirely when empty: an empty process would still show up as a
     // layer to configure in the machine's software.
@@ -122,8 +123,12 @@ function operationGroup(operation: Operation, body: string, style: LineStyleV1):
 export function panelToSvg(ir: GeometryIRV1, panel: FabricationPanel, bodies: PanelBodies, operations: readonly Operation[], kind: string): string {
   const layerIds = panel.layerIndexes.map((index) => ir.layers[index]?.id).filter(Boolean).join(", ");
   const body = operations.map((operation) => operationGroup(operation, panelOperationGroup(ir, panel, operation, bodies[operation]), ir.lineStyle)).join("");
-  const cell = panel.cellName ? ` — cell ${panel.cellName}` : "";
-  return svgDocument(panel.maxX - panel.minX, panel.maxY - panel.minY, body, `${ir.projectName} — ${kind} panel${cell} — ${layerIds}`, panel.minX, panel.minY);
+  return svgDocument(panel.maxX - panel.minX, panel.maxY - panel.minY, body, `${ir.projectName} — ${panelTitle(panel, kind)} — ${layerIds}`, panel.minX, panel.minY);
+}
+
+function panelTitle(panel: FabricationPanel, kind: string): string {
+  if (panel.sheetIndex !== undefined) return `${kind} sheet ${panel.sheetIndex + 1}`;
+  return `${kind} panel${panel.cellName ? ` — cell ${panel.cellName}` : ""}`;
 }
 
 /**
@@ -135,6 +140,21 @@ export function panelToSvg(ir: GeometryIRV1, panel: FabricationPanel, bodies: Pa
  * sheet, or one whose pieces are painted edge to edge, gets no template.
  */
 export function paintTemplateSvg(ir: GeometryIRV1, config: ProjectConfigV1, panel: FabricationPanel, kind: PaintRegionKind): string | undefined {
+  const groups = paintTemplateGroups(ir, config, panel, kind);
+  if (!groups) return undefined;
+  const layerIds = panel.layerIndexes.map((index) => ir.layers[index]?.id).filter(Boolean).join(", ");
+  const cell = panel.cellName ? ` — cell ${panel.cellName}` : "";
+  return paintTemplateDocument(ir, panel, kind, groups, `${ir.projectName} — ${kind} paint template${cell} — ${layerIds}`);
+}
+
+/** The stencil shell shared by panel and sheet templates: one CUT group holding `groups`. */
+export function paintTemplateDocument(ir: GeometryIRV1, panel: FabricationPanel, kind: PaintRegionKind, groups: string, title: string): string {
+  const body = `<g id="CUT" data-operation="CUT" fill="none" stroke="${CUT}" stroke-width="0.1" fill-rule="evenodd"><g id="${panelId(panel)}-PAINT-${kind.toUpperCase()}" data-layers="${escapeXml(panel.layerIndexes.map((index) => ir.layers[index]?.id).filter(Boolean).join(" "))}"${panel.cellName ? ` data-cell="${escapeXml(panel.cellName)}"` : ""} data-paint-kind="${kind}">${groups}</g></g>`;
+  return svgDocument(panel.maxX - panel.minX, panel.maxY - panel.minY, body, title, panel.minX, panel.minY);
+}
+
+/** Per-layer stencil groups for the pieces a panel includes, in model coordinates; undefined when none keeps paper. */
+export function paintTemplateGroups(ir: GeometryIRV1, config: ProjectConfigV1, panel: FabricationPanel, kind: PaintRegionKind): string | undefined {
   const regions = (ir.paintRegions ?? []).filter((region) => region.kind === kind && panel.layerIndexes.includes(region.layerIndex)
     && (!panel.included || panel.included.get(region.layerIndex)?.has(region.polygonIndex)));
   const stencils = regions.flatMap(({ layerIndex, polygonIndex, polygons, paper }) => {
@@ -157,10 +177,7 @@ export function paintTemplateSvg(ir: GeometryIRV1, config: ProjectConfigV1, pane
     }).join("");
     return [`<g id="${layer.id}-PAINT-${kind.toUpperCase()}" data-layers="${layer.id}">${paths}</g>`];
   }).join("");
-  const layerIds = panel.layerIndexes.map((index) => ir.layers[index]?.id).filter(Boolean).join(", ");
-  const cell = panel.cellName ? ` — cell ${panel.cellName}` : "";
-  const body = `<g id="CUT" data-operation="CUT" fill="none" stroke="${CUT}" stroke-width="0.1" fill-rule="evenodd"><g id="${panelId(panel)}-PAINT-${kind.toUpperCase()}" data-layers="${escapeXml(panel.layerIndexes.map((index) => ir.layers[index]?.id).filter(Boolean).join(" "))}"${panel.cellName ? ` data-cell="${escapeXml(panel.cellName)}"` : ""} data-paint-kind="${kind}">${groups}</g></g>`;
-  return svgDocument(panel.maxX - panel.minX, panel.maxY - panel.minY, body, `${ir.projectName} — ${kind} paint template${cell} — ${layerIds}`, panel.minX, panel.minY);
+  return groups;
 }
 
 export function masterToSvg(ir: GeometryIRV1, panels = fabricationPanels(ir), bodies = panels.map((panel) => panelBodies(ir, panel))): string {

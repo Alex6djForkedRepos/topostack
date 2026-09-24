@@ -5,6 +5,7 @@ import { createSyntheticSource } from "./synthetic-source.js";
 import { DEFAULT_PROJECT, type GeometryIRV1, type ProjectConfigV1 } from "../types.js";
 
 const comparable = (geometry: GeometryIRV1) => ({ ...geometry, generatedAt: "" });
+// Each loop regenerates a full map per edit; CI coverage runs 2–3x slower than local runs.
 
 describe("generation terrain cache", () => {
   it("reuses terrain for downstream edits, keeping results independently owned", () => {
@@ -24,7 +25,7 @@ describe("generation terrain cache", () => {
       expect(stages).not.toContain("contours");
       expect(comparable(result)).toEqual(comparable(generateGeometry(config, source)));
     }
-  });
+  }, 30_000);
 
   it("invalidates for terrain settings and replaced source snapshots", () => {
     const generate = createGeometryGenerator(), source = createSyntheticSource(DEFAULT_PROJECT, 48);
@@ -47,7 +48,7 @@ describe("generation terrain cache", () => {
     const stages: GenerationStage[] = [];
     expect(comparable(generate(DEFAULT_PROJECT, replacement, { onStage: stage => { stages.push(stage); } }))).toEqual(comparable(generateGeometry(DEFAULT_PROJECT, replacement)));
     expect(stages).toContain("contours");
-  });
+  }, 30_000);
 
   it("reuses carved lakes without accumulating shoreline smoothing or sharing output polygons", () => {
     const config = { ...DEFAULT_PROJECT, widthMm: 200, heightMm: 200 };

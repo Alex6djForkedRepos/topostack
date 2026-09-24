@@ -383,6 +383,12 @@ export interface ProjectConfigV1 {
    * assembly. Layered output only; each kind is listed at most once.
    */
   paintTemplates: PaintRegionKind[];
+  /**
+   * How the export step packs cut parts onto stock sheets. An export setting:
+   * it never changes the geometry, so the fingerprint ignores it. Absent in
+   * every project that never opened the setting.
+   */
+  sheetNesting?: SheetNestSettingsV1;
   showElevationLabels: boolean;
   elevationLabelPosition: Point2D;
   textStyle: TextStyleV1;
@@ -690,6 +696,95 @@ export interface FabricationPanelV1 {
   minY: number;
   maxX: number;
   maxY: number;
+}
+
+/**
+ * Which rotations sheet nesting may give a part: none, a half turn, quarter
+ * turns, or any angle. Parts are never mirrored, since engraving is one-sided.
+ */
+export type SheetNestRotation = "none" | "half" | "quarter" | "free";
+
+/** Stock sheets and packing effort for sheet nesting, as the maker set them. */
+export interface SheetNestSettingsV1 {
+  /** Stock sheet size; 0 on an axis uses the machine work area on that axis. */
+  sheetWidthMm: number;
+  sheetHeightMm: number;
+  /** Clearance kept free along every sheet edge. */
+  marginMm: number;
+  /** Minimum material left between two parts' cut lines. */
+  spacingMm: number;
+  rotation: SheetNestRotation;
+  /** How long the packer may search before settling on its best layout. */
+  timeBudgetS: number;
+  /** Seed for the packer's random choices, so a rerun on one machine repeats. */
+  seed: number;
+}
+
+/**
+ * One rigid part to lay out: a root polygon of a nest family together with
+ * every polygon cut out of it, which share cut lines and so move as one.
+ */
+export interface NestPartV1 {
+  /** `<root layer id>:<root polygon index>`. */
+  id: string;
+  /** What the maker reads on the sheet map: the piece id, or `L03` / `L03-2`. */
+  label: string;
+  rootLayerIndex: number;
+  members: Array<{ layerIndex: number; polygonIndexes: number[] }>;
+  /**
+   * Closed, counter-clockwise outer boundary in model millimetres that
+   * contains every cut line of the part, kerf included, simplified outward.
+   */
+  outline: Point2D[];
+  areaMm2: number;
+}
+
+/**
+ * Where a part lands: `sheetPoint = R(rotationDeg) · modelPoint + (xMm, yMm)`,
+ * in sheet millimetres with the origin at a sheet corner.
+ */
+export interface NestPlacementV1 {
+  partId: string;
+  rotationDeg: number;
+  xMm: number;
+  yMm: number;
+}
+
+export interface SheetNestSheetV1 {
+  placements: NestPlacementV1[];
+  /** Length of stock the parts use along the sheet width, margin included; the rest is offcut. */
+  usedWidthMm: number;
+  /** Packed by sparrow, or by the bounding-box fallback. */
+  method: "sparrow" | "rectangles";
+  /** A stand-in layout for parts the packer has not reached yet. */
+  provisional?: boolean;
+}
+
+/** Every part of a project laid out on stock sheets. */
+export interface SheetNestPlanV1 {
+  schemaVersion: 1;
+  /** Hash of the parts and settings the plan was made for; a stale plan no longer matches. */
+  jobKey: string;
+  /** The engine that searched. A sheet it could not improve keeps the bounding-box layout; see each sheet's `method`. */
+  engine: { name: "sparrow" | "rectangles"; sparrowRev?: string; jaguaVersion?: string };
+  settings: ResolvedSheetNestSettings;
+  sheets: SheetNestSheetV1[];
+  /** False while the packer is still improving the layout. Draft plans are still valid to cut. */
+  final: boolean;
+  /** Part area over sheet area across all sheets. */
+  utilization: number;
+  elapsedMs: number;
+}
+
+/** Settings with the work-area fallback applied and every value in range. */
+export interface ResolvedSheetNestSettings {
+  sheetWidthMm: number;
+  sheetHeightMm: number;
+  marginMm: number;
+  spacingMm: number;
+  rotation: SheetNestRotation;
+  timeBudgetS: number;
+  seed: number;
 }
 
 export interface GeometryWarning {

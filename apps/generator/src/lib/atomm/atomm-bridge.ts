@@ -1,7 +1,7 @@
-import type { GeometryIRV1, ProjectConfigV1 } from "@topostack/core";
+import type { GeometryIRV1, ProjectConfigV1, SheetNestPlanV1 } from "@topostack/core";
 import type { ExportIntent } from "$lib/studio/export-policy";
 
-type CurrentExport = () => { geometry: GeometryIRV1; project: ProjectConfigV1 };
+type CurrentExport = () => { geometry: GeometryIRV1; project: ProjectConfigV1; sheetPlan?: SheetNestPlanV1 };
 
 export type ExportUpdate =
   | { phase: "preparing"; intent: ExportIntent }
@@ -34,8 +34,8 @@ export function connectAtomm(getCurrent: CurrentExport, onReady: () => void, onE
         const { createAtommExport, loadGuideFonts } = await import("$lib/studio/export-policy");
         if (!currentExport) throw new Error("TopoStack is not ready to export.");
         const fonts = intent === "download" ? await loadGuideFonts() : [];
-        const { geometry, project } = currentExport();
-        const output = createAtommExport(geometry, project, intent, fonts);
+        const { geometry, project, sheetPlan } = currentExport();
+        const output = createAtommExport(geometry, project, intent, fonts, sheetPlan);
         currentExportUpdate?.({ phase: "ready", intent, fileCount: Array.isArray(output) ? output.length : 1 });
         return output;
       } catch (error) {
