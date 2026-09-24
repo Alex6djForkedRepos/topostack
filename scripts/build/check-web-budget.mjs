@@ -25,8 +25,8 @@ const budgets = {
   largestJavaScriptGzip: 300_000,
   studioHtmlBytes: 10_000,
   // Fetched when browsing or searching lakes; grows with survey sources.
-  // 306,268 when set (7,775 records across 11 sources).
-  lakeDirectoryGzip: 340_000,
+  // 335,417 when set (8,147 records across 28 sources, with the NOAA NBS and chart lakes).
+  lakeDirectoryGzip: 370_000,
   // The sheet-nesting engine (sparrow, WebAssembly). Lazy: fetched only when
   // the maker nests parts, and never on startup (asserted below). 309,153 when set.
   nestEngineWasmGzip: 340_000,

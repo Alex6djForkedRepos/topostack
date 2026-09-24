@@ -20,6 +20,8 @@ worldwide survey coverage. Lake outlines come from pinned provider water masks, 
 | [Norway NVE](https://data.norge.no/nb/datasets/fa42a236-7881-4a15-a4f9-a69b3970f440/dybdekart) | 521 processed lakes; 7 records skipped | Digital depth contours joined to survey polygons, interpolated onto a masked 20 m grid. |
 | [Texas Water Development Board](https://www.twdb.texas.gov/surfacewater/surveys/completed/index.asp) | Alan Henry, Lake Austin, Lady Bird Lake | Verified contour elevations and report reference levels; masked 10 m grid. Other reservoirs remain to be validated. |
 | [Bureau of Reclamation](https://www.usbr.gov/tsc/techreferences/reservoir.html) | Estes, Flatiron, Pinewood | Verified historical reference levels and conservative closed-contour masks; 10 m grid. Other reservoirs remain to be validated. |
+| [NOAA National Bathymetric Source](https://nauticalcharts.noaa.gov/learn/nbs.html) (`noaa-nbs-*-v1`, nine regional archives) | 237 US lakes, lagoons and coastal ponds, including Lake Pontchartrain, Lake Washington, Lake Pend Oreille, Lake Roosevelt, Lake Winnebago and the St. Johns River lakes | Measured, openly licensed survey cells only, averaged to 8 m and clipped to HydroLAKES. Depth below the surveys' chart datum, anchored to the waterline. See [below](#noaa-national-bathymetric-source-lakes). |
+| [NOAA nautical charts](https://www.charts.noaa.gov/ENCs/ENCs.shtml) (`noaa-enc-*-v1`, eight regional archives) | 135 lakes with no survey grid, including Lake Okeechobee, Lake Champlain, Oneida, Seneca, Cayuga and Onondaga lakes, and Michigan's Inland Route and harbour lakes | Electronic chart contours and soundings, most detailed chart first, interpolated onto a 20 m grid inside HydroLAKES with the shoreline at 0 m. Depth below the chart datum. See [below](#noaa-nautical-chart-lakes). |
 | Published depth charts (`community-charts-v1`) — built, not yet registered | Lake Viking, Missouri | Traced from published contour maps whose licence allows redistribution, one committed record per chart. Its archive builds from those records; registering it here is a provisioning pass described in [depth-chart-tracing.md](depth-chart-tracing.md). |
 
 Swiss coverage includes Ägeri, Baldegg, Biel, Constance, Brienz, Hallwil, Joux,
@@ -145,6 +147,10 @@ surface references, missing references, source failures, and provenance retries.
 There is no single complete public lake-survey feed. Additional candidates need
 source-specific validation before being added to the registry:
 
+- NOAA's other lake depths (NBS Modeling/BlueTopo grids, CUDEM, and nautical
+  chart ENCs) are listed lake by lake in the
+  [NOAA lake depth coverage report](reports/noaa-lake-coverage-2026-09-24.md).
+  NCEI's Great Lakes product itself has no lakes beyond the six already used.
 - Yellowstone SIM 2973's downloadable GIS package lists geological polygons,
   faults, vents, and flow arrows; its bathymetry presentation is not a verified
   numeric bed grid in that package.
@@ -275,6 +281,123 @@ SURVEY_TEST_APP_URL=http://localhost:5273 node scripts/verify/verify-surveys-liv
   --dataset=ontario-lakes-v1,nve-norway-lakes-v1,twdb-texas-reservoirs-v1,usbr-reservoirs-v1
 ```
 
+## NOAA National Bathymetric Source lakes
+
+NOAA's National Bathymetric Source (NBS) Modeling tiles are 4–16 m grids built
+from hydrographic surveys, in the public bucket
+`noaa-ocs-nationalbathymetry-pds`. The
+[coverage report](reports/noaa-lake-coverage-2026-09-24.md) and
+[integration plan](noaa-lake-integration-plan.md) explain how the lakes were found.
+
+- **Which lakes.** `nbs_inventory.py` measured every HydroLAKES polygon against
+  the delivered tiles. `select-nbs-lakes.py` keeps lakes at least half surveyed
+  (footprint × survey share), except the six Great Lakes already served by
+  `noaa-great-lakes-v1`. That gives 498 candidates in nine regional datasets:
+  Florida, Gulf Coast, Atlantic Coast, Great Lakes basin, California, Northwest
+  Coast, Inland Northwest, Alaska, and Puerto Rico with the U.S. Virgin Islands.
+- **Names.** Each lake takes the name of the USGS National Hydrography Dataset
+  waterbody (or, failing that, area) that overlaps it most. Other named waters
+  mostly inside it become aliases (Winnebago lists Butte des Morts and Poygan).
+  A HydroLAKES fragment covering under a fifth of a named water is titled "Part
+  of …". Open-ocean names are ignored. Lakes with no name are listed as
+  "Unnamed lake, <county>". County and state come from Census TIGERweb.
+- **Which cells.** Each tile's raster attribute table classifies its
+  contributors. Only measured surveys licensed CC0 1.0 or CC BY 4.0 are kept;
+  "NBS Generalization" fill, chart-digitized cells and sources that are
+  non-commercial, internal-use, pending or blank-licensed are masked.
+- **Depths.** NBS elevations are relative to the contributing surveys' chart
+  datum: MLLW on tidal water, the low-water datum on the Great Lakes, and on
+  inland lakes such as Pend Oreille whatever reference the survey sheets used
+  (not stated in the tiles). Depth is the
+  negated elevation, averaged to an 8 m UTM grid and clipped to the lake's
+  HydroLAKES outline grown by 30 m. The browser anchors it to the terrain
+  waterline, as it does for the NCEI grids. This is a display alignment, not a
+  datum transformation; on tidal water the depths are those at low water.
+- **Perched lakes are refused.** When more than a quarter of a lake's surveyed
+  bed lies above chart datum, its waterline is not the datum (a salt pond, an
+  inland lake above Lake Superior, a floodplain lake on the Columbia) and the
+  negated elevations would understate every depth. 261 of the 498 candidates
+  are refused this way; the rest ship. Smaller above-datum patches (intertidal
+  margins) are dropped and fall back to the basin model. The refused lakes and
+  reasons are in `lake-survey-builds.json` under `skipped.noaa-nbs`.
+- **Pins.** NOAA keeps no history: it replaces tiles and the scheme in place,
+  sometimes more than once a day, and the scheme can name a tile file the bucket
+  no longer holds. `scripts/data/noaa-nbs-sources.json` pins the scheme, the
+  HydroLAKES archive and every tile and attribute table by SHA-256. When the
+  scheme names a file that is gone, the selection pins the file now in the
+  bucket by its own digest and records the scheme's link as `schemeUrl`. Keep
+  the build cache (`nbs/`) or copy it to R2 under `sources/nbs/`: once NOAA
+  replaces a tile, a rebuild from these pins is only possible from that copy.
+
+Rebuild from a fresh inventory:
+
+```sh
+/tmp/topostack-surveys-venv/bin/python scripts/data-build/nbs_inventory.py \
+  --cache /tmp/topostack-nbs --out /tmp/topostack-nbs/nbs-inventory.json \
+  --lakes /path/to/HydroLAKES_polys_v10.shp --min-area-km2 0 --measure
+cd scripts/data-build && /tmp/topostack-surveys-venv/bin/python select-nbs-lakes.py \
+  --inventory /tmp/topostack-nbs/nbs-inventory.json --cache /tmp/topostack-nbs \
+  --hydrolakes-zip /path/to/HydroLAKES_polys_v10_shp.zip --hydrolakes /path/to/HydroLAKES_polys_v10.shp
+cd ../.. && /tmp/topostack-surveys-venv/bin/python scripts/data-build/build-survey-bathymetry.py \
+  --cache /tmp/topostack-lake-surveys --out-dir /tmp/topostack-survey-archives --dataset noaa-nbs-florida-v1
+```
+
+Repeat the build for each `noaa-nbs-*` dataset. Then set each registry box to its
+receipt's grid extent padded by 0.01°, so projects elsewhere never request the
+archive, and record the receipts in `lake-survey-builds.json`. Regenerate the
+directory with `build-lake-directory.py --keep-unchanged`, which keeps the
+committed records of datasets whose receipts are not in `--archives`. The NBS
+lakes use HydroLAKES outlines, so the outline shards do not change; only the
+coverage audit (`build-lake-outlines.py`, or an `external-fallback` entry per new
+record when the regional caches are absent) and the release pin's checksums do
+(`provision-lake-outlines.mjs --prepare`).
+
+## NOAA nautical chart lakes
+
+Lakes with no survey grid can still be charted. NOAA's electronic navigational
+charts (ENCs, S-57) carry depth contours (`DEPCNT`), soundings (`SOUNDG`) and
+depth areas (`DEPARE`) in metres below each chart's sounding datum. The
+[chart coverage report](reports/noaa-chart-lake-coverage-2026-09-24.md) lists
+every US lake the charts cover and how well.
+
+- **Which lakes.** `select-enc-lakes.py` takes the report's tier A and B lakes
+  that no other source covers (160). Lake Mead is refused because its soundings
+  refer to a fixed 1,160 ft pool, not the water surface. Two Mexican lakes have
+  no dataset. The other 157 are pinned in `scripts/data/noaa-enc-sources.json`
+  with each cell's URL, edition, update and SHA-256, the catalog digest, the
+  HydroLAKES archive and the cells' datum notes.
+- **Which depths.** `survey_enc.py` reads each lake's cells with GDAL's S-57
+  driver (updates applied). The most detailed cell wins, and a coarser cell adds
+  contours and soundings only where no finer cell charts depth. The shoreline is
+  sampled at 0 m every 100 m, and `survey_regions.contour_grid` interpolates
+  linearly onto a 20 m UTM grid inside the HydroLAKES outline.
+- **Datums.** Great Lakes charts use Low Water Datum, the New York canal lakes
+  Normal Pool Level, the Columbia River its Columbia River Datum, and tidal water
+  MLLW. All sit at or just below the water surface, so depth below datum is
+  anchored to the waterline as for the NBS lakes. A lake whose charted areas are
+  more than a quarter drying (bed above datum) is refused.
+- **Result.** 135 lakes ship in eight archives: Alaska, Atlantic Coast,
+  California, Columbia River, Florida, Great Lakes basin, Gulf Coast, and New
+  York with Vermont. 22 are refused (19 mostly drying, 3 with no contours or
+  soundings inside), listed under `skipped.noaa-enc` in `lake-survey-builds.json`.
+- **Limits.** Chart depths are generalized for navigation: soundings are
+  shoal-biased and contours sparse away from channels. Okeechobee's chart comes
+  from 1920–29 surveys. These floors are smoother and shallower than survey grids,
+  and the directory notes say so.
+
+Charts are reissued weekly, so the pinned cells are kept in the build cache
+(`enc/`); the builder refuses a cell whose digest or edition differs. Each
+archive's metadata includes its registry box, so set the boxes from the
+receipts' grid extents (padded 0.01°) before the final build.
+
+```sh
+cd scripts/data-build && /tmp/topostack-surveys-venv/bin/python select-enc-lakes.py \
+  --catalog /path/to/ENCProdCat.xml --cells /tmp/topostack-lake-surveys/enc \
+  --hydrolakes-zip /tmp/topostack-lake-surveys/HydroLAKES_polys_v10_shp.zip
+cd ../.. && /tmp/topostack-surveys-venv/bin/python scripts/data-build/build-survey-bathymetry.py \
+  --cache /tmp/topostack-lake-surveys --out-dir /tmp/topostack-survey-archives --dataset noaa-enc-florida-v1
+```
+
 ## Searching all integrated lakes
 
 The studio’s **Choose anywhere** search includes every lake and basin in the
@@ -302,8 +425,8 @@ R2 stores spatially sharded provider water masks built from the same
 checksum-pinned Minnesota, Finland, Ontario, Norway, TWDB, and Reclamation inputs
 as the survey rasters. The map API streams them from the environment’s VECTOR_DATA
 bucket at `/v1/lake-outlines/<content-digest>.json`.
-All 7,744 regional directory entries have a provider mask. The remaining 31
-NOAA, USGS, and Swiss grid entries have no shoreline in their pinned inputs;
+All 7,744 regional directory entries have a provider mask. The remaining 403
+NOAA, USGS, and Swiss entries have no shoreline in their pinned inputs;
 they use HydroLAKES or OSM. The audit does not claim verified external coverage.
 
 Regenerate after updating the directory or pinned sources:

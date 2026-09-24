@@ -36,7 +36,7 @@ await run(async () => {
     const lake = candidates.find((lake) => lake.bounds[2] - lake.bounds[0] > 0.01 && lake.bounds[2] - lake.bounds[0] < 0.04) ?? candidates[0];
     assert(lake);
     const result = await page.evaluate(async ({ lake, coreUrl }) => {
-      const { loadLakeAreas, loadSurveyedLakeDepths } = await import("/src/data-provider.ts");
+      const { loadLakeAreas, loadSurveyedLakeDepths } = await import("/src/lib/domain/data-provider.ts");
       const { DEFAULT_PROJECT, carveWaterDepth } = await import(coreUrl);
       const [west, south, east, north] = lake.bounds;
       const bounds = { west, south, east, north };

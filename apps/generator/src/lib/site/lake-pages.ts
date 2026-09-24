@@ -24,7 +24,7 @@ interface RegionConfig {
   slug: string;
   name: string;
   sources: readonly string[];
-  split?: "county" | "alphabet";
+  split?: "county" | "state" | "alphabet";
   about: string;
   /** Title and description wording where "<name> Lake Depth Maps" reads badly. */
   titleName?: string;
@@ -38,7 +38,7 @@ const REGIONS: readonly RegionConfig[] = [
   { slug: "norway", name: "Norway", sources: ["nve-norway-lakes-v1"], split: "alphabet", about: "The Norwegian Water Resources and Energy Directorate (NVE) publishes depth contours for hundreds of lakes, from lowland lakes to mountain reservoirs." },
   { slug: "switzerland", name: "Switzerland and border lakes", titleName: "Swiss Lake", description: "Surveyed lake-floor grids from swisstopo for Swiss and border lakes, including Lake Geneva, Lake Constance and Lake Neuchâtel. Make a layered wood lake map.", sources: ["swissbathy3d-v1"], about: "swisstopo’s swissBATHY3D is a high-resolution lake-floor model of the major Swiss lakes, including lakes shared with France, Germany, Austria and Italy. Coverage follows the published survey footprint." },
   { slug: "great-lakes", name: "Great Lakes", titleName: "Great Lakes", description: "NOAA surveyed depth grids for Lake Superior, Michigan, Huron, Erie, Ontario and Lake St. Clair. Make a layered wood Great Lakes map or an engraving.", sources: ["noaa-great-lakes-v1"], about: "NOAA’s Great Lakes bathymetry is a surveyed grid covering all five Great Lakes and Lake St. Clair, detailed enough for a whole-lake relief or a close-up of one bay." },
-  { slug: "united-states", name: "United States lakes and reservoirs", titleName: "US Lake and Reservoir", description: "Surveyed depth data for Crater Lake, Lake Tahoe, Mono Lake and reservoirs in Texas and Colorado. Make a layered wood lake map or an engraving.", sources: ["usgs-crater-lake-v1", "usgs-lake-tahoe-v1", "usgs-mono-lake-v1", "twdb-texas-reservoirs-v1", "usbr-reservoirs-v1"], about: "Multibeam surveys from USGS cover Crater Lake, Lake Tahoe and Mono Lake, and reservoir surveys from the Texas Water Development Board and the Bureau of Reclamation cover selected reservoirs. Minnesota has its own page." },
+  { slug: "united-states", name: "United States lakes and reservoirs", titleName: "US Lake and Reservoir", split: "state", description: "Depth data for Crater Lake, Lake Tahoe, Lake Okeechobee, Lake Champlain, Lake Pontchartrain and hundreds more US lakes and reservoirs. Make a layered wood lake map or an engraving.", sources: ["usgs-crater-lake-v1", "usgs-lake-tahoe-v1", "usgs-mono-lake-v1", "twdb-texas-reservoirs-v1", "usbr-reservoirs-v1", "noaa-nbs-florida-v1", "noaa-nbs-gulf-coast-v1", "noaa-nbs-atlantic-coast-v1", "noaa-nbs-great-lakes-basin-v1", "noaa-nbs-california-v1", "noaa-nbs-northwest-coast-v1", "noaa-nbs-inland-northwest-v1", "noaa-nbs-alaska-v1", "noaa-nbs-caribbean-v1", "noaa-enc-florida-v1", "noaa-enc-gulf-coast-v1", "noaa-enc-atlantic-coast-v1", "noaa-enc-great-lakes-basin-v1", "noaa-enc-new-york-vermont-v1", "noaa-enc-california-v1", "noaa-enc-columbia-river-v1", "noaa-enc-alaska-v1"], about: "Multibeam surveys from USGS cover Crater Lake, Lake Tahoe and Mono Lake, and reservoir surveys from the Texas Water Development Board and the Bureau of Reclamation cover selected reservoirs. NOAA’s National Bathymetric Source adds measured depths for hundreds of lakes, lagoons and coastal ponds, from Lake Pontchartrain and the St. Johns River lakes to Lake Washington and Lake Pend Oreille; only the surveyed parts are used. NOAA nautical charts add Lake Okeechobee, Lake Champlain, the New York canal lakes and Michigan’s inland and harbour lakes from charted contours and soundings. Minnesota has its own page." },
 ];
 
 export interface LakeListing {
@@ -80,6 +80,8 @@ function initial(name: string): string {
 const byName = (a: LakeDirectoryEntry, b: LakeDirectoryEntry): number => a.name.localeCompare(b.name, "en") || a.id.localeCompare(b.id, "en");
 /** The county part of a Minnesota region, with the survey's spelling variants ("St Louis", "St.Louis") left to the slug to merge. */
 const countyOf = (lake: LakeDirectoryEntry): string => lake.region.split(" · ")[0]!.split(", ").at(-1)!;
+/** The state part of a US region ("Monroe County · Florida, USA" or "Oregon, USA"); multi-state lakes keep their pair. */
+const stateOf = (lake: LakeDirectoryEntry): string => lake.region.split(" · ").at(-1)!.replace(/, (USA|Canada)$/, "");
 const plural = (count: number, word: string): string => `${count.toLocaleString("en-US")} ${word}${count === 1 ? "" : "s"}`;
 function listFrom(names: string[]): string {
   return names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
@@ -88,9 +90,9 @@ function largest(lakes: LakeDirectoryEntry[], count: number): LakeDirectoryEntry
   const names: string[] = [];
   const picked: LakeDirectoryEntry[] = [];
   for (const lake of lakes.toSorted((a, b) => footprint(b.bounds) - footprint(a.bounds))) {
-    // Prefer plain names for summaries: skip map references, basin annotations
-    // and the sub-basins of a lake already named.
-    if (/\p{L}{3,}/u.test(lake.name) && !/[\d(]/.test(lake.name) && !names.some((name) => lake.name.startsWith(name))) { names.push(lake.name); picked.push(lake); }
+    // Prefer plain names for summaries: skip map references, basin annotations,
+    // place-named unnamed lakes, fragments of larger waters and the sub-basins of a lake already named.
+    if (/\p{L}{3,}/u.test(lake.name) && !/[\d(]/.test(lake.name) && !/^(Unnamed|Part of) /.test(lake.name) && !names.some((name) => lake.name.startsWith(name))) { names.push(lake.name); picked.push(lake); }
     if (picked.length === count) break;
   }
   return picked;
@@ -175,6 +177,33 @@ export function buildLakePages(directory: LakeDirectory): { pages: Map<string, L
           children: [],
           largest: names.map((lake) => listing(lake)),
           total: countyLakes.length,
+        });
+      }
+    } else if (region.split === "state") {
+      const states = new Map<string, LakeDirectoryEntry[]>();
+      for (const lake of lakes) states.set(stateOf(lake), [...(states.get(stateOf(lake)) ?? []), lake]);
+      listed = [];
+      for (const [state, stateLakes] of [...states].sort(([a], [b]) => a.localeCompare(b, "en"))) {
+        if (stateLakes.length < MIN_COUNTY_PAGE_LAKES) { listed.push(...stateLakes); continue; }
+        const childPath = `${path}/${slugify(state)}`;
+        const names = largest(stateLakes, 3);
+        const stateKinds = new Set(stateLakes.map((lake) => sources.get(lake.sourceId)?.kind ?? "grid"));
+        children.push({ path: childPath, label: state, count: stateLakes.length });
+        pages.set(childPath, {
+          path: childPath,
+          title: `${state} Lake Depth Maps | TopoStack`,
+          description: `${plural(stateLakes.length, "lake")} in ${state} with ${kindText(stateKinds)}${names.length ? `, including ${listFrom(namesOf(names))}` : ""}. Turn any of them into a layered lake map.`,
+          label: state,
+          heading: `${state} lake depth maps`,
+          intro: `${plural(stateLakes.length, "lake")} in ${state} have ${kindText(stateKinds)} in TopoStack. Open one in the studio to make a layered wooden lake map or a flat engraving.`,
+          about: region.about,
+          updated,
+          trail: [...regionTrail, { path: childPath, label: state }],
+          sources: sourceInfo.filter((_, index) => stateLakes.some((lake) => lake.sourceId === regionSources[index]!.id)),
+          lakes: stateLakes.map((lake) => listing(lake, lake.region.includes(" · ") ? lake.region.split(" · ")[0] : undefined, stateLakes.length <= NOTE_LIMIT)),
+          children: [],
+          largest: names.map((lake) => listing(lake)),
+          total: stateLakes.length,
         });
       }
     } else if (region.split === "alphabet" && lakes.length > MAX_LAKES_PER_PAGE) {
