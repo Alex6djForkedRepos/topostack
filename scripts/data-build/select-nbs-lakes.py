@@ -42,6 +42,12 @@ STATES = {
     '41': ('OR', 'Oregon'), '42': ('PA', 'Pennsylvania'), '44': ('RI', 'Rhode Island'), '45': ('SC', 'South Carolina'),
     '48': ('TX', 'Texas'), '50': ('VT', 'Vermont'), '51': ('VA', 'Virginia'), '53': ('WA', 'Washington'),
     '55': ('WI', 'Wisconsin'), '72': ('PR', 'Puerto Rico'), '78': ('VI', 'U.S. Virgin Islands'),
+    '04': ('AZ', 'Arizona'), '05': ('AR', 'Arkansas'), '08': ('CO', 'Colorado'), '19': ('IA', 'Iowa'),
+    '20': ('KS', 'Kansas'), '21': ('KY', 'Kentucky'), '29': ('MO', 'Missouri'), '30': ('MT', 'Montana'),
+    '31': ('NE', 'Nebraska'), '32': ('NV', 'Nevada'), '35': ('NM', 'New Mexico'), '38': ('ND', 'North Dakota'),
+    '40': ('OK', 'Oklahoma'), '46': ('SD', 'South Dakota'), '47': ('TN', 'Tennessee'), '49': ('UT', 'Utah'),
+    '54': ('WV', 'West Virginia'), '56': ('WY', 'Wyoming'), '60': ('AS', 'American Samoa'), '66': ('GU', 'Guam'),
+    '69': ('MP', 'Northern Mariana Islands'),
 }
 DATASETS = {
     'noaa-nbs-florida-v1': {'FL'},

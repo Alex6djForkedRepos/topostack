@@ -7,6 +7,7 @@
 - [Flat engraving workflow and SVG contract](flat-engraving.md)
 - [Placement mode](placement.md) — the top-down draft layer for positioning annotations and custom graphics, and how to add a placeable.
 - [Engraving fonts](fonts.md) — the font kinds, the glyph build, adding a typeface, and why glyph data is immutable.
+- [Geometry generation performance](generation-performance.md) — stage timings, cache ownership, parallel layer workers, boundary indexes, and the Grand Teton stress benchmark.
 - [Terrain source selection](terrain-selection.md)
 - [Terrain-informed lake basins](terrain-informed-lake-basins.md)
 - [Lake shoreline smoothing](lake-shoreline-smoothing.md)
@@ -48,4 +49,8 @@ Dated snapshots kept for history. Do not update them; write a new one.
 - [Canadian terrain packaging benchmark, 2026-09-16](reports/terrain-benchmark-20260916.md) ([data](reports/data/terrain-benchmark-20260916.json))
 
 - [Depth chart readiness review, 2026-09-23](reports/depth-chart-readiness-2026-09-23.md)
+- [Lakes NOAA nautical charts can supply depths for, 2026-09-24](reports/noaa-chart-lake-coverage-2026-09-24.md) ([data](reports/data/noaa-chart-lakes-20260924.json)) — every US lake with charted contours or soundings, tiered by detail, for plan phase 4.
 - [NOAA lake depth coverage, 2026-09-24](reports/noaa-lake-coverage-2026-09-24.md) ([data](reports/data/noaa-lake-coverage-20260924.json), [NBS inventory](reports/data/nbs-inventory-hydrolakes-20260924.json)) — every lake NOAA grids or charts can supply depths for, and what is not yet integrated.
+
+- [Grand Teton generation benchmark, 2026-09-24](reports/generation-benchmark-20260924.md) ([data](reports/data/generation-benchmark-20260924.json))
+- [Parallel generation benchmark, 2026-09-24](reports/generation-parallel-benchmark-20260924.md) ([data](reports/data/generation-parallel-benchmark-20260924.json))
