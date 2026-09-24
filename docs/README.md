@@ -27,6 +27,7 @@
 - [Data operations and measured baseline](data-layer-operations.md) — provisioning, cache lifecycle, archive pruning.
 - [Surveyed lake-floor data](lake-bathymetry.md) — survey coverage and provisioning.
 - [NOAA Great Lakes bathymetry](noaa-bathymetry.md)
+- [NOAA lake depth integration plan](noaa-lake-integration-plan.md) — phased local runbook for adding NBS grids and ENC contours for every NOAA-covered lake.
 - [Depth charts traced into bathymetry](depth-chart-tracing.md) — chart record contract, how traced charts carve, and the staged rollout.
 - [NRCan HRDEM terrain](hrdem-terrain.md)
 - [Curated terrain coverage](terrain-coverage.md)
