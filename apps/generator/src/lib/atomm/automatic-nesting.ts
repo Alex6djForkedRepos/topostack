@@ -1,6 +1,10 @@
 import type { GeometryIRV1, ProjectConfigV1, SheetNestPlanV1 } from "@topostack/core";
 import type { NestClient } from "$lib/workers/nest-client";
 
+import type { SheetPreview } from "$lib/studio/sheet-nest-runner";
+
+export type NestingProgress = { running: boolean; previews: SheetPreview[]; sheetCount: number; utilization: number; updates: number };
+
 type Runner = typeof import("$lib/studio/sheet-nest-runner");
 type Layout = { sheetPlan?: SheetNestPlanV1; layoutNote: string };
 export type AutomaticLayout = Layout & { project: ProjectConfigV1 };
@@ -8,14 +12,22 @@ export type AutomaticLayout = Layout & { project: ProjectConfigV1 };
 /** Export-only defaults; never resize the artwork or guess the machine selected later in Atomm. */
 export function automaticNestProject(project: ProjectConfigV1): ProjectConfigV1 {
   return { ...project, sheetNesting: {
-    sheetWidthMm: project.workAreaWidthMm > 0 ? project.workAreaWidthMm : 600,
-    sheetHeightMm: project.workAreaHeightMm > 0 ? project.workAreaHeightMm : 400,
+    sheetWidthMm: project.sheetNesting?.sheetWidthMm || project.workAreaWidthMm || 600,
+    sheetHeightMm: project.sheetNesting?.sheetHeightMm || project.workAreaHeightMm || 400,
     marginMm: 3, spacingMm: 2, rotation: "quarter", timeBudgetS: 5, seed: 1,
   } };
 }
 
 /** One lazy, bounded search shared by Export Preview, Download and Open in Studio. */
 export class AutomaticNesting {
+  #progress: NestingProgress = { running: false, previews: [], sheetCount: 0, utilization: 0, updates: 0 };
+  #listeners = new Set<(progress: NestingProgress) => void>();
+  subscribe(listener: (progress: NestingProgress) => void): () => void {
+    this.#listeners.add(listener); listener(this.#progress);
+    return () => { this.#listeners.delete(listener); };
+  }
+  #publish(progress: NestingProgress): void { this.#progress = progress; for (const listener of this.#listeners) listener(progress); }
+  stop(): void { this.#client?.stop(); }
   #runner?: Promise<Runner>;
   #client?: NestClient;
   #sequence = 0;
@@ -34,29 +46,36 @@ export class AutomaticNesting {
     return this.#entry.promise.then(layout => ({ ...layout, project: layout.sheetPlan ? effective : project }));
   }
 
-  cancel(): void { this.#sequence++; this.#entry = undefined; this.#client?.cancel(); }
+  cancel(): void { this.#sequence++; this.#entry = undefined; this.#client?.cancel(); this.#publish({ running: false, previews: [], sheetCount: 0, utilization: 0, updates: 0 }); }
   dispose(): void { this.cancel(); this.#client?.dispose(); }
 
   async #run(geometry: GeometryIRV1, project: ProjectConfigV1, sequence: number): Promise<Layout> {
     let timer: ReturnType<typeof setTimeout> | undefined;
+    this.#publish({ running: true, previews: [], sheetCount: 0, utilization: 0, updates: 0 });
     try {
       const runner = await (this.#runner ??= this.loadRunner());
       if (sequence !== this.#sequence) throw new DOMException("Layout changed", "AbortError");
       const job = runner.prepareNestJob(geometry, project);
-      if (!job.ok) return { layoutNote: "Automatic layout unavailable. Using original panels; check the work area and piece sizes." };
+      if (!job.ok) return { layoutNote: "Automatic layout unavailable. Using original panels; check the material and piece sizes." };
       this.#client ??= new runner.NestClient();
       // Stop at the best complete layout if the optimizer runs past its budget.
       timer = setTimeout(() => { if (sequence === this.#sequence) this.#client?.stop(); }, this.timeoutMs);
-      const sheetPlan = await this.#client.run(job.parts, job.settings, { budgetMs: 5000 });
+      const sheetPlan = await this.#client.run(job.parts, job.settings, { budgetMs: 5000, onDraft: draft => {
+        if (sequence !== this.#sequence) return;
+        this.#publish({ running: true, previews: runner.sheetPreviews(draft, job.parts), sheetCount: draft.sheets.length, utilization: draft.utilization, updates: this.#progress.updates + 1 });
+      } });
       if (sequence !== this.#sequence) throw new DOMException("Layout changed", "AbortError");
       const { sheetWidthMm: width, sheetHeightMm: height } = sheetPlan.settings;
       return { sheetPlan, layoutNote: `Automatic layout · ${sheetPlan.sheets.length} ${sheetPlan.sheets.length === 1 ? "sheet" : "sheets"} · ${width} × ${height} mm` };
     } catch (error) {
       if (sequence !== this.#sequence) throw new DOMException("Layout changed", "AbortError");
       const reason = error instanceof Error && "code" in error && error.code === "oversize"
-        ? "Pieces exceed the usable sheet size. Using original panels; check the work area or reduce the cut size."
+        ? "Pieces exceed the usable sheet size. Using original panels; increase the material size or reduce the cut size."
         : "Automatic layout unavailable. Using original panels.";
       return { layoutNote: reason };
-    } finally { if (timer !== undefined) clearTimeout(timer); }
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+      if (sequence === this.#sequence) this.#publish({ ...this.#progress, running: false });
+    }
   }
 }

@@ -609,7 +609,7 @@ for (const unavailable of [false, true]) test(`Atomm automatic nesting ${unavail
   await expect(studio.locator(".status-line")).toContainText("Real terrain ready", { timeout: 45_000 });
   await studio.locator('input[type="file"]').first().setInputFiles({
     name: "nested-project.json", mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify({ ...DEFAULT_PROJECT, name: "Nested import", sheetNesting: { ...DEFAULT_SHEET_NESTING, sheetWidthMm: 400, sheetHeightMm: 300 } })),
+    buffer: Buffer.from(JSON.stringify({ ...DEFAULT_PROJECT, name: "Nested import", sheetNesting: { ...DEFAULT_SHEET_NESTING, sheetWidthMm: 800, sheetHeightMm: 600 } })),
   });
   await expect(studio.getByRole("textbox", { name: "Project name" })).toHaveValue("Nested import");
   await expect(studio.locator(".status-line")).toContainText("Real terrain ready", { timeout: 45_000 });
@@ -621,12 +621,50 @@ for (const unavailable of [false, true]) test(`Atomm automatic nesting ${unavail
     const manifest = files.find(file => file.filename.endsWith("-project.json"))!;
     return { names: files.map(file => file.filename), manifest: JSON.parse(await manifest.blob.text()) };
   });
-  expect(exported.manifest.project.sheetNesting.sheetWidthMm).toBe(unavailable ? 400 : 600);
+  expect(exported.manifest.project.sheetNesting.sheetWidthMm).toBe(800);
   expect(Boolean(exported.manifest.result.fabrication.sheetNesting)).toBe(!unavailable);
   expect(exported.names.some(name => /-sheet-\d+/.test(name))).toBe(!unavailable);
   expect(exported.names.some(name => /-master\.svg$/.test(name))).toBe(true);
   expect(plannerRequests.length).toBeGreaterThan(0);
   await studio.getByRole("radio", { name: "Export", exact: true }).click();
-  await expect(studio.locator(".export-layout-note")).toContainText(unavailable ? "Using original panels" : "600 × 400 mm");
+  await expect(studio.locator(".export-layout-note")).toContainText(unavailable ? "Using original panels" : "800 × 600 mm");
   expect(errors).toEqual([]);
+});
+
+test("Atomm shows live nesting progress, keeps the current layout, and remembers material size", async ({ page }) => {
+  test.setTimeout(120_000);
+  let geometryRequests = 0;
+  page.on("request", request => { if (/geometry\.worker-/.test(request.url())) geometryRequests++; });
+  await page.route("**/v1/**", route => route.abort());
+  await page.route("https://static-res.makextool.com/**", route => route.fulfill({ contentType: "application/javascript", body: `window.atomm = { lifecycle: { on() {} }, app: { getLocale: async () => 'en' } };` }));
+  await page.route("**/atomm-live-nesting", route => route.fulfill({ contentType: "text/html", body: '<iframe src="/studio" style="width:100%;height:900px"></iframe>' }));
+  await page.goto("/atomm-live-nesting");
+  const studio = page.frameLocator("iframe");
+  await expect(studio.locator(".status-line")).toContainText("Real terrain ready", { timeout: 45_000 });
+  await expect(studio.locator(".preview-stage")).toHaveAttribute("aria-busy", "false");
+  const requestsBefore = geometryRequests;
+  await studio.getByRole("radio", { name: "Export", exact: true }).click();
+  const loader = studio.locator(".nesting-progress");
+  await expect(loader).toContainText("Arranging sheets");
+  await expect(loader).toContainText("Step 1 of 2");
+  await expect(studio.locator(".atomm-nesting-drafts svg").first()).toBeVisible();
+  await expect(loader).toContainText("material used");
+  expect(await loader.locator(".contour-loader span").first().evaluate(el => getComputedStyle(el).animationName)).toBe("none");
+  await studio.getByRole("button", { name: "Use current layout" }).click();
+  await expect(studio.locator(".export-layout-note")).toContainText("600 × 400 mm");
+  const width = studio.getByRole("spinbutton", { name: "Material width", exact: true });
+  await expect(width).toHaveValue("600");
+  await width.fill("10");
+  await expect(width).toHaveAttribute("aria-invalid", "true");
+  await expect(studio.locator(".export-layout-note")).toContainText("600 × 400 mm");
+  await width.fill("700");
+  await expect(loader).toContainText("Arranging sheets");
+  await expect(studio.locator(".export-layout-note")).toContainText("700 × 400 mm", { timeout: 20_000 });
+  expect(geometryRequests).toBe(requestsBefore);
+  await page.reload();
+  await expect(studio.locator(".status-line")).toContainText("Real terrain ready", { timeout: 45_000 });
+  await studio.getByRole("radio", { name: "Export", exact: true }).click();
+  await expect(width).toHaveValue("700");
+  await expect(studio.getByRole("spinbutton", { name: "Material height", exact: true })).toHaveValue("400");
+  await expect(studio.locator(".export-layout-note")).toContainText("700 × 400 mm", { timeout: 20_000 });
 });

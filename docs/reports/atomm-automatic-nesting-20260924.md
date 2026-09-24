@@ -21,3 +21,15 @@ Real Atomm Local Debug (`localhost:4182`): the 29-layer Grand Teton/Jenny Lake d
 ## Limits
 
 This validates the exercised designs and browsers, not globally optimal packing or every possible input. Physical fabrication, native Studio launch, production credit billing and uploaded-host behavior are outside this check. No version bump, merge, review submission or upload is performed; rebuild the final 0.6.0 artifact during release preparation.
+
+## Follow-up: material size and live progress
+
+The Export view now exposes only material width and height in the right rail. They persist using the existing project sheet settings; imported dimensions are honored. Unset dimensions still use the work area or 600 × 400 mm defaults. Spacing, margins, rotations and search time remain automatic. This supersedes the initial policy of ignoring imported sheet dimensions.
+
+Terrain and sheet arrangement share a progress-card component. Actual worker drafts appear as sheet outlines with sheet count, utilization and layout update count. The user may keep a complete current layout early. Stage 2 prepares the final artwork and package. Material edits cancel obsolete searches, update the layout without regenerating terrain, and reject invalid numeric drafts. Progress uses real stages/counts rather than a simulated percentage or looping animation.
+
+Follow-up generator tests: 466 unit tests and 150 client tests passed, including stale draft suppression, early stop, and material-only search replacement.
+
+All 39 browser checks passed across Chromium, Firefox and WebKit. The new workflow test observes draft outlines, stage/count progress without looping motion, early completion, invalid-size rejection, material-only updates without another geometry worker, and saved dimensions after reload. Workspace types/lint, production and Atomm builds, artifact verification and both bundle budgets passed.
+
+Final Local Debug verification in the real Atomm host showed draft layouts 1 and 2 for the 29-layer Grand Teton design, the shared progress card, sheet count/utilization, and the early-finish control. Changing material width from 600 to 700 mm restarted nesting while terrain remained at 29 layers / 23 panels. The material-size edit was undone after testing. The final package still uses the existing release version as a validation artifact, pending 0.6.0 release preparation.
