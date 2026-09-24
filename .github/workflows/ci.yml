@@ -193,15 +193,17 @@ jobs:
           VITE_SITE_ENV: atomm
 
   browser-tests:
-    name: Browser E2E (${{ matrix.browser }})
+    name: Browser E2E (${{ matrix.browser }}, shard ${{ matrix.shard }}/3)
     strategy:
       fail-fast: false
       matrix:
         browser: [chromium, firefox, webkit]
+        # Separate runners keep WebGL tests serial without exceeding the job limit.
+        shard: [1, 2, 3]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
-      group: browser-${{ matrix.browser }}-${{ github.workflow }}-${{ github.ref }}
+      group: browser-${{ matrix.browser }}-${{ matrix.shard }}-${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true
     env:
       VITE_MAP_API_URL: https://ci.invalid
@@ -240,18 +242,18 @@ jobs:
         run: npx playwright install-deps ${{ matrix.browser }}
 
       - name: Test browser generation and export
-        run: xvfb-run --auto-servernum npm run test:e2e -- --project=${{ matrix.browser }}
+        run: xvfb-run --auto-servernum npm run test:e2e -- --project=${{ matrix.browser }} --shard=${{ matrix.shard }}/3
 
       - name: Upload browser diagnostics
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: playwright-diagnostics-${{ matrix.browser }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: playwright-diagnostics-${{ matrix.browser }}-${{ matrix.shard }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: test-results
           if-no-files-found: ignore
           retention-days: 7
 
-  # Keep the existing required check name while every browser runs independently.
+  # Keep the existing required check name; every browser shard must pass.
   browser-e2e:
     name: Browser E2E
     needs: browser-tests
