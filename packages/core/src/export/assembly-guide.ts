@@ -1,6 +1,6 @@
 import { escapeXml } from "./svg-primitives.js";
 import { formatNumber as format } from "../primitives/format.js";
-import { pointInPolygon, ringBounds } from "../primitives/geometry2d.js";
+import { pointInPolygon, ringBounds, simplifyClosedRing } from "../primitives/geometry2d.js";
 import { displayElevation, displayLength, elevationUnit, lengthUnit } from "../primitives/units.js";
 import { PAINT_BLEED_MM } from "../pipeline/paint-regions.js";
 import type { GeometryIRV1, LayerIR, PaintRegionKind, Point2D, Polygon2D, ProjectConfigV1 } from "../types.js";
@@ -31,40 +31,6 @@ export interface GuideSheet {
 // segments across the model is invisible and only bloats the file.
 const DIAGRAM_RESOLUTION = 900;
 
-/** Douglas-Peucker thinning of a closed ring; the result stays closed. */
-function simplifyRing(ring: Point2D[], tolerance: number): Point2D[] {
-  const open = ring.length > 1 && ring[0]!.x === ring.at(-1)!.x && ring[0]!.y === ring.at(-1)!.y ? ring.slice(0, -1) : ring;
-  if (open.length <= 4) return ring;
-  const keep = new Uint8Array(open.length);
-  keep[0] = 1;
-  keep[open.length - 1] = 1;
-  const stack: Array<[number, number]> = [[0, open.length - 1]];
-  while (stack.length) {
-    const [start, end] = stack.pop()!;
-    const a = open[start]!;
-    const b = open[end]!;
-    const dx = b.x - a.x;
-    const dy = b.y - a.y;
-    const length = Math.hypot(dx, dy);
-    let farthest = -1;
-    let distance = tolerance;
-    for (let index = start + 1; index < end; index += 1) {
-      const point = open[index]!;
-      const d = length ? Math.abs(dy * point.x - dx * point.y + b.x * a.y - b.y * a.x) / length : Math.hypot(point.x - a.x, point.y - a.y);
-      if (d > distance) {
-        distance = d;
-        farthest = index;
-      }
-    }
-    if (farthest >= 0) {
-      keep[farthest] = 1;
-      stack.push([start, farthest], [farthest, end]);
-    }
-  }
-  const kept = open.filter((_, index) => keep[index]);
-  return kept.length >= 3 ? [...kept, kept[0]!] : ring;
-}
-
 function ringPath(ring: Point2D[]): string {
   const round = (value: number) => Number(value.toFixed(1)).toString();
   return `M${ring.slice(0, -1).map((point) => `${round(point.x)} ${round(point.y)}`).join("L")}Z`;
@@ -76,7 +42,7 @@ function polygonPath(polygon: Polygon2D, tolerance: number): string {
       const bounds = ringBounds(ring);
       return Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) > tolerance * 2;
     })
-    .map((ring) => ringPath(simplifyRing(ring, tolerance))).join("");
+    .map((ring) => ringPath(simplifyClosedRing(ring, tolerance))).join("");
 }
 
 /** A point inside the piece near its bounding-box centre, for a label or a callout. */
