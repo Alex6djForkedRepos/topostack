@@ -36,6 +36,10 @@
     "nve-norway-lakes-v1": "Digital depth contours are joined to survey polygons and interpolated onto a masked 20 m grid for the covered Norwegian lakes.",
     "twdb-texas-reservoirs-v1": "Verified contours for Alan Henry, Lake Austin, and Lady Bird Lake are converted using report reference levels and interpolated onto masked 10 m grids.",
     "usbr-reservoirs-v1": "Verified surveys of Estes, Flatiron, and Pinewood use documented historical reference levels and conservative contour masks to produce 10 m depth grids.",
+    ...Object.fromEntries(["florida", "gulf-coast", "atlantic-coast", "great-lakes-basin", "california", "northwest-coast", "inland-northwest", "alaska", "caribbean"].map((region) => [
+      `noaa-nbs-${region}-v1`,
+      "Only cells from measured, openly licensed surveys are kept; NOAA’s modelled fill and restricted sources are removed. Depths below the surveys’ chart datum are averaged to an 8 m grid and clipped to each HydroLAKES outline. Lakes whose surveyed bed lies mostly above that datum are left out.",
+    ])),
   };
   const software = [
     { name: "Svelte and SvelteKit", url: "https://github.com/sveltejs", license: "MIT", use: "Application interface, routing, and static pages." },

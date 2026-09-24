@@ -4,6 +4,15 @@ How to bring every lake NOAA can supply depths for into the survey data system. 
 
 Each phase ends in its own pull request to `dev`. Stop at the end of any phase and the app is still consistent: the data is either not registered yet, or registered, built, provisioned and tested.
 
+## Status, 2026-09-24
+
+- **Phases 0–2 are done** for NBS Modeling, and were adjusted on the way:
+  - The pins are in `scripts/data/noaa-nbs-sources.json` (scheme `Modeling_Tile_Scheme_20260924_113421.gpkg`; NOAA replaced the morning's scheme during the work).
+  - Phase 1's per-lake surface records became one rule: depth below the surveys' chart datum, anchored to the waterline like `noaa-great-lakes-v1`, and a lake is refused when more than a quarter of its surveyed bed lies above that datum. That refused 261 of 498 candidates, mostly perched inland lakes whose NBS cells are shoreline or lake-surface elevations, not bed.
+  - Phase 2 shipped nine regional datasets rather than the five sketched below, with 237 lakes. The builder, tests and runbook are described in [lake-bathymetry.md](lake-bathymetry.md#noaa-national-bathymetric-source-lakes).
+- **Provisioning** of the nine archives to R2 is the remaining step before the registry change can deploy.
+- **Not started:** phase 3 (Great Lakes at 4–16 m) and phase 4 (ENC contours for chart-only lakes such as Champlain, Mead and Okeechobee). NOAA has no depth data for Kentucky or Tennessee reservoirs; those need another source.
+
 ## Why the work is split this way
 
 - **One bounding box per provider.** `lake-bathymetry.json` gives each provider a single bounding box. The browser tries every provider whose box overlaps the crop, with up to 24 tile requests each.

@@ -55,7 +55,7 @@ export async function inspectOutlines(directoryPath) {
     assert(entries.has(entry.id));
     if (entry.outline === "provider") assert(seen.has(entry.id), `Missing outline: ${entry.id}`);
     else {
-      assert.match(entry.id, /^(noaa-great-lakes-v1|usgs-[^:]+|swissbathy3d-v1):/);
+      assert.match(entry.id, /^(noaa-great-lakes-v1|noaa-nbs-[^:]+|usgs-[^:]+|swissbathy3d-v1):/);
       assert.equal(entry.outline, "external-fallback");
       assert(entry.reason);
     }
