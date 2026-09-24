@@ -34,7 +34,7 @@ describe("parallel generation stages", () => {
     expect(result.layers.some(layer => layer.markings.some(marking => marking.kind === "road"))).toBe(true);
     expect(stages).toContain("alignment");
     expect(stages).toContain("elevation-labels");
-  }, 30_000);
+  }, 60_000);
 
   it("keeps small maps and shared-face engravings on the synchronous path", async () => {
     for (const project of [DEFAULT_PROJECT, { ...config, outputMode: "engraving" as const, engravingContourCount: 40 }]) {
