@@ -127,33 +127,134 @@ function pointNearBounds(point: Point2D, bounds: Bounds2D): boolean {
     point.y >= bounds.minY - BOUNDS_SLACK && point.y <= bounds.maxY + BOUNDS_SLACK;
 }
 
+/** A balanced hierarchy over consecutive edges; contour neighbours are spatial neighbours. */
+interface EdgeNode extends Bounds2D {
+  start: number;
+  end: number;
+  left?: EdgeNode;
+  right?: EdgeNode;
+}
+
+interface PreparedRing {
+  ring: Point2D[];
+  bounds: Bounds2D;
+}
+
+// Descriptors belong to a preparation, never to mutable input arrays globally.
+// Concatenated covering sets share descriptors, so they share the same lazy index.
+const edgeIndexes = new WeakMap<PreparedRing, EdgeNode>();
+
+function edgeIndex(prepared: PreparedRing): EdgeNode | undefined {
+  const { ring } = prepared;
+  if (ring.length < 64) return undefined;
+  let root = edgeIndexes.get(prepared);
+  if (root) return root;
+  const build = (start: number, end: number): EdgeNode => {
+    const node: EdgeNode = { start, end, minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+    if (end - start > 16) {
+      const middle = (start + end) >>> 1;
+      node.left = build(start, middle);
+      node.right = build(middle, end);
+      node.minX = Math.min(node.left.minX, node.right.minX);
+      node.minY = Math.min(node.left.minY, node.right.minY);
+      node.maxX = Math.max(node.left.maxX, node.right.maxX);
+      node.maxY = Math.max(node.left.maxY, node.right.maxY);
+    } else {
+      for (let edge = start; edge < end; edge += 1) {
+        for (const point of [ring[edge]!, ring[(edge + 1) % ring.length]!]) {
+          node.minX = Math.min(node.minX, point.x); node.minY = Math.min(node.minY, point.y);
+          node.maxX = Math.max(node.maxX, point.x); node.maxY = Math.max(node.maxY, point.y);
+        }
+      }
+    }
+    return node;
+  };
+  root = build(0, ring.length);
+  edgeIndexes.set(prepared, root);
+  return root;
+}
+
+function pointInPreparedRing(point: Point2D, prepared: PreparedRing): boolean {
+  if (!pointNearBounds(point, prepared.bounds)) return false;
+  const root = edgeIndex(prepared);
+  if (!root) return pointInRing(point, prepared.ring);
+  const { ring } = prepared;
+  const crosses = (node: EdgeNode): boolean => {
+    if (point.y < node.minY || point.y > node.maxY || point.x > node.maxX + BOUNDS_SLACK) return false;
+    if (node.left && node.right) return crosses(node.left) !== crosses(node.right);
+    let inside = false;
+    for (let edge = node.start; edge < node.end; edge += 1) {
+      const a = ring[(edge + 1) % ring.length]!, b = ring[edge]!;
+      if ((a.y > point.y) !== (b.y > point.y) && point.x < ((b.x - a.x) * (point.y - a.y)) / (b.y - a.y) + a.x) inside = !inside;
+    }
+    return inside;
+  };
+  return crosses(root);
+}
+
+/** Visit only edges near a query box, stopping as soon as a predicate succeeds. */
+function someNearbyEdge(prepared: PreparedRing, bounds: Bounds2D, predicate: (start: Point2D, end: Point2D) => boolean): boolean {
+  if (!boundsOverlap(bounds, prepared.bounds)) return false;
+  const { ring } = prepared;
+  const scan = (start: number, end: number): boolean => {
+    for (let edge = start; edge < Math.min(end, ring.length - 1); edge += 1) {
+      if (predicate(ring[edge]!, ring[edge + 1]!)) return true;
+    }
+    return false;
+  };
+  const root = edgeIndex(prepared);
+  if (!root) return scan(0, ring.length - 1);
+  const visit = (node: EdgeNode): boolean => {
+    if (!boundsOverlap(bounds, node)) return false;
+    return node.left && node.right ? visit(node.left) || visit(node.right) : scan(node.start, node.end);
+  };
+  return visit(root);
+}
+
+/** Broad-phase boundary query; the caller retains its exact geometric predicate. */
+export function somePreparedEdge(prepared: PreparedPolygons, bounds: Bounds2D, predicate: (start: Point2D, end: Point2D) => boolean, outerOnly = false): boolean {
+  if (outerOnly) return prepared.polygonRings.some(({ outer }) => someNearbyEdge(outer, bounds, predicate));
+  return prepared.rings.some((ring) => someNearbyEdge(ring, bounds, predicate));
+}
+
+function ringCuts(a: Point2D, b: Point2D, bounds: Bounds2D, prepared: PreparedRing, cuts: number[]): void {
+  someNearbyEdge(prepared, bounds, (start, end) => {
+    const t = segmentIntersectionT(a, b, start, end);
+    if (t !== undefined) cuts.push(t);
+    return false;
+  });
+}
+
 /** Polygons with their ring bounding boxes, built once for repeated clipping and containment tests. */
 export interface PreparedPolygons {
   polygons: Polygon2D[];
   outerBounds: Bounds2D[];
-  rings: Array<{ ring: Point2D[]; bounds: Bounds2D }>;
+  rings: PreparedRing[];
+  /** Ring descriptors grouped for repeated point containment queries. */
+  polygonRings: Array<{ outer: PreparedRing; holes: PreparedRing[] }>;
   /** Union of every outer ring's bounds; empty (inverted) when there are no polygons. */
   bounds: Bounds2D;
 }
 
 export function preparePolygons(polygons: Polygon2D[]): PreparedPolygons {
   const outerBounds = polygons.map((polygon) => ringBounds(polygon.outer));
-  const rings = polygons.flatMap((polygon, index) => [
-    { ring: polygon.outer, bounds: outerBounds[index]! },
-    ...polygon.holes.map((hole) => ({ ring: hole, bounds: ringBounds(hole) })),
-  ]);
+  const polygonRings = polygons.map((polygon, index) => ({
+    outer: { ring: polygon.outer, bounds: outerBounds[index]! },
+    holes: polygon.holes.map((ring) => ({ ring, bounds: ringBounds(ring) })),
+  }));
+  const rings = polygonRings.flatMap(({ outer, holes }) => [outer, ...holes]);
   const bounds = outerBounds.reduce((union, box) => ({
     minX: Math.min(union.minX, box.minX),
     minY: Math.min(union.minY, box.minY),
     maxX: Math.max(union.maxX, box.maxX),
     maxY: Math.max(union.maxY, box.maxY),
   }), { minX: Number.POSITIVE_INFINITY, minY: Number.POSITIVE_INFINITY, maxX: Number.NEGATIVE_INFINITY, maxY: Number.NEGATIVE_INFINITY });
-  return { polygons, outerBounds, rings, bounds };
+  return { polygons, outerBounds, rings, polygonRings, bounds };
 }
 
 /** `polygons.some((polygon) => pointInPolygon(point, polygon))`, skipping polygons whose box excludes the point. */
 export function pointInPreparedPolygons(point: Point2D, prepared: PreparedPolygons): boolean {
-  return prepared.polygons.some((polygon, index) => pointNearBounds(point, prepared.outerBounds[index]!) && pointInPolygon(point, polygon));
+  return prepared.polygonRings.some(({ outer, holes }) => pointInPreparedRing(point, outer) && !holes.some((hole) => pointInPreparedRing(point, hole)));
 }
 
 const NO_POLYGONS = preparePolygons([]);
@@ -192,12 +293,8 @@ export function clipPolyline(points: Point2D[], polygons: Polygon2D[] | Prepared
     };
     const cuts = [0, 1];
     for (let set = 0; set < 2; set += 1) {
-      for (const { ring, bounds } of set === 0 ? included.rings : excluded.rings) {
-        if (!boundsOverlap(segmentBounds, bounds)) continue;
-        for (let edge = 0; edge < ring.length - 1; edge += 1) {
-          const t = ring[edge] && ring[edge + 1] ? segmentIntersectionT(a, b, ring[edge]!, ring[edge + 1]!) : undefined;
-          if (t !== undefined) cuts.push(t);
-        }
+      for (const ring of set === 0 ? included.rings : excluded.rings) {
+        if (boundsOverlap(segmentBounds, ring.bounds)) ringCuts(a, b, segmentBounds, ring, cuts);
       }
     }
     cuts.sort((left, right) => left - right);
@@ -283,38 +380,32 @@ export function rotatedPoint(point: Point2D, origin: Point2D, angleRad: number):
   return { x: origin.x + dx * cosine - dy * sine, y: origin.y + dx * sine + dy * cosine };
 }
 
-export function ringFitsInsidePolygon(ring: Point2D[], polygon: Polygon2D, marginMm: number, allowContainedHoles = false): boolean {
-  const points = ring.slice(0, -1);
-  if (!points.length || !points.every((point) => pointInPolygon(point, polygon))) return false;
-  // Only container edges near the ring can intersect it or come within the
-  // margin; farther edges are separated by more than that on some axis.
+export function ringFitsInsidePolygon(ring: Point2D[], polygon: Polygon2D, marginMm: number, allowContainedHoles = false, prepared = preparePolygons([polygon])): boolean {
+  // A connected ring cannot leave material without crossing its boundary.
+  // Check one anchor, then prove every edge stays clear below. Ray-casting
+  // every vertex and midpoint was quadratic on detailed terrain contours.
+  if (ring.length < 2 || !pointInPreparedPolygons(ring[0]!, prepared)) return false;
   const reach = Math.max(0, marginMm) + BOUNDS_SLACK;
-  const ringBox = ringBounds(ring);
-  const near = (bounds: Bounds2D, start: Point2D, end: Point2D) =>
-    Math.min(start.x, end.x) <= bounds.maxX + reach && Math.max(start.x, end.x) >= bounds.minX - reach &&
-    Math.min(start.y, end.y) <= bounds.maxY + reach && Math.max(start.y, end.y) >= bounds.minY - reach;
-  const nearbyEdges: Array<[Point2D, Point2D]> = [];
-  for (const boundary of [polygon.outer, ...polygon.holes]) {
-    for (let edge = 0; edge < boundary.length - 1; edge += 1) {
-      const boundaryStart = boundary[edge];
-      const boundaryEnd = boundary[edge + 1];
-      if (boundaryStart && boundaryEnd && near(ringBox, boundaryStart, boundaryEnd)) nearbyEdges.push([boundaryStart, boundaryEnd]);
-    }
-  }
   const threshold = marginMm - 1e-7;
   for (let index = 0; index < ring.length - 1; index += 1) {
     const start = ring[index];
     const end = ring[index + 1];
-    if (!start || !end || !pointInPolygon(pointAt(start, end, 0.5), polygon)) return false;
-    const edgeBox = { minX: Math.min(start.x, end.x), minY: Math.min(start.y, end.y), maxX: Math.max(start.x, end.x), maxY: Math.max(start.y, end.y) };
-    for (const [boundaryStart, boundaryEnd] of nearbyEdges) {
-      if (!near(edgeBox, boundaryStart, boundaryEnd)) continue;
-      if (segmentsIntersect(start, end, boundaryStart, boundaryEnd)) return false;
-      // Distances are never negative, so a non-positive margin cannot be violated.
-      if (threshold > 0 && Math.min(distanceToSegment(start, boundaryStart, boundaryEnd), distanceToSegment(end, boundaryStart, boundaryEnd), distanceToSegment(boundaryStart, start, end), distanceToSegment(boundaryEnd, start, end)) < threshold) return false;
+    if (!start || !end) return false;
+    const edgeBox = { minX: Math.min(start.x, end.x) - reach, minY: Math.min(start.y, end.y) - reach, maxX: Math.max(start.x, end.x) + reach, maxY: Math.max(start.y, end.y) + reach };
+    for (const boundary of prepared.rings) {
+      if (someNearbyEdge(boundary, edgeBox, (boundaryStart, boundaryEnd) => {
+        if (Math.min(boundaryStart.x, boundaryEnd.x) > edgeBox.maxX || Math.max(boundaryStart.x, boundaryEnd.x) < edgeBox.minX ||
+          Math.min(boundaryStart.y, boundaryEnd.y) > edgeBox.maxY || Math.max(boundaryStart.y, boundaryEnd.y) < edgeBox.minY) return false;
+        if (segmentsIntersect(start, end, boundaryStart, boundaryEnd)) return true;
+        // Preserve the original distance test and tolerance at fabrication boundaries.
+        return threshold > 0 && Math.min(distanceToSegment(start, boundaryStart, boundaryEnd), distanceToSegment(end, boundaryStart, boundaryEnd), distanceToSegment(boundaryStart, start, end), distanceToSegment(boundaryEnd, start, end)) < threshold;
+      })) return false;
     }
   }
-  return allowContainedHoles || !polygon.holes.some((hole) => hole.slice(0, -1).some((point) => pointInRing(point, ring)));
+  if (allowContainedHoles || !polygon.holes.length) return true;
+  const child = preparePolygons([{ outer: ring, holes: [] }]);
+  // No boundary crossed, so a hole is either entirely enclosed or entirely outside.
+  return !polygon.holes.some((hole) => hole.length > 1 && pointInPreparedPolygons(hole[0]!, child));
 }
 
 /** Douglas-Peucker thinning of a closed ring; the result stays closed. */

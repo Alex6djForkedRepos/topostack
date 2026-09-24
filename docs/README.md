@@ -9,6 +9,7 @@
 - [Placement mode](placement.md) — the top-down draft layer for positioning annotations and custom graphics, and how to add a placeable.
 - [Sheet nesting](nesting.md): the sparrow engine, how its WebAssembly wrapper handles coordinates and spacing, credits and citations. The phased plan is [plans/sheet-nesting.md](plans/sheet-nesting.md).
 - [Engraving fonts](fonts.md) — the font kinds, the glyph build, adding a typeface, and why glyph data is immutable.
+- [Geometry generation performance](generation-performance.md) — stage timings, cache ownership, parallel layer workers, boundary indexes, and the Grand Teton stress benchmark.
 - [Terrain source selection](terrain-selection.md)
 - [Terrain-informed lake basins](terrain-informed-lake-basins.md)
 - [Lake shoreline smoothing](lake-shoreline-smoothing.md)
@@ -50,3 +51,5 @@ Dated snapshots kept for history. Do not update them; write a new one.
 - [Canadian terrain packaging benchmark, 2026-09-16](reports/terrain-benchmark-20260916.md) ([data](reports/data/terrain-benchmark-20260916.json))
 
 - [Depth chart readiness review, 2026-09-23](reports/depth-chart-readiness-2026-09-23.md)
+- [Grand Teton generation benchmark, 2026-09-24](reports/generation-benchmark-20260924.md) ([data](reports/data/generation-benchmark-20260924.json))
+- [Parallel generation benchmark, 2026-09-24](reports/generation-parallel-benchmark-20260924.md) ([data](reports/data/generation-parallel-benchmark-20260924.json))
