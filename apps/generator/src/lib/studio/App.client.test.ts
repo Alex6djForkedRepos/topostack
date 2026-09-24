@@ -1818,7 +1818,8 @@ describe("TopoStack Svelte shell", () => {
 
     [...target.querySelectorAll<HTMLButtonElement>('.mode-switch [role="radio"]')].find((tab) => tab.textContent?.includes("Export"))!.click();
     await vi.waitFor(() => expect(target.querySelector(".export-manifest")?.textContent).toMatch(/Open in Studio.*master\.svg/), { timeout: 5_000 });
-    expect(target.querySelector(".export-manifest summary")?.textContent).toMatch(/\d+ files/);
+    expect(target.querySelector(".export-manifest-row")?.textContent).toMatch(/Open in Studio.*1 editable SVG.*Entire layout/);
+    expect(target.querySelector(".export-manifest summary")?.textContent).toMatch(/Download.*Complete project bundle.*\d+ files.*View included files/);
     expect(target.querySelector(".export-sheet image")?.getAttribute("href")).toBe("blob:export-preview");
 
     // Tips step through one slide at a time.

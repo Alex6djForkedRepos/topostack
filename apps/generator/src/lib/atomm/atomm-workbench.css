@@ -943,10 +943,12 @@ html:has(.atomm-workbench), body:has(.atomm-workbench) { height: 100%; margin: 0
   .export-preview-state { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; padding: var(--space-300); color: var(--color-text-secondary); font: var(--font-12-regular); text-align: center; }
   .export-manifest { position: absolute; inset-block-start: 64px; inset-inline-start: var(--gutter); z-index: 2; display: flex; flex-direction: column; gap: var(--space-100); width: 260px; max-width: calc(100% - 32px); max-height: calc(100% - 128px); overflow-y: auto; padding: var(--space-150); border: 1px solid var(--color-stroke-divider); border-radius: var(--radius-large); background: var(--color-bg-default); box-shadow: var(--shadow-100); font: var(--font-12-regular); }
   .export-manifest h2 { margin: 0; font: var(--font-12-medium); color: var(--color-text-primary); }
-  .export-manifest-row, .export-manifest summary { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-100); margin: 0; min-height: var(--min-target); color: var(--color-text-tertiary); }
+  .export-manifest-row, .export-manifest summary { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-50); margin: 0; padding-block: var(--space-50); min-height: var(--min-target); color: var(--color-text-tertiary); }
   .export-manifest summary { cursor: pointer; list-style: none; }
   .export-manifest summary::-webkit-details-marker { display: none; }
-  .export-manifest strong { overflow: hidden; color: var(--color-text-primary); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; text-align: end; }
+  .export-manifest strong { color: var(--color-text-primary); font-weight: 500; }
+  .export-files-toggle { display: flex; align-items: center; justify-content: space-between; color: var(--color-text-secondary); }
+  .export-manifest details[open] .export-files-toggle > span { transform: rotate(180deg); }
   .export-manifest small { color: var(--color-text-secondary); font: var(--font-11-regular); font-variant-numeric: tabular-nums; }
   .export-manifest ul { display: flex; flex-direction: column; gap: 2px; margin: var(--space-50) 0 0; padding: 0; list-style: none; }
   .export-manifest li { display: flex; justify-content: space-between; gap: var(--space-100); color: var(--color-text-secondary); font: var(--font-11-regular); }

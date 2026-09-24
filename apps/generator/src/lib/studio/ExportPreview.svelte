@@ -97,9 +97,9 @@
     <section class="export-manifest" aria-label="Export contents">
       <h2>Export contents</h2>
       {#if built.layoutNote}<p class="export-layout-note">{built.layoutNote}</p><p class="export-layout-credit">Nesting by <a href="https://github.com/JeroenGar/sparrow" target="_blank" rel="noreferrer">sparrow</a></p>{/if}
-      <p class="export-manifest-row"><span>Open in Studio</span><strong title={built.filename}>{built.filename}</strong><small>{formatBytes(built.bytes)}</small></p>
+      <p class="export-manifest-row"><span>Open in Studio</span><strong>1 editable SVG</strong><small>Entire layout · {formatBytes(built.bytes)}</small></p>
       <details>
-        <summary><span>Download</span><strong>{built.files.length} files</strong><small>{formatBytes(totalBytes)}</small></summary>
+        <summary><span>Download</span><strong>Complete project bundle</strong><small>{built.files.length} files · {formatBytes(totalBytes)} total</small><span class="export-files-toggle">View included files <span aria-hidden="true">⌄</span></span></summary>
         <ul>{#each built.files as file (file.filename)}<li><span title={file.filename}>{file.filename}</span><small>{formatBytes(file.bytes)}</small></li>{/each}</ul>
       </details>
       <div class="export-key">{#if built.cut}<span><i class="export-key-cut" aria-hidden="true"></i>Red line · Cut</span>{/if}{#if built.score}<span><i class="export-key-score" aria-hidden="true"></i>Blue line · Score</span>{/if}{#if built.fill}<span><i class="export-key-fill" aria-hidden="true"></i>Blue fill · Engrave</span>{/if}</div>
