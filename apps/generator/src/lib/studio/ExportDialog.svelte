@@ -2,15 +2,18 @@
   import { Archive, ArrowUpRight, Download, FileJson, FileType, Heart, Layers3, ListOrdered, PenTool, SprayCan, X } from "@lucide/svelte";
   import { IconButton } from "@loidolt/theme-svelte";
   import type { ProjectConfigV1 } from "@topostack/core";
+  import type { Snippet } from "svelte";
   import type { DownloadOption } from "$lib/studio/native-export";
   import { donationUrl } from "$lib/site/support";
 
-  let { open, project, summary, panelCount, blockedReason, preparing, phase, title, detail, onDownload, onClose }: {
+  let { open, project, summary, panelCount, nested = false, blockedReason, preparing, phase, title, detail, onDownload, onClose, sheetLayout }: {
     open: boolean;
     project: ProjectConfigV1;
     /** The same counts the top bar shows, e.g. "12 layers · 9 cut panels". */
     summary: string;
     panelCount: number;
+    /** The export lays pieces out on nested stock sheets, so it counts sheets, not panels. */
+    nested?: boolean;
     blockedReason: string | undefined;
     preparing: boolean;
     phase: string;
@@ -18,11 +21,13 @@
     detail: string;
     onDownload: (option: DownloadOption) => void;
     onClose: () => void;
+    /** The sheet-nesting controls, shown for layered projects. */
+    sheetLayout?: Snippet;
   } = $props();
   let dialog: HTMLDialogElement;
 
   const layered = $derived(project.outputMode === "stack");
-  const panels = $derived(`${panelCount} ${panelCount === 1 ? "panel" : "panels"}`);
+  const panels = $derived(`${panelCount} ${nested ? (panelCount === 1 ? "nested sheet" : "nested sheets") : panelCount === 1 ? "panel" : "panels"}`);
   const heroDescription = $derived(layered
     ? `Everything to cut and build: ${panels}, assembly guide, README, settings, and source credits.`
     : "The engraving SVG with README, settings, and source credits.");
@@ -75,6 +80,7 @@
         <span class="export-feedback-copy"><strong>{title}</strong><small>{detail}</small></span>
       </div>
     {/if}
+    {#if layered && sheetLayout}{@render sheetLayout()}{/if}
     <details class="export-more">
       <summary>Individual files <span class="export-more-count">{files.length}</span></summary>
       <div class="export-rows">

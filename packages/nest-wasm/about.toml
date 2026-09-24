@@ -1,0 +1,7 @@
+# cargo-about: licences of every crate compiled into the shipped WebAssembly engine.
+# Regenerate with: cargo about generate about.hbs -o THIRD_PARTY_LICENSES.md
+accepted = ["MIT", "Apache-2.0", "Apache-2.0 WITH LLVM-exception", "MPL-2.0", "BSD-2-Clause", "BSD-3-Clause", "Zlib", "Unicode-3.0", "ISC", "BSL-1.0", "CC0-1.0"]
+targets = ["wasm32-unknown-unknown"]
+ignore-build-dependencies = true
+ignore-dev-dependencies = true
+no-clearly-defined = true
