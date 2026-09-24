@@ -47,7 +47,7 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
   },
   "/guides": {
     title: "Topographic Map Guides and Documentation | TopoStack",
-    description: "Guides for making layered and engraved topographic maps, understanding lake-depth data and export files, troubleshooting, and TopoStack's sources, credits and privacy.",
+    description: "Guides for making layered and engraved topographic maps, understanding terrain generation, lake-depth data and export files, troubleshooting, and TopoStack's sources, credits and privacy.",
     label: "Guides",
     published: "2026-09-17",
     updated: "2026-09-17",
@@ -158,6 +158,13 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     label: "How chart tracing works",
     published: "2026-09-23",
     updated: "2026-09-23",
+  },
+  "/guides/how-terrain-generation-works": {
+    title: "How Terrain Generation Works in Your Browser | TopoStack",
+    description: "Follow elevation data into cut layers and see how terrain caching, spatial indexes, and parallel workers speed up large maps in your browser.",
+    label: "How terrain generation works",
+    published: "2026-09-24",
+    updated: "2026-09-24",
   },
   "/guides/settings-reference": {
     title: "Studio Settings Reference | TopoStack",
