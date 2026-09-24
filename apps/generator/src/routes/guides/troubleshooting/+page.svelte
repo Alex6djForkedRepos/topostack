@@ -4,6 +4,16 @@
 </script>
 
 <Article title="Troubleshooting and common questions" intro="What the studio's export messages and warnings mean, and how to fix the problems makers run into most often.">
+  <h2>Depth-chart review is blocked</h2>
+  <dl>
+    <div><dt>Generate reviewed depths is unavailable</dt><dd>Confirm every included path and its value, choose and confirm the source shoreline, and resolve open paths, crossings, or contradictory local depth relationships. Mark islands as land boundaries and underwater rises as shallower interiors. Interior bottom or summit values belong only on innermost contours. Follow <a href={`${base}/guides/trace-a-depth-chart`}>the reviewed tracing workflow</a>.</dd></div>
+    <div><dt>Alignment does not pass</dt><dd>Use at least four known positions spread across the source, each with both longitude and latitude in WGS84 decimal degrees. Check hemisphere signs, coordinate conversion, and lake selection. Inspect the dashed map outline against the source shoreline before confirming.</dd></div>
+    <div><dt>Keep this chart is unavailable</dt><dd>Generate from the current reviewed contours, then confirm that you checked the basin and layers. Edits make earlier results and approval stale.</dd></div>
+    <div><dt>An older chart needs review</dt><dd>Legacy charts can be exported for recovery but cannot be applied to new generations. Recreate the chart from its original source through contour, alignment, and layer review.</dd></div>
+    <div><dt>A review draft will not restore</dt><dd>Upload the same original file and PDF page first. The draft is tied to that source and does not contain the image. A restored draft requires fresh alignment confirmation and depth generation.</dd></div>
+    <div><dt>Incomplete depth chart coverage</dt><dd>The source shoreline or grid does not cover every map-water cell. Uncovered areas use existing terrain, modeled depths, or estimates near surveyed shores when possible; remaining cells stay at the waterline. Inspect transitions in the final cut layers.</dd></div>
+  </dl>
+
   <h2>Export is blocked</h2>
   <p>The <strong>Export</strong> dialog explains why artwork downloads are unavailable. <strong>Project settings</strong> can always be downloaded, so save them first if you are unsure.</p>
   <dl class="issues">

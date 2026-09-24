@@ -1,0 +1,1121 @@
+{
+  "date": "2026-09-23T19:00:30.006Z",
+  "scope": "Exploratory real-chart quality evaluation; workflow completion does not certify bathymetric accuracy.",
+  "sources": [
+    {
+      "id": "walden",
+      "name": "Walden Pond",
+      "url": "https://pubs.usgs.gov/wri/wri014137/pdf/cover.pdf",
+      "sha256": "77c75ce92fdfc82a57593f5e3be2c314e1675e9d4ce4a2676ccad91ff4d0b234",
+      "cropPagePoints": [
+        710,
+        285,
+        1130,
+        548
+      ],
+      "renderDpi": 288,
+      "units": "m",
+      "labels": "depth",
+      "interval": 2,
+      "location": [
+        42.439,
+        -71.3387
+      ],
+      "vectorDiagnostics": {
+        "paths": 44,
+        "chains": 30,
+        "labels": 21,
+        "labelled": 8,
+        "inferred": 15,
+        "unresolved": 7,
+        "labelDisagreements": 0,
+        "contradictoryRegions": 1,
+        "coverage": 0.9954392042453241
+      },
+      "sourceLakeLabels": [
+        {
+          "x": 1003.6863448619843,
+          "y": 371.405846118927,
+          "value": 10,
+          "label": "10"
+        },
+        {
+          "x": 960.6983985900879,
+          "y": 392.97490644454956,
+          "value": 20,
+          "label": "20"
+        },
+        {
+          "x": 978.3987317085266,
+          "y": 449.6985673904419,
+          "value": 10,
+          "label": "10"
+        },
+        {
+          "x": 947.6344004273415,
+          "y": 416.1583676338196,
+          "value": 18,
+          "label": "18"
+        },
+        {
+          "x": 1084.1566145420074,
+          "y": 450.4703137874603,
+          "value": 10,
+          "label": "10"
+        },
+        {
+          "x": 1018.1187974214554,
+          "y": 420.32189416885376,
+          "value": 10,
+          "label": "10"
+        },
+        {
+          "x": 1072.2645874023438,
+          "y": 443.1221008300781,
+          "value": 16,
+          "label": "16"
+        },
+        {
+          "x": 911.3375129699707,
+          "y": 395.80511474609375,
+          "value": 16,
+          "label": "16"
+        },
+        {
+          "x": 1017.1329345703125,
+          "y": 408.5964546203613,
+          "value": 8,
+          "label": "8"
+        },
+        {
+          "x": 832.3300933837891,
+          "y": 358.7030944824219,
+          "value": 10,
+          "label": "10"
+        },
+        {
+          "x": 847.3429069519043,
+          "y": 384.40422105789185,
+          "value": 20,
+          "label": "20"
+        },
+        {
+          "x": 861.6214780807495,
+          "y": 427.76167917251587,
+          "value": 30,
+          "label": "30"
+        },
+        {
+          "x": 891.0434989929199,
+          "y": 487.5842695236206,
+          "value": 10,
+          "label": "10"
+        },
+        {
+          "x": 779.5729894638062,
+          "y": 436.93029022216797,
+          "value": 10,
+          "label": "10"
+        },
+        {
+          "x": 808.7994337975979,
+          "y": 435.2835998535156,
+          "value": 20,
+          "label": "20"
+        },
+        {
+          "x": 882.0957480669022,
+          "y": 469.4979130625725,
+          "value": 20,
+          "label": "20"
+        },
+        {
+          "x": 971.9287109375,
+          "y": 431.7402038574219,
+          "value": 16,
+          "label": "16"
+        },
+        {
+          "x": 929.6734807789326,
+          "y": 419.7438694238663,
+          "value": 16,
+          "label": "16"
+        }
+      ]
+    },
+    {
+      "id": "viking",
+      "name": "Lake Viking",
+      "url": "https://pubs.usgs.gov/sim/3486/sim3486_sheet07.pdf",
+      "sha256": "e345ee6736011a9475bc4d24c8b5dc55e5c33ed87fdc2ae59eb6ea5157a1fc65",
+      "cropPagePoints": [
+        1260,
+        280,
+        2380,
+        1620
+      ],
+      "renderDpi": 144,
+      "units": "ft",
+      "labels": "elevation",
+      "surface": 863.8,
+      "interval": 5,
+      "location": [
+        39.925,
+        -94.073
+      ],
+      "vectorDiagnostics": {
+        "paths": 124,
+        "chains": 21,
+        "labels": 38,
+        "labelled": 15,
+        "inferred": 4,
+        "unresolved": 2,
+        "labelDisagreements": 1,
+        "contradictoryRegions": 662,
+        "coverage": 0.9986969709362018
+      },
+      "sourceLakeLabels": [
+        {
+          "x": 2103.3083,
+          "y": 529.7936993133544,
+          "value": 805,
+          "label": "805"
+        },
+        {
+          "x": 2006.8751998836517,
+          "y": 683.0245001049043,
+          "value": 815,
+          "label": "815"
+        },
+        {
+          "x": 2009.9347988708496,
+          "y": 695.1027026855468,
+          "value": 810,
+          "label": "810"
+        },
+        {
+          "x": 2008.846299970913,
+          "y": 734.4693999992846,
+          "value": 840,
+          "label": "840"
+        },
+        {
+          "x": 1972.3470999866486,
+          "y": 800.7731999828338,
+          "value": 820,
+          "label": "820"
+        },
+        {
+          "x": 1979.8643999532699,
+          "y": 803.4505990692137,
+          "value": 815,
+          "label": "815"
+        },
+        {
+          "x": 1956.5181998168946,
+          "y": 972.4086037841798,
+          "value": 825,
+          "label": "825"
+        },
+        {
+          "x": 1882.0776000610351,
+          "y": 963.3314000133514,
+          "value": 830,
+          "label": "830"
+        },
+        {
+          "x": 1846.314198779297,
+          "y": 1242.946698840332,
+          "value": 840,
+          "label": "840"
+        },
+        {
+          "x": 1779.480594140625,
+          "y": 994.32849810791,
+          "value": 835,
+          "label": "835"
+        },
+        {
+          "x": 1760.4582977416992,
+          "y": 1253.9660022583007,
+          "value": 845,
+          "label": "845"
+        },
+        {
+          "x": 1684.341699967575,
+          "y": 1316.4882999998808,
+          "value": 850,
+          "label": "850"
+        },
+        {
+          "x": 1626.114099824524,
+          "y": 1396.487100717163,
+          "value": 855,
+          "label": "855"
+        },
+        {
+          "x": 1527.0180999694824,
+          "y": 1461.5113008239746,
+          "value": 860,
+          "label": "860"
+        },
+        {
+          "x": 1567.15040390625,
+          "y": 1081.56590100708,
+          "value": 850,
+          "label": "850"
+        },
+        {
+          "x": 2083.8012016479493,
+          "y": 817.8677102539064,
+          "value": 830,
+          "label": "830"
+        },
+        {
+          "x": 2218.8808998550417,
+          "y": 901.0152102539064,
+          "value": 850,
+          "label": "850"
+        },
+        {
+          "x": 1928.7861946289063,
+          "y": 539.502700946045,
+          "value": 830,
+          "label": "830"
+        },
+        {
+          "x": 1875.3841000019074,
+          "y": 609.1449020141604,
+          "value": 850,
+          "label": "850"
+        },
+        {
+          "x": 2060.7777999980926,
+          "y": 567.2626999997615,
+          "value": 810,
+          "label": "810"
+        },
+        {
+          "x": 2126.28710100708,
+          "y": 527.483400038147,
+          "value": 810,
+          "label": "810"
+        }
+      ]
+    },
+    {
+      "id": "king-city",
+      "name": "King City South Lake",
+      "url": "https://pubs.usgs.gov/sim/3486/sim3486_sheet02.pdf",
+      "sha256": "fa79e13715a4037bd4a3b412676363c1e451a377eac01d958dbe417d400ec5c6",
+      "cropPagePoints": [
+        1045,
+        210,
+        2235,
+        1600
+      ],
+      "renderDpi": 144,
+      "units": "ft",
+      "labels": "elevation",
+      "surface": 1028.5,
+      "interval": 2,
+      "location": [
+        40.04144,
+        -94.5007
+      ],
+      "vectorDiagnostics": {
+        "paths": 40,
+        "chains": 11,
+        "labels": 33,
+        "labelled": 10,
+        "inferred": 1,
+        "unresolved": 0,
+        "labelDisagreements": 0,
+        "contradictoryRegions": 12,
+        "coverage": 1
+      },
+      "sourceLakeLabels": [
+        {
+          "x": 1609.7041993896485,
+          "y": 899.2748012512207,
+          "value": 1020,
+          "label": "1,020"
+        },
+        {
+          "x": 1480.737299938965,
+          "y": 782.9340000877382,
+          "value": 1022,
+          "label": "1,022"
+        },
+        {
+          "x": 1406.7406000610351,
+          "y": 667.9628999934434,
+          "value": 1024,
+          "label": "1,024"
+        },
+        {
+          "x": 1353.8406873046874,
+          "y": 578.239789501953,
+          "value": 1026,
+          "label": "1,026"
+        },
+        {
+          "x": 1713.0077,
+          "y": 1056.8926000000001,
+          "value": 1018,
+          "label": "1,018"
+        },
+        {
+          "x": 1781.245799900818,
+          "y": 1133.3421003509523,
+          "value": 1016,
+          "label": "1,016"
+        },
+        {
+          "x": 1781.245799900818,
+          "y": 1133.3421003509523,
+          "value": 1016,
+          "label": "1,016"
+        },
+        {
+          "x": 1984.9534002746582,
+          "y": 1337.6591974975586,
+          "value": 1014,
+          "label": "1,014"
+        },
+        {
+          "x": 1984.9534002746582,
+          "y": 1337.6591974975586,
+          "value": 1014,
+          "label": "1,014"
+        },
+        {
+          "x": 1288.6077000071525,
+          "y": 433.1527998970032,
+          "value": 1028,
+          "label": "1,028"
+        }
+      ]
+    }
+  ],
+  "chromium": [
+    {
+      "id": "walden-pdf",
+      "errors": [],
+      "missed": [],
+      "collisions": [
+        {
+          "x": 1072.2645874023438,
+          "y": 443.1221008300781,
+          "value": 16,
+          "label": "16"
+        },
+        {
+          "x": 1017.1329345703125,
+          "y": 408.5964546203613,
+          "value": 8,
+          "label": "8"
+        },
+        {
+          "x": 882.0957480669022,
+          "y": 469.4979130625725,
+          "value": 20,
+          "label": "20"
+        },
+        {
+          "x": 971.9287109375,
+          "y": 431.7402038574219,
+          "value": 16,
+          "label": "16"
+        },
+        {
+          "x": 929.6734807789326,
+          "y": 419.7438694238663,
+          "value": 16,
+          "label": "16"
+        }
+      ],
+      "lake": {
+        "id": "lake-1050970-0",
+        "hylakId": 1050970,
+        "originalName": "Unnamed lake",
+        "vertices": 13,
+        "sha256": "330ad60ebdf520bdfed82a1ed416a43d94e9484881dd485374cfabc123f83355"
+      },
+      "uploadMs": 1230,
+      "image": {
+        "width": 2400,
+        "height": 1553
+      },
+      "points": 13,
+      "traceMs": 3150,
+      "report": {
+        "publishable": true,
+        "georefRmsM": 32.88,
+        "contours": 166,
+        "contourPoints": 598,
+        "waterCells": 533,
+        "deepestM": 30,
+        "grid": {
+          "width": 43,
+          "height": 23,
+          "resolutionM": 20.00000002
+        },
+        "coverage": 0.799,
+        "labelled": 9,
+        "inferred": 157,
+        "iou": 0.783,
+        "snapUncertain": true,
+        "placements": 1,
+        "placement": 0,
+        "ambiguous": false
+      },
+      "error": "",
+      "heartbeat": {
+        "last": 9811.300000071526,
+        "maxGap": 938.6000000238419,
+        "ticks": 33
+      },
+      "status": "traced-needs-quality-review",
+      "gridValidation": {
+        "contract": "passed",
+        "validCells": 533,
+        "nonzeroCells": 533,
+        "minM": 0.4000000059604645,
+        "maxM": 30
+      }
+    },
+    {
+      "id": "walden-crop",
+      "errors": [],
+      "missed": [
+        {
+          "x": 1003.6863448619843,
+          "y": 371.405846118927,
+          "value": 10,
+          "label": "10"
+        },
+        {
+          "x": 960.6983985900879,
+          "y": 392.97490644454956,
+          "value": 20,
+          "label": "20"
+        },
+        {
+          "x": 978.3987317085266,
+          "y": 449.6985673904419,
+          "value": 10,
+          "label": "10"
+        },
+        {
+          "x": 947.6344004273415,
+          "y": 416.1583676338196,
+          "value": 18,
+          "label": "18"
+        },
+        {
+          "x": 1084.1566145420074,
+          "y": 450.4703137874603,
+          "value": 10,
+          "label": "10"
+        },
+        {
+          "x": 1018.1187974214554,
+          "y": 420.32189416885376,
+          "value": 10,
+          "label": "10"
+        },
+        {
+          "x": 911.3375129699707,
+          "y": 395.80511474609375,
+          "value": 16,
+          "label": "16"
+        },
+        {
+          "x": 847.3429069519043,
+          "y": 384.40422105789185,
+          "value": 20,
+          "label": "20"
+        },
+        {
+          "x": 808.7994337975979,
+          "y": 435.2835998535156,
+          "value": 20,
+          "label": "20"
+        },
+        {
+          "x": 971.9287109375,
+          "y": 431.7402038574219,
+          "value": 16,
+          "label": "16"
+        },
+        {
+          "x": 929.6734807789326,
+          "y": 419.7438694238663,
+          "value": 16,
+          "label": "16"
+        }
+      ],
+      "collisions": [],
+      "lake": {
+        "id": "lake-1050970-0",
+        "hylakId": 1050970,
+        "originalName": "Unnamed lake",
+        "vertices": 13,
+        "sha256": "330ad60ebdf520bdfed82a1ed416a43d94e9484881dd485374cfabc123f83355"
+      },
+      "uploadMs": 872,
+      "image": {
+        "width": 1680,
+        "height": 1052
+      },
+      "points": 7,
+      "traceMs": 2248,
+      "report": {
+        "publishable": true,
+        "georefRmsM": 29.24,
+        "contours": 2,
+        "contourPoints": 12,
+        "waterCells": 533,
+        "deepestM": 0,
+        "grid": {
+          "width": 43,
+          "height": 23,
+          "resolutionM": 20.00000002
+        },
+        "coverage": 0.106,
+        "labelled": 2,
+        "inferred": 0,
+        "iou": 0.788,
+        "snapUncertain": true,
+        "placements": 1,
+        "placement": 0,
+        "ambiguous": false
+      },
+      "error": "",
+      "heartbeat": {
+        "last": 5519.5,
+        "maxGap": 940.7999999523163,
+        "ticks": 27
+      },
+      "status": "traced-needs-quality-review",
+      "gridValidation": {
+        "contract": "passed",
+        "validCells": 533,
+        "nonzeroCells": 0,
+        "minM": 0,
+        "maxM": 0
+      }
+    },
+    {
+      "id": "walden-ink-three",
+      "errors": [],
+      "missed": [],
+      "collisions": [],
+      "lake": {
+        "id": "lake-1050970-0",
+        "hylakId": 1050970,
+        "originalName": "Unnamed lake",
+        "vertices": 13,
+        "sha256": "330ad60ebdf520bdfed82a1ed416a43d94e9484881dd485374cfabc123f83355"
+      },
+      "uploadMs": 875,
+      "image": {
+        "width": 1680,
+        "height": 1052
+      },
+      "points": 3,
+      "traceMs": 2111,
+      "report": {
+        "publishable": true,
+        "georefRmsM": 14.64,
+        "contours": 3,
+        "contourPoints": 40,
+        "waterCells": 533,
+        "deepestM": 30,
+        "grid": {
+          "width": 43,
+          "height": 23,
+          "resolutionM": 20.00000002
+        },
+        "coverage": 0.074,
+        "labelled": 3,
+        "inferred": 0,
+        "iou": 0.882,
+        "snapUncertain": true,
+        "placements": 1,
+        "placement": 0,
+        "ambiguous": false
+      },
+      "error": "",
+      "heartbeat": {
+        "last": 3951.7000000476837,
+        "maxGap": 950,
+        "ticks": 24
+      },
+      "status": "traced-needs-quality-review",
+      "gridValidation": {
+        "contract": "passed",
+        "validCells": 533,
+        "nonzeroCells": 533,
+        "minM": 0.10000000149011612,
+        "maxM": 30
+      }
+    },
+    {
+      "id": "walden-ink-dense",
+      "errors": [],
+      "missed": [],
+      "collisions": [],
+      "lake": {
+        "id": "lake-1050970-0",
+        "hylakId": 1050970,
+        "originalName": "Unnamed lake",
+        "vertices": 13,
+        "sha256": "330ad60ebdf520bdfed82a1ed416a43d94e9484881dd485374cfabc123f83355"
+      },
+      "uploadMs": 861,
+      "image": {
+        "width": 1680,
+        "height": 1052
+      },
+      "points": 18,
+      "traceMs": 2152,
+      "report": {
+        "publishable": true,
+        "georefRmsM": 14.64,
+        "contours": 49,
+        "contourPoints": 493,
+        "waterCells": 533,
+        "deepestM": 31,
+        "grid": {
+          "width": 43,
+          "height": 23,
+          "resolutionM": 20.00000002
+        },
+        "coverage": 0.928,
+        "labelled": 13,
+        "inferred": 36,
+        "iou": 0.882,
+        "snapUncertain": true,
+        "placements": 1,
+        "placement": 0,
+        "ambiguous": false
+      },
+      "error": "",
+      "heartbeat": {
+        "last": 5901.899999976158,
+        "maxGap": 941.2000000476837,
+        "ticks": 26
+      },
+      "status": "traced-needs-quality-review",
+      "lifecycle": "save/apply/export/reload/stop-use passed; mobile and both previews passed",
+      "gridValidation": {
+        "contract": "passed",
+        "validCells": 533,
+        "nonzeroCells": 533,
+        "minM": 1.7000000476837158,
+        "maxM": 31
+      }
+    },
+    {
+      "id": "viking-pdf",
+      "errors": [],
+      "missed": [],
+      "collisions": [
+        {
+          "x": 2009.9347988708496,
+          "y": 695.1027026855468,
+          "value": 810,
+          "label": "810"
+        },
+        {
+          "x": 2008.846299970913,
+          "y": 734.4693999992846,
+          "value": 840,
+          "label": "840"
+        },
+        {
+          "x": 1979.8643999532699,
+          "y": 803.4505990692137,
+          "value": 815,
+          "label": "815"
+        },
+        {
+          "x": 2126.28710100708,
+          "y": 527.483400038147,
+          "value": 810,
+          "label": "810"
+        }
+      ],
+      "lake": {
+        "id": "lake-112187-0",
+        "hylakId": 112187,
+        "originalName": "Lake Viking",
+        "vertices": 67,
+        "sha256": "3175b8981d045c12f8f89246756ef4e3a38b75dc46b9e36688d5c9197e310eaa"
+      },
+      "uploadMs": 2840,
+      "image": {
+        "width": 1855,
+        "height": 2400
+      },
+      "points": 17,
+      "traceMs": 4062,
+      "report": {
+        "publishable": true,
+        "georefRmsM": 211.15,
+        "contours": 285,
+        "contourPoints": 8241,
+        "waterCells": 4433,
+        "deepestM": 7.3,
+        "grid": {
+          "width": 130,
+          "height": 170,
+          "resolutionM": 20.00000002
+        },
+        "coverage": 0.535,
+        "labelled": 12,
+        "inferred": 273,
+        "iou": 0.314,
+        "snapUncertain": true,
+        "placements": 1,
+        "placement": 0,
+        "ambiguous": false
+      },
+      "error": "",
+      "heartbeat": {
+        "last": 10267.399999976158,
+        "maxGap": 996.8000000715256,
+        "ticks": 49
+      },
+      "status": "traced-needs-quality-review",
+      "gridValidation": {
+        "contract": "passed",
+        "validCells": 4433,
+        "nonzeroCells": 3918,
+        "minM": 0,
+        "maxM": 7.300000190734863
+      }
+    },
+    {
+      "id": "viking-crop",
+      "errors": [],
+      "missed": [],
+      "collisions": [
+        {
+          "x": 2009.9347988708496,
+          "y": 695.1027026855468,
+          "value": 810,
+          "label": "810"
+        },
+        {
+          "x": 1979.8643999532699,
+          "y": 803.4505990692137,
+          "value": 815,
+          "label": "815"
+        }
+      ],
+      "lake": {
+        "id": "lake-112187-0",
+        "hylakId": 112187,
+        "originalName": "Lake Viking",
+        "vertices": 67,
+        "sha256": "3175b8981d045c12f8f89246756ef4e3a38b75dc46b9e36688d5c9197e310eaa"
+      },
+      "uploadMs": 1900,
+      "image": {
+        "width": 2006,
+        "height": 2400
+      },
+      "points": 19,
+      "traceMs": 4382,
+      "report": {
+        "publishable": true,
+        "georefRmsM": 175.87,
+        "contours": 323,
+        "contourPoints": 17236,
+        "waterCells": 4433,
+        "deepestM": 17.9,
+        "grid": {
+          "width": 130,
+          "height": 170,
+          "resolutionM": 20.00000002
+        },
+        "coverage": 0.536,
+        "labelled": 17,
+        "inferred": 306,
+        "iou": 0.496,
+        "snapUncertain": true,
+        "placements": 1,
+        "placement": 0,
+        "ambiguous": false
+      },
+      "error": "",
+      "heartbeat": {
+        "last": 12072.299999952316,
+        "maxGap": 1069.1000000238419,
+        "ticks": 54
+      },
+      "status": "traced-needs-quality-review",
+      "gridValidation": {
+        "contract": "passed",
+        "validCells": 4433,
+        "nonzeroCells": 4400,
+        "minM": 0,
+        "maxM": 17.899999618530273
+      }
+    },
+    {
+      "id": "king-city-pdf",
+      "errors": [],
+      "missed": [],
+      "collisions": [
+        {
+          "x": 1781.245799900818,
+          "y": 1133.3421003509523,
+          "value": 1016,
+          "label": "1,016"
+        },
+        {
+          "x": 1984.9534002746582,
+          "y": 1337.6591974975586,
+          "value": 1014,
+          "label": "1,014"
+        }
+      ],
+      "lake": {
+        "id": "osm-lake-12",
+        "originalName": "King City South Lake",
+        "vertices": 35,
+        "sha256": "50dd0828c3e41d82616313b6613007087efc4ec3632c7160f5ec1178bfdc0d91"
+      },
+      "uploadMs": 2010,
+      "image": {
+        "width": 1855,
+        "height": 2400
+      },
+      "points": 8,
+      "traceMs": 2721,
+      "report": {
+        "publishable": true,
+        "georefRmsM": 2.79,
+        "contours": 204,
+        "contourPoints": 1122,
+        "waterCells": 299,
+        "deepestM": 5,
+        "grid": {
+          "width": 26,
+          "height": 32,
+          "resolutionM": 20.00000002
+        },
+        "coverage": 0.745,
+        "labelled": 8,
+        "inferred": 196,
+        "iou": 0.962,
+        "snapUncertain": false,
+        "placements": 1,
+        "placement": 0,
+        "ambiguous": false
+      },
+      "error": "",
+      "heartbeat": {
+        "last": 6902.299999952316,
+        "maxGap": 1103.1999999284744,
+        "ticks": 33
+      },
+      "status": "traced-needs-quality-review",
+      "gridValidation": {
+        "contract": "passed",
+        "validCells": 299,
+        "nonzeroCells": 299,
+        "minM": 2.5,
+        "maxM": 5
+      }
+    },
+    {
+      "id": "king-city-crop",
+      "errors": [],
+      "missed": [],
+      "collisions": [
+        {
+          "x": 1781.245799900818,
+          "y": 1133.3421003509523,
+          "value": 1016,
+          "label": "1,016"
+        },
+        {
+          "x": 1984.9534002746582,
+          "y": 1337.6591974975586,
+          "value": 1014,
+          "label": "1,014"
+        }
+      ],
+      "lake": {
+        "id": "osm-lake-12",
+        "originalName": "King City South Lake",
+        "vertices": 35,
+        "sha256": "50dd0828c3e41d82616313b6613007087efc4ec3632c7160f5ec1178bfdc0d91"
+      },
+      "uploadMs": 1453,
+      "image": {
+        "width": 2055,
+        "height": 2400
+      },
+      "points": 8,
+      "traceMs": 3579,
+      "report": {
+        "publishable": true,
+        "georefRmsM": 31.63,
+        "contours": 61,
+        "contourPoints": 868,
+        "waterCells": 299,
+        "deepestM": 4.4,
+        "grid": {
+          "width": 26,
+          "height": 32,
+          "resolutionM": 20.00000002
+        },
+        "coverage": 0.539,
+        "labelled": 8,
+        "inferred": 53,
+        "iou": 0.681,
+        "snapUncertain": true,
+        "placements": 1,
+        "placement": 0,
+        "ambiguous": false
+      },
+      "error": "",
+      "heartbeat": {
+        "last": 7788.100000023842,
+        "maxGap": 1024.4000000953674,
+        "ticks": 38
+      },
+      "status": "traced-needs-quality-review",
+      "gridValidation": {
+        "contract": "passed",
+        "validCells": 299,
+        "nonzeroCells": 299,
+        "minM": 0.10000000149011612,
+        "maxM": 4.400000095367432
+      }
+    }
+  ],
+  "crossBrowser": [
+    {
+      "browser": "firefox",
+      "date": "2026-09-23T19:02:19.583Z",
+      "scenarios": [
+        {
+          "id": "walden-ink-dense",
+          "errors": [],
+          "missed": [],
+          "collisions": [],
+          "lake": {
+            "id": "lake-1050970-0",
+            "hylakId": 1050970,
+            "originalName": "Unnamed lake",
+            "vertices": 13,
+            "sha256": "330ad60ebdf520bdfed82a1ed416a43d94e9484881dd485374cfabc123f83355"
+          },
+          "uploadMs": 859,
+          "image": {
+            "width": 1680,
+            "height": 1052
+          },
+          "points": 18,
+          "traceMs": 1909,
+          "report": {
+            "publishable": true,
+            "georefRmsM": 14.64,
+            "contours": 49,
+            "contourPoints": 493,
+            "waterCells": 533,
+            "deepestM": 31,
+            "grid": {
+              "width": 43,
+              "height": 23,
+              "resolutionM": 20.00000002
+            },
+            "coverage": 0.928,
+            "labelled": 13,
+            "inferred": 36,
+            "iou": 0.882,
+            "snapUncertain": true,
+            "placements": 1,
+            "placement": 0,
+            "ambiguous": false
+          },
+          "error": "",
+          "heartbeat": {
+            "last": 7048,
+            "maxGap": 117,
+            "ticks": 33
+          },
+          "status": "traced-needs-quality-review",
+          "lifecycle": "save/apply/export/reload/stop-use passed; mobile and both previews passed"
+        }
+      ]
+    },
+    {
+      "browser": "webkit",
+      "date": "2026-09-23T19:03:05.478Z",
+      "scenarios": [
+        {
+          "id": "walden-ink-dense",
+          "errors": [],
+          "missed": [],
+          "collisions": [],
+          "lake": {
+            "id": "lake-1050970-0",
+            "hylakId": 1050970,
+            "originalName": "Unnamed lake",
+            "vertices": 13,
+            "sha256": "330ad60ebdf520bdfed82a1ed416a43d94e9484881dd485374cfabc123f83355"
+          },
+          "uploadMs": 906,
+          "image": {
+            "width": 1680,
+            "height": 1052
+          },
+          "points": 18,
+          "traceMs": 1901,
+          "report": {
+            "publishable": true,
+            "georefRmsM": 14.64,
+            "contours": 49,
+            "contourPoints": 493,
+            "waterCells": 533,
+            "deepestM": 31,
+            "grid": {
+              "width": 43,
+              "height": 23,
+              "resolutionM": 20.00000002
+            },
+            "coverage": 0.928,
+            "labelled": 13,
+            "inferred": 36,
+            "iou": 0.882,
+            "snapUncertain": true,
+            "placements": 1,
+            "placement": 0,
+            "ambiguous": false
+          },
+          "error": "",
+          "heartbeat": {
+            "last": 6139,
+            "maxGap": 79,
+            "ticks": 36
+          },
+          "status": "traced-needs-quality-review",
+          "lifecycle": "save/apply/export/reload/stop-use passed; mobile and both previews passed"
+        }
+      ]
+    }
+  ],
+  "terrain": {
+    "status": "imported chart and generated live terrain",
+    "errors": [],
+    "text": "TopoStack\nSTUDIO\nPROJECT NAME\nEXPORT\nReady to export\nTERRAIN\nWalden Pond\nMassachusetts\nLAYERED\nFLAT\nPROJECT CONTROLS\nBuild the landscape.\n\nWork through the essentials, then open details only when you need them.\n\nExpand all\nCollapse all\n01–02\nProject setup\nLayered relief · Walden Pond\nLOCATION\nREQUIRES REGENERATION\nWalden Pond\nMassachusetts\nCrater Lake\nGrand Teton and Jenny Lake\nMt. Rainier\nGrand Canyon\n\nChanging the location or map area requires terrain regeneration.\nSidebar settings update the preview automatically. Changing the cut aspect ratio loads terrain for the updated map area.\n\n03\nCut size\nRectangle · 300 × 200 mm\n04\nTerrain layers\n11 layers · 3 mm material\n05\nMap details\n8 details enabled\n06\nLinework\nBalanced preset\n07\nFabrication settings\nSmooth contours\nTerrain sources\nReal terrain ready · 11 layers · 11 cut panels\nREGENERATE TERRAIN\nMAP\nCUT LAYERS\n3D STACK\nCUSTOM DATA\n300 × 200 mm\n11 layers\n11 cut panels\n33 mm tall\n17–92 m\nFeedback\nMap data © OpenStreetMap contributors · All sources\n(opens in a new tab)\n!\n\nA lake has incomplete depth chart coverage. Uncovered cells use existing terrain, modeled depths, or estimates near surveyed shores; cells without enough information remain at the waterline.\n\n!\n\nSome lake floors come from a traced depth chart. They are only as accurate as the chart and its tracing.\n\nLayer 7\nof 11\n55 m\n10 m\n47 m\n84 m\nSTACK\nEXPLODED"
+  }
+}

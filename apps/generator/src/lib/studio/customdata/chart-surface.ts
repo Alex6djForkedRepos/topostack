@@ -4,11 +4,8 @@ import { decodeChartDepths, type ChartGridV1 } from "@topostack/data-contracts/c
  * depths go below Y=0. Never fill islands or bridge missing samples. */
 export function chartSurface(grid: ChartGridV1) {
   const depths = decodeChartDepths(grid);
-  const { width, height, bounds } = grid;
-  const metresPerDegree = Math.PI * 6371000 / 180;
-  const spanX = (bounds.east - bounds.west) * metresPerDegree * Math.cos((bounds.north + bounds.south) * Math.PI / 360);
-  const spanZ = (bounds.north - bounds.south) * metresPerDegree;
-  const scale = 2 / Math.max(spanX, spanZ);
+  const { width, height } = grid;
+  const { spanX, spanZ, scale } = chartFrame(grid);
   const positions = new Float32Array(depths.length * 3);
   const colors = new Float32Array(depths.length * 3);
   let deepest = 0;
@@ -33,4 +30,18 @@ export function chartSurface(grid: ChartGridV1) {
     }
   }
   return { positions, colors, indices: indices.subarray(0, count), deepest, scale };
+}
+
+/** Make shallow basins legible without changing the stored data. */
+export function automaticDepthExaggeration(deepest: number, scale: number): number {
+  return deepest > 0 && scale > 0 ? Math.max(1, 0.6 / (deepest * scale)) : 1;
+}
+
+export function chartFrame(grid: ChartGridV1) {
+  const { bounds } = grid;
+  const metresPerDegree = Math.PI * 6371000 / 180;
+  const spanX = (bounds.east - bounds.west) * metresPerDegree * Math.cos((bounds.north + bounds.south) * Math.PI / 360);
+  const spanZ = (bounds.north - bounds.south) * metresPerDegree;
+  const scale = 2 / Math.max(spanX, spanZ);
+  return { spanX, spanZ, scale };
 }

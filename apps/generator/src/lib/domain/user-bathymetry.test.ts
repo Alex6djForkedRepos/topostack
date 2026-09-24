@@ -171,3 +171,13 @@ describe("chartsForAreas", () => {
     expect(chartsForAreas([pondArea], new Map([["outline:pond-chart-0001", charted(pondArea)]]), bounds).size).toBe(0);
   });
 });
+
+it("preserves chart islands as terrain polygon holes even when the provider omitted them", async () => {
+  const chart = rampChart();
+  chart.lake.islands = [[[-94.074,39.916],[-94.066,39.916],[-94.066,39.924],[-94.074,39.924]]];
+  const sampled = sampleChartDepths(chart, bounds, grid);
+  expect(Number.isNaN(sampled[40]!)).toBe(true);
+  const result = await applyUserCharts(surveyed([lake()]), new Map([["42",loaded(chart)]]), bounds, grid, undefined, {widthMm:10,heightMm:10});
+  expect(result.areas[0]!.polygon.holes).toHaveLength(1);
+  expect(result.areas[0]!.polygon.holes[0]!.length).toBeGreaterThanOrEqual(4);
+});

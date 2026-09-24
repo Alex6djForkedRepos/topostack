@@ -1,3 +1,4 @@
+import { prepareChartReview } from "$lib/domain/chart-review";
 import { detectChartContours } from "$lib/domain/chart-contours";
 import { buildChartFromImage, type ChartBuildRequest } from "$lib/domain/chart-build";
 import { palette, type Swatch } from "@topostack/chart-trace/raster";
@@ -10,11 +11,15 @@ import { palette, type Swatch } from "@topostack/chart-trace/raster";
 
 interface PaletteRequest { id: number; kind: "palette"; image: ChartBuildRequest["image"]; count?: number }
 interface BuildRequest { id: number; kind: "build"; request: ChartBuildRequest }
-export type ChartWorkerRequest = PaletteRequest | BuildRequest | { id: number; kind: "contours"; image: ChartBuildRequest["image"] };
+export type ChartWorkerRequest = PaletteRequest | BuildRequest | { id: number; kind: "prepare"; request: ChartBuildRequest } | { id: number; kind: "contours"; image: ChartBuildRequest["image"] };
 
 self.onmessage = (event: MessageEvent<ChartWorkerRequest>) => {
   const message = event.data;
   try {
+    if (message.kind === "prepare") {
+      self.postMessage({ id: message.id, review: prepareChartReview(message.request) });
+      return;
+    }
     if (message.kind === "contours") {
       self.postMessage({ id: message.id, contours: detectChartContours(message.image) });
       return;

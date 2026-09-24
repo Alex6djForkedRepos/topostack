@@ -31,6 +31,7 @@ async function openCharts(page: Page, fromMap = false, withoutSearch = false): P
   } }));
   await page.goto("/studio");
   await page.getByRole("radio", { name: "Custom data", exact: true }).click();
+  await expect(page.locator(".generate-dock")).toHaveCount(0);
   if (!withoutSearch) {
   await page.getByRole("textbox", { name: "Search for a lake", exact: true }).fill("Round Lake");
   await page.locator(".chart-search").getByRole("button", { name: "Search", exact: true }).click();
@@ -72,35 +73,84 @@ async function openCharts(page: Page, fromMap = false, withoutSearch = false): P
   await expect(page.locator(".chart-chosen")).toContainText("Round Lake");
 }
 
-async function mark(page: Page, value: string, x: number, y: number): Promise<void> {
-  const canvas = page.locator(".chart-canvas");
-  await expect(canvas).toHaveAttribute("aria-busy", "false");
-  const bounds = await canvas.boundingBox();
-  if (!bounds) throw new Error("Chart canvas missing");
-  await canvas.hover({ position: { x: x / 360 * bounds.width, y: y / 280 * bounds.height } });
-  await expect(canvas).toHaveAttribute("data-contour", /\d+/);
-  if (value === "5") await page.screenshot({ path: test.info().outputPath("contour-hover.png") });
-  await canvas.click({ position: { x: x / 360 * bounds.width, y: y / 280 * bounds.height } });
-  const card = page.getByRole("dialog", { name: /Assign point/ });
-  await expect(card.getByRole("spinbutton")).toBeFocused();
-  await expect(canvas).toHaveAttribute("data-contour", /\d+/);
-  const cardBounds = await card.boundingBox();
-  const viewport = page.viewportSize()!;
-  expect(cardBounds).not.toBeNull();
-  expect(cardBounds!.x).toBeGreaterThanOrEqual(0);
-  expect(cardBounds!.y).toBeGreaterThanOrEqual(0);
-  expect(cardBounds!.x + cardBounds!.width).toBeLessThanOrEqual(viewport.width);
-  expect(cardBounds!.y + cardBounds!.height).toBeLessThanOrEqual(viewport.height);
-  if (value === "5") await page.screenshot({ path: test.info().outputPath("depth-point-wizard.png") });
-  await card.getByRole("spinbutton").fill(value);
-  await card.getByRole("button", { name: /Confirm/ }).click();
-  await expect(card).toHaveCount(0);
+/** Correct and approve paths through visible controls, without injecting review state. */
+async function reviewContours(page: Page, topology?: "island" | "rise"): Promise<void> {
+  await expect(page.getByRole("heading", { name: "5 · Review and correct contours" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Generate reviewed depths", exact: true })).toBeDisabled();
+  await expect(page.locator(".chart-report")).toHaveCount(0);
+  const chooser = page.getByLabel("Select review contour", { exact: true });
+  for (const [value, x] of [[0,40],[5,275],[10,130]]) {
+    const id = await page.locator(".review-source svg[aria-label='Source with reviewed contour overlay']").evaluate((element, x) => {
+      const image = element.querySelector("image")!;
+      const target = {x:x / 360 * image.width.baseVal.value,y:140 / 280 * image.height.baseVal.value};
+      return [...element.querySelectorAll<SVGPathElement>('path[role="button"]')].map(path => {
+        let distance=Infinity;
+        const length=path.getTotalLength();
+        for(let i=0;i<=1000;i++){const p=path.getPointAtLength(length*i/1000);distance=Math.min(distance,Math.hypot(p.x-target.x,p.y-target.y));}
+        return {id:path.getAttribute("aria-label")!.split(",")[0]!,distance};
+      }).sort((a,b)=>a.distance-b.distance)[0]!.id;
+    }, x!);
+    await chooser.selectOption(id);
+    if (value === 0) await page.getByLabel("Path type", {exact:true}).selectOption("shoreline");
+    else await page.getByLabel("Contour printed value", {exact:true}).fill(String(value));
+    if (value === 10 && topology === "island") await page.getByLabel("Path type", {exact:true}).selectOption("island");
+    if (value === 10 && topology === "rise") {
+      await page.getByLabel("Contour printed value", {exact:true}).fill("3");
+      await page.getByLabel("Contour interior", {exact:true}).selectOption("shallower");
+      await page.getByText("Interior beyond the last contour", {exact:true}).click();
+      await page.getByLabel("Contour interior value", {exact:true}).fill("2");
+    }
+    if (value === 5) {
+      await page.getByLabel("Contour printed value", { exact: true }).fill("6");
+      await page.getByRole("button", { name: "Undo edit", exact: true }).click();
+      await expect(page.getByLabel("Contour printed value", { exact: true })).toHaveValue("5");
+      await page.getByRole("button", { name: "Redo edit", exact: true }).click();
+      await expect(page.getByLabel("Contour printed value", { exact: true })).toHaveValue("6");
+      await page.getByLabel("Contour printed value", { exact: true }).fill("5");
+    }
+    await page.getByRole("button", { name: "Confirm path and value", exact: true }).click();
+  }
+  await page.getByRole("button", { name: "Exclude all unassigned paths", exact: true }).click();
+  const draftDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export review draft", exact: true }).click();
+  const draftStream = await (await draftDownload).createReadStream();
+  const draftChunks: Buffer[] = [];
+  for await (const chunk of draftStream) draftChunks.push(Buffer.from(chunk));
+  const savedDraft = Buffer.concat(draftChunks);
+  const saved = JSON.parse(savedDraft.toString());
+  expect(saved.schema).toBe("chart-review-draft-v1");
+  if (topology === "island") expect(saved.review.contours.some((c: {role?:string;excluded:boolean}) => c.role === "island" && !c.excluded)).toBe(true);
+  if (topology === "rise") expect(saved.review.contours.some((c: {inside?:string;interiorValue?:number}) => c.inside === "shallower" && c.interiorValue === 2)).toBe(true);
+  await page.locator(".chart-review-restore input").setInputFiles({ name: "review.json", mimeType: "application/json", buffer: savedDraft });
+  await page.getByRole("button", { name: "Alignment", exact: true }).click();
+  await expect(page.getByRole("checkbox", { name: "I checked the alignment and orientation against the source." })).not.toBeChecked();
+  for (const [index, [x, y]] of ([[40,50],[320,50],[320,230],[40,230]] as const).entries()) {
+    await page.getByRole("button", { name: "Place alignment point", exact: true }).click();
+    const svg = page.locator(".review-source svg[aria-label='Source with reviewed contour overlay']");
+    await svg.scrollIntoViewIfNeeded();
+    const point = await svg.evaluate((element, point) => {
+      const svg = element as SVGSVGElement;
+      const image = svg.querySelector("image")!;
+      const local = new DOMPoint(point.x / 360 * image.width.baseVal.value, point.y / 280 * image.height.baseVal.value);
+      const screen = local.matrixTransform(svg.getScreenCTM()!);
+      return { x: screen.x, y: screen.y };
+    }, { x, y });
+    await page.mouse.click(point.x, point.y);
+    await page.getByRole("spinbutton", { name: `Longitude ${index + 1}`, exact: true }).fill(String(-80 + (x - 180) * .0001));
+    await page.getByRole("spinbutton", { name: `Latitude ${index + 1}`, exact: true }).fill(String(45 - (y - 140) * .0001));
+    await page.getByRole("spinbutton", { name: `Latitude ${index + 1}`, exact: true }).press("Tab");
+  }
+  await page.getByRole("checkbox", { name: "I checked the alignment and orientation against the source." }).check();
+  await expect(page.getByRole("button", { name: "Generate reviewed depths", exact: true })).toBeEnabled();
+  await page.screenshot({ path: test.info().outputPath("contour-review-aligned.png") });
+  await page.getByRole("button", { name: "Generate reviewed depths", exact: true }).click();
 }
 
 test("traces an image in the worker, saves it, applies it, and restores the library", async ({ page }, testInfo) => {
   test.setTimeout(120_000);
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
+  page.on("console", message => { if (message.type() === "error" && /shader|WebGLProgram/i.test(message.text())) errors.push(message.text()); });
   await openCharts(page);
   const image = await page.evaluate(rings => {
     const canvas = document.createElement("canvas"); canvas.width = 360; canvas.height = 280;
@@ -112,33 +162,83 @@ test("traces an image in the worker, saves it, applies it, and restores the libr
   }, chartRings);
   await page.locator(".chart-upload input").setInputFiles({ name: "round-lake.png", mimeType: "image/png", buffer: Buffer.from(image, "base64") });
   await expect(page.locator(".chart-canvas")).toBeVisible();
-  await mark(page, "5", 275, 140);
-  await mark(page, "10", 130, 140);
-  await expect(page.locator(".chart-depth-guide").getByRole("button", { name: "Trace chart", exact: true })).toBeDisabled();
-  await mark(page, "0", 320, 140);
-  await page.getByRole("button", { name: "Trace chart", exact: true }).click();
+  // Source marking shares the cut/flat viewport; panning must never place a depth.
+  const sourceViewport = page.locator(".chart-image-area [data-svg-viewport]");
+  await page.locator(".chart-image-area").getByRole("button", { name: "Zoom in", exact: true }).click();
+  await expect(sourceViewport).toHaveAttribute("data-render-zoom", "1.50");
+  const sourceBounds = await sourceViewport.boundingBox();
+  await page.mouse.move(sourceBounds!.x + sourceBounds!.width / 2, sourceBounds!.y + sourceBounds!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(sourceBounds!.x + sourceBounds!.width / 2 - 20, sourceBounds!.y + sourceBounds!.height / 2 + 10, { steps: 6 });
+  await page.mouse.up();
+  await expect(page.getByRole("dialog", { name: /Assign point/ })).toHaveCount(0);
+  await page.locator(".chart-image-area").getByRole("button", { name: "Reset source chart view", exact: true }).click();
+  await expect(sourceViewport).toHaveAttribute("data-zoom", "1.00");
+  await page.getByRole("button", { name: "Prepare contours for review", exact: true }).click();
+  await expect(page.locator(".review-tools")).toBeVisible();
+  await expect(page.locator(".chart-result")).toHaveCount(0);
+  const sourceAtEdit = await page.locator(".review-chart").boundingBox();
+  const toolsAtEdit = await page.locator(".review-tools").boundingBox();
+  expect(toolsAtEdit!.x).toBeGreaterThanOrEqual(sourceAtEdit!.x + sourceAtEdit!.width);
+  expect(Math.abs(toolsAtEdit!.y - sourceAtEdit!.y)).toBeLessThan(2);
+  const chartTop = (await page.locator(".review-source").boundingBox())!.y;
+  await page.locator(".review-tools-body").evaluate(el => { el.scrollTop = el.scrollHeight; });
+  expect((await page.locator(".review-source").boundingBox())!.y).toBe(chartTop);
+  await reviewContours(page);
   await expect(page.locator(".chart-result")).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator(".review-tools")).toHaveCount(0);
+  const reviewCamera = page.locator(".review-source [data-svg-viewport]");
+  await page.locator(".review-source").getByRole("button", {name:"Zoom in",exact:true}).click();
+  await expect(reviewCamera).toHaveAttribute("data-render-zoom", "1.50");
+  await page.getByRole("button", {name:"Edit contours",exact:true}).click();
+  await expect(page.locator(".review-tools")).toBeVisible();
+  await expect(page.locator(".chart-result")).toHaveCount(0);
+  await expect(reviewCamera).toHaveAttribute("data-zoom", "1.50");
+  await page.getByRole("button", {name:"Contours",exact:true}).click();
+  await expect(page.getByRole("button", {name:"Undo edit",exact:true})).toBeEnabled();
+  await page.getByRole("button", {name:"View generated depths",exact:true}).click();
+  await expect(page.locator(".chart-result")).toBeVisible();
+  await expect(reviewCamera).toHaveAttribute("data-zoom", "1.50");
+  await page.locator(".review-source").getByRole("button", {name:"Reset chart review view",exact:true}).click();
   await expect(page.locator(".chart-report")).toContainText("100%");
-  await expect(page.getByRole("button", { name: "Keep this chart", exact: true })).toBeEnabled();
-  await expect(page.locator(".depth-3d canvas")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Keep this chart", exact: true })).toBeDisabled();
+  await expect(page.locator(".depth-3d canvas:visible")).toBeVisible();
+  await page.setViewportSize({ width: 1600, height: 1100 });
+  const editor = await page.locator(".chart-editor").boundingBox();
+  const three = await page.locator(".chart-result__3d").boundingBox();
+  const dem = await page.locator(".chart-result__dem").boundingBox();
+  expect(three!.x).toBeGreaterThan(editor!.x + editor!.width);
+  const previewPanel = await page.locator(".review-preview").boundingBox();
+  expect(Math.abs(previewPanel!.y - editor!.y)).toBeLessThan(2);
+  expect(dem!.y).toBeGreaterThan(three!.y + three!.height);
+  await expect(page.locator(".chart-preview")).toBeVisible();
+
   await page.locator(".depth-controls").getByRole("button", { name: "Rotate", exact: true }).click();
   await page.locator(".depth-controls").getByRole("button", { name: "Zoom in", exact: true }).click();
-  await page.getByLabel("Vertical exaggeration", { exact: true }).selectOption("10");
-  await page.locator(".depth-controls").getByRole("button", { name: "Reset view", exact: true }).click();
+  await page.getByRole("slider", { name: "Exploded layers", exact: true }).fill("0.2");
+  await page.locator(".depth-controls").getByRole("button", { name: "Fit view", exact: true }).click();
   await page.locator(".depth-3d").scrollIntoViewIfNeeded();
+  await expect(page.getByLabel("3D surface style", { exact: true })).toHaveValue("stack");
+  await expect(page.locator(".depth-viewer .chart-hint")).toContainText("12 representative layers · 3 mm stock");
+  const contours = await page.locator(".depth-3d").screenshot();
+  await page.getByLabel("3D surface style", { exact: true }).selectOption("dem");
+  await expect(page.locator(".dem-3d canvas")).toBeVisible();
+  await page.getByLabel("Vertical exaggeration", { exact: true }).selectOption("auto");
+  const shaded = await page.locator(".depth-3d").screenshot();
+  expect(contours.equals(shaded)).toBe(false);
+  await page.getByLabel("3D surface style", { exact: true }).selectOption("stack");
   await page.screenshot({ path: testInfo.outputPath("depth-chart-result.png") });
-  await page.getByRole("button", { name: "2D depth map", exact: true }).click();
   await expect(page.locator(".chart-preview")).toBeVisible();
   await expect(page.locator(".chart-preview-legend")).toContainText("Shallow");
-  await page.getByRole("button", { name: "3D lake bed", exact: true }).click();
-  await expect(page.locator(".depth-3d canvas")).toBeVisible();
+  await expect(page.locator(".depth-3d canvas:visible")).toBeVisible();
   await page.getByRole("button", { name: "Review and save chart", exact: true }).click();
   await expect(page.locator("#chart-save-heading")).toBeFocused();
+  await page.getByRole("checkbox", { name: "I checked the generated basin and layers against the source." }).check();
   await page.getByRole("button", { name: "Keep this chart", exact: true }).click();
   await expect(page.locator(".chart-saved")).toContainText("Round Lake depth chart");
   await page.getByRole("button", { name: "Use for Round Lake", exact: true }).click();
   await expect(page.locator(".chart-saved__state")).toContainText("Ready for Round Lake");
-  await expect(page.locator(".status-line")).toContainText("regenerate terrain");
+  await expect(page.locator(".generate-dock")).toHaveCount(0);
   // The transferable project file must contain both the reference and chart data.
   await page.getByRole("button", { name: "Export", exact: true }).click();
   const downloading = page.waitForEvent("download");
@@ -148,6 +248,7 @@ test("traces an image in the worker, saves it, applies it, and restores the libr
   for await (const chunk of stream) chunks.push(Buffer.from(chunk));
   const exported = JSON.parse(Buffer.concat(chunks).toString("utf8"));
   expect(exported.charts).toHaveLength(1);
+  expect(exported.charts[0].review).toMatchObject({ version: 1, profile: "contour-topology-v1", contours: true, alignment: true, layers: true });
   expect(exported.charts[0].lake.hylakId).toBe(900001);
   expect(exported.charts[0].grid.depthsDm.length).toBeGreaterThan(0);
   expect(exported.project.userDepthCharts["900001"].id).toBe(exported.charts[0].id);
@@ -160,7 +261,7 @@ test("traces an image in the worker, saves it, applies it, and restores the libr
   expect(errors).toEqual([]);
 });
 
-test("recovers from invalid uploads and a blank PDF cover, and places points at narrow widths", async ({ page }, testInfo) => {
+test("recovers from invalid uploads and a blank PDF cover, and reviews contours at narrow widths", async ({ page }, testInfo) => {
   test.setTimeout(120_000);
   await openCharts(page);
   const file = page.locator(".chart-upload input");
@@ -173,20 +274,22 @@ test("recovers from invalid uploads and a blank PDF cover, and places points at 
   await expect(page.locator(".chart-canvas")).toBeVisible({ timeout: 30_000 });
   await expect(page.locator(".chart-error")).toHaveCount(0);
   await page.setViewportSize({ width: 390, height: 844 });
-  await mark(page, "5", 275, 140);
-  await mark(page, "10", 130, 140);
-  await expect(page.locator(".chart-depths li")).toHaveCount(2);
-  await page.getByRole("button", { name: "Undo last point" }).click();
-  await expect(page.locator(".chart-depths li")).toHaveCount(1);
-  await expect(page.getByRole("button", { name: "Trace chart", exact: true })).toBeDisabled();
-  await mark(page, "10", 130, 140);
-  await expect(page.locator(".chart-depth-guide").getByRole("button", { name: "Trace chart", exact: true })).toBeDisabled();
-  await mark(page, "0", 320, 140);
-  await page.getByRole("button", { name: "Trace chart", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Prepare contours for review", exact: true })).toBeEnabled();
+  await page.getByRole("button", { name: "Prepare contours for review", exact: true }).click();
+  await reviewContours(page);
   await expect(page.locator(".chart-result")).toBeVisible({ timeout: 60_000 });
   await expect(page.locator(".chart-report")).toContainText("100%");
+  await expect(page.locator(".depth-3d canvas:visible")).toBeVisible();
+  const editor = await page.locator(".chart-editor").boundingBox();
+  const three = await page.locator(".chart-result__3d").boundingBox();
+  const dem = await page.locator(".chart-result__dem").boundingBox();
+  expect(three!.y).toBeGreaterThan(editor!.y + editor!.height);
+  expect(dem!.y).toBeGreaterThan(three!.y + three!.height);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.locator(".depth-3d").scrollIntoViewIfNeeded();
   await page.screenshot({ path: testInfo.outputPath("depth-chart-mobile.png") });
+  await page.locator(".chart-preview").scrollIntoViewIfNeeded();
+  await page.screenshot({ path: testInfo.outputPath("depth-chart-mobile-dem.png") });
 });
 
 
@@ -206,4 +309,165 @@ test("selects a lake on the map without changing the terrain location", async ({
 test("discovers and highlights lakes on first open before any search or selection", async ({ page }) => {
   await openCharts(page, true, true);
   await expect(page.locator(".chart-chosen")).toContainText("Round Lake");
+});
+
+
+test("prepares native PDF paths without raster marks and requires review", async ({ page }) => {
+  await openCharts(page);
+  await page.locator(".chart-upload input").setInputFiles({ name: "native.pdf", mimeType: "application/pdf", buffer: chartPdf() });
+  const number = page.getByRole("spinbutton", { name: "Page, of 2", exact: true });
+  await number.fill("2"); await number.press("Tab");
+  await page.getByText("Use native PDF lines (recommended)", { exact: true }).click();
+  const style = page.getByRole("checkbox", { name: /Line style 1/ });
+  await expect(style).toBeVisible();
+  await style.check();
+  await expect(page.locator(".chart-depths li")).toHaveCount(0);
+  await page.getByRole("button", { name: "Prepare contours for review", exact: true }).click();
+  await expect(page.getByLabel("Select review contour", { exact: true }).locator('option:not([value=""])')).toHaveCount(3);
+  await expect(page.getByRole("button", { name: "Generate reviewed depths", exact: true })).toBeDisabled();
+  await expect(page.locator(".chart-report")).toHaveCount(0);
+});
+
+
+test("chart repair keeps source coordinates accurate through zoom, pan, and pinch", async ({ page }) => {
+  await openCharts(page);
+  await page.locator(".chart-upload input").setInputFiles({ name: "native.pdf", mimeType: "application/pdf", buffer: chartPdf() });
+  const pageNumber = page.getByRole("spinbutton", { name: "Page, of 2", exact: true });
+  await pageNumber.fill("2"); await pageNumber.press("Tab");
+  await page.getByText("Use native PDF lines (recommended)", { exact: true }).click();
+  await page.getByRole("checkbox", { name: /Line style 1/ }).check();
+  await page.getByRole("button", { name: "Prepare contours for review", exact: true }).click();
+  const source = page.locator(".review-source");
+  const viewport = source.locator("[data-svg-viewport]");
+  const svg = source.locator("svg[aria-label='Source with reviewed contour overlay']");
+  await source.getByRole("button", { name: "Zoom in", exact: true }).click();
+  await expect(viewport).toHaveAttribute("data-render-zoom", "1.50");
+  await page.getByRole("button", { name: "Alignment", exact: true }).click();
+  await page.getByRole("button", { name: "Place alignment point", exact: true }).click();
+  await viewport.scrollIntoViewIfNeeded();
+  const bounds = await viewport.boundingBox();
+  const center = { x: Math.round(bounds!.x + bounds!.width / 2), y: Math.round(bounds!.y + bounds!.height / 2) };
+  const before = await svg.evaluate(el => { const p = new DOMPoint(100,100).matrixTransform((el as SVGSVGElement).getScreenCTM()!); return {x:p.x,y:p.y}; });
+  await page.mouse.move(center.x,center.y); await page.mouse.down();
+  await page.mouse.move(center.x + 35,center.y + 20,{steps:6}); await page.mouse.up();
+  await expect(page.getByRole("spinbutton", { name: "Longitude 1", exact: true })).toHaveCount(0);
+  const after = await svg.evaluate(el => { const p = new DOMPoint(100,100).matrixTransform((el as SVGSVGElement).getScreenCTM()!); return {x:p.x,y:p.y}; });
+  expect(after.x-before.x).toBeCloseTo(35,0); expect(after.y-before.y).toBeCloseTo(20,0);
+  const local = await svg.evaluate((el,p) => { const v=new DOMPoint(p.x,p.y).matrixTransform((el as SVGSVGElement).getScreenCTM()!.inverse());return {x:v.x,y:v.y}; },center);
+  await page.mouse.click(center.x,center.y);
+  await expect(page.locator(".review-editor legend").filter({hasText:"Alignment point 1"})).toHaveText(`Alignment point 1 · pixel ${local.x.toFixed(1)}, ${local.y.toFixed(1)}`);
+  await page.getByRole("button", { name: "Remove alignment point 1", exact: true }).click();
+  await page.getByRole("button", { name: "Draw new contour", exact: true }).click();
+  // Same touch handlers as the flat/cut views. Synthetic pointers cannot acquire native capture.
+  await viewport.evaluate(async el => {
+    const r=el.getBoundingClientRect(), x=r.x+r.width/2, y=r.y+r.height/2;
+    const capture=el.setPointerCapture; el.setPointerCapture=()=>{};
+    const fire=(type:string,id:number,dx:number)=>el.dispatchEvent(new PointerEvent(type,{pointerId:id,pointerType:"touch",button:0,clientX:x+dx,clientY:y,bubbles:true,cancelable:true}));
+    try {fire("pointerdown",1,-30);fire("pointerdown",2,30);fire("pointermove",1,-45);fire("pointermove",2,45);fire("pointerup",2,45);fire("pointerup",1,-45);
+      el.dispatchEvent(new MouseEvent("click",{detail:1,clientX:x,clientY:y,bubbles:true,cancelable:true}));
+      await new Promise(requestAnimationFrame);
+    } finally {el.setPointerCapture=capture;}
+  });
+  await expect.poll(async()=>Number(await viewport.getAttribute("data-zoom"))).toBeGreaterThan(1.5);
+  await expect(page.getByRole("button", { name: "Finish closed path", exact: true })).toBeDisabled();
+  await viewport.scrollIntoViewIfNeeded();
+  for(const offset of [0,20]) {const r=await viewport.boundingBox();await page.mouse.click(r!.x+r!.width/2+offset,r!.y+r!.height/2);}
+  await expect(page.getByRole("button", { name: "Finish closed path", exact: true })).toBeDisabled();
+  const keyboardPath = svg.locator("path[role='button']").first();
+  await keyboardPath.evaluate(el => (el as SVGElement).focus({preventScroll:true}));
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("button", { name: "Finish closed path", exact: true })).toBeEnabled();
+  await source.getByRole("button", { name: "Reset chart review view", exact: true }).click();
+  await expect(viewport).toHaveAttribute("data-zoom", "1.00");
+  await page.getByRole("button", { name: "Cancel drawing", exact: true }).click();
+  await viewport.scrollIntoViewIfNeeded();
+  const contour = svg.locator("path[role='button']").first();
+  const hit = await contour.evaluate(el => {
+    const path=el as SVGPathElement, p=path.getPointAtLength(path.getTotalLength()*.2).matrixTransform(path.getScreenCTM()!);
+    return {x:p.x,y:p.y,id:el.getAttribute("aria-label")!.split(",")[0]!};
+  });
+  await page.mouse.click(hit.x,hit.y);
+  await expect(page.getByLabel("Select review contour", {exact:true})).toHaveValue(hit.id);
+});
+
+for (const topology of ["island", "rise"] as const) test(`reviews and restores an explicit ${topology} before generation`, async ({ page }) => {
+  test.setTimeout(120_000);
+  await openCharts(page);
+  await page.locator(".chart-upload input").setInputFiles({name:"topology.pdf",mimeType:"application/pdf",buffer:chartPdf()});
+  const pageNumber = page.getByRole("spinbutton", {name:"Page, of 2",exact:true});
+  await pageNumber.fill("2"); await pageNumber.press("Tab");
+  await expect(page.locator(".chart-canvas")).toBeVisible();
+  await page.getByRole("button", {name:"Prepare contours for review",exact:true}).click();
+  await reviewContours(page, topology);
+  await expect(page.locator(".chart-report")).toContainText("100%");
+  await page.screenshot({path:test.info().outputPath(`reviewed-${topology}.png`)});
+});
+
+test("joins visible path fragments with hover feedback, cancellation, and undo", async ({ page }) => {
+  await openCharts(page);
+  await page.locator(".chart-upload input").setInputFiles({name:"fragments.pdf",mimeType:"application/pdf",buffer:chartPdf()});
+  const pageNumber = page.getByRole("spinbutton", {name:"Page, of 2",exact:true});
+  await pageNumber.fill("2"); await pageNumber.press("Tab");
+  await page.getByRole("button", {name:"Prepare contours for review",exact:true}).click();
+  async function exportDraft() {
+    const download = page.waitForEvent("download");
+    await page.getByRole("button", {name:"Export review draft",exact:true}).click();
+    const stream = await (await download).createReadStream();
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+    return JSON.parse(Buffer.concat(chunks).toString());
+  }
+  const draft = await exportDraft();
+  const {width,height} = draft.source;
+  const contour = (id:string, value:number, points:number[][], closed=false) => ({id,value,points:points.map(([x,y])=>[x!*width,y!*height]),closed,confirmed:true,excluded:false});
+  draft.review = {shorelineId:"",controlPoints:[],alignmentConfirmed:false,contours:[
+    contour("source",5,[[.2,.4],[.4,.4]]),
+    contour("target",5,[[.5,.45],[.65,.6]]),
+    contour("wrong-value",9,[[.2,.7],[.4,.7]]),
+    contour("closed",5,[[.7,.2],[.9,.2],[.8,.3]],true),
+  ]};
+  await page.locator(".chart-review-restore input").setInputFiles({name:"fragments.json",mimeType:"application/json",buffer:Buffer.from(JSON.stringify(draft))});
+  const svg = page.locator("svg[aria-label='Source with reviewed contour overlay']");
+  const path = (id:string) => svg.locator(`path[role='button'][aria-label^='${id},']`);
+  const point = async (id:string) => path(id).evaluate(el => {
+    const p = el as SVGPathElement;
+    const at = p.getPointAtLength(p.getTotalLength()/2).matrixTransform(p.getScreenCTM()!);
+    return {x:at.x,y:at.y};
+  });
+  const source = await point("source"); await page.mouse.click(source.x,source.y);
+  const choose = page.getByLabel("Select review contour", {exact:true});
+  await page.getByRole("button", {name:"Join paths",exact:true}).click();
+  const target = await point("target"); await page.mouse.move(target.x,target.y);
+  await expect(svg.locator('[data-join-target="valid"]')).toHaveCount(1);
+  await expect(svg.locator('[aria-label="Proposed endpoint connection"]')).toHaveCount(1);
+  await expect(choose).toHaveValue("source");
+  await page.screenshot({path:test.info().outputPath("join-target-preview.png")});
+  // Dragging a target pans the chart and must not commit a join.
+  await page.mouse.down(); await page.mouse.move(target.x+20,target.y+10,{steps:5}); await page.mouse.up();
+  await expect(path("target")).toHaveCount(1);
+  await expect(page.getByRole("button", {name:"Cancel joining",exact:true})).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", {name:"Cancel joining",exact:true})).toHaveCount(0);
+  await page.getByRole("button", {name:"Join paths",exact:true}).click();
+  const wrong = await point("wrong-value"); await page.mouse.click(wrong.x,wrong.y);
+  await expect(page.locator('.review-join-status')).toContainText("same value");
+  await expect(choose).toHaveValue("source");
+  await expect(path("target")).toHaveCount(1);
+  const next = await point("target"); await page.mouse.click(next.x,next.y);
+  await expect(path("target")).toHaveCount(0);
+  await expect(page.locator('.review-join-status')).toContainText("Paths joined");
+  const joined = await exportDraft();
+  expect(joined.review.contours[0]).toMatchObject({id:"source",confirmed:false,points:[...draft.review.contours[0].points,...draft.review.contours[1].points]});
+  expect(joined.review.contours[1].excluded).toBe(true);
+  await page.getByRole("button", {name:"Undo edit",exact:true}).click();
+  await expect(path("target")).toHaveCount(1);
+  await page.getByRole("button", {name:"Redo edit",exact:true}).click();
+  await expect(path("target")).toHaveCount(0);
+  await page.getByRole("button", {name:"Undo edit",exact:true}).click();
+  await page.getByRole("button", {name:"Join paths",exact:true}).click();
+  await path("target").evaluate(el => (el as SVGElement).focus({preventScroll:true}));
+  await expect(svg.locator('[data-join-target="valid"]')).toHaveCount(1);
+  await page.keyboard.press("Enter");
+  await expect(path("target")).toHaveCount(0);
 });

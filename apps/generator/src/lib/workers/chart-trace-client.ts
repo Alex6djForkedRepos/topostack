@@ -1,3 +1,4 @@
+import { prepareChartReview, type ChartReview } from "$lib/domain/chart-review";
 import { detectChartContours, type ChartContour } from "$lib/domain/chart-contours";
 import { buildChartFromImage, type ChartBuildRequest, type ChartBuildResult } from "$lib/domain/chart-build";
 import { palette, type Swatch } from "@topostack/chart-trace/raster";
@@ -24,6 +25,7 @@ interface WorkerReply {
   swatches?: Swatch[];
   built?: ChartBuildResult;
   contours?: ChartContour[];
+  review?: ChartReview;
   error?: string;
 }
 
@@ -55,6 +57,10 @@ export class ChartTraceClient {
 
   contours(image: ChartBuildRequest["image"]): Promise<ChartContour[]> {
     return this.send<ChartContour[]>({ kind: "contours", image }, () => detectChartContours(image));
+  }
+
+  prepare(request: ChartBuildRequest): Promise<ChartReview> {
+    return this.send<ChartReview>({ kind: "prepare", request }, () => prepareChartReview(request));
   }
 
   /** Trace, place and grid one chart. */
@@ -114,7 +120,7 @@ export class ChartTraceClient {
     if (!pending) return;
     this.pending.delete(reply.id);
     if (reply.error !== undefined) pending.reject(new Error(reply.error));
-    else pending.resolve((reply.built ?? reply.swatches ?? reply.contours) as never);
+    else pending.resolve((reply.built ?? reply.swatches ?? reply.contours ?? reply.review) as never);
   }
 
   private fail(error: Error): void {
