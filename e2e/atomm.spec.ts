@@ -58,7 +58,7 @@ test("Atomm uses the platform export hook and template layout across desktop, RT
   // The embed has no Generate step: it loads real terrain on its own.
   await expect(studio.getByRole("button", { name: "Generate terrain", exact: true })).toHaveCount(0);
   await expect(studio.locator(".status-line")).toContainText("Real terrain ready", { timeout: 45_000 });
-  expect([...await studio.locator('.mode-switch [role="radio"]').allTextContents()].map(text => text.trim())).toEqual(["Map", "2D", "3D", "Export"]);
+  expect([...await studio.locator('.mode-switch [role="radio"]').allTextContents()].map(text => text.trim())).toEqual(["2D", "3D", "Export"]);
   await studio.getByRole("button", { name: "Cut size", exact: true }).click();
   const width = studio.getByRole("spinbutton", { name: "Width", exact: true });
   expect(await width.evaluate(el => el.closest(".number-input")!.getBoundingClientRect().width)).toBe(92);
@@ -75,8 +75,8 @@ test("Atomm uses the platform export hook and template layout across desktop, RT
   await studio.getByRole("radio", { name: "Export", exact: true }).click();
   const manifest = studio.locator(".export-manifest");
   await expect(manifest).toContainText(master.files[0]!.filename, { timeout: PREVIEW_TIMEOUT_MS });
-  await expect(manifest).toContainText("Red · Cut");
-  await expect(manifest).toContainText("Blue · Score");
+  await expect(manifest).toContainText("Red line · Cut");
+  await expect(manifest).toContainText("Blue line · Score");
   // Credits share the zoom cluster's row, as light text without a plate.
   const zoomBox = await studio.locator(".atomm-zoom-cluster").boundingBox();
   const creditBox = await studio.locator(".preview-attribution").boundingBox();
@@ -88,6 +88,15 @@ test("Atomm uses the platform export hook and template layout across desktop, RT
     return !doc.querySelector("parsererror") && [...doc.querySelectorAll("path")].every(path =>
       path.getAttribute("fill") === "none" && ["#2366FF", "#FE0002"].includes(path.getAttribute("stroke") ?? ""));
   }, master.files[0]!.text)).toBe(true);
+  // Invalid edits remain visible, with the last valid fabrication model unchanged.
+  await width.fill("99999");
+  await width.blur();
+  await expect(width).toHaveValue("99999");
+  await expect(width).toHaveAttribute("aria-invalid", "true");
+  await expect(studio.locator(".atomm-number-error")).toContainText("10000");
+  expect((await invoke("openInStudio")).files[0]!.text).toBe(master.files[0]!.text);
+  await width.fill("300");
+  await expect(width).not.toHaveAttribute("aria-invalid", "true");
   // Parameter edits must change exported geometry without another Generate.
   await studio.getByRole("button", { name: "Terrain layers", exact: true }).click();
   await studio.getByRole("spinbutton", { name: "Vertical exaggeration", exact: true }).fill("8");
@@ -133,18 +142,18 @@ test("Atomm uses the platform export hook and template layout across desktop, RT
   await arrows.scrollIntoViewIfNeeded();
   expect(await arrows.locator("button").evaluateAll(buttons => buttons.every(button => button.scrollWidth <= button.clientWidth))).toBe(true);
   expect(await arrows.evaluate(el => el.getBoundingClientRect().right <= el.closest(".gen-rail-params")!.getBoundingClientRect().right - 16)).toBe(true);
-  // The font picker is one row; its open list must stay inside the rail too.
+  // The embed uses the platform's native keyboard/touch picker without a clipping popup.
   const fontPicker = studio.getByRole("combobox", { name: "Engraving font", exact: true });
   await fontPicker.scrollIntoViewIfNeeded();
-  await fontPicker.click();
-  const fontList = studio.getByRole("listbox", { name: "Engraving font", exact: true });
-  await expect(fontList.getByRole("option")).toHaveCount(11);
-  for (const element of [fontPicker, fontList]) {
-    expect(await element.evaluate(el => el.getBoundingClientRect().right <= el.closest(".gen-rail-params")!.getBoundingClientRect().right - 16)).toBe(true);
-  }
-  expect(await fontList.getByRole("option").evaluateAll(options => options.every(option => option.scrollWidth <= option.clientWidth))).toBe(true);
-  await fontList.press("Escape");
-  await expect(fontList).toBeHidden();
+  expect(await fontPicker.evaluate(el => el.tagName)).toBe("SELECT");
+  await expect(fontPicker.locator("option")).toHaveCount(11);
+  expect(await fontPicker.evaluate(el => ({ width: el.getBoundingClientRect().width, height: el.getBoundingClientRect().height }))).toEqual({ width: 110, height: 28 });
+  await fontPicker.selectOption({ label: "Jost" });
+  await expect(studio.locator(".preview-stage")).toHaveAttribute("aria-busy", "false", { timeout: PREVIEW_TIMEOUT_MS });
+  await studio.getByRole("radio", { name: "Export", exact: true }).click();
+  await expect(manifest).toContainText("Blue fill · Engrave", { timeout: PREVIEW_TIMEOUT_MS });
+  await fontPicker.selectOption({ label: "Technical" });
+  await expect(studio.locator(".preview-stage")).toHaveAttribute("aria-busy", "false", { timeout: PREVIEW_TIMEOUT_MS });
   await studio.getByRole("radio", { name: "2D", exact: true }).click();
   expect(await studio.locator(".mode-switch").evaluate(el => getComputedStyle(el).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
   expect(await studio.locator(".status-line").evaluate(el => getComputedStyle(el).whiteSpace)).toBe("normal");
@@ -155,6 +164,10 @@ test("Atomm uses the platform export hook and template layout across desktop, RT
   expect(all.error).toBe("");
   expect(all.files.length).toBeGreaterThan(4);
   expect(all.files.every(file => !/[\\/]/.test(file.filename))).toBe(true);
+  await studio.getByRole("radio", { name: "Export", exact: true }).click();
+  const total = all.files.reduce((sum, file) => sum + file.bytes, 0);
+  const sizeLabel = total < 1024 ? `${total} B` : total < 1024 * 1024 ? `${Math.round(total / 1024)} KB` : `${(total / 1024 / 1024).toFixed(1)} MB`;
+  await expect(manifest.locator("summary")).toContainText(sizeLabel, { timeout: PREVIEW_TIMEOUT_MS });
   await studio.getByRole("radio", { name: "Flat engraving" }).click();
   await expect(studio.locator(".preview-stage")).toHaveAttribute("aria-busy", "false", { timeout: PREVIEW_TIMEOUT_MS });
   const flat = await invoke("openInStudio");
@@ -226,15 +239,16 @@ test("Atomm map selection tools leave view, Tips, and zoom controls accessible",
   for (const [width, height, direction] of [[1280, 900, "ltr"], [960, 600, "ltr"], [700, 800, "ltr"], [390, 700, "ltr"], [1280, 900, "rtl"]] as const) {
     await page.setViewportSize({ width, height });
     await studio.locator("html").evaluate((el, dir) => el.setAttribute("dir", dir), direction);
-    await studio.getByRole("radio", { name: "Map", exact: true }).click();
+    await studio.getByRole("button", { name: "Edit map area", exact: true }).click();
     await expect(studio.locator(".map-wrap")).toBeVisible();
+    await expect(studio.getByRole("radio", { name: "2D", exact: true })).toHaveAttribute("tabindex", "0");
     await expect(studio.locator(".selection-tools")).toHaveCount(0);
     expect(await studio.locator(".map-wrap").evaluate(el => getComputedStyle(el).isolation)).toBe("isolate");
     const lock = studio.locator(".gen-rail-lead #section-setup").getByRole("checkbox", { name: "Lock aspect ratio", exact: true });
     await expect(studio.locator(".gen-rail-params").getByRole("checkbox", { name: "Lock aspect ratio" })).toHaveCount(0);
     await lock.check();
     await studio.getByRole("radio", { name: "2D", exact: true }).click();
-    await studio.getByRole("radio", { name: "Map", exact: true }).click();
+    await studio.getByRole("button", { name: "Edit map area", exact: true }).click();
     await expect(lock).toBeChecked();
     if (width === 1280 && direction === "ltr") {
       const guide = studio.locator(".crop-guide");
@@ -266,7 +280,7 @@ test("Atomm map selection tools leave view, Tips, and zoom controls accessible",
   await expect(studio.locator(".gen-rail-params .custom-data-section")).toHaveCount(0);
   await expect(lead.locator('.config-section + .custom-data-section')).toHaveCount(1);
   await custom.click();
-  await studio.getByRole("radio", { name: "Map", exact: true }).click();
+  await studio.getByRole("button", { name: "Edit map area", exact: true }).click();
   await lead.getByRole("button", { name: "Add marker", exact: true }).click();
   await expect(studio.locator(".topostack-map-marker")).toHaveCount(1);
   await lead.getByRole("radio", { name: "Star", exact: true }).click();
@@ -515,7 +529,7 @@ for (const embedded of [true, false]) {
       await expect(loader).toBeVisible();
       await expect(loader).toHaveAttribute("aria-hidden", "true");
       const ring = loader.locator("span").first();
-      expect(await ring.evaluate(el => getComputedStyle(el).animationName)).toBe("contour");
+      expect(await ring.evaluate(el => getComputedStyle(el).animationName)).toBe(embedded ? "none" : "contour");
       await page.emulateMedia({ reducedMotion: "reduce" });
       expect(await ring.evaluate(el => getComputedStyle(el).animationName)).toBe("none");
       await expect(overlay).toContainText("Step 3 of 3");
@@ -526,3 +540,49 @@ for (const embedded of [true, false]) {
     } finally { releaseWorker(); }
   });
 }
+
+test("Atomm controls and Tips remain reachable in narrow and short frames", async ({ page }, testInfo) => {
+  test.setTimeout(120_000);
+  await page.route("**/v1/**", route => route.abort());
+  await page.route("https://static-res.makextool.com/**", route => route.fulfill({ contentType: "application/javascript", body: `window.atomm = { lifecycle: { on() {} }, app: { getLocale: async () => 'en', getSupportedLocales: async () => [] } };` }));
+  await page.route("**/atomm-layout", route => route.fulfill({ contentType: "text/html", body: '<body style="margin:0"><iframe src="/studio" style="width:100%;height:100vh;border:0;display:block"></iframe>' }));
+  await page.goto("/atomm-layout");
+  const studio = page.frameLocator("iframe");
+  await expect(studio.locator(".status-line")).toContainText("Real terrain ready", { timeout: 45_000 });
+  for (const direction of ["ltr", "rtl"]) {
+    await studio.locator("html").evaluate((el, value) => el.setAttribute("dir", value), direction);
+    for (const width of [1280, 960, 700, 390, 320]) {
+      await page.setViewportSize({ width, height: 800 });
+      for (const collapsed of [false, true]) {
+        if (collapsed) await studio.getByRole("button", { name: "Collapse Terrain project", exact: true }).click();
+        for (const view of ["2D", "3D", "Export"]) {
+          const control = studio.getByRole("radio", { name: view, exact: true });
+          await control.click();
+          await expect(control).toHaveAttribute("aria-checked", "true");
+        }
+        const tabs = (await studio.locator(".mode-switch").boundingBox())!;
+        const tips = (await studio.getByRole("button", { name: "Tips", exact: true }).boundingBox())!;
+        expect(tabs.x + tabs.width <= tips.x || tips.x + tips.width <= tabs.x || tabs.y + tabs.height <= tips.y || tips.y + tips.height <= tabs.y).toBe(true);
+        await studio.getByRole("button", { name: "Tips", exact: true }).click();
+        await expect(studio.getByRole("dialog", { name: "Fabrication tips" })).toBeVisible();
+        await page.keyboard.press("Escape");
+        if (width === 960 && direction === "ltr") await page.screenshot({ path: testInfo.outputPath(`fixed-controls-${collapsed}.png`) });
+        if (collapsed) await studio.getByRole("button", { name: "Expand Terrain project", exact: true }).click();
+      }
+    }
+  }
+  for (const height of [480, 320]) {
+    await page.setViewportSize({ width: 700, height });
+    await studio.getByRole("button", { name: "Tips", exact: true }).click();
+    const dialog = studio.getByRole("dialog", { name: "Fabrication tips" });
+    for (let step = 0; step < 7; step++) {
+      const next = dialog.getByRole("button", { name: step === 6 ? "Done" : "Next", exact: true });
+      const bounds = (await dialog.boundingBox())!;
+      const button = (await next.boundingBox())!;
+      expect(button.y).toBeGreaterThanOrEqual(bounds.y);
+      expect(button.y + button.height).toBeLessThanOrEqual(bounds.y + bounds.height);
+      await next.click();
+    }
+    await expect(dialog).toBeHidden();
+  }
+});

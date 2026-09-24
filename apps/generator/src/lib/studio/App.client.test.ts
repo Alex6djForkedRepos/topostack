@@ -1806,7 +1806,7 @@ describe("TopoStack Svelte shell", () => {
     await vi.waitFor(() => expect(target.querySelector(".status-line")?.textContent).toContain("Real terrain ready"));
     expect(loadTerrainMock).toHaveBeenCalledOnce();
     expect(target.querySelector(".generate-button, .generate-retry")).toBeNull();
-    expect([...target.querySelectorAll('.mode-switch [role="radio"]')].map((tab) => tab.textContent?.trim())).toEqual(["Map", "2D", "3D", "Export"]);
+    expect([...target.querySelectorAll('.mode-switch [role="radio"]')].map((tab) => tab.textContent?.trim())).toEqual(["2D", "3D", "Export"]);
     // Depth charts and graphics belong to the full studio.
     expect(target.textContent).not.toContain("Upload SVG");
 

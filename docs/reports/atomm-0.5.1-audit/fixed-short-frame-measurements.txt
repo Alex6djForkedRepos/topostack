@@ -1,0 +1,33 @@
+{
+  dialog: {
+    x: 400,
+    y: 16,
+    width: 480,
+    height: 448,
+    top: 16,
+    right: 880,
+    bottom: 464,
+    left: 400
+  },
+  footer: {
+    x: 400,
+    y: 398,
+    width: 480,
+    height: 66,
+    top: 398,
+    right: 880,
+    bottom: 464,
+    left: 400
+  },
+  next: {
+    x: 798.5625,
+    y: 414,
+    width: 57.4375,
+    height: 32,
+    top: 414,
+    right: 856,
+    bottom: 446,
+    left: 798.5625
+  },
+  overflow: 'hidden'
+}

@@ -19,8 +19,8 @@ export const ENGRAVING_MODE_OPTIONS = [{ value: "map", label: "Map" }, { value: 
  * The Atomm embed's view tabs: its lead rail carries markers and paths, and
  * the platform asks for an Export view that shows what leaves the generator.
  */
-export const ATOMM_STACK_MODE_OPTIONS = [{ value: "map", label: "Map" }, { value: "2d", label: "2D" }, { value: "3d", label: "3D" }, { value: "export", label: "Export" }];
-export const ATOMM_ENGRAVING_MODE_OPTIONS = [{ value: "map", label: "Map" }, { value: "engraving", label: "Engraving" }, { value: "export", label: "Export" }];
+export const ATOMM_STACK_MODE_OPTIONS = [ { value: "2d", label: "2D" }, { value: "3d", label: "3D" }, { value: "export", label: "Export" }];
+export const ATOMM_ENGRAVING_MODE_OPTIONS = [ { value: "engraving", label: "Engraving" }, { value: "export", label: "Export" }];
 /** The engraving fonts, grouped by how a laser runs them. */
 export const FONT_GROUPS: Array<{ kind: FontKind; label: string; hint: string; fonts: FontCatalogEntry[] }> = ([
   { kind: "bitmap", label: "Built-in", hint: "Compact capitals drawn as short strokes." },

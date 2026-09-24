@@ -743,9 +743,9 @@ html:has(.atomm-workbench), body:has(.atomm-workbench) { height: 100%; margin: 0
   .preview-update-overlay .contour-loader { display: none; }
   .generation-overlay strong { margin: 0; font: var(--font-14-medium); }
   .generation-overlay small { margin: 0; color: var(--color-text-secondary); opacity: 1; font: var(--font-12-regular); }
-  .generation-overlay.preview-update-overlay { inset: auto auto var(--gutter) 50%; translate: -50% 0; display: flex; flex-direction: row; align-items: center; width: auto; max-width: 200px; height: var(--control-md); padding: 0 var(--space-150); border: 0; border-radius: var(--radius-large); background: var(--color-bg-default); box-shadow: none; backdrop-filter: none; }
+  .generation-overlay.preview-update-overlay { inset: auto auto var(--gutter) 50%; translate: -50% 0; display: flex; flex-direction: column; align-items: center; gap: 2px; width: max-content; max-width: min(280px, calc(100% - 32px)); height: auto; padding: var(--space-100) var(--space-150); border: 0; border-radius: var(--radius-large); background: var(--color-bg-default); box-shadow: none; backdrop-filter: none; }
   .generation-overlay.preview-update-overlay strong { font: var(--font-12-regular); color: var(--color-text-secondary); white-space: nowrap; }
-  .generation-overlay.preview-update-overlay small { display: none; }
+  .generation-overlay.preview-update-overlay small { display: block; white-space: normal; font-size: 11px; }
   .gen-params-header .unit-switch { width: auto; }
   .project-identity { display: contents; }
   .project-name { width: 100%; border: 0; padding: 0; gap: 8px; }
@@ -963,4 +963,44 @@ html:has(.atomm-workbench), body:has(.atomm-workbench) { height: 100%; margin: 0
   /* Tall enough for the longest slide, so Back and Next stay put from step to step. */
   .atomm-tips-dialog .dialog-body { min-height: 184px; }
   .atomm-tips-dialog .dialog-media img { display: block; width: 100%; height: 100%; object-fit: cover; }
+}
+
+/* Keep canvas controls reachable at the rail breakpoint and in narrow embeds. */
+.atomm-workbench.atomm-workbench {
+  .gen-canvas { container: atomm-canvas / inline-size; min-width: 0; }
+  .preview-toolbar { inset-inline: 0; }
+  .mode-switch .ldt-toggle-group__item { flex-shrink: 0; }
+  .atomm-edit-map { width: 100%; margin-top: var(--space-100); }
+  .atomm-font-picker { margin: 0; }
+  .atomm-font-picker > small { display: block; margin: 0 var(--gutter) var(--space-100); }
+  .atomm-number-control { position: relative; display: flex; flex-direction: column; flex: 0 0 92px; width: 92px; min-width: 0; }
+  .number-input .atomm-number-control, .coordinate-row .atomm-number-control { flex: 1 1 auto; width: 100%; }
+  .number-input:has(.atomm-number-error) { height: auto; background: transparent; border-color: transparent; }
+  .atomm-number[aria-invalid="true"] { border: 1px solid var(--color-red-default); }
+  .atomm-number-error { display: block; margin-top: 4px; color: var(--color-text-primary); font: var(--font-12-regular); overflow-wrap: anywhere; }
+  .number-input:has(.atomm-number-error) em { color: var(--color-text-secondary); }
+  input.slider::-webkit-slider-runnable-track { background: linear-gradient(to right, var(--color-brand-default) var(--fill, 0%), var(--color-track-off) var(--fill, 0%)); }
+  input.slider:dir(rtl)::-webkit-slider-runnable-track { background: linear-gradient(to left, var(--color-brand-default) var(--fill, 0%), var(--color-track-off) var(--fill, 0%)); }
+  input.slider::-moz-range-progress { height: 3px; background: var(--color-brand-default); border-radius: var(--radius-circle); }
+  input.slider:disabled::-webkit-slider-runnable-track { background: var(--color-stroke-divider); }
+  input.slider:disabled::-moz-range-progress { background: var(--color-stroke-divider); }
+  input.slider:disabled::-webkit-slider-thumb, input.slider:disabled::-moz-range-thumb { border-color: var(--color-stroke-default); }
+  .atomm-tips-content { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+  .atomm-tips-dialog .dialog-body { min-height: 0; overflow: visible; }
+  .atomm-tips-dialog .dialog-media { height: auto; aspect-ratio: 480 / 267; }
+  .atomm-tips-dialog .dialog-footer { flex-wrap: wrap; gap: 8px; }
+  .export-key { flex-wrap: wrap; gap: var(--space-100) var(--space-300); }
+  .export-key span { display: inline-flex; align-items: center; gap: var(--space-50); }
+  .export-key .export-key-score { margin: 0; }
+  .export-key .export-key-fill { height: 10px; background: var(--color-blue-default); }
+  /* Progress is expressed by the stage and number, not a looping decoration. */
+  .contour-loader span { animation: none; }
+  @container atomm-canvas (max-width: 400px) {
+    .preview-toolbar { inset-block-start: 64px; }
+    .warning-stack, .export-manifest { inset-block-start: 112px; }
+  }
+  @container atomm-canvas (max-width: 760px) {
+    .lead-collapsed .preview-toolbar { inset-block-start: 64px; }
+    .lead-collapsed .warning-stack, .lead-collapsed .export-manifest { inset-block-start: 112px; }
+  }
 }

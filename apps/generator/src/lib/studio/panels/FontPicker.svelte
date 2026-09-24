@@ -4,7 +4,8 @@
   // one row that opens a grouped list over the sidebar. Built like HeaderMenu:
   // the theme's Select is a native <select> that cannot draw samples, and its
   // bits-ui popover is kept out of the studio's startup bundle.
-  import { tick } from "svelte";
+  import { tick, getContext } from "svelte";
+  const isEmbedded = getContext<() => boolean>("atomm-embedded") ?? (() => false);
   import { ChevronDown } from "@lucide/svelte";
   import { fontEntry, labelDimensions, labelPathData, type TextFont } from "@topostack/core";
   import { FONT_SAMPLES } from "$lib/studio/font-samples";
@@ -32,8 +33,8 @@
 
   let open = $state(false);
   let active = $state(0);
-  let root: HTMLElement;
-  let button: HTMLButtonElement;
+  let root = $state<HTMLElement>();
+  let button = $state<HTMLButtonElement>();
   let list = $state<HTMLElement>();
   let typed = "";
   let typedAt = 0;
@@ -51,7 +52,7 @@
 
   function close(restoreFocus: boolean) {
     open = false;
-    if (restoreFocus) button.focus();
+    if (restoreFocus) button?.focus();
   }
 
   function choose(choice: Choice) {
@@ -125,8 +126,19 @@
   </div>
 {/snippet}
 
-<svelte:window onpointerdown={(event) => { if (open && !root.contains(event.target as Node)) close(false); }} />
+<svelte:window onpointerdown={(event) => { if (open && !root?.contains(event.target as Node)) close(false); }} />
 
+{#if isEmbedded()}
+<div class="font-picker atomm-font-picker">
+  <div class="field-row"><label for={`${id}-native`}>{label}</label>
+    <select id={`${id}-native`} aria-describedby={`${id}-hint`} value={selected.key} onchange={(event) => onSelect(choices.find(choice => choice.key === event.currentTarget.value)!.font)}>
+      {#if inherited}<option value={INHERITED}>{inherited.label}</option>{/if}
+      {#each FONT_GROUPS as group (group.kind)}<optgroup label={group.label}>{#each group.fonts as entry (entry.id)}<option value={entry.id}>{entry.name}</option>{/each}</optgroup>{/each}
+    </select>
+  </div>
+  <small id={`${id}-hint`}>{selectedHint}</small>
+</div>
+{:else}
 <div class="font-picker" bind:this={root}>
   <button bind:this={button} type="button" class="font-picker__trigger" role="combobox" aria-label={label} aria-haspopup="listbox" aria-expanded={open} aria-controls={open ? `${id}-list` : undefined} aria-describedby={`${id}-hint`} onclick={() => (open ? close(false) : void show())} onkeydown={onTriggerKey}>
     {@render sample(selected.shown)}
@@ -149,3 +161,5 @@
     </div>
   {/if}
 </div>
+
+{/if}

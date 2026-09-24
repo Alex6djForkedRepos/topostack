@@ -133,7 +133,7 @@ try {
   await save("assembly", await around());
   await view("2D");
   await save("size", await around(24));
-  await view("Map");
+  await frame().evaluate(() => document.querySelector(".atomm-edit-map").click());
   await settle(4000);
   await save("place", centered(VIEWPORT.width));
   await view("Export");

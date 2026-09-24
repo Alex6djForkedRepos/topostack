@@ -1,5 +1,6 @@
 <script lang="ts">
   import { ChevronDown, Layers3, Map as MapIcon, Mountain, Search, Waves } from "@lucide/svelte";
+  import { tick } from "svelte";
   import { Section } from "@loidolt/theme-svelte";
   import { PRESETS } from "$lib/studio/options";
   import Switch from "$lib/studio/StudioSwitch.svelte";
@@ -7,6 +8,11 @@
 
   const studio = getStudio();
   const { choosePlace, sectionSummary, toggleSection } = studio;
+  async function editMapArea(): Promise<void> {
+    studio.mode = "map"; studio.previewNotice = "";
+    await tick();
+    document.querySelector(".atomm-workbench .gen-canvas")?.scrollIntoView({ block: "start" });
+  }
 </script>
 
 <Section class="config-section" aria-labelledby="atomm-setup-title">
@@ -29,7 +35,7 @@
     </span>
     <Search size={17} />
   </button>
-  {#if studio.embeddedInPlatform}<p class="preset-label">Suggested places</p>{/if}
+  {#if studio.embeddedInPlatform}<button type="button" class="btn btn-secondary atomm-edit-map" aria-pressed={studio.mode === "map"} onclick={editMapArea}><MapIcon size={16} aria-hidden="true" />Edit map area</button><p class="preset-label">Suggested places</p>{/if}
   <div class="preset-row" role={studio.embeddedInPlatform ? "group" : undefined} aria-label={studio.embeddedInPlatform ? "Suggested places" : undefined}>
     {#each PRESETS as preset}
       <button onclick={() => choosePlace(preset)}>{#if studio.embeddedInPlatform}{#if preset.id === "crater-lake"}<Waves size={20} aria-hidden="true" />{:else if preset.id === "grand-canyon"}<Layers3 size={20} aria-hidden="true" />{:else}<Mountain size={20} aria-hidden="true" />{/if}{/if}<span>{preset.label.split(",")[0].replace("Mount ", "Mt. ")}</span></button>

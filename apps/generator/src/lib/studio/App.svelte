@@ -718,13 +718,15 @@
     const patch = projectPatch(fromProject, previewProject);
     detailsUpdating = true;
     terrainRefreshing = areaChanged;
-    if (!quiet) status = areaChanged ? "Fetching terrain for the updated map area…" : previewPendingStatus(kind, nextProject);
+    if (!quiet) status = `${embeddedInPlatform ? "Step 1 of 2 · " : ""}${areaChanged ? "Fetching terrain for the updated map area…" : previewPendingStatus(kind, nextProject)}`;
     return pipeline.runPreviewUpdate({
       config: previewProject,
       prepareSource: async (signal) => {
-        if (!areaChanged) return (await preparedSources()).prepare(fromSource, fromProject, previewProject, nextProject, signal);
-        loaded = await loadTerrain(previewProject, signal);
-        return loaded.source;
+        const source = !areaChanged
+          ? await (await preparedSources()).prepare(fromSource, fromProject, previewProject, nextProject, signal)
+          : (loaded = await loadTerrain(previewProject, signal)).source;
+        if (!signal.aborted && !quiet && embeddedInPlatform) status = "Step 2 of 2 · Building preview geometry…";
+        return source;
       },
       onCommit: (next, source) => {
         if (loaded?.fallback) next.warnings.push({ code: "DATA_FALLBACK", message: `The map service was unavailable, so this preview uses deterministic sample terrain.${loaded.fallbackReason ? ` (${loaded.fallbackReason})` : ""}` });

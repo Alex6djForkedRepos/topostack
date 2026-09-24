@@ -33,7 +33,7 @@
         <div class="gen-rail-content">{@render leadHeader()}{@render lead()}{@render generate()}</div>
       </div>
     </aside>
-    <main class="gen-canvas" aria-label="Terrain canvas">
+    <main class="gen-canvas" class:lead-collapsed={collapsed} aria-label="Terrain canvas">
       {@render preview(openLakeDepthHelp)}
       <!-- Collapsed, the rail becomes a 40px pill that keeps its title. -->
       {#if collapsed}<button type="button" class="gen-rail-collapsed" aria-label={`Expand ${RAIL_TITLE}`} aria-expanded="false" onclick={() => collapsed = false}><span class="gen-rail-title">{RAIL_TITLE}</span><PanelLeftOpen size={16} aria-hidden="true" /></button>{/if}
