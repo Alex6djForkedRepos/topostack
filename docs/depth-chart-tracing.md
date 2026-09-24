@@ -2,6 +2,12 @@
 
 Many lakes have no digital survey but do have a published depth chart: a scanned or PDF contour map with depth labels. Tracing a chart turns it into the same depth grid a survey provides, so `carveWaterDepth` carves it with no new geometry code.
 
+## First production profile
+
+Browser uploads now require contour correction and confirmation, explicit geographic calibration, and a separate generated-layer review. Preparation cannot generate depths. Native PDF paths are available by selected line style; raster tracing proposes geometry only. The first profile requires closed, noncrossing contours in a single lake without islands or underwater rises. Legacy unreviewed user charts remain exportable but cannot be applied to new generations. See the [release workflow and measured evidence](reports/chart-first-release-2026-09-23.md).
+
+The engine and curated batch capabilities below include diagnostic inference and automatic placement; those are not automatic approval for the browser production workflow.
+
 ## Status
 
 | Stage | State |
@@ -24,6 +30,8 @@ Many lakes have no digital survey but do have a published depth chart: a scanned
 | Reading printed depths by machine (OCR) | Dropped: depths are typed; see "Depths are typed, never read" |
 | Reviewed catalog submissions through the map-api Worker | Planned |
 
+The [real-chart stress review (2026-09-23)](reports/real-depth-chart-stress-2026-09-23.md) now covers three public-domain USGS charts and eight browser input variants. It found substantial raster/shoreline limitations; successful workflow completion is not an accuracy claim.
+
 ## The record
 
 `UserChartBathymetryV1` is JSON-safe, so one record serves IndexedDB, project files, submission bodies, and the files the batch build commits.
@@ -40,7 +48,7 @@ Many lakes have no digital survey but do have a published depth chart: a scanned
 
 ## What real charts look like
 
-Three public charts were chosen as reference inputs, one for each style the tracer must handle. They are **not committed**. Their publishers' terms do not clearly allow redistribution, and Minnesota's sheet carries a state copyright. Tests that use them should fetch each chart by URL and check it against a SHA-256 pin. Only synthetic fixtures belong in the repo.
+Three public charts were chosen as reference inputs, one for each style the tracer must handle. They are **not committed**. Their publishers' terms do not clearly allow redistribution, and Minnesota's sheet carries a state copyright. Tests that use them should fetch each chart by URL and check it against a SHA-256 pin. These restricted source images remain external; separately documented public-domain USGS derived fixtures are committed for regression checks.
 
 | Chart | Style | What it demands | Ground truth |
 | --- | --- | --- | --- |
@@ -208,7 +216,7 @@ Tracing a chart is its own job, not a step inside making a relief, so it has its
 
 **Depths are assigned through a three-point guide.** Click a contour first, then enter its printed depth or elevation in the floating card beside that point. Confirm & next advances the guide; at least three confirmed points are required before tracing. More points can be added, numbered points can be edited, and Cancel or Escape dismisses an unconfirmed point. Keyboard users steer the chart crosshair with arrow keys and press Enter to open the same card; confirmation returns focus to the chart. The guide keeps progress, point values, Undo last point, and Trace chart beside the image on narrow screens. A completed trace scrolls into view and offers Review and save chart, which opens and focuses the save controls. Elevation charts require a finite surface elevation; below-datum elevations are supported.
 
-**Verify the generated lake bed.** After tracing, the result opens a lazy-loaded 3D surface of the record’s grid, with rotation, zoom, reset and 1×/5×/10×/20× vertical exaggeration. The default is 5× to make shallow basins easier to inspect; this changes only the display. Cell centres use a local metre frame with latitude-corrected longitude distances, north at the back and depth below the surface. Triangles with missing samples are omitted so islands and gaps remain open. A north-up 2D map stays available, including when WebGL is unavailable. Editing trace inputs marks the preview as out of date; a new trace rebuilds the surface. Controls, GPU resources and resize observers are released when the view closes.
+**Verify the generated lake bed.** The chart workspace uses compact, full-height panes with one-pixel dividers and dense toolbars: the editor on the left, with the 3D lake bed above a north-up flat DEM on the right. Below 820 px of workspace width these panels stack in reading order. Both previews reserve room before tracing, and generation never automatically scrolls the page. The 3D surface uses the record’s grid with depths below a water-surface reference grid. The default 3D stack uses the main ThreePreview renderer, including its wood grain, cut-edge materials, environment lighting, shadows and exploded-layer control. It adapts chart contours to a representative 300 mm-class rectangular model with a solid backing and twelve 3 mm sheets, independently of the project's fabrication settings. The chart and project cameras are isolated. Switching to Shaded DEM retains both views' camera state. The representative surround is illustrative stock, not inferred terrain. Extraction is bounded to 192 samples per side. Auto exaggeration gives shallow basins visible relief and reports the actual display multiplier; 1× retains true scale. Missing samples remain gaps. Changing the preview scale does not alter saved depths. Custom Data hides the terrain generation dock; apply a saved chart and return to Map to regenerate terrain.
 
 **Keeping is not carving.** "Keep this chart" only adds it to the library in this browser. A separate "Use for" attaches it to the project under its lake's key and marks the terrain stale, so the two jobs stay apart. A chart whose lake is outside the current map area says so rather than claiming to carve, and a chart the project names but this browser lacks is listed with a way to stop using it. The library lists from a small summary kept beside each chart, so listing does not decode every grid. When Generate starts, `currentChartReferences` brings each reference's content hash up to the chart as saved now, so the design's fingerprint never names content that was not carved.
 
@@ -235,3 +243,5 @@ A chart reaches geometry as `WaterAreaV1.bathymetry` with `bathymetryOrigin: "ch
 - The surface reports `depthSource: "user"` and `bathymetryOrigin: "chart"`, whether or not the chart has gaps.
 - The map warns once with `LAKE_DEPTH_FROM_CHART` rather than `LAKE_DEPTH_PREDICTED`. Gaps and misaligned grids raise the usual per-lake `BATHYMETRY_FALLBACK`, naming the depth chart.
 - Using a chart for a lake clears that lake's maximum-depth override, since a charted lake does not offer one. Chart gaps take the modeled depths unscaled.
+
+The [independent accuracy evaluation](reports/chart-tracing-accuracy-2026-09-23.md) found substantial raster basin distortion across four real charts and 20 image variants. Successful tracing and `publishable` status do not certify appearance or fabrication accuracy.

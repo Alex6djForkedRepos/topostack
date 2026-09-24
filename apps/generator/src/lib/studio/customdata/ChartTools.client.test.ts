@@ -14,6 +14,7 @@ vi.mock("$lib/domain/data-provider", () => ({ searchPlaces: lookup.searchPlaces 
 vi.mock("$lib/storage/user-charts", () => ({ listUserCharts: storage.listUserCharts, deleteUserChart: storage.deleteUserChart }));
 vi.mock("$lib/workers/chart-trace-client", () => ({
   ChartTraceClient: class {
+    prepare(request: Record<string, unknown>) { return this.build(request); }
     build(request: Record<string, unknown>) { return new Promise((resolve) => builds.push({ request, resolve })); }
     dispose() {}
   },
@@ -27,7 +28,7 @@ const { resetSession, traceInputsKey } = await import("$lib/studio/customdata/ch
 
 const HASH = "a".repeat(64);
 const lake = (overrides: Partial<ChartableLake> = {}): ChartableLake => ({ id: "lake-1", name: "Round Lake", hylakId: 9092, footprint: 1, spanKm: [2, 1], distanceKm: 3, clipped: false, outline: [[-80, 45], [-79.99, 45], [-79.99, 45.01]], ...overrides });
-const saved = (overrides: Partial<SavedChartSummary> = {}): SavedChartSummary => ({ id: "round-lake-chart", savedAt: "2026-09-01T00:00:00Z", name: "Round Lake depth chart", lakeName: "Round Lake", hylakId: 9092, contentHash: HASH, ...overrides });
+const saved = (overrides: Partial<SavedChartSummary> = {}): SavedChartSummary => ({ reviewed: true, id: "round-lake-chart", savedAt: "2026-09-01T00:00:00Z", name: "Round Lake depth chart", lakeName: "Round Lake", hylakId: 9092, contentHash: HASH, ...overrides });
 
 function stubStudio(project: Partial<ProjectConfigV1> = {}) {
   return {

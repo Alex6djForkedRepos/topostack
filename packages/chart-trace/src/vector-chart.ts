@@ -68,12 +68,12 @@ export function strokeStyles(page: VectorPage): StrokeStyle[] {
   return [...styles.values()].sort((a, b) => b.length - a.length);
 }
 
-const LABEL = /^(\d{1,4}(?:\.\d+)?)\s*(?:'|′|ft|m)?$/i;
+const LABEL = /^((?:\d{1,4}|[1-9],\d{3})(?:\.\d+)?)\s*(?:'|′|ft|m)?$/i;
 
-/** A depth or elevation label such as `15`, `10'`, `2.5 m`, or `-`-free integers; anything else is not a label. */
+/** A depth or elevation label such as `15`, `10'`, `2.5 m`, or `1,020`; anything else is not a label. */
 export function parseLabel(text: string): number | undefined {
   const match = LABEL.exec(text.trim());
-  return match ? Number(match[1]) : undefined;
+  return match ? Number(match[1]!.replace(",", "")) : undefined;
 }
 
 export function depthLabels(texts: readonly VectorText[], within?: (x: number, y: number) => boolean): DepthLabel[] {

@@ -2,6 +2,158 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "0.5.0",
+      "date": "2026-09-23",
+      "entries": [
+        {
+          "type": "feature",
+          "title": "Carve a lake from a depth chart you have",
+          "body": "Bring a flat chart image or PDF into **Custom data → Depth charts**, select its lake, and prepare contour paths. Review and repair each path, assign depths or elevations, and align the chart to known coordinates before generating a lake floor. Inspect the depth map and representative layers before saving. Charts stay in this browser and apply when you select one and regenerate terrain.",
+          "pr": 89
+        },
+        {
+          "type": "feature",
+          "title": "Use your own SVG icons as markers",
+          "body": "Upload an SVG on any marker card to engrave your own symbol: a cabin, a trail logo, a lighthouse. Filled shapes keep their holes, line icons are outlined at their stroke width, and white areas cut through. See [custom markers and paths](/guides/custom-markers-and-paths).",
+          "pr": 94
+        },
+        {
+          "type": "feature",
+          "title": "Place your own graphics on the piece",
+          "body": "Upload an SVG logo, badge or decoration under **Graphics** in the Custom data view, then place it on the piece from a top-down view of the 3D stack: drag to move it, resize it from the corner and turn it from the grip above it. Each placed graphic can be engraved as a filled shape, scored as an outline, or cut out of the sheet it sits on so the sheet below shows through. See [custom graphics](/guides/custom-graphics).",
+          "pr": 95
+        },
+        {
+          "type": "feature",
+          "title": "Verify traced depth charts in 3D",
+          "body": "Depth charts show an interactive 3D lake bed after generation. Rotate, zoom, reset the view, and inspect an exploded stack of representative layers before keeping it. Automatic vertical exaggeration helps reveal shallow basins. A north-up 2D depth map provides another view and remains available when 3D cannot render. Changed inputs mark the preview as out of date.",
+          "pr": 99
+        },
+        {
+          "type": "improvement",
+          "title": "Send feedback without a GitHub account",
+          "body": "The Feedback button now sends your report straight to the maintainer, privately and without signing in. Add an email address if you would like a reply, or leave it blank to stay anonymous. Public GitHub issues remain an option.",
+          "pr": 79
+        },
+        {
+          "type": "improvement",
+          "title": "Name your markers, trails and boundaries",
+          "body": "A project with twenty markers is easier to work through when they are called something. Type over the number at the top of any marker or path card to name it; the name shows when you hover that marker on the map. Names are your own bookkeeping. Nothing is engraved from them, and renaming something never marks your terrain for regeneration.",
+          "pr": 89
+        },
+        {
+          "type": "improvement",
+          "title": "Draw trails and boundaries on the map",
+          "body": "Everything you bring to a project now lives in one view. **Custom data** holds depth charts, markers, trails and boundaries, and GPX, KML or GeoJSON import, each in its own sidebar section with the map or chart it works on beside it. Paths can be drawn rather than typed: choose **Draw on map** and click along the route. The next stretch follows your cursor, so you see the line before you place it. Click the first point again to close the shape into a boundary, or double-click or press Enter to finish it as a trail.",
+          "pr": 89
+        },
+        {
+          "type": "improvement",
+          "title": "Star TopoStack on GitHub from the homepage",
+          "body": "The homepage header, open-source section and footer now link to the GitHub repository, so you can star the project and follow its development in one click.",
+          "pr": 97
+        },
+        {
+          "type": "improvement",
+          "title": "More intuitive custom data controls",
+          "body": "Collapse any custom data section without switching away from your chart or map, and reopen its tools when needed. Clearer workspace headings, larger map actions, and step-by-step chart guidance make it easier to get started. Long path point lists can now be collapsed after editing.",
+          "pr": 98
+        },
+        {
+          "type": "improvement",
+          "title": "Preview contour paths before assigning depths",
+          "body": "Prepare paths from a flat chart image or native PDF geometry, then select contours directly on the source chart. Highlighted paths make it easier to inspect each outline while assigning its value, repairing gaps, or excluding chart labels and other unwanted lines. Keyboard and touch selection are supported.",
+          "pr": 98
+        },
+        {
+          "type": "improvement",
+          "title": "Choose chart lakes with geographic context",
+          "body": "Selectable lake outlines load automatically on opening the map and after panning or zooming, before any search or click. Hover highlights clickable lakes; clicks select the highlighted target directly, including shoreline hits. Missing close-up data triggers a wider lookup. Place results identify towns, show loading feedback, and explain missing outlines. Older requests cannot replace newer selections, and browsing chart lakes leaves the terrain location unchanged.",
+          "pr": 98
+        },
+        {
+          "type": "improvement",
+          "title": "A clearer, more reliable depth chart workflow",
+          "body": "Follow numbered steps to trace and save a depth chart, assign values in the contour tools, and jump straight from the preview to saving. Uploads no longer overwrite newer work, saved-chart loading errors offer a retry, and elevation charts support values below their datum. Chart selection now clearly reminds you to regenerate terrain.",
+          "pr": 98
+        },
+        {
+          "type": "improvement",
+          "title": "Guides for custom data and depth charts",
+          "body": "Two new guides cover the **Custom data** view. [Bring your own data](/guides/custom-data) explains what each section adds, how markers, paths, graphics and charts are saved and shared, and the limits at a glance. [Carve a lake from a depth chart](/guides/trace-a-depth-chart) walks through tracing a flat chart image or PDF, from choosing the lake to regenerating terrain with it. The studio tour, settings reference, lake and troubleshooting guides now point to both.",
+          "pr": 100
+        },
+        {
+          "type": "improvement",
+          "title": "Give contour repair its own tools panel",
+          "body": "Contour editing keeps a large source chart on the left and places repair, alignment, and validation tools on the right. Generating depths switches that panel to previews; returning to editing preserves zoom and undo history. Tools scroll independently, with generation controls always within reach."
+        },
+        {
+          "type": "improvement",
+          "title": "Learn the reviewed depth-chart workflow",
+          "body": "Updated chart instructions cover contour correction, geographic alignment, draft recovery, and layer approval. A separate illustrated guide explains how contours become lake floors, the current compromises, validation limits, and directions for future improvements."
+        },
+        {
+          "type": "improvement",
+          "title": "Review and correct contours before generating lake depths",
+          "body": "Inspect source contours, correct their values and paths with undo/redo, and align flat charts using known coordinates before generating depths. Native PDF paths can avoid image tracing. Incomplete or conflicting contours block generation, and saving requires a separate layer review. Previously saved charts without review remain available for export but cannot be applied to new terrain generations."
+        },
+        {
+          "type": "improvement",
+          "title": "Define chart contours directly, including islands and underwater rises",
+          "body": "Prepare paths without three seed points or a uniform interval. Assign each path as the outer shoreline, an island boundary, or a depth contour with a deeper or shallower interior. Local containment checks support multiple basins and rises while rejecting crossing paths and contours inside land. Innermost interiors hold the last contour value unless an explicit bottom or summit is supplied. Island boundaries persist in saved charts and terrain water polygons. Updated the workflow and technical guides."
+        },
+        {
+          "type": "improvement",
+          "title": "Join contour fragments directly on the chart",
+          "body": "Select an open fragment, choose Join paths, then click or tap the next fragment. The selected source stays highlighted while hovering or focusing a target previews the endpoint connection. Invalid targets explain why they cannot join; Escape and Cancel joining leave the paths unchanged. Joins remain undoable and require fresh path confirmation."
+        },
+        {
+          "type": "improvement",
+          "title": "Compare chart depths in a responsive workspace",
+          "body": "A large source chart sits beside contour repair tools while editing, then beside previews after generating depths; panels stack on smaller screens. Compare a shaded lake bed, representative wood layers, and a flat depth map. The representative stack is independent of project settings. Custom data no longer shows the terrain generation dock."
+        },
+        {
+          "type": "improvement",
+          "title": "Zoom and pan depth charts while editing",
+          "body": "The source chart and contour repair tools share the flat and cut-layer viewport, including wheel zoom, touch pinch, drag panning, zoom buttons, and reset. Editing uses source coordinates at every zoom level, and pan gestures do not place points or select contours."
+        },
+        {
+          "type": "improvement",
+          "title": "Guides share the homepage header and footer",
+          "body": "Guide, example, lake and changelog pages now use the same header and footer as the homepage. The header stays in view as you scroll and keeps **Start creating** one click away, and the footer links to every public page, including privacy and lake depth maps."
+        },
+        {
+          "type": "fix",
+          "title": "Your last edit survives a reload or closed tab",
+          "body": "The studio saves your project in your browser as you work, but an edit made in the moment before you reloaded the page or closed the tab could be lost: add a marker and reload straight away, and the marker was gone. The studio now keeps a quick copy of the project as the page closes and restores it when you come back, so the last thing you changed is still there.",
+          "pr": 91
+        },
+        {
+          "type": "fix",
+          "title": "Bold text shows correctly in the changelog",
+          "body": "Studio labels in release notes, such as **Move on preview**, now appear in bold on the [changelog](/changelog) and in its feed instead of showing raw asterisks.",
+          "pr": 92
+        },
+        {
+          "type": "fix",
+          "title": "Placement mode opens and closes without a flash",
+          "body": "Moving a title, legend or other annotation on the 3D stack no longer blinks the preview on the way in or out, and no dark band sits behind the **Cancel** and **Done** toolbar. The terrain slides down under the toolbar instead.",
+          "pr": 93
+        },
+        {
+          "type": "fix",
+          "title": "Read thousands-separated elevations in vector depth charts",
+          "body": "Vector chart tracing now reads elevations such as `1,020` and `1,028.5 ft`, as printed on USGS reservoir charts. Malformed grouping and large map-grid coordinates remain excluded. Real-chart stress tests and review screenshots document the remaining raster tracing limits."
+        },
+        {
+          "type": "fix",
+          "title": "Use shared theme controls in contour editing",
+          "body": "Contour repair now uses the shared buttons, fields, selects, and checkbox styles. The review-draft picker uses a themed action instead of a native file input that widened the sidebar, eliminating horizontal scrolling at desktop and narrow widths."
+        }
+      ]
+    },
+    {
       "version": "0.4.0",
       "date": "2026-09-22",
       "entries": [
