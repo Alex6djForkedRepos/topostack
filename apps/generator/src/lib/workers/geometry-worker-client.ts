@@ -1,4 +1,4 @@
-import { generateGeometry, type GeometryIRV1, type ProjectConfigV1, type SourceBundleV1 } from "@topostack/core";
+import { createGeometryGenerator, type GeometryIRV1, type ProjectConfigV1, type SourceBundleV1 } from "@topostack/core";
 
 /** Messages exchanged with geometry.worker.ts. */
 export interface GeometryWorkerRequest {
@@ -9,6 +9,7 @@ export interface GeometryWorkerRequest {
   /** Omitted when the worker already holds `sourceId`, so a slider tick posts only config. */
   source?: SourceBundleV1;
 }
+export interface GeometryWorkerCancel { cancelId: number }
 /**
  * Posted once when the worker script has loaded and evaluated. It separates a
  * worker that never started (blocked by CSP, missing chunk) from a started
@@ -17,6 +18,8 @@ export interface GeometryWorkerRequest {
 export interface GeometryWorkerReady { ready: true }
 export interface GeometryWorkerResponse {
   ready?: undefined;
+  cancelled?: boolean;
+  progress?: { stage: "alignment" | "elevation-labels"; completed: number; total: number };
   id: number;
   result?: GeometryIRV1;
   error?: string;
@@ -83,7 +86,7 @@ export class GeometryWorkerClient {
 
   constructor(
     private readonly factory: WorkerFactory | undefined = defaultWorkerFactory,
-    private readonly generate: Generate = generateGeometry,
+    private readonly generate: Generate = createGeometryGenerator(),
     private readonly abandonedWorkLimitMs = ABANDONED_WORK_LIMIT_MS,
   ) {
     this.unavailable = !factory;
@@ -109,6 +112,8 @@ export class GeometryWorkerClient {
     if (!request) return;
     this.pending = undefined;
     request.reject(reason);
+    // An awaiting coordinator can abort its helpers immediately and acknowledge cancellation.
+    try { request.worker.postMessage({ cancelId: request.id } satisfies GeometryWorkerCancel); } catch { /* The existing restart path handles a dead worker. */ }
     const startedAt = this.outstanding.get(request.id);
     if (request.worker !== this.worker || startedAt === undefined) return;
     const remaining = startedAt + this.abandonedWorkLimitMs - Date.now();
@@ -196,6 +201,12 @@ export class GeometryWorkerClient {
     if (worker !== this.worker) return;
     this.workerProven = true;
     if (data.ready) return;
+    if (data.progress) {
+      // A helper batch proves the coordinator is responsive. Allow its cancel
+      // acknowledgement to preserve the source cache before forcing a restart.
+      if (data.id === this.pending?.id) this.outstanding.set(data.id, Date.now());
+      return;
+    }
     const request = this.pending;
     // Late replies to a superseded request are dropped by id.
     if (!request || request.worker !== worker || data.id !== request.id) {

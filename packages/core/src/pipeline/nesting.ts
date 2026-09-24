@@ -1,20 +1,24 @@
-import { boundsOverlap, pointInRing, ringBounds, ringFitsInsidePolygon, segmentIntersectionT, signedArea } from "../primitives/geometry2d.js";
+import { boundsOverlap, preparePolygons, type PreparedPolygons, pointInRing, ringBounds, ringFitsInsidePolygon, segmentIntersectionT, signedArea } from "../primitives/geometry2d.js";
 import { northArrowFootprint } from "../annotate/north-arrow.js";
 import { plaqueFootprint } from "../annotate/plaque.js";
 import type { FabricationNest, LayerIR, Point2D, Polygon2D, ProjectConfigV1 } from "../types.js";
 
 
-function containingPolygonIndexes(children: Polygon2D[], containers: Polygon2D[], marginMm: number, allowContainedHoles = false): number[] | undefined {
+function containingPolygonIndexes(children: Polygon2D[], containers: Polygon2D[], marginMm: number, allowContainedHoles: boolean, prepared: Map<Polygon2D, PreparedPolygons>): number[] | undefined {
   const indexes: number[] = [];
   // Every vertex of a fitting ring lies inside the container's outer ring, so
   // a container whose box (with ray-casting slack) misses the ring's box cannot fit it.
-  const containerBounds = containers.map((container) => ringBounds(container.outer));
+  const containerIndexes = containers.map((container) => {
+    let index = prepared.get(container);
+    if (!index) { index = preparePolygons([container]); prepared.set(container, index); }
+    return index;
+  });
   for (const child of children) {
     const childBounds = ringBounds(child.outer.slice(0, -1));
     const containerIndex = containers.findIndex((container, index) => {
-      const bounds = containerBounds[index]!;
+      const bounds = containerIndexes[index]!.outerBounds[0]!;
       return childBounds.minX >= bounds.minX - 1e-6 && childBounds.maxX <= bounds.maxX + 1e-6 && childBounds.minY >= bounds.minY - 1e-6 && childBounds.maxY <= bounds.maxY + 1e-6 &&
-        ringFitsInsidePolygon(child.outer, container, marginMm, allowContainedHoles);
+        ringFitsInsidePolygon(child.outer, container, marginMm, allowContainedHoles, containerIndexes[index]);
     });
     if (containerIndex < 0) return undefined;
     indexes.push(containerIndex);
@@ -43,15 +47,16 @@ function ringsOverlap(left: Point2D[], right: Point2D[]): boolean {
 // inside the nested ring is a chained cavity that the creation-time check below
 // already proved is covered one level higher — unlike terrain holes, which the
 // creation-time check rejects.
-function nestHasGlueMargin(nest: FabricationNest, layers: LayerIR[], laserKerfMm: number): boolean {
+function nestHasGlueMargin(nest: FabricationNest, layers: LayerIR[], laserKerfMm: number, prepared: Map<Polygon2D, PreparedPolygons>): boolean {
   const nestedLayer = layers[nest.nestedLayerIndex];
   const coveringLayer = layers[nest.donorLayerIndex + 1];
-  return Boolean(nestedLayer && coveringLayer && containingPolygonIndexes(nestedLayer.polygons, coveringLayer.polygons, nest.glueMarginMm + laserKerfMm, true));
+  return Boolean(nestedLayer && coveringLayer && containingPolygonIndexes(nestedLayer.polygons, coveringLayer.polygons, nest.glueMarginMm + laserKerfMm, true, prepared));
 }
 
 export function addMaterialNests(config: ProjectConfigV1, layers: LayerIR[]): FabricationNest[] {
   if (!config.optimizeMaterialUse) return [];
   const nests: FabricationNest[] = [];
+  const prepared = new Map<Polygon2D, PreparedPolygons>();
   const nestedLayersWithParents = new Set<number>();
   const requiredClearanceMm = config.glueMarginMm + config.laserKerfMm;
   for (let donorLayerIndex = 0; donorLayerIndex < layers.length - 2; donorLayerIndex += 1) {
@@ -72,13 +77,14 @@ export function addMaterialNests(config: ProjectConfigV1, layers: LayerIR[]): Fa
       // donor would be visible through it in the assembled model. At creation
       // time the covering layer has no cavity holes yet (donors ascend), so
       // every contained hole is terrain — reject them all.
-      if (!containingPolygonIndexes(nestedLayer.polygons, coveringLayer.polygons, requiredClearanceMm)) continue;
-      const donorPolygonIndexes = containingPolygonIndexes(nestedLayer.polygons, donorLayer.polygons, requiredClearanceMm);
+      if (!containingPolygonIndexes(nestedLayer.polygons, coveringLayer.polygons, requiredClearanceMm, false, prepared)) continue;
+      const donorPolygonIndexes = containingPolygonIndexes(nestedLayer.polygons, donorLayer.polygons, requiredClearanceMm, false, prepared);
       if (!donorPolygonIndexes) continue;
       const cavities = nestedLayer.polygons.map((polygon, nestedPolygonIndex) => {
         const donorPolygonIndex = donorPolygonIndexes[nestedPolygonIndex]!;
         const donorPolygon = donorLayer.polygons[donorPolygonIndex]!;
         const donorHoleIndex = donorPolygon.holes.length;
+        prepared.delete(donorPolygon);
         donorPolygon.holes.push(signedArea(polygon.outer) > 0 ? [...polygon.outer].reverse() : [...polygon.outer]);
         return { donorPolygonIndex, donorHoleIndex, nestedPolygonIndex };
       });
@@ -89,9 +95,13 @@ export function addMaterialNests(config: ProjectConfigV1, layers: LayerIR[]): Fa
         glueMarginMm: config.glueMarginMm,
         cavities,
       };
-      const invalidatedAdjacentNest = nests.some((existingNest) => existingNest.donorLayerIndex + 1 === donorLayerIndex && !nestHasGlueMargin(existingNest, layers, config.laserKerfMm));
+      const invalidatedAdjacentNest = nests.some((existingNest) => existingNest.donorLayerIndex + 1 === donorLayerIndex && !nestHasGlueMargin(existingNest, layers, config.laserKerfMm, prepared));
       if (invalidatedAdjacentNest) {
-        [...cavities].reverse().forEach((cavity) => donorLayer.polygons[cavity.donorPolygonIndex]?.holes.splice(cavity.donorHoleIndex, 1));
+        [...cavities].reverse().forEach((cavity) => {
+          const donor = donorLayer.polygons[cavity.donorPolygonIndex]!;
+          donor.holes.splice(cavity.donorHoleIndex, 1);
+          prepared.delete(donor);
+        });
         continue;
       }
       nests.push(nest);

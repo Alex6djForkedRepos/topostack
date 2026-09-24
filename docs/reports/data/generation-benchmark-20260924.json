@@ -1,0 +1,151 @@
+{
+  "date": "2026-09-24",
+  "baselineCommit": "29c8a79deb62fbd6b23f9aabcc3c45abd1310205",
+  "baseline": {
+    "terrain": "Grand Teton Terrarium z12",
+    "roads": 0,
+    "status": "stopped before first generation completed",
+    "wallTimeLowerBoundSeconds": 540,
+    "note": "Original engine copied from baseline commit; no completed baseline time or output hash. Other local processes were active, so no precise speedup ratio is claimed."
+  },
+  "finalTerrain": {
+    "terrain": "Grand Teton Terrarium z12",
+    "bounds": {
+      "west": -110.94,
+      "east": -110.65,
+      "south": 43.63,
+      "north": 43.84
+    },
+    "widthMm": 3000,
+    "heightMm": 3000,
+    "materialThicknessMm": 3,
+    "verticalExaggeration": 2,
+    "annotations": true,
+    "nesting": true,
+    "grid": 768,
+    "roads": 0,
+    "sourceHash": "cce0c22b6f8b14f14ed7d555e5f5e85cbc471cfccbed80b71ae1976c9ff2680a",
+    "node": "v26.5.0",
+    "results": [
+      {
+        "run": 0,
+        "kind": "cold",
+        "ms": 16372.0115,
+        "stages": {
+          "prepare": 8.798999999999978,
+          "water": 0.9547080000000392,
+          "ladder": 5.374791999999957,
+          "contours": 3827.2992080000004,
+          "split": 0.41745799999989686,
+          "nesting": 1981.6240420000004,
+          "fabrication": 12.985333000000537,
+          "routing": 0.0974580000001879,
+          "alignment": 5076.77925,
+          "assembly-labels": 0.20745800000076997,
+          "elevation-labels": 5452.528625000001,
+          "annotations": 2.0539169999974547
+        },
+        "layers": 193,
+        "markings": 3336,
+        "outputHash": "5ebb7ccdf1fca6d3845bef814976ea5710be54f9ed0cc56d6c1379b587ecdda9"
+      },
+      {
+        "run": 0,
+        "kind": "annotation-edit",
+        "ms": 9072.622583,
+        "stages": {
+          "prepare": 0.6529579999987618,
+          "terrain-cache": 460.0237080000006,
+          "split": 0.06387499999982538,
+          "nesting": 2591.810207999999,
+          "fabrication": 20.69841699999961,
+          "routing": 0.012332999998761807,
+          "alignment": 5995.4233749999985,
+          "assembly-labels": 0.024375000000873115,
+          "elevation-labels": 0.007249999998748535,
+          "annotations": 3.265958000003593
+        },
+        "layers": 193,
+        "markings": 3212,
+        "outputHash": "b32e0c01ba7a9225a6ccf09f80caa05039d1cf9c3fb4c14d03dab394c8bedb95"
+      }
+    ]
+  },
+  "finalDenseRoads": {
+    "terrain": "Grand Teton Terrarium z12",
+    "bounds": {
+      "west": -110.94,
+      "east": -110.65,
+      "south": 43.63,
+      "north": 43.84
+    },
+    "widthMm": 3000,
+    "heightMm": 3000,
+    "materialThicknessMm": 3,
+    "verticalExaggeration": 2,
+    "annotations": true,
+    "nesting": true,
+    "grid": 768,
+    "roads": 300,
+    "sourceHash": "e63cc7cea578551b27690aab556ee50154a391ca9fbc9282a03311e1371e0cd0",
+    "node": "v26.5.0",
+    "results": [
+      {
+        "run": 0,
+        "kind": "cold",
+        "ms": 23940.274958,
+        "stages": {
+          "prepare": 14.12495899999999,
+          "water": 0.8183329999999955,
+          "ladder": 8.212125000000015,
+          "contours": 3612.929834,
+          "split": 0.4422090000002754,
+          "nesting": 1962.1132499999999,
+          "fabrication": 4639.412791999999,
+          "routing": 4214.499209000001,
+          "alignment": 4944.252667000001,
+          "assembly-labels": 0.2855420000014419,
+          "elevation-labels": 4469.380583000002,
+          "annotations": 69.83304199999839
+        },
+        "layers": 193,
+        "markings": 138492,
+        "outputHash": "12eba79e4e31850693b03d1611d7fc221f05b05c4a79ec4af285c3a4b2cde998"
+      },
+      {
+        "run": 0,
+        "kind": "annotation-edit",
+        "ms": 20117.463584000005,
+        "stages": {
+          "prepare": 0.7242079999996349,
+          "terrain-cache": 466.25762499999837,
+          "split": 0.06079200000021956,
+          "nesting": 2783.0446669999983,
+          "fabrication": 5497.590583000005,
+          "routing": 5127.179208000001,
+          "alignment": 6162.925292,
+          "assembly-labels": 0.06983400000171969,
+          "elevation-labels": 0.008083000000624452,
+          "annotations": 78.63925000000017
+        },
+        "layers": 193,
+        "markings": 138384,
+        "outputHash": "16004c7eca8eb4ba57a31135ae1745e7b6e5db483a0f7d4d2c931095d083f901"
+      }
+    ]
+  },
+  "parity": {
+    "originalEngineSyntheticCasesMm": [
+      300,
+      900,
+      3000
+    ],
+    "layers": [
+      10,
+      30,
+      101
+    ],
+    "result": "complete geometry deeply identical after omitting generatedAt",
+    "grandTeton": "Output hashes stayed identical across indexed-containment and label-index refinements; original 193-layer engine did not finish before stop."
+  }
+}

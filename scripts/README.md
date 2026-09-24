@@ -79,6 +79,9 @@ Check deployed services, SEO output, and data quality. CI and the production mon
 | Script | Purpose | Run by |
 | --- | --- | --- |
 | `stress-depth-charts.mjs` | Fetch pinned USGS charts; probe uploads, tracing, persistence, and screenshots | manual: [real-chart stress report](../docs/reports/real-depth-chart-stress-2026-09-23.md) |
+| `benchmark-generation.mjs` | Profile 3000 × 3000 mm Grand Teton geometry and cached edits, optionally with parallel helpers and synthetic roads | `npm run build -w @topostack/core` then `node scripts/verify/benchmark-generation.mjs --teton --workers 4` |
+| `generation-pool.mjs`, `generation-task-worker.mjs` | Adapt the production browser task pool to Node threads for the generation benchmark | Imported by `benchmark-generation.mjs`; not standalone commands |
+| `parallel-browser.mjs` | Check production parallel workers, custom fonts, cancellation, and fallback in Chromium/Firefox/WebKit | Build core and generator, then `node scripts/verify/parallel-browser.mjs` (optional browser names) |
 | `benchmark-data-layer.mjs` | Measure data-layer latency for representative projects (build core first) | `npm run data:benchmark` |
 | `verify-atomm-dist.mjs` | Check the Atomm build output for forbidden endpoints and required files | CI/workflows |
 | `verify-lake-directory.mjs` | Browser check of the lake directory and studio place links | `npm run data:verify-lake-directory` |
