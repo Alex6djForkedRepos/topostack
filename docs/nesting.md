@@ -2,7 +2,12 @@
 
 Sheet nesting arranges a project's cut parts on as few stock sheets as possible. Parts are moved and, if the settings allow it, rotated. This differs from the *material nests* that generation already plans (see [architecture.md](architecture.md)). A material nest cuts a smaller layer from the waste of a lower layer at the same position, and nothing moves. Sheet nesting runs after that step and treats each nest family as a single rigid part.
 
-Status: the packing engine (`packages/nest-wasm`) and the multi-sheet planner (`packages/core/src/export/sheet-nest/`) are in place. The export output and the studio step are still being built; [the plan](plans/sheet-nesting.md) lists the phases.
+Status: these parts are in place:
+- the packing engine (`packages/nest-wasm`);
+- the multi-sheet planner (`packages/core/src/export/sheet-nest/`);
+- the nested fabrication package.
+
+The studio step is still being built; [the plan](plans/sheet-nesting.md) lists the phases.
 
 ## Planner
 
@@ -17,6 +22,16 @@ Status: the packing engine (`packages/nest-wasm`) and the multi-sheet planner (`
 5. **Identity** (`job-key.ts`): a plan records a hash of the part outlines and layout settings. Regenerating an unchanged design gives the same key, so a saved plan stays usable. A changed design or sheet setting makes it stale.
 
 Layouts stop on time, so the same job can come out differently on a faster machine. The saved plan, not a rerun, is what an export reproduces.
+
+## Output
+
+`buildFabricationPackage(ir, config, { sheetPlan })` writes one set of files per stock sheet instead of one per nest family. The export is refused if the plan's job key no longer matches, or if the plan fails verification. Without `sheetPlan`, the package is byte-identical to the one exported before sheet nesting existed.
+
+- **Sheet files:** `<name>-sheet-NN.svg`, its `-engrave.svg` companion, and `-paint-<kind>.svg` stencils. Each is in sheet coordinates with a viewBox of `0 0 W H`. The master SVG lays the sheets out side by side.
+- **Placing parts** (`sheet-svg.ts`): each part is drawn by the same panel writer as before, from its own polygons in model coordinates. It is wrapped in `<g id="part-N-<OP>" data-part="<label>" transform="matrix(...)">`, with rotation terms written to nine decimals. Kerf offsets do not depend on rotation, so path data is reused unchanged. Ids inside each part get a `--pN` suffix so repeated layer groups stay unique. Engraving is prefiltered by bounding box before it is clipped to each part.
+- **Part ids** (`part-labels.ts`): seam pieces already carry their `L03-B2` id from generation. Every other piece gets `L03`, or `L03-2` for an island, engraved as a green ASSEMBLY mark where the layer above hides it. This uses the same placement as generation (`pipeline/piece-labels.ts`). Pieces with no covered room are listed in the README, and every sheet is drawn with each piece named in the assembly guide ("Cut the sheets").
+- **Manifest:** `result.fabrication.sheetNesting` records the engine, versions, settings, counts, utilization and time. Each `panels[]` entry adds `sheet`, `usedWidthMm`, and `parts[]` with each part's placement. These fields are only added, so `schemaVersion` stays 1.
+- **README:** describes the sheets, rotation and spacing, and credits sparrow and jagua-rs with source links.
 
 ## Engine
 

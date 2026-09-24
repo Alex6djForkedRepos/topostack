@@ -45,7 +45,8 @@ export function verifySheet(partsById: Map<string, NestPartV1>, placements: Nest
   const grow = settings.spacingMm / 2 - PLACEMENT_TOLERANCE_MM / 2;
   const grown = new Map<number, Point2D[][]>();
   const grownOf = (index: number) => {
-    if (!grown.has(index)) grown.set(index, offsetClosedRing(placed[index]!.points, grow, "miter"));
+    // Round joins measure true distance; a miter overshoots sharp corners by up to twice the offset.
+    if (!grown.has(index)) grown.set(index, offsetClosedRing(placed[index]!.points, grow, "round"));
     return grown.get(index)!;
   };
   for (let first = 0; first < placed.length; first += 1) {
