@@ -40,6 +40,11 @@ REGIONS = {'noaa-great-lakes-v1': 'Great Lakes, USA / Canada', 'usgs-crater-lake
            'noaa-nbs-california-v1': 'California, USA', 'noaa-nbs-northwest-coast-v1': 'Washington / Oregon, USA',
            'noaa-nbs-inland-northwest-v1': 'Washington / Idaho, USA',
            'noaa-nbs-alaska-v1': 'Alaska, USA', 'noaa-nbs-caribbean-v1': 'Puerto Rico / U.S. Virgin Islands',
+           'noaa-enc-florida-v1': 'Florida, USA', 'noaa-enc-gulf-coast-v1': 'Gulf Coast, USA',
+           'noaa-enc-atlantic-coast-v1': 'Atlantic Coast, USA', 'noaa-enc-great-lakes-basin-v1': 'Great Lakes basin, USA',
+           'noaa-enc-new-york-vermont-v1': 'New York / Vermont, USA', 'noaa-enc-california-v1': 'California, USA',
+           'noaa-enc-columbia-river-v1': 'Columbia River, Oregon / Washington, USA',
+           'noaa-enc-alaska-v1': 'Alaska, USA',
            # Charts are published one lake at a time; each record names its own region.
            'community-charts-v1': 'Published depth charts'}
 GROUPS = {key: ('Canada' if key.startswith('ontario') else 'Norway' if key.startswith('nve-') else 'Finland' if key.startswith('syke') else 'Switzerland & border lakes' if key.startswith('swiss') else 'Great Lakes' if key == 'noaa-great-lakes-v1' else 'United States') for key in REGIONS}
@@ -91,7 +96,7 @@ def build(cache, archives, previous=None):
     sources, lakes = [], []
     for source in catalog:
         dataset = source['id']
-        contours = dataset in ('mn-dnr-lakes-v1', 'syke-finland-lakes-v1', 'ontario-lakes-v1', 'nve-norway-lakes-v1', 'twdb-texas-reservoirs-v1', 'usbr-reservoirs-v1', 'community-charts-v1')
+        contours = dataset in ('mn-dnr-lakes-v1', 'syke-finland-lakes-v1', 'ontario-lakes-v1', 'nve-norway-lakes-v1', 'twdb-texas-reservoirs-v1', 'usbr-reservoirs-v1', 'community-charts-v1') or dataset.startswith('noaa-enc-')
         sources.append({'id': dataset, 'name': source['name'], 'url': source['url'], 'license': source['license'],
                         'kind': 'contours' if contours else 'grid', 'region': REGIONS[dataset], 'group': GROUPS[dataset]})
         if dataset in reused:

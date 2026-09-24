@@ -14,7 +14,8 @@ Each phase ends in its own pull request to `dev`. Stop at the end of any phase a
 - **Phase 4 pilot (2026-09-24):** the [chart coverage report](reports/noaa-chart-lake-coverage-2026-09-24.md) lists 186 lakes with usable chart depths. `survey_enc.py` built Okeechobee (max 4.2 m, published ~4 m), Champlain (121.6 m, published 122 m) and Mead (130.7 m) from 7, 12 and 6 cells. Okeechobee's chart data is from 1920–29.
   - Chart notes give each lake's sounding datum. Okeechobee and Champlain use a low-water datum near the lake surface, so anchoring to the waterline works as for NBS.
   - **Mead's soundings refer to a fixed 1,160 ft (353.5 m) pool**, about 25 m above today's water and 18.5 m below HydroLAKES' 372 m surface. Neither the depth nor the elevation encoding places its bed correctly without the terrain's actual waterline. Mead waits on that design decision.
-- **Not started:** phase 3 (Great Lakes at 4–16 m), and wiring `survey_enc.py` into the build with pins, regional datasets and registration. NOAA has no depth data for Kentucky or Tennessee reservoirs; those need another source.
+- **Phase 4 scaled up:** 135 chart lakes ship in eight `noaa-enc-*-v1` archives; see [lake-bathymetry.md](lake-bathymetry.md#noaa-nautical-chart-lakes). Mead stays out until the app can place a bed below a fixed pool elevation.
+- **Not started:** phase 3 (Great Lakes at 4–16 m). NOAA has no depth data for Kentucky or Tennessee reservoirs; those need another source.
 
 ## Why the work is split this way
 
