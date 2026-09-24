@@ -11,7 +11,10 @@ Each phase ends in its own pull request to `dev`. Stop at the end of any phase a
   - Phase 1's per-lake surface records became one rule: depth below the surveys' chart datum, anchored to the waterline like `noaa-great-lakes-v1`, and a lake is refused when more than a quarter of its surveyed bed lies above that datum. That refused 261 of 498 candidates, mostly perched inland lakes whose NBS cells are shoreline or lake-surface elevations, not bed.
   - Phase 2 shipped nine regional datasets rather than the five sketched below, with 237 lakes. The builder, tests and runbook are described in [lake-bathymetry.md](lake-bathymetry.md#noaa-national-bathymetric-source-lakes).
 - **Provisioning** of the nine archives to R2 is the remaining step before the registry change can deploy.
-- **Not started:** phase 3 (Great Lakes at 4–16 m) and phase 4 (ENC contours for chart-only lakes such as Champlain, Mead and Okeechobee). NOAA has no depth data for Kentucky or Tennessee reservoirs; those need another source.
+- **Phase 4 pilot (2026-09-24):** the [chart coverage report](reports/noaa-chart-lake-coverage-2026-09-24.md) lists 186 lakes with usable chart depths. `survey_enc.py` built Okeechobee (max 4.2 m, published ~4 m), Champlain (121.6 m, published 122 m) and Mead (130.7 m) from 7, 12 and 6 cells. Okeechobee's chart data is from 1920–29.
+  - Chart notes give each lake's sounding datum. Okeechobee and Champlain use a low-water datum near the lake surface, so anchoring to the waterline works as for NBS.
+  - **Mead's soundings refer to a fixed 1,160 ft (353.5 m) pool**, about 25 m above today's water and 18.5 m below HydroLAKES' 372 m surface. Neither the depth nor the elevation encoding places its bed correctly without the terrain's actual waterline. Mead waits on that design decision.
+- **Not started:** phase 3 (Great Lakes at 4–16 m), and wiring `survey_enc.py` into the build with pins, regional datasets and registration. NOAA has no depth data for Kentucky or Tennessee reservoirs; those need another source.
 
 ## Why the work is split this way
 
