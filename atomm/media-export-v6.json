@@ -100,7 +100,7 @@
   },
   "result": {
     "projectId": "topostack-crater-automatic-depth",
-    "generatedAt": "2026-09-24T21:37:31.983Z",
+    "generatedAt": "2026-09-24T22:03:14.226Z",
     "minElevationM": 843.6714477539062,
     "maxElevationM": 2713.155029296875,
     "layers": [
@@ -824,7 +824,7 @@
         "sheetCount": 14,
         "partCount": 116,
         "utilization": 0.5555741116023224,
-        "elapsedMs": 5292
+        "elapsedMs": 5539
       },
       "panels": [
         {

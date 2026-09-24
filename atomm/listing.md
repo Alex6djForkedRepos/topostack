@@ -21,9 +21,9 @@ Generate fresh terrain before exporting, then review the artwork, material and m
 
 ## Upload media
 
-Use `assets/topostack-cover-loop-v6.mp4` as the silent cover video and `assets/topostack-cover-v6.png` as its still fallback. The movie records the actual 3D canvas while the stack separates and reassembles. Use `assets/topostack-showcase-v6.mp4` for a captioned slideshow of the current interface. Videos are H.264, 30 fps, with fast-start playback and no audio.
+Use `assets/topostack-cover-loop-v6.mp4` as the silent cover video and `assets/topostack-cover-v6.png` as its still fallback. The movie renders every frame from the actual 3D scene as the camera orbits and the stack separates and reassembles. Use `assets/topostack-showcase-v6.mp4` for a feature tour with native 3D motion, gently moving interface scenes and short fades. Videos are H.264, 60 fps, with fast-start playback and no audio.
 
-All nine PNGs and both videos are 1600 × 1200. The eight gallery cards contain unchanged app pixels with captions outside the screenshots.
+All nine PNGs are 3200 × 2400; both videos are 1920 × 1440. The eight gallery cards contain app screenshots captured at twice the display resolution, with captions outside the screenshots. Warning notifications are dismissed for the promotional captures; source limitations remain explained here and in the provenance.
 
 | Order | File | Caption / alt text |
 | --- | --- | --- |
