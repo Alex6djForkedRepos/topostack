@@ -1,0 +1,92 @@
+name: Nest engine (Rust/WebAssembly)
+
+# The committed packages/nest-wasm/pkg/ output must match what its sources build to,
+# and every crate compiled into it must carry a licence we can redistribute.
+on:
+  push:
+    branches: [dev, main]
+    paths: ["packages/nest-wasm/**", ".github/workflows/nest-wasm.yml"]
+  pull_request:
+    branches: [dev, main]
+    paths: ["packages/nest-wasm/**", ".github/workflows/nest-wasm.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22.22.2"
+  WASM_BINDGEN_VERSION: "0.2.100"
+  BINARYEN_VERSION: "133"
+  BINARYEN_SHA256: "2dc9c7813f5375db93d96ead4b78222fcc3e2677bbb832297af4797782a37489"
+  CARGO_ABOUT_VERSION: "0.8.4"
+  CARGO_DENY_VERSION: "0.20.2"
+  CARGO_TERM_COLOR: always
+
+jobs:
+  engine:
+    name: Test, rebuild and check licences
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: nest-wasm-${{ github.ref }}
+      cancel-in-progress: true
+    defaults:
+      run:
+        working-directory: packages/nest-wasm
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install the pinned Rust toolchain
+        run: rustup show active-toolchain || rustup toolchain install
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Lint
+        run: cargo clippy --release --locked --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --release --locked
+
+      - name: Install WebAssembly tools
+        run: |
+          cargo install wasm-bindgen-cli --version "$WASM_BINDGEN_VERSION" --locked
+          cargo install cargo-about --version "$CARGO_ABOUT_VERSION" --locked
+          cargo install cargo-deny --version "$CARGO_DENY_VERSION" --locked
+          archive="binaryen-version_${BINARYEN_VERSION}-x86_64-linux.tar.gz"
+          curl -sSLo "$RUNNER_TEMP/$archive" "https://github.com/WebAssembly/binaryen/releases/download/version_${BINARYEN_VERSION}/$archive"
+          echo "$BINARYEN_SHA256  $RUNNER_TEMP/$archive" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/binaryen-version_${BINARYEN_VERSION}/bin" >> "$GITHUB_PATH"
+
+      # Rebuilds are not byte-identical across host platforms, so the committed build records a
+      # hash of its sources; the main CI job runs the same check without Rust.
+      - name: Committed engine was built from these sources
+        run: node scripts/build.mjs --check
+
+      - name: Install JavaScript dependencies
+        working-directory: .
+        run: npm ci --no-audit --no-fund
+
+      - name: Rebuild the engine and run its JavaScript tests against the fresh build
+        run: |
+          node scripts/build.mjs
+          npx vitest run
+
+      - name: Licence notices are current
+        run: |
+          cargo about generate about.hbs -o THIRD_PARTY_LICENSES.md
+          if ! git diff --exit-code -- THIRD_PARTY_LICENSES.md; then
+            echo "::error::THIRD_PARTY_LICENSES.md is out of date. Run cargo about generate about.hbs -o THIRD_PARTY_LICENSES.md."
+            exit 1
+          fi
+
+      - name: Licences and sources are allowed
+        run: cargo deny check licenses sources
