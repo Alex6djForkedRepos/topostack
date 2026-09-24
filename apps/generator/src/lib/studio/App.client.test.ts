@@ -1568,6 +1568,7 @@ describe("TopoStack Svelte shell", () => {
     expect(target.querySelector<HTMLElement>("#custom-data-charts")?.hidden).toBe(false);
     expect(target.querySelector("#custom-data-charts")?.textContent).toContain("Search a lake or nearby town");
     expect(target.querySelector(".chart-lake-map")?.textContent).toContain("Choose the lake your chart shows");
+    expect(target.querySelector(".generate-dock")).toBeNull();
 
     // The active section can close without switching or unmounting the workspace.
     const chartStage = target.querySelector(".chart-lake-map");

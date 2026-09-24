@@ -1,12 +1,11 @@
 <script lang="ts">
-  import FeedbackButton from "$lib/site/FeedbackButton.svelte";
+  import SiteHeader from "$lib/site/SiteHeader.svelte";
+  import SiteFooter from "$lib/site/SiteFooter.svelte";
   import { base } from "$app/paths";
   import { page } from "$app/state";
   import { afterNavigate } from "$app/navigation";
-  import { Brand, ThemeToggle, Topbar } from "@loidolt/theme-svelte";
   import type { Snippet } from "svelte";
-  import { theme } from "$lib/site/theme";
-  import { PUBLIC_PAGES, REPOSITORY_URL } from "$lib/site/seo";
+  import { PUBLIC_PAGES } from "$lib/site/seo";
   import { DOCS_HOME, DOCS_NAV, docsNeighbours, docsSection, headingId } from "$lib/site/docs";
   // Pages outside the guides (the generated lake pages) pass their own breadcrumb trail.
   // Pages that never hydrate (static) leave out controls that only work with JavaScript.
@@ -63,11 +62,7 @@
 {/snippet}
 
 <div class="article-page">
-  <a class="skip" href="#article">Skip to content</a>
-  <Topbar>
-    {#snippet brand()}<Brand name="TopoStack" meta="Guides" href={`${base}/`} />{/snippet}
-    {#snippet actions()}<a class="top-link" href={`${base}${DOCS_HOME}`}>Guides</a><a class="start" href={`${base}/studio`}>Open studio</a>{#if !plain}<ThemeToggle {theme} label="Color scheme" />{/if}{/snippet}
-  </Topbar>
+  <SiteHeader meta="Guides" content="article" static={plain} />
   <div class="docs-layout">
     <nav class="docs-sidebar docs-links" aria-label="Guides">{@render guideLinks()}</nav>
     <main id="article">
@@ -109,7 +104,7 @@
       </nav>
     {/if}
   </div>
-  <footer>TopoStack · Free, browser-based terrain tools · <a href={`${base}${DOCS_HOME}`}>Guides</a> · <a href={REPOSITORY_URL}>GitHub</a> · <a href={`${base}/attribution`}>Sources and attribution</a> · <a href={`${base}/changelog`}>Changelog</a>{#if !plain} · <FeedbackButton />{/if}</footer>
+  <SiteFooter static={plain} />
 </div>
 
 <style>
@@ -119,8 +114,7 @@
   .article-page { min-height: 100dvh; background: var(--loidolt-background); color: var(--loidolt-text); }
   .docs-layout { display: grid; grid-template-columns: 210px minmax(0, 760px) 200px; justify-content: center; gap: 56px; width: calc(100% - 40px); margin-inline: auto; }
   main { padding-block: 32px 64px; min-width: 0; }
-  footer { width: min(1286px, calc(100% - 40px)); margin-inline: auto; border-top: 1px solid var(--loidolt-border); padding-block: 24px; font-size: 12px; line-height: 1.8; }
-  .docs-sidebar, .docs-toc { position: sticky; top: 0; align-self: start; max-height: 100dvh; overflow-y: auto; padding-block: 36px; font-size: 14px; }
+  .docs-sidebar, .docs-toc { position: sticky; top: var(--loidolt-size-topbar); align-self: start; max-height: calc(100dvh - var(--loidolt-size-topbar)); overflow-y: auto; padding-block: 36px; font-size: 14px; }
   .docs-toc { font-size: 13px; }
   .docs-links ul { list-style: none; padding: 0; margin: 0 0 20px; }
   .docs-group { font: 11px var(--loidolt-font-utility); letter-spacing: 0.1em; text-transform: uppercase; color: var(--loidolt-text-muted); margin: 20px 0 6px; }
@@ -136,9 +130,10 @@
   .breadcrumb { display: flex; flex-wrap: wrap; gap: 4px 8px; font-size: 13px; margin-bottom: 40px; color: var(--loidolt-text-muted); }
   h1 { font-size: clamp(32px, 5vw, 48px); line-height: 1.15; letter-spacing: -0.035em; margin: 0 0 24px; }
   .intro { font-size: 19px; line-height: 1.65; color: var(--loidolt-text-muted); margin-bottom: 40px; }
-  .article-page :global(a) { color: var(--loidolt-text-accent); text-underline-offset: 4px; }
-  .article-page :global(a:focus-visible), summary:focus-visible { outline: 2px solid var(--loidolt-accent); outline-offset: 4px; }
-  article :global(h2) { font-size: 26px; line-height: 1.25; margin: 40px 0 16px; scroll-margin-top: 24px; }
+  .docs-layout :global(a) { color: var(--loidolt-text-accent); text-underline-offset: 4px; }
+  .docs-layout :global(a:focus-visible), summary:focus-visible { outline: 2px solid var(--loidolt-accent); outline-offset: 4px; }
+  article :global(h2) { font-size: 26px; line-height: 1.25; margin: 40px 0 16px; }
+  article :global([id]) { scroll-margin-top: calc(var(--loidolt-size-topbar) + 24px); }
   article :global(h3) { font-size: 19px; margin: 24px 0 12px; }
   article :global(p), article :global(li) { font-size: 16px; line-height: 1.8; }
   article :global(li) { padding-left: 4px; margin-block: 10px; }
@@ -152,19 +147,8 @@
   .pager small { font-size: 12px; font-weight: 400; color: var(--loidolt-text-muted); }
   .pager .next { grid-column: 2; text-align: right; }
   .cta { margin-top: 32px; }
-  .top-link { color: var(--loidolt-text-muted) !important; font: 12px var(--loidolt-font-utility); text-decoration: none; }
   .start { display: inline-flex; align-items: center; min-height: 44px; background: var(--loidolt-accent); color: var(--loidolt-on-accent) !important; padding: 10px 18px; border-radius: var(--loidolt-border-radius); text-decoration: none; font-size: 14px; }
-  .skip { position: absolute; left: 16px; top: -100px; padding: 12px; background: var(--loidolt-surface); z-index: 100; }
-  .skip:focus { top: 12px; }
   @media (max-width: 1239px) { .docs-layout { grid-template-columns: 210px minmax(0, 760px); } .docs-toc { display: none; } }
   @media (max-width: 899px) { .docs-layout { display: block; } .docs-sidebar { display: none; } .docs-menu { display: block; } }
-  /* Match the homepage: keep brand and actions on one row where the theme would stack them. */
-  @media (max-width: 760px) {
-    .article-page :global(.ldt-topbar) { flex-wrap: nowrap; }
-    .article-page :global(.ldt-topbar__actions) { width: auto; margin-left: auto; overflow: visible; }
-    .article-page :global(.ldt-brand__meta), .top-link { display: none; }
-    .start { min-height: 40px; padding: 8px 12px; font-size: 13px; white-space: nowrap; }
-    .cta .start { min-height: 44px; padding: 10px 18px; font-size: 14px; }
-  }
   @media (max-width: 600px) { .pager { grid-template-columns: 1fr; } .pager .next { grid-column: auto; } }
 </style>

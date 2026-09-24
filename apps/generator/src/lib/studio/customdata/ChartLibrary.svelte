@@ -66,12 +66,13 @@
         {@const inUse = Object.entries(projectCharts).find(([, reference]) => reference.id === chart.id)}
         <li>
           <span class="chart-saved__name"><strong>{chart.name}</strong><small>{chart.savedAt ? new Date(chart.savedAt).toLocaleDateString() : ""}</small></span>
-          {#if inUse}<span class="chart-saved__state">{inUseState(inUse[0], chart.lakeName)}</span>{/if}
+          {#if !chart.reviewed}<span class="chart-saved__state">Needs review · recreate from the source chart. Retained for export; not used for depth generation.</span>{/if}
+          {#if inUse && chart.reviewed}<span class="chart-saved__state">{inUseState(inUse[0], chart.lakeName)}</span>{/if}
           <span class="chart-saved__actions">
             {#if inUse}
               <button type="button" onclick={() => void studio.clearDepthChart(inUse[0])}>Stop using</button>
             {:else}
-              <button type="button" onclick={() => void studio.useChartForLake(key, { id: chart.id, contentHash: chart.contentHash })}>Use for {chart.lakeName ?? lakesInMap.get(key) ?? "its lake"}</button>
+              <button type="button" disabled={!chart.reviewed} onclick={() => void studio.useChartForLake(key, { id: chart.id, contentHash: chart.contentHash })}>Use for {chart.lakeName ?? lakesInMap.get(key) ?? "its lake"}</button>
             {/if}
             <button type="button" class="chart-saved__delete" onclick={() => void remove(chart.id)} onblur={() => { if (confirmingDelete === chart.id) confirmingDelete = undefined; }}>{confirmingDelete === chart.id ? "Delete for good?" : "Delete"}</button>
           </span>

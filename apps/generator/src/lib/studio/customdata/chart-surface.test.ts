@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { encodeChartDepths, type ChartGridV1 } from "@topostack/data-contracts/chart-bathymetry";
-import { chartSurface } from "./chart-surface";
+import { chartSurface, automaticDepthExaggeration } from "./chart-surface";
 
 function grid(depths: number[]): ChartGridV1 {
   return { width: 2, height: 2, bounds: { west: 0, east: 0.01, south: -0.005, north: 0.005 }, method: "harmonic", depthsDm: encodeChartDepths(depths) };
@@ -34,5 +34,17 @@ describe("chart verification surface", () => {
     const surface = chartSurface(input);
     expect(surface.positions[3]! - surface.positions[0]!).toBeCloseTo(0.5);
     expect(surface.positions[8]! - surface.positions[2]!).toBeCloseTo(1);
+  });
+});
+
+describe("automatic depth exaggeration", () => {
+  it("makes a wide shallow lake visibly three dimensional", () => {
+    const scale = 2 / 100000;
+    const exaggeration = automaticDepthExaggeration(10, scale);
+    expect(10 * scale * exaggeration).toBeCloseTo(0.6);
+  });
+  it("does not flatten deep lakes or divide by zero for a flat grid", () => {
+    expect(automaticDepthExaggeration(1000, 0.002)).toBe(1);
+    expect(automaticDepthExaggeration(0, 0.002)).toBe(1);
   });
 });

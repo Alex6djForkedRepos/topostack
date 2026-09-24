@@ -147,8 +147,15 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
   },
   "/guides/trace-a-depth-chart": {
     title: "Trace a Lake Depth Chart for a Laser-Cut Map | TopoStack",
-    description: "Turn a scanned, photographed or PDF lake depth chart into a carved lake floor. Place depths on its contours, trace it, and use it for your lake.",
+    description: "Review and correct lake-chart contours, align them with known coordinates, inspect the generated layers, and apply the chart to your map.",
     label: "Trace a depth chart",
+    published: "2026-09-23",
+    updated: "2026-09-23",
+  },
+  "/guides/how-depth-chart-tracing-works": {
+    title: "How Depth-Chart Tracing Works | TopoStack",
+    description: "How reviewed chart contours become lake floors and cut layers, why manual review matters, current compromises, and future improvements.",
+    label: "How chart tracing works",
     published: "2026-09-23",
     updated: "2026-09-23",
   },

@@ -1,3 +1,5 @@
+import { buildChartFromImage } from "$lib/domain/chart-build";
+import { reviewFixture } from "$lib/domain/testing/chart-review-fixture";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CHART_BATHYMETRY_SCHEMA, encodeChartDepths, type UserChartBathymetryV1 } from "@topostack/data-contracts/chart-bathymetry";
 
@@ -57,13 +59,23 @@ describe("saved depth charts", () => {
   });
 
   it("loads one chart per lake, sharing a chart used twice", async () => {
-    const one = await saveUserChart(chart());
-    const two = await saveUserChart(chart("other-lake-chart", "Other Lake"));
+    const ready = buildChartFromImage(reviewFixture().request).record;
+    ready.review = { version: 1, profile: "closed-contours-v1", reviewedAt: new Date().toISOString(), contours: true, alignment: true, layers: true };
+    const one = await saveUserChart({ ...ready, id: "round-lake-chart" });
+    const two = await saveUserChart({ ...ready, id: "other-lake-chart" });
     const charts = await loadUserCharts({ "1": one, "2": one, "3": two, "4": { id: "absent-lake-chart", contentHash: "b".repeat(64) } });
     expect([...charts.keys()]).toEqual(["1", "2", "3"]);
     expect(charts.get("1")).toBe(charts.get("2"));
     expect(charts.get("3")!.chart.id).toBe("other-lake-chart");
     expect(await loadUserCharts(undefined)).toEqual(new Map());
+  });
+
+  it("retains legacy charts for export but excludes them from generation", async () => {
+    const reference = await saveUserChart(chart());
+    expect(await loadUserChart(reference.id)).toBeDefined();
+    expect((await listUserCharts())[0]?.reviewed).toBe(false);
+    expect(await loadUserCharts({ "1": reference })).toEqual(new Map());
+    expect(await chartsForProject({ userDepthCharts: { "1": reference } })).toHaveLength(1);
   });
 
   it("lists saved charts newest first and deletes one", async () => {

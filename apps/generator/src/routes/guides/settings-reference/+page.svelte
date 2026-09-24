@@ -86,8 +86,11 @@
       <tr><td>Import</td><td>GPX, KML or GeoJSON, up to 20 MB</td><td>None</td><td>Adds markers, trails and boundaries in one undo step.</td></tr>
       <tr><td>Depth chart units</td><td>Feet, Metres, Fathoms</td><td>Feet</td><td><em>Layered</em>. PNG, JPEG, WebP or PDF. See <a href={`${base}/guides/trace-a-depth-chart`}>trace a depth chart</a>.</td></tr>
       <tr><td>The chart prints</td><td>Depth below the surface, Height above a datum</td><td>Depth below the surface</td><td><em>Layered</em>. Heights also need the water's surface level.</td></tr>
-      <tr><td>Contour interval</td><td>Any positive number, or blank</td><td>5</td><td><em>Layered</em>. Blank infers it from the placed depths.</td></tr>
-      <tr><td>Depth points</td><td>3 or more, on different contours</td><td>None</td><td><em>Layered</em>.</td></tr>
+      <tr><td>Path type and interior</td><td>Outer shoreline, island boundary, or depth contour; deeper or shallower interior</td><td>Depth contour, deeper</td><td><em>Layered</em>. Assign each contour its printed value. An optional innermost bottom or summit value replaces the default flat interior; no uniform interval is required.</td></tr>
+      <tr><td>Depth points</td><td>3 or more, on different contours</td><td>None</td><td><em>Layered</em>. Required for raster preparation; native PDF style selection can prepare without marks. Every included path still needs a confirmed value.</td></tr>
+      <tr><td>Contour review</td><td>Confirm, correct, join, close, redraw, exclude; undo/redo</td><td>Unreviewed</td><td><em>Layered</em>. A source shoreline and valid closed, noncrossing depth contours are required.</td></tr>
+      <tr><td>Chart alignment</td><td>4–64 distributed WGS84 control points</td><td>None</td><td><em>Layered</em>. Enter longitude/latitude and confirm the source overlay before generation.</td></tr>
+      <tr><td>Layer review</td><td>Explicit confirmation</td><td>Unchecked</td><td><em>Layered</em>. Required to keep the generated chart. Edits invalidate approval.</td></tr>
     </tbody>
   </table>
 
