@@ -1,3 +1,5 @@
+import type { ChartReview } from "$lib/domain/chart-review";
+import type { VectorPage } from "@topostack/chart-trace/vector-page";
 import type { ChartAttestation, ChartUnit } from "@topostack/data-contracts/chart-bathymetry";
 import type { ChartBuildResult, ChartImage } from "$lib/domain/chart-build";
 import type { ChartableLake } from "$lib/domain/lake-lookup";
@@ -22,6 +24,12 @@ export interface PlacedDepth {
 }
 
 export interface ChartDraft {
+  review: ChartReview | undefined;
+  reviewSourceKey: string;
+  reviewRevision: number;
+  layersReviewedKey: string;
+  vectorPage: VectorPage | undefined;
+  vectorStyles: string[];
   lake: ChartableLake | undefined;
   image: ChartImage | undefined;
   /** Kept only to redraw the canvas; the engine reads `image`. */
@@ -48,6 +56,7 @@ export interface ChartDraft {
 }
 
 const empty = (): ChartDraft => ({
+  review: undefined, reviewRevision: 0, reviewSourceKey: "", layersReviewedKey: "", vectorPage: undefined, vectorStyles: [],
   lake: undefined,
   image: undefined,
   pixels: undefined,

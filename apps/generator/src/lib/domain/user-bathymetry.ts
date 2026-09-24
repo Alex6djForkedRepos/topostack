@@ -1,3 +1,5 @@
+import polygonClipping, { type Pair } from "polygon-clipping";
+import { insideRing } from "./chart-geometry";
 import { OUTLINE_CHART_KEY_PREFIX, type GeoBounds, type ElevationGrid, type ProjectConfigV1, type WaterAreaV1 } from "@topostack/core";
 import { ringIou } from "@topostack/chart-trace/georef";
 import { decodeChartDepths, type UserChartBathymetryV1 } from "@topostack/data-contracts/chart-bathymetry";
@@ -57,6 +59,8 @@ export function sampleChartDepths(chart: UserChartBathymetryV1, bounds: GeoBound
     for (let column = 0; column < width; column += 1) {
       const chartColumn = columns[column]!;
       if (chartColumn < -0.5 - slack || chartColumn > chartGrid.width - 0.5 + slack) continue;
+      const lon = bounds.west + (bounds.east - bounds.west) * (width === 1 ? 0 : column / (width - 1));
+      if (chart.lake.islands?.some(ring => insideRing([lon, lat], ring))) continue;
       values[row * width + column] = sampleDepth(sample, chartColumn, chartRow);
     }
   }
@@ -188,9 +192,19 @@ export async function applyUserCharts(
     if (!count || !samples) continue;
     charted = true;
     const spacingM = chartSpacingM(loaded.chart);
-    areas = areas.map((item) => item.id === area.id
-      ? { ...item, bathymetryOrigin: "chart" as const, bathymetry: { width: grid.width, height: grid.height, depthsM: samples!, sampleSpacingM: spacingM } }
-      : item);
+    const islands = loaded.chart.lake.islands ?? [];
+    if (islands.length && !dimensions) throw new Error("Chart islands require artwork dimensions to preserve land boundaries.");
+    const polygons = islands.length && dimensions ? polygonClipping.difference(
+      [[area.polygon.outer.map(p => [p.x, p.y] as Pair), ...area.polygon.holes.map(ring => ring.map(p => [p.x, p.y] as Pair))]],
+      islands.map(ring => [ring.map(([lon, lat]): Pair => [
+        ((lon - bounds.west) / (bounds.east - bounds.west) - .5) * dimensions.widthMm,
+        ((latToWorldY(lat, 0) - latToWorldY(bounds.north, 0)) / (latToWorldY(bounds.south, 0) - latToWorldY(bounds.north, 0)) - .5) * dimensions.heightMm,
+      ])]),
+    ).map(rings => ({ outer: rings[0]!.map(([x,y]) => ({x,y})), holes: rings.slice(1).map(ring => ring.map(([x,y]) => ({x,y}))) })) : [area.polygon];
+    areas = areas.flatMap(item => item.id === area.id ? polygons.map((polygon, index) => ({
+      ...item, id: index ? `${item.id}-chart-${index}` : item.id, polygon,
+      bathymetryOrigin: "chart" as const, bathymetry: { width: grid.width, height: grid.height, depthsM: samples!, sampleSpacingM: spacingM },
+    })) : [item]);
     const version = `userchart-${loaded.contentHash.slice(0, 8)}`;
     if (!datasetVersions.includes(version)) datasetVersions.push(version);
     const { title, publisher, sourceUrl } = loaded.chart.provenance;

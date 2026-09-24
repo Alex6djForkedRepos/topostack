@@ -1,7 +1,7 @@
 <script lang="ts">
   import { draft } from "$lib/studio/customdata/chart-draft.svelte";
   import { picker, mapLakes, loadVisibleLakes, lakeMapTargets, pickLakeOnMap, cancelLakePicker } from "$lib/studio/customdata/lake-picker.svelte";
-  import { onDestroy } from "svelte";
+  import { onDestroy, untrack } from "svelte";
   import { nav, sectionsFor } from "$lib/studio/customdata/custom-data-nav.svelte";
   import { disposeTracer } from "$lib/studio/customdata/chart-tracing.svelte";
   import ChartCanvas from "$lib/studio/customdata/ChartCanvas.svelte";
@@ -22,6 +22,14 @@
   onDestroy(() => { disposeTracer(); cancelLakePicker(); });
   $effect(() => { if (draft.image || nav.section !== "charts") cancelLakePicker(); });
   const studio = getStudio();
+  // Keep feedback from custom-data actions after removing the terrain dock.
+  // Do not bring the previous terrain status into this workspace on entry.
+  let previousStatus = untrack(() => studio.status);
+  let notice = $state("");
+  $effect(() => {
+    const status = studio.status;
+    if (status !== previousStatus) { previousStatus = status; notice = status; }
+  });
   const section = $derived(sectionsFor(studio.project.outputMode).find((section) => section.id === nav.section));
 </script>
 
@@ -66,4 +74,5 @@
     <MapStage />
   {/if}
   </div>
+  {#if notice}<p class="custom-data-notice" role="status">{notice}</p>{/if}
 </div>

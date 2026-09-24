@@ -2,6 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_PROJECT, MAX_CUSTOM_LINE_POINTS, type ProjectConfigV1 } from "@topostack/core";
 import { CustomDataActions } from "$lib/studio/customdata/custom-data-actions.svelte";
 
+const chartStorage = vi.hoisted(() => ({ loadUserChart: vi.fn(async () => ({ chart: { review: { version: 1 } } })) }));
+vi.mock("$lib/storage/user-charts", () => chartStorage);
+
 /** A stand-in for the studio: one project, its history and status line. */
 function studio(start: Partial<ProjectConfigV1> = {}) {
   let project: ProjectConfigV1 = { ...DEFAULT_PROJECT, ...start };
@@ -109,6 +112,14 @@ describe("custom data actions", () => {
     expect(current().markers[0]!.name).toBe("Dock");
     actions.rename(undefined);
     expect(host.recordHistory).toHaveBeenCalledTimes(1);
+  });
+
+  it("will not apply a legacy chart without review", async () => {
+    chartStorage.loadUserChart.mockResolvedValueOnce({ chart: {} } as never);
+    const { actions, host, current } = studio();
+    await actions.useChartForLake("9092", { id: "legacy-chart", contentHash: "a".repeat(64) });
+    expect(current().userDepthCharts).toBeUndefined();
+    expect(host.setStatus).toHaveBeenCalledWith(expect.stringContaining("needs contour"));
   });
 
   it("uses a chart for a lake under its key, dropping that lake's depth override, and lets it go", async () => {

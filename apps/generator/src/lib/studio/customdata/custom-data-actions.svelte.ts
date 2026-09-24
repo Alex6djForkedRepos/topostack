@@ -154,6 +154,7 @@ export class CustomDataActions {
    * build charts long before they frame a map.
    */
   async saveChartToLibrary(record: UserChartBathymetryV1): Promise<UserDepthChartRefV1> {
+    if (!record.review) throw new Error("Complete contour, alignment, and layer review before saving a chart.");
     const { saveUserChart } = await import("$lib/storage/user-charts");
     const reference = await saveUserChart(record);
     this.host.setStatus(`Depth chart kept · use it for ${record.lake.name ?? "its lake"} when you are ready`);
@@ -165,6 +166,9 @@ export class CustomDataActions {
    * `depthChartLakeKey`). The terrain is stale until it regenerates.
    */
   async useChartForLake(lakeKey: string, reference: UserDepthChartRefV1): Promise<void> {
+    const { loadUserChart } = await import("$lib/storage/user-charts");
+    const loaded = await loadUserChart(reference.id);
+    if (!loaded?.chart.review) { this.host.setStatus("This chart needs contour, alignment, and layer review. Recreate it from the source chart before using it."); return; }
     const project = this.host.project();
     // A charted lake offers no maximum-depth override, so one set before would
     // keep shaping the chart's gaps where nothing shows it. It goes with the switch.
