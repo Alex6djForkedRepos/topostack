@@ -37,7 +37,7 @@ describe("Atomm bridge", () => {
     const ready = vi.fn();
     const exportUpdate = vi.fn();
     const { connectAtomm } = await import("$lib/atomm/atomm-bridge");
-    let sheetPlan: SheetNestPlanV1 | undefined;
+    let sheetPlan: SheetNestPlanV1 | undefined = undefined;
     const disconnect = connectAtomm(() => ({ geometry, project, sheetPlan }), ready, exportUpdate);
     window.atomm = { lifecycle: { on }, ui: { toast: vi.fn(), closeToast: vi.fn() }, app: { getLocale: vi.fn() } } as unknown as AtommSdk;
     await vi.advanceTimersByTimeAsync(250);

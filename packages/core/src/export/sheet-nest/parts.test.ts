@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { generateGeometry } from "../../pipeline/generate.js";
 import { pointInRing, realSource } from "../../test-support/sources.js";
-import { DEFAULT_PROJECT, type Point2D } from "../../types.js";
+import { DEFAULT_PROJECT, type NestPartV1, type Point2D } from "../../types.js";
 import { sheetNestJobKey } from "./job-key.js";
-import { MAX_OUTLINE_VERTICES, nestableParts, partOutline } from "./parts.js";
+import { MAX_OUTLINE_VERTICES, clusterSmallParts, nestableParts, partOutline } from "./parts.js";
 import { DEFAULT_SHEET_NESTING } from "./resolve.js";
 import { signedArea } from "../../primitives/geometry2d.js";
 
@@ -80,5 +80,45 @@ describe("nestable parts", () => {
     expect(sheetNestJobKey(parts, { ...settings, timeBudgetS: 120 })).toBe(key);
     expect(sheetNestJobKey(parts, { ...settings, spacingMm: 3 })).not.toBe(key);
     expect(sheetNestJobKey(parts.slice(1), settings)).not.toBe(key);
+  });
+});
+
+describe("small part groups", () => {
+  const square = (id: string, x: number, y: number, size: number, rootLayerIndex = 2): NestPartV1 => {
+    const outline = [{ x, y }, { x: x + size, y }, { x: x + size, y: y + size }, { x, y: y + size }, { x, y }];
+    return { id, label: id.toUpperCase(), rootLayerIndex, members: [{ layerIndex: rootLayerIndex, polygonIndexes: [Number(id.slice(id.indexOf(":") + 1))] }], outline, areaMm2: size * size };
+  };
+
+  it("groups neighbouring islands of one layer and leaves the rest alone", () => {
+    const parts = [
+      square("layer-03:1", 0, 0, 10),
+      square("layer-03:2", 14, 0, 10),
+      square("layer-03:3", 0, 14, 10),
+      square("layer-03:4", 200, 200, 10),
+      square("layer-04:1", 16, 16, 10, 3),
+      square("layer-03:5", 30, 0, 40),
+    ];
+    const result = clusterSmallParts(parts);
+    const group = result.find((part) => part.id.includes("+"))!;
+    expect(group.id).toBe("layer-03:1+layer-03:2+layer-03:3");
+    expect(group.label).toBe("LAYER-03:1 LAYER-03:2 LAYER-03:3");
+    expect(group.members).toEqual([{ layerIndex: 2, polygonIndexes: [1, 2, 3] }]);
+    const corners = parts.slice(0, 3).flatMap((part) => part.outline);
+    expect(corners.every((point) => pointInRing(point, group.outline) || group.outline.some((corner) => corner.x === point.x && corner.y === point.y))).toBe(true);
+    expect(result.map((part) => part.id).sort()).toEqual(["layer-03:1+layer-03:2+layer-03:3", "layer-03:4", "layer-03:5", "layer-04:1"]);
+  });
+
+  it("refuses a group whose hull would mostly be empty", () => {
+    // Two slivers at right angles: their hull is a large triangle.
+    const along = { ...square("layer-03:1", 0, 0, 1), outline: [{ x: 0, y: 0 }, { x: 18, y: 0 }, { x: 18, y: 1 }, { x: 0, y: 1 }, { x: 0, y: 0 }], areaMm2: 18 };
+    const up = { ...square("layer-03:2", 0, 0, 1), outline: [{ x: 0, y: 3 }, { x: 1, y: 3 }, { x: 1, y: 21 }, { x: 0, y: 21 }, { x: 0, y: 3 }], areaMm2: 18 };
+    expect(clusterSmallParts([along, up]).map((part) => part.id)).toEqual(["layer-03:1", "layer-03:2"]);
+  });
+
+  it("keeps every polygon in exactly one part after grouping", () => {
+    const project = { ...DEFAULT_PROJECT, workAreaWidthMm: 160, workAreaHeightMm: 120 };
+    const parts = nestableParts(generateGeometry(project, realSource(project)));
+    const polygons = parts.flatMap((part) => part.members.flatMap((member) => member.polygonIndexes.map((index) => `${member.layerIndex}:${index}`)));
+    expect(new Set(polygons).size).toBe(polygons.length);
   });
 });

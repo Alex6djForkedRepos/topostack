@@ -139,11 +139,16 @@ New `packages/core/src/export/sheet-nest/`. It sits outside the eager `core` chu
   - Update `roadmap.md`.
 - **E2E:** `e2e/nesting.spec.ts` with a 3 s budget. It downloads the ZIP and checks the sheet SVG and manifest in all 3 browsers, which also proves the CSP and wasm MIME type.
 
-### PR 5+: robustness (later)
-- IndexedDB cache `$lib/storage/nest-cache.ts`.
-- Clustering of tiny islands.
-- Building the package inside the worker for big jobs.
-- Filling holes, warm starts, and threads (wasm-bindgen-rayon + COOP/COEP).
+### PR 5: robustness (done)
+- IndexedDB cache `$lib/storage/nest-cache.ts`: a layout and the export choice are restored after a reload.
+- Clustering of tiny islands (`clusterSmallParts`).
+
+### Later
+- Building the package inside the worker for big jobs. Export is still fast enough on the main thread.
+- Filling holes: small parts packed into large holes of other parts. jagua-rs ignores holes in items.
+- Warm starts from a saved plan when settings barely change.
+- Threads (wasm-bindgen-rayon + COOP/COEP; needs a hosting and Atomm review).
+- Checking that xTool Studio and LightBurn read the nested sheets' `matrix()` transforms, before release.
 
 ## Risks
 - **Wasm size:** estimated at ~200–400 KB gzip. It is lazy and off the critical path, and the budget script asserts that.

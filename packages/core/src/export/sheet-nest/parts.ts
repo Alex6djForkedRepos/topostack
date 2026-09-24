@@ -1,4 +1,4 @@
-import { signedArea, simplifyClosedRing } from "../../primitives/geometry2d.js";
+import { ringBounds, signedArea, simplifyClosedRing } from "../../primitives/geometry2d.js";
 import { offsetClosedRing } from "../../primitives/offset.js";
 import type { GeometryIRV1, NestPartV1, Point2D } from "../../types.js";
 import { nestFamilies, rootPolygonByPolygon } from "../panel-layout.js";
@@ -71,8 +71,74 @@ export function nestableParts(ir: GeometryIRV1): NestPartV1[] {
       });
     }
   }
-  const polygonIndexOf = (part: NestPartV1) => Number(part.id.slice(part.id.lastIndexOf(":") + 1));
-  return parts.sort((left, right) => left.rootLayerIndex - right.rootLayerIndex || polygonIndexOf(left) - polygonIndexOf(right));
+  const polygonIndexOf = (part: NestPartV1) => Number.parseInt(part.id.slice(part.id.indexOf(":") + 1), 10);
+  return clusterSmallParts(parts).sort((left, right) => left.rootLayerIndex - right.rootLayerIndex || polygonIndexOf(left) - polygonIndexOf(right));
+}
+
+/** Parts smaller than this (about 20 × 20 mm) may be grouped with their neighbours. */
+export const SMALL_PART_MM2 = 400;
+/** Small parts closer than this travel together. */
+const CLUSTER_GAP_MM = 10;
+/** A group's hull may waste at most this multiple of its parts' own area. */
+const CLUSTER_HULL_RATIO = 3;
+const MAX_CLUSTER_PARTS = 12;
+
+function boundsGap(left: Point2D[], right: Point2D[]): number {
+  const a = ringBounds(left);
+  const b = ringBounds(right);
+  return Math.max(b.minX - a.maxX, a.minX - b.maxX, b.minY - a.maxY, a.minY - b.maxY, 0);
+}
+
+/**
+ * Tiny islands of one layer (peaks, seam slivers) cost the packer as much as
+ * a whole layer each. Neighbouring ones are grouped into one rigid part
+ * outlined by their convex hull, so they keep their places relative to each
+ * other on the sheet and are found together. A group is only formed while
+ * its hull stays compact, so it never wastes more than a small area.
+ */
+export function clusterSmallParts(parts: NestPartV1[]): NestPartV1[] {
+  const small = parts.filter((part) => part.areaMm2 < SMALL_PART_MM2).sort((left, right) => right.areaMm2 - left.areaMm2 || left.id.localeCompare(right.id));
+  const taken = new Set<string>();
+  const merged: NestPartV1[] = [];
+  for (const seed of small) {
+    if (taken.has(seed.id)) continue;
+    taken.add(seed.id);
+    const group = [seed];
+    let hull = seed.outline;
+    let grown = true;
+    while (grown && group.length < MAX_CLUSTER_PARTS) {
+      grown = false;
+      for (const candidate of small) {
+        if (taken.has(candidate.id) || candidate.rootLayerIndex !== seed.rootLayerIndex || boundsGap(hull, candidate.outline) > CLUSTER_GAP_MM) continue;
+        const next = convexHull([...hull, ...candidate.outline]);
+        const ownArea = [...group, candidate].reduce((sum, part) => sum + part.areaMm2, 0);
+        if (Math.abs(signedArea(next)) > CLUSTER_HULL_RATIO * ownArea) continue;
+        group.push(candidate);
+        taken.add(candidate.id);
+        hull = next;
+        grown = true;
+        if (group.length >= MAX_CLUSTER_PARTS) break;
+      }
+    }
+    if (group.length > 1) merged.push(mergeParts(group, hull));
+  }
+  const grouped = new Set(merged.flatMap((part) => part.id.split("+")));
+  return [...parts.filter((part) => !grouped.has(part.id)), ...merged];
+}
+
+function mergeParts(group: NestPartV1[], hull: Point2D[]): NestPartV1 {
+  const ordered = [...group].sort((left, right) => left.id.localeCompare(right.id, undefined, { numeric: true }));
+  const members = new Map<number, number[]>();
+  for (const part of ordered) for (const { layerIndex, polygonIndexes } of part.members) members.set(layerIndex, [...(members.get(layerIndex) ?? []), ...polygonIndexes]);
+  const labels = ordered.map((part) => part.label);
+  return {
+    id: ordered.map((part) => part.id).join("+"),
+    label: labels.length <= 3 ? labels.join(" ") : `${labels[0]} +${labels.length - 1}`,
+    rootLayerIndex: ordered[0]!.rootLayerIndex,
+    members: [...members.entries()].sort(([left], [right]) => left - right).map(([layerIndex, polygonIndexes]) => ({ layerIndex, polygonIndexes: polygonIndexes.sort((left, right) => left - right) })),
+    outline: hull,
+    areaMm2: Math.abs(signedArea(hull)),
+  };
 }
 
 /** The seam piece id when the layer was split, otherwise `L03`, or `L03-2` for a layer's second island. */

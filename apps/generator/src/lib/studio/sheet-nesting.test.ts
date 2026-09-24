@@ -14,9 +14,15 @@ function fakeRunner(overrides: { run?: (options: NestRunOptions) => Promise<Shee
     NestJobError: Error,
     prepareNestJob: vi.fn(() => overrides.job ?? { ok: true, parts: [], settings }),
     planIsCurrent: vi.fn(() => overrides.current ?? true),
+    jobKeyOf: vi.fn(() => "nest1-x"),
     sheetPreviews: vi.fn(() => [{ widthMm: 300, heightMm: 200, provisional: false, usedWidthMm: 100, parts: [] }]),
   };
   return { runner, client, load: () => Promise.resolve(runner as never) };
+}
+
+function fakeCache(saved?: { plan: SheetNestPlanV1; useSheets: boolean; savedAt: number }) {
+  const cache = { loadNestPlan: vi.fn(async () => saved), saveNestPlan: vi.fn(async () => undefined), setNestPlanChoice: vi.fn(async () => undefined) };
+  return { cache, load: () => Promise.resolve(cache as never) };
 }
 
 describe("SheetNesting", () => {
@@ -78,5 +84,43 @@ describe("SheetNesting", () => {
     expect(nesting.previews).toEqual([]);
     nesting.dispose();
     expect(client.dispose).toHaveBeenCalled();
+  });
+
+  it("saves a finished layout and remembers the maker's choice", async () => {
+    const { load } = fakeRunner();
+    const { cache, load: loadCache } = fakeCache();
+    const nesting = new SheetNesting(load, () => 0, loadCache);
+    await nesting.start(geometry, DEFAULT_PROJECT);
+    await vi.waitFor(() => expect(cache.saveNestPlan).toHaveBeenCalledWith(plan(true), true));
+    nesting.setUseSheets(false);
+    expect(nesting.exportPlan).toBeUndefined();
+    await vi.waitFor(() => expect(cache.setNestPlanChoice).toHaveBeenCalledWith("nest1-x", false));
+  });
+
+  it("restores a layout saved for the same design, once per job", async () => {
+    const { load, runner } = fakeRunner();
+    const { cache, load: loadCache } = fakeCache({ plan: plan(true), useSheets: false, savedAt: 1 });
+    const nesting = new SheetNesting(load, () => 0, loadCache);
+    await nesting.restore(geometry, DEFAULT_PROJECT);
+    expect(cache.loadNestPlan).toHaveBeenCalledWith("nest1-x");
+    expect(nesting.status).toBe("done");
+    expect(nesting.plan?.jobKey).toBe("nest1-x");
+    expect(nesting.useSheets).toBe(false);
+    expect(nesting.previews).toHaveLength(1);
+    nesting.setUseSheets(true);
+    expect(nesting.exportPlan).toBeDefined();
+    await nesting.restore(geometry, DEFAULT_PROJECT);
+    expect(runner.prepareNestJob).toHaveBeenCalledTimes(1);
+  });
+
+  it("finds nothing to restore for a new design or an unfinished job", async () => {
+    const missing = new SheetNesting(fakeRunner().load, () => 0, fakeCache().load);
+    await missing.restore(geometry, DEFAULT_PROJECT);
+    expect(missing.plan).toBeUndefined();
+    expect(missing.status).toBe("idle");
+    const noSheet = fakeCache({ plan: plan(true), useSheets: true, savedAt: 1 });
+    const unready = new SheetNesting(fakeRunner({ job: { ok: false, error: "Set a sheet size." } }).load, () => 0, noSheet.load);
+    await unready.restore(geometry, DEFAULT_PROJECT);
+    expect(noSheet.cache.loadNestPlan).not.toHaveBeenCalled();
   });
 });
