@@ -51,3 +51,9 @@ Added a 24px horizontal gap between operation labels, retaining an 8px gap when 
 ## Refresh progress follow-up
 
 The refresh chip now exposes the actual stage and count: Step 1 of 2 while preparing source data, then Step 2 of 2 while building geometry. There is no spinner or looping animation, consistent with the Atomm motion guide. Verified visible stage text and absence of the spinner in Chromium using the built CSS. All 143 client tests, lint, Svelte checks, build and budgets passed. ZIP and checksum regenerated.
+
+## Integration with dev for 0.6.0
+
+Integrated dev through `907faaf`, preserving sheet nesting and third-party license output in the standalone app. The Atomm embed does not start the sheet planner or pass a nested plan to its export hook. Removed standalone 0.5.1 release preparation; versions match dev (0.5.0), with unreleased changelog fragments for the normal release workflow. PR #107 now targets dev.
+
+Integrated validation passed: 444 generator unit tests, 149 client tests, all 27 Atomm browser checks across Chromium/Firefox/WebKit, workspace type checking, ESLint, version/changelog checks, standalone production build and budget, and dedicated Atomm packaging with its validation gates and budget. The packaging run uses dev’s current version and is validation-only; rebuild the final 0.6.0 submission after its remaining improvements land.
