@@ -265,3 +265,5 @@ The [documentation index](docs/README.md) groups every doc into design reference
 ## License
 
 TopoStack software is available under the [MIT License](LICENSE). Dependency and map-data licenses remain separate; retain the source attribution included with exports.
+
+Sheet nesting uses [sparrow](https://github.com/JeroenGar/sparrow) (MIT, © 2025 Jeroen Gardeyn, KU Leuven) and [jagua-rs](https://github.com/JeroenGar/jagua-rs) (MPL-2.0), unmodified and compiled to WebAssembly. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and [docs/nesting.md](docs/nesting.md) for licences and citations.

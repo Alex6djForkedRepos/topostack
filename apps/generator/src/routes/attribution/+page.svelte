@@ -48,6 +48,8 @@
     { name: "d3-contour", url: "https://github.com/d3/d3-contour", license: "ISC", use: "Tracing contour lines from elevation grids." },
     { name: "clipper-lib", url: "https://github.com/junmer/clipper-lib", license: "BSL-1.0", use: "Offsetting cut paths for kerf compensation and clearances around map markers." },
     { name: "polygon-clipping", url: "https://github.com/mfogel/polygon-clipping", license: "MIT", use: "Combining and clipping terrain and map geometry." },
+    { name: "sparrow", url: "https://github.com/JeroenGar/sparrow", license: "MIT, © 2025 Jeroen Gardeyn, KU Leuven", use: "Nesting pieces onto stock sheets, compiled to WebAssembly and run in your browser. Gardeyn, Vanden Berghe and Wauters, “An open-source heuristic to reboot 2D nesting research” (arXiv:2509.13329)." },
+    { name: "jagua-rs", url: "https://github.com/JeroenGar/jagua-rs", license: "MPL-2.0 (unmodified; source at crates.io/crates/jagua-rs/0.8.3)", use: "Collision detection behind sparrow's nesting. Gardeyn, Vanden Berghe and Wauters, INFORMS Journal on Computing, doi:10.1287/ijoc.2024.1025. Full licence texts for the nesting engine: /licenses/third-party.txt." },
     { name: "fflate", url: "https://github.com/101arrowz/fflate", license: "MIT", use: "Decompressing terrain tiles and creating downloadable project ZIP files." },
     { name: "idb-keyval", url: "https://github.com/jakearchibald/idb-keyval", license: "Apache-2.0", use: "Saving project settings in your browser." },
   ];

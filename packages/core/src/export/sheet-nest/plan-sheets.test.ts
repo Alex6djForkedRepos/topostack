@@ -33,7 +33,8 @@ describe("sheet planning", () => {
     expect(verifySheetPlan(parts, result)).toEqual([]);
     expect(result.final).toBe(true);
     expect(result.jobKey).toMatch(/^nest1-/);
-    expect(plans[0]!.engine.name).toBe("rectangles");
+    expect(plans[0]!.engine).toEqual({ name: "sparrow", sparrowRev: "test" });
+    expect(plans[0]!.sheets.every((sheet) => sheet.method === "rectangles")).toBe(true);
     expect(result.sheets.length).toBeLessThanOrEqual(plans[0]!.sheets.length);
     // Every draft is a complete, valid plan too.
     for (const plan of plans) expect(verifySheetPlan(parts, plan)).toEqual([]);

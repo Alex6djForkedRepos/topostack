@@ -102,10 +102,10 @@ export async function planSheets(parts: NestPartV1[], settings: ResolvedSheetNes
     return sheets;
   };
 
-  const plan = (sheets: Sheet[], final: boolean, engineName: StripEngine["name"]): SheetNestPlanV1 => ({
+  const plan = (sheets: Sheet[], final: boolean): SheetNestPlanV1 => ({
     schemaVersion: 1,
     jobKey,
-    engine: { name: engineName, ...(engineName === "sparrow" ? engine.info : {}) },
+    engine: { name: engine.name, ...engine.info },
     settings,
     sheets,
     final,
@@ -116,8 +116,8 @@ export async function planSheets(parts: NestPartV1[], settings: ResolvedSheetNes
   const jobKey = sheetNestJobKey(parts, settings);
   const byAreaDescending = parts.map((_, index) => index).sort((left, right) => parts[right]!.areaMm2 - parts[left]!.areaMm2 || left - right);
   const baseline = rectangleSheets(byAreaDescending);
-  options.onPlan?.(plan(baseline, engine.name === "rectangles", "rectangles"));
-  if (engine.name === "rectangles") return plan(baseline, true, "rectangles");
+  options.onPlan?.(plan(baseline, engine.name === "rectangles"));
+  if (engine.name === "rectangles") return plan(baseline, true);
 
   let probes = 0;
   const stopping = () => now() >= deadline || (options.shouldStop?.() ?? false);
@@ -160,7 +160,7 @@ export async function planSheets(parts: NestPartV1[], settings: ResolvedSheetNes
 
   const committed: Array<{ indexes: number[]; sheet: Sheet }> = [];
   let remaining = byAreaDescending;
-  const emitDraft = () => options.onPlan?.(plan([...committed.map((entry) => entry.sheet), ...rectangleSheets(remaining).map((sheet) => ({ ...sheet, provisional: true }))], false, "sparrow"));
+  const emitDraft = () => options.onPlan?.(plan([...committed.map((entry) => entry.sheet), ...rectangleSheets(remaining).map((sheet) => ({ ...sheet, provisional: true }))], false));
 
   while (remaining.length && !stopping()) {
     const time = probeTime(remaining);
@@ -217,7 +217,7 @@ export async function planSheets(parts: NestPartV1[], settings: ResolvedSheetNes
 
   const packed = [...committed.map((entry) => entry.sheet), ...tail];
   const packedIsBetter = packed.length < baseline.length || (packed.length === baseline.length && (packed.at(-1)?.usedWidthMm ?? 0) <= (baseline.at(-1)?.usedWidthMm ?? 0));
-  return packedIsBetter ? plan(packed, true, "sparrow") : plan(baseline, true, "rectangles");
+  return plan(packedIsBetter ? packed : baseline, true);
 }
 
 const format = (value: number) => Number(value.toFixed(1)).toString();

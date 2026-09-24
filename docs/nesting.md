@@ -2,12 +2,28 @@
 
 Sheet nesting arranges a project's cut parts on as few stock sheets as possible. Parts are moved and, if the settings allow it, rotated. This differs from the *material nests* that generation already plans (see [architecture.md](architecture.md)). A material nest cuts a smaller layer from the waste of a lower layer at the same position, and nothing moves. Sheet nesting runs after that step and treats each nest family as a single rigid part.
 
-Status: these parts are in place:
+The feature has four parts:
 - the packing engine (`packages/nest-wasm`);
 - the multi-sheet planner (`packages/core/src/export/sheet-nest/`);
-- the nested fabrication package.
+- the nested fabrication package;
+- the studio step in the export dialog.
 
-The studio step is still being built; [the plan](plans/sheet-nesting.md) lists the phases.
+[The plan](plans/sheet-nesting.md) lists later work.
+
+## In the studio
+
+The export dialog has a **Sheet layout** section for layered projects. The maker picks **Nested sheets** and sets the sheet size, spacing, edge margin, rotation and search time. These are stored in `project.sheetNesting` without regenerating anything. **Nest parts** then starts a search.
+
+- **Loading:** `SheetNesting` (`studio/sheet-nesting.svelte.ts`) holds the search state. The planner and part extraction live in core's export chunk, so it loads them on demand from `studio/sheet-nest-runner.ts`. The worker (`workers/nest.worker.ts`) and the `.wasm` are fetched only when a search starts. `check-web-budget.mjs` fails the build if either reaches the startup path, and budgets the engine at 340 KB gzip.
+- **Progress:** the worker streams each improved plan. The dialog draws every sheet as a thumbnail, and a sheet still packed by the fallback is marked pending. **Stop and keep best** terminates the worker and keeps the last plan; every draft is a complete, valid layout. **Cancel** discards the search.
+- **When the export uses it:** only when **Nested sheets** is chosen and the plan still matches the geometry and sheet settings. After any change, the dialog asks the maker to nest again, and until then the export uses the original panels.
+- **Fallback:** if WebAssembly cannot start, for example in a browser or host frame that forbids compiling it, the worker falls back to the bounding-box packer and the dialog says so. Without workers at all, the same packer runs on the main thread.
+- **Security policy:** the site's policy allows `'wasm-unsafe-eval'` in `script-src`. That permits compiling WebAssembly and still forbids JavaScript `eval`.
+- **Licences:** every build writes the engine's licence notices to `dist/licenses/third-party.txt`, and `verify-atomm-dist.mjs` checks that they are there.
+
+`e2e/nesting.spec.ts` runs the whole flow in all three browsers and asserts that sparrow, not the fallback, produced the plan.
+
+A plan records the engine that searched. Each sheet's `method` says whether sparrow packed it or the bounding-box layout was kept because sparrow found nothing tighter. Nearly rectangular parts, such as whole layers or seam pieces, often already pack optimally as boxes.
 
 ## Planner
 

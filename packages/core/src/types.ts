@@ -765,6 +765,7 @@ export interface SheetNestPlanV1 {
   schemaVersion: 1;
   /** Hash of the parts and settings the plan was made for; a stale plan no longer matches. */
   jobKey: string;
+  /** The engine that searched. A sheet it could not improve keeps the bounding-box layout; see each sheet's `method`. */
   engine: { name: "sparrow" | "rectangles"; sparrowRev?: string; jaguaVersion?: string };
   settings: ResolvedSheetNestSettings;
   sheets: SheetNestSheetV1[];
