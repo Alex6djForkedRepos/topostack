@@ -40,6 +40,10 @@
       `noaa-nbs-${region}-v1`,
       "Only cells from measured, openly licensed surveys are kept; NOAA’s modelled fill and restricted sources are removed. Depths below the surveys’ chart datum are averaged to an 8 m grid and clipped to each HydroLAKES outline. Lakes whose surveyed bed lies mostly above that datum are left out.",
     ])),
+    ...Object.fromEntries(["florida", "gulf-coast", "atlantic-coast", "great-lakes-basin", "new-york-vermont", "california", "columbia-river", "alaska"].map((region) => [
+      `noaa-enc-${region}-v1`,
+      "Depth contours and soundings from NOAA electronic navigational charts, most detailed chart first, are interpolated onto a 20 m grid inside each HydroLAKES outline with the shoreline at 0 m. Chart depths are generalized for navigation and refer to the chart’s low-water or sounding datum. Lakes charted mostly as drying, and Lake Mead, whose soundings refer to a fixed pool elevation, are left out.",
+    ])),
   };
   const software = [
     { name: "Svelte and SvelteKit", url: "https://github.com/sveltejs", license: "MIT", use: "Application interface, routing, and static pages." },

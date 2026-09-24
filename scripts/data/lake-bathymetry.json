@@ -279,6 +279,118 @@
       ],
       "encoding": "depth-terrarium-v1",
       "maxZoom": 14
+    },
+    {
+      "id": "noaa-enc-alaska-v1",
+      "name": "NOAA nautical charts: Alaska lakes",
+      "url": "https://www.charts.noaa.gov/ENCs/ENCs.shtml",
+      "license": "NOAA Office of Coast Survey electronic navigational charts; public domain. Chart contours and soundings interpolated by TopoStack; not for navigation.",
+      "bounds": [
+        -176.68,
+        51.9,
+        -130.29,
+        65.23
+      ],
+      "encoding": "depth-terrarium-v1",
+      "maxZoom": 13
+    },
+    {
+      "id": "noaa-enc-atlantic-coast-v1",
+      "name": "NOAA nautical charts: Atlantic Coast lakes",
+      "url": "https://www.charts.noaa.gov/ENCs/ENCs.shtml",
+      "license": "NOAA Office of Coast Survey electronic navigational charts; public domain. Chart contours and soundings interpolated by TopoStack; not for navigation.",
+      "bounds": [
+        -77.99,
+        34.22,
+        -68.55,
+        44.39
+      ],
+      "encoding": "depth-terrarium-v1",
+      "maxZoom": 13
+    },
+    {
+      "id": "noaa-enc-florida-v1",
+      "name": "NOAA nautical charts: Florida lakes",
+      "url": "https://www.charts.noaa.gov/ENCs/ENCs.shtml",
+      "license": "NOAA Office of Coast Survey electronic navigational charts; public domain. Chart contours and soundings interpolated by TopoStack; not for navigation.",
+      "bounds": [
+        -81.85,
+        25.12,
+        -80.08,
+        29.22
+      ],
+      "encoding": "depth-terrarium-v1",
+      "maxZoom": 13
+    },
+    {
+      "id": "noaa-enc-great-lakes-basin-v1",
+      "name": "NOAA nautical charts: Great Lakes basin lakes",
+      "url": "https://www.charts.noaa.gov/ENCs/ENCs.shtml",
+      "license": "NOAA Office of Coast Survey electronic navigational charts; public domain. Chart contours and soundings interpolated by TopoStack; not for navigation.",
+      "bounds": [
+        -88.57,
+        41.35,
+        -82.43,
+        47.4
+      ],
+      "encoding": "depth-terrarium-v1",
+      "maxZoom": 13
+    },
+    {
+      "id": "noaa-enc-gulf-coast-v1",
+      "name": "NOAA nautical charts: Gulf Coast lakes",
+      "url": "https://www.charts.noaa.gov/ENCs/ENCs.shtml",
+      "license": "NOAA Office of Coast Survey electronic navigational charts; public domain. Chart contours and soundings interpolated by TopoStack; not for navigation.",
+      "bounds": [
+        -95.56,
+        28.8,
+        -87.89,
+        30.72
+      ],
+      "encoding": "depth-terrarium-v1",
+      "maxZoom": 13
+    },
+    {
+      "id": "noaa-enc-new-york-vermont-v1",
+      "name": "NOAA nautical charts: New York and Vermont lakes",
+      "url": "https://www.charts.noaa.gov/ENCs/ENCs.shtml",
+      "license": "NOAA Office of Coast Survey electronic navigational charts; public domain. Chart contours and soundings interpolated by TopoStack; not for navigation.",
+      "bounds": [
+        -77.0,
+        41.02,
+        -72.43,
+        45.1
+      ],
+      "encoding": "depth-terrarium-v1",
+      "maxZoom": 13
+    },
+    {
+      "id": "noaa-enc-california-v1",
+      "name": "NOAA nautical charts: California lakes",
+      "url": "https://www.charts.noaa.gov/ENCs/ENCs.shtml",
+      "license": "NOAA Office of Coast Survey electronic navigational charts; public domain. Chart contours and soundings interpolated by TopoStack; not for navigation.",
+      "bounds": [
+        -121.53,
+        38.21,
+        -121.48,
+        38.27
+      ],
+      "encoding": "depth-terrarium-v1",
+      "maxZoom": 13
+    },
+    {
+      "id": "noaa-enc-columbia-river-v1",
+      "name": "NOAA nautical charts: Columbia River lakes",
+      "url": "https://www.charts.noaa.gov/ENCs/ENCs.shtml",
+      "license": "NOAA Office of Coast Survey electronic navigational charts; public domain. Chart contours and soundings interpolated by TopoStack; not for navigation.",
+      "bounds": [
+        -122.86,
+        45.56,
+        -118.18,
+        46.63
+      ],
+      "encoding": "depth-terrarium-v1",
+      "maxZoom": 13
     }
   ]
 }

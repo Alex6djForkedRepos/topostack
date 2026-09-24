@@ -1,10 +1,16 @@
 """ENC lake depths: cell priority, drying gate, shoreline samples and gridding."""
+import importlib.util
+from pathlib import Path
 import unittest
 
 import numpy as np
 from shapely.geometry import LineString, Point, box
 
-from survey_enc import drying_share, lake_grid, lake_points, shoreline
+from survey_enc import drying_share, grid_note, lake_grid, lake_points, shoreline
+
+spec = importlib.util.spec_from_file_location('select_enc_lakes', Path(__file__).with_name('select-enc-lakes.py'))
+select = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(select)
 
 LAKE = box(-81.0, 27.0, -80.99, 27.01)  # about 1 km square in Florida
 
@@ -37,6 +43,9 @@ class PointTests(unittest.TestCase):
         wet = cell('a', 12000, areas=[(0, 2, LAKE), (-1, 0, box(-81.0, 27.0, -80.99, 27.005))])
         self.assertAlmostEqual(drying_share([wet], LAKE), 0.5, places=3)
         self.assertEqual(drying_share([cell('b', 12000)], LAKE), 0.0)
+        # Drying areas outside the wet ones still count toward the whole, so the share never exceeds 1.
+        mostly_dry = cell('c', 12000, areas=[(0, 2, box(-81.0, 27.0, -80.99, 27.0025)), (-1, 0, box(-81.0, 27.0025, -80.99, 27.01))])
+        self.assertAlmostEqual(drying_share([mostly_dry], LAKE), 0.75, places=3)
 
     def test_shoreline_samples_every_ring_at_zero(self):
         ring = box(0, 0, 1000, 1000).difference(box(400, 400, 600, 600))
@@ -66,6 +75,30 @@ class GridTests(unittest.TestCase):
         grid, reason = lake_grid([cell('a', 180000, areas=[(0, 5.4, LAKE)])], LAKE)
         self.assertIsNone(grid)
         self.assertEqual(reason, 'No charted contours or soundings inside the lake')
+
+
+class SelectionTests(unittest.TestCase):
+    def test_fixed_pool_datums_are_recognized(self):
+        mead = 'SOUNDING DATUM Soundings refer to a normal lake level elevation which is 353.5 meters / 1160 feet above Mean Sea Level.'
+        self.assertTrue(select.FIXED_POOL.search(mead))
+        for note in ('CAUTION - LOW WATER DATUM Due to periodic high water conditions in the Great Lakes, some features charted as visible at Low Water Datum may be submerged.',
+                     'SOUNDING DATUM Soundings and clearances of bridges and overhead cables are referred to the Columbia River Datum (Mean Lower Low Water During Lowest River Stages).'):
+            self.assertIsNone(select.FIXED_POOL.search(note))
+
+    def test_datasets(self):
+        self.assertEqual(select.assign_dataset('NY', False), 'noaa-enc-new-york-vermont-v1')
+        self.assertEqual(select.assign_dataset('NY', True), 'noaa-enc-atlantic-coast-v1')
+        self.assertEqual(select.assign_dataset('VT', False), 'noaa-enc-new-york-vermont-v1')
+        self.assertEqual(select.assign_dataset('MI', False), 'noaa-enc-great-lakes-basin-v1')
+        self.assertEqual(select.assign_dataset('LA', True), 'noaa-enc-gulf-coast-v1')
+        self.assertEqual(select.assign_dataset('CA', False), 'noaa-enc-california-v1')
+        self.assertEqual(select.assign_dataset('OR', False), 'noaa-enc-columbia-river-v1')
+        self.assertIsNone(select.assign_dataset('NV', False))
+
+    def test_notes_name_the_datum(self):
+        self.assertIn('Normal Pool Level', grid_note({'datumNotes': ['CAUTION - LOW WATER DATUM ... visible at Normal Pool Level may be submerged']}))
+        self.assertIn('Low Water Datum', grid_note({'datumNotes': ['CAUTION - LOW WATER DATUM ... visible at Low Water Datum may be submerged']}))
+        self.assertIn('MLLW', grid_note({'datumNotes': []}))
 
 
 if __name__ == '__main__':

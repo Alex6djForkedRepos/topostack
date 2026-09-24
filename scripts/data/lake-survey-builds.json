@@ -133,6 +133,62 @@
       "bytes": 56278,
       "tiles": 37,
       "processedGrids": 3
+    },
+    {
+      "dataset": "noaa-enc-alaska-v1",
+      "sha256": "70eebeb73a0f290a7695cf844268b046cd3044626e463ff4c1149fd37fd07212",
+      "bytes": 1247642,
+      "tiles": 314,
+      "processedGrids": 15
+    },
+    {
+      "dataset": "noaa-enc-atlantic-coast-v1",
+      "sha256": "cf333d3c00f8603185e81be2fe2dba97590f6fb6c7a375f7d8ac6c5c472c081c",
+      "bytes": 414987,
+      "tiles": 177,
+      "processedGrids": 27
+    },
+    {
+      "dataset": "noaa-enc-florida-v1",
+      "sha256": "aed5c436759c877982fe57561a084e9ef8d5ec01c81392c88839565847d95667",
+      "bytes": 1639949,
+      "tiles": 247,
+      "processedGrids": 16
+    },
+    {
+      "dataset": "noaa-enc-great-lakes-basin-v1",
+      "sha256": "0ab84b822f6a763097ceea4232f5490d8273761513ea4b485cad9b5cab359f0b",
+      "bytes": 2809349,
+      "tiles": 309,
+      "processedGrids": 29
+    },
+    {
+      "dataset": "noaa-enc-gulf-coast-v1",
+      "sha256": "7ea7d4c83c9105f392ee62b50e70f0829ce73b40815ddf2ad99263027525ba21",
+      "bytes": 1620594,
+      "tiles": 431,
+      "processedGrids": 28
+    },
+    {
+      "dataset": "noaa-enc-new-york-vermont-v1",
+      "sha256": "b705db11d07a0227f83ae0912ab752a4458446777f5d956936b4362c04182174",
+      "bytes": 11700930,
+      "tiles": 574,
+      "processedGrids": 14
+    },
+    {
+      "dataset": "noaa-enc-california-v1",
+      "sha256": "4da9f0af8dd087eca373822b8c73c687031d65521a446e1cb7b6a3a46daefa0a",
+      "bytes": 16912,
+      "tiles": 10,
+      "processedGrids": 1
+    },
+    {
+      "dataset": "noaa-enc-columbia-river-v1",
+      "sha256": "a1d61a4cd44e1dc71ed08c384fb3211d6839eb250d1434da248afcb603745e3c",
+      "bytes": 74322,
+      "tiles": 38,
+      "processedGrids": 5
     }
   ],
   "skipped": {
@@ -2231,6 +2287,140 @@
         "id": "1073498",
         "name": "Unnamed lake, St. Croix Island",
         "reason": "100% of the surveyed bed lies above chart datum; the lake surface is not referenced"
+      }
+    ],
+    "noaa-enc": [
+      {
+        "dataset": "noaa-enc-alaska-v1",
+        "id": "427033",
+        "name": "Unnamed lake, Nome Census Area",
+        "reason": "No charted contours or soundings inside the lake"
+      },
+      {
+        "dataset": "noaa-enc-alaska-v1",
+        "id": "632689",
+        "name": "Unnamed lake, Bethel Census Area",
+        "reason": "No charted contours or soundings inside the lake"
+      },
+      {
+        "dataset": "noaa-enc-alaska-v1",
+        "id": "766256",
+        "name": "Unnamed lake, Prince of Wales-Hyder Census Area",
+        "reason": "29% of the charted lake is drying; the lake surface is not the chart datum"
+      },
+      {
+        "dataset": "noaa-enc-alaska-v1",
+        "id": "792257",
+        "name": "Unnamed lake, Ketchikan Gateway Borough",
+        "reason": "No charted contours or soundings inside the lake"
+      },
+      {
+        "dataset": "noaa-enc-atlantic-coast-v1",
+        "id": "110668",
+        "name": "Unnamed lake, Lincoln County",
+        "reason": "76% of the charted lake is drying; the lake surface is not the chart datum"
+      },
+      {
+        "dataset": "noaa-enc-atlantic-coast-v1",
+        "id": "111715",
+        "name": "Unnamed lake, Barnstable County",
+        "reason": "50% of the charted lake is drying; the lake surface is not the chart datum"
+      },
+      {
+        "dataset": "noaa-enc-atlantic-coast-v1",
+        "id": "112592",
+        "name": "Unnamed lake, Accomack County",
+        "reason": "46% of the charted lake is drying; the lake surface is not the chart datum"
+      },
+      {
+        "dataset": "noaa-enc-atlantic-coast-v1",
+        "id": "1051402",
+        "name": "Unnamed lake, Columbia County",
+        "reason": "32% of the charted lake is drying; the lake surface is not the chart datum"
+      },
+      {
+        "dataset": "noaa-enc-atlantic-coast-v1",
+        "id": "1051589",
+        "name": "Unnamed lake, Norfolk County",
+        "reason": "45% of the charted lake is drying; the lake surface is not the chart datum"
+      },
+      {
+        "dataset": "noaa-enc-atlantic-coast-v1",
+        "id": "1051639",
+        "name": "Unnamed lake, Norfolk County",
+        "reason": "56% of the charted lake is drying; the lake surface is not the chart datum"
+      },
+      {
+        "dataset": "noaa-enc-atlantic-coast-v1",
+        "id": "1051900",
+        "name": "Unnamed lake, Plymouth County",
+        "reason": "72% of the charted lake is drying; the lake surface is not the chart datum"
+      },
+      {
+        "dataset": "noaa-enc-atlantic-coast-v1",
+        "id": "1053348",
+        "name": "Mill Pond",
+        "reason": "33% of the charted lake is drying; the lake surface is not the chart datum"
+      },
+      {
+        "dataset": "noaa-enc-atlantic-coast-v1",
+        "id": "1053915",
+        "name": "Lake Tashmoo",
+        "reason": "26% of the charted lake is drying; the lake surface is not the chart datum"
+      },
+      {
+        "dataset": "noaa-enc-atlantic-coast-v1",
+        "id": "1054161",
+        "name": "Unnamed lake, Lower Connecticut River Valley Planning Region",
+        "reason": "34% of the charted lake is drying; the lake surface is not the chart datum"
+      },
+      {
+        "dataset": "noaa-enc-atlantic-coast-v1",
+        "id": "1054856",
+        "name": "Part of Long Island Sound",
+        "reason": "29% of the charted lake is drying; the lake surface is not the chart datum"
+      },
+      {
+        "dataset": "noaa-enc-atlantic-coast-v1",
+        "id": "1056937",
+        "name": "Unnamed lake, Cape May County",
+        "reason": "28% of the charted lake is drying; the lake surface is not the chart datum"
+      },
+      {
+        "dataset": "noaa-enc-atlantic-coast-v1",
+        "id": "1058074",
+        "name": "Unnamed lake, King George County",
+        "reason": "68% of the charted lake is drying; the lake surface is not the chart datum"
+      },
+      {
+        "dataset": "noaa-enc-atlantic-coast-v1",
+        "id": "1063751",
+        "name": "Unnamed lake, Charleston County",
+        "reason": "77% of the charted lake is drying; the lake surface is not the chart datum"
+      },
+      {
+        "dataset": "noaa-enc-florida-v1",
+        "id": "114637",
+        "name": "Chevelier Bay",
+        "reason": "31% of the charted lake is drying; the lake surface is not the chart datum"
+      },
+      {
+        "dataset": "noaa-enc-florida-v1",
+        "id": "1069470",
+        "name": "Part of Lopez River",
+        "reason": "38% of the charted lake is drying; the lake surface is not the chart datum"
+      },
+      {
+        "dataset": "noaa-enc-gulf-coast-v1",
+        "id": "1066832",
+        "name": "Unnamed lake, St. Mary Parish",
+        "reason": "33% of the charted lake is drying; the lake surface is not the chart datum"
+      },
+      {
+        "dataset": "noaa-enc-gulf-coast-v1",
+        "id": "1066915",
+        "name": "Lake Nassau",
+        "reason": "28% of the charted lake is drying; the lake surface is not the chart datum"
       }
     ]
   }

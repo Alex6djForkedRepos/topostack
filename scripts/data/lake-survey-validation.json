@@ -262,5 +262,93 @@
       "east": -64.68006050687758,
       "north": 17.753873995747178
     }
+  },
+  {
+    "name": "Imuruk Basin",
+    "sourceLakeId": "262",
+    "dataset": "noaa-enc-alaska-v1",
+    "bounds": {
+      "west": -165.95304181637522,
+      "south": 65.04294709736934,
+      "east": -165.3791960825962,
+      "north": 65.21055777744867
+    }
+  },
+  {
+    "name": "Mulberry Pond",
+    "sourceLakeId": "112461",
+    "dataset": "noaa-enc-atlantic-coast-v1",
+    "bounds": {
+      "west": -75.1181026156782,
+      "south": 38.453824840884046,
+      "east": -75.05291680154654,
+      "north": 38.507945260985814
+    }
+  },
+  {
+    "name": "Lake Okeechobee",
+    "sourceLakeId": "69",
+    "dataset": "noaa-enc-florida-v1",
+    "bounds": {
+      "west": -81.10537898159116,
+      "south": 26.688314136196038,
+      "east": -80.61080145376495,
+      "north": 27.206545905937162
+    }
+  },
+  {
+    "name": "Burt Lake",
+    "sourceLakeId": "8838",
+    "dataset": "noaa-enc-great-lakes-basin-v1",
+    "bounds": {
+      "west": -84.7303062626798,
+      "south": 45.398347604171256,
+      "east": -84.61585034366473,
+      "north": 45.54158397709953
+    }
+  },
+  {
+    "name": "Lake Mechant",
+    "sourceLakeId": "851",
+    "dataset": "noaa-enc-gulf-coast-v1",
+    "bounds": {
+      "west": -91.05712164862383,
+      "south": 29.143069899838235,
+      "east": -90.67011354245159,
+      "north": 29.568699378553905
+    }
+  },
+  {
+    "name": "Lake Champlain",
+    "sourceLakeId": "64",
+    "dataset": "noaa-enc-new-york-vermont-v1",
+    "bounds": {
+      "west": -73.49380509485849,
+      "south": 43.5236252527775,
+      "east": -73.07460858383105,
+      "north": 45.08928979759127
+    }
+  },
+  {
+    "name": "Unnamed lake, Sacramento County",
+    "sourceLakeId": "112505",
+    "dataset": "noaa-enc-california-v1",
+    "bounds": {
+      "west": -121.51162480434242,
+      "south": 38.22510649742686,
+      "east": -121.49327629977165,
+      "north": 38.251100934502354
+    }
+  },
+  {
+    "name": "Scappoose Bay",
+    "sourceLakeId": "108383",
+    "dataset": "noaa-enc-columbia-river-v1",
+    "bounds": {
+      "west": -122.84613728684508,
+      "south": 45.814115775209984,
+      "east": -122.81826239949179,
+      "north": 45.83647805418994
+    }
   }
 ]

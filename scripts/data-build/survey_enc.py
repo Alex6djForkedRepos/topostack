@@ -8,8 +8,10 @@ survey_regions.contour_grid interpolates linearly inside the outline, as for the
 regional contour sources. See docs/reports/noaa-chart-lake-coverage-2026-09-24.md.
 """
 import glob
+import json
 import math
 import os
+from pathlib import Path
 import tempfile
 import zipfile
 
@@ -18,7 +20,10 @@ from rasterio.warp import transform_geom
 from shapely.geometry import mapping, shape
 from shapely.ops import unary_union
 
+from survey_nbs import hydrolakes
 from survey_regions import contour_grid, line_parts
+
+PINS = Path(__file__).resolve().parent.parent / 'data/noaa-enc-sources.json'
 
 # Updates (.001, .002 ...) are applied; soundings arrive one point per depth.
 S57_OPTIONS = 'SPLIT_MULTIPOINT=ON,ADD_SOUNDG_DEPTH=ON,UPDATES=APPLY,RETURN_PRIMITIVES=OFF'
@@ -72,10 +77,10 @@ def charted(cell):
 
 
 def drying_share(cells, lake):
-    """Share of the lake's charted area that is charted as drying (bed above datum)."""
-    wet = unary_union([charted(cell) for cell in cells]).intersection(lake)
+    """Share of the lake's charted depth areas that is charted as drying (bed above datum)."""
     dry = unary_union([g for cell in cells for d1, d2, g in cell['areas'] if d1 is not None and d1 < 0]).intersection(lake)
-    return dry.area / wet.area if wet.area else 0.0
+    every = unary_union([dry] + [charted(cell) for cell in cells]).intersection(lake)
+    return dry.area / every.area if every.area else 0.0
 
 
 def lake_points(cells, lake):
@@ -131,3 +136,52 @@ def lake_grid(cells, lake, resolution=RESOLUTION_M):
     points = [(p.x, p.y, depth) for p, (_, _, depth) in zip(projected.geoms, samples)] + shoreline(water)
     values, transform = contour_grid(points, water, resolution)
     return (values, transform, crs, len(samples)), None
+
+
+def load_pins(dataset, path=PINS):
+    pins = json.loads(path.read_text())
+    lakes = [lake for lake in pins['lakes'] if lake['dataset'] == dataset]
+    if not lakes:
+        raise ValueError(f'No chart lakes pinned for {dataset}')
+    return pins, lakes
+
+
+def grid_note(lake):
+    """Directory note naming the lake's chart datum from its cells' datum notes."""
+    notes = ' '.join(lake['datumNotes']) or 'Chart sounding datum.'
+    low_water = 'Normal Pool Level' if 'Normal Pool Level' in notes else 'Columbia River Datum' if 'Columbia River' in notes \
+        else 'Low Water Datum' if 'low water datum' in notes.lower() else 'the chart sounding datum (MLLW on tidal water)'
+    return (f'Interpolated from NOAA nautical chart contours and soundings, which are generalized for navigation. '
+            f'Depths are below {low_water}, not a live water level.')
+
+
+def enc(source, cache, writer, download, write_grid):
+    """Build one regional chart archive; returns the pins recorded in its receipt."""
+    pins, lakes = load_pins(source['id'])
+    names = sorted({name for lake in lakes for name in lake['cells']})
+    archives = {name: download({'id': name, 'url': pins['cells'][name]['url'], 'sha256': pins['cells'][name]['sha256'],
+                                'file': f'enc/{name}.zip'}, cache) for name in names}
+    cells = {name: read_cell(archives[name], name) for name in names}
+    for name, cell in cells.items():
+        pin = pins['cells'][name]
+        if str(cell['edition']) != str(pin['edition']) or str(cell['update']) != str(pin['update']):
+            raise ValueError(f'{name}: edition {cell["edition"]}.{cell["update"]} is not the pinned {pin["edition"]}.{pin["update"]}')
+    polygons = hydrolakes(pins, cache, download, {lake['hylakId'] for lake in lakes})
+    skipped = []
+    for lake in lakes:
+        key = str(lake['hylakId'])
+        grid, reason = lake_grid([cells[name] for name in lake['cells']], polygons[lake['hylakId']])
+        if reason:
+            skipped.append({'id': key, 'name': lake['title'], 'reason': reason})
+            continue
+        values, transform, crs, _ = grid
+        prepared = cache / 'enc-prepared' / f'{key}.tif'
+        write_grid(prepared, values, transform, crs)
+        writer.add(prepared, key)
+        writer.grids[-1].update(title=lake['title'], aliases=lake['aliases'], region=lake['region'], note=grid_note(lake),
+                                cells=lake['cells'])
+        if writer.grids[-1]['tilesWritten'] <= 0:
+            skipped.append({'id': key, 'name': lake['title'], 'reason': 'No coverage at served tile resolution'})
+    (cache / f"{source['id']}-skipped.json").write_text(json.dumps(skipped, indent=2) + '\n')
+    print(f"ENC {source['id']}: {len(writer.grids)} lakes processed, {len(skipped)} skipped", flush=True)
+    return [pins['hydrolakes'], {'id': 'enc-catalog', **pins['catalog']}] + [{'id': name, **pins['cells'][name]} for name in names]

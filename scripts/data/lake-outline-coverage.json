@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "directoryEntries": 8012,
+  "directoryEntries": 8147,
   "providerOutlines": 7744,
   "shards": 417,
   "entries": [
@@ -8003,6 +8003,681 @@
     {
       "id": "mn-dnr-lakes-v1:87018100",
       "outline": "provider"
+    },
+    {
+      "id": "noaa-enc-alaska-v1:262",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-alaska-v1:45380",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-alaska-v1:469489",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-alaska-v1:474187",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-alaska-v1:502127",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-alaska-v1:620521",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-alaska-v1:67423",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-alaska-v1:711539",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-alaska-v1:76251",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-alaska-v1:76301",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-alaska-v1:763430",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-alaska-v1:768985",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-alaska-v1:80428",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-alaska-v1:80477",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-alaska-v1:93805",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-atlantic-coast-v1:1054179",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-atlantic-coast-v1:1054222",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-atlantic-coast-v1:1054959",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-atlantic-coast-v1:1054966",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-atlantic-coast-v1:1055024",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-atlantic-coast-v1:1055444",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-atlantic-coast-v1:1055972",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-atlantic-coast-v1:1056238",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-atlantic-coast-v1:1056628",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-atlantic-coast-v1:1056730",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-atlantic-coast-v1:1057154",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-atlantic-coast-v1:1057256",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-atlantic-coast-v1:1058835",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-atlantic-coast-v1:1059089",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-atlantic-coast-v1:1059179",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-atlantic-coast-v1:1059198",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-atlantic-coast-v1:1059463",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-atlantic-coast-v1:1061795",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-atlantic-coast-v1:110280",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-atlantic-coast-v1:111770",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-atlantic-coast-v1:111773",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-atlantic-coast-v1:111786",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-atlantic-coast-v1:111934",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-atlantic-coast-v1:112135",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-atlantic-coast-v1:112461",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-atlantic-coast-v1:112516",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-atlantic-coast-v1:112686",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-california-v1:112505",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-columbia-river-v1:1025546",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-columbia-river-v1:1034540",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-columbia-river-v1:1036581",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-columbia-river-v1:107066",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-columbia-river-v1:108383",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-florida-v1:1067520",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-florida-v1:1068801",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-florida-v1:1069229",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-florida-v1:1069276",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-florida-v1:1069313",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-florida-v1:1069336",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-florida-v1:1069353",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-florida-v1:1069398",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-florida-v1:114632",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-florida-v1:114634",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-florida-v1:114636",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-florida-v1:114643",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-florida-v1:114690",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-florida-v1:69",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-florida-v1:9661",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-florida-v1:9662",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-great-lakes-basin-v1:1023931",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-great-lakes-basin-v1:1044917",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-great-lakes-basin-v1:1045011",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-great-lakes-basin-v1:1046327",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-great-lakes-basin-v1:1046333",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-great-lakes-basin-v1:1049383",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-great-lakes-basin-v1:1049483",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-great-lakes-basin-v1:1049720",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-great-lakes-basin-v1:1049967",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-great-lakes-basin-v1:1050547",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-great-lakes-basin-v1:1054120",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-great-lakes-basin-v1:105619",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-great-lakes-basin-v1:108928",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-great-lakes-basin-v1:108971",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-great-lakes-basin-v1:110016",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-great-lakes-basin-v1:110426",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-great-lakes-basin-v1:110656",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-great-lakes-basin-v1:110792",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-great-lakes-basin-v1:110992",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-great-lakes-basin-v1:111033",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-great-lakes-basin-v1:111100",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-great-lakes-basin-v1:111197",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-great-lakes-basin-v1:111233",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-great-lakes-basin-v1:111660",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-great-lakes-basin-v1:111769",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-great-lakes-basin-v1:8567",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-great-lakes-basin-v1:8819",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-great-lakes-basin-v1:8838",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-great-lakes-basin-v1:8848",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-gulf-coast-v1:1065934",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-gulf-coast-v1:1065968",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-gulf-coast-v1:1066124",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-gulf-coast-v1:1066921",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-gulf-coast-v1:113846",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-gulf-coast-v1:113871",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-gulf-coast-v1:113879",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-gulf-coast-v1:114057",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-gulf-coast-v1:114108",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-gulf-coast-v1:114112",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-gulf-coast-v1:114116",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-gulf-coast-v1:114139",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-gulf-coast-v1:114177",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-gulf-coast-v1:114228",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-gulf-coast-v1:114234",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-gulf-coast-v1:114240",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-gulf-coast-v1:114266",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-gulf-coast-v1:114276",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-gulf-coast-v1:114321",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-gulf-coast-v1:843",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-gulf-coast-v1:847",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-gulf-coast-v1:851",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-gulf-coast-v1:9530",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-gulf-coast-v1:9539",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-gulf-coast-v1:9554",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-gulf-coast-v1:9564",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-gulf-coast-v1:9583",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-gulf-coast-v1:9585",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-new-york-vermont-v1:1049102",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-new-york-vermont-v1:1049424",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-new-york-vermont-v1:1049686",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-new-york-vermont-v1:1054810",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-new-york-vermont-v1:111014",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-new-york-vermont-v1:111082",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-new-york-vermont-v1:111150",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-new-york-vermont-v1:111183",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-new-york-vermont-v1:64",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-new-york-vermont-v1:770",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-new-york-vermont-v1:772",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-new-york-vermont-v1:773",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-new-york-vermont-v1:9084",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
+    },
+    {
+      "id": "noaa-enc-new-york-vermont-v1:9101",
+      "outline": "external-fallback",
+      "reason": "Grid source has no shoreline in the pinned inputs; use HydroLAKES or OSM."
     },
     {
       "id": "noaa-great-lakes-v1:erie",
