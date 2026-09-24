@@ -26,6 +26,10 @@ const distDirectory = new URL("../../apps/generator/dist/", import.meta.url);
 const distFiles = await filesBelow(distDirectory);
 const scripts = distFiles.filter((file) => file.pathname.endsWith(".js"));
 if (!scripts.length) throw new Error("Production artifact contains no JavaScript application files.");
+// The nesting engine is redistributed in compiled form; its MIT and MPL-2.0 notices must ship with it.
+const licenses = await readFile(new URL("../../apps/generator/dist/licenses/third-party.txt", import.meta.url), "utf8").catch(() => "");
+if (!licenses.includes("Copyright (c) 2025 Jeroen Gardeyn, KU Leuven") || !licenses.includes("Mozilla Public License")) throw new Error("dist/licenses/third-party.txt is missing the nesting engine's licence notices.");
+if (!/script-src[^;]*'wasm-unsafe-eval'/.test(headers)) throw new Error("Production security headers do not allow the nesting engine's WebAssembly to compile.");
 // Scanned file by file, so a host a bundled library only writes into its own
 // code (see LIBRARY_HOSTS) is excused there and nowhere else.
 const searchable = [index, studio, ...await Promise.all(scripts.map((file) => readFile(file, "utf8")))];

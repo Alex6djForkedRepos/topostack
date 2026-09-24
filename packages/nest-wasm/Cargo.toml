@@ -1,0 +1,35 @@
+[package]
+name = "topostack-nest-wasm"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.90"
+publish = false
+license = "MIT"
+description = "WebAssembly wrapper around the sparrow strip-packing heuristic for TopoStack sheet nesting"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# sparrow (MIT, Jeroen Gardeyn / KU Leuven) and jagua-rs (MPL-2.0) are used unmodified.
+# Both are pinned exactly: an upgrade is a deliberate change that re-runs the transform tests.
+sparrow = { git = "https://github.com/JeroenGar/sparrow", rev = "7f0e10f946f70a86138d3938548a13ee46464f39", default-features = false }
+jagua-rs = { version = "=0.8.3", features = ["spp"] }
+rand = "0.10"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+wasm-bindgen = "=0.2.100"
+js-sys = "0.3"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_error_panic_hook = "0.1"
+jiff = { version = "0.2", features = ["js"] }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+
+[profile.test]
+opt-level = 3

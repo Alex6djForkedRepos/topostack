@@ -1,0 +1,460 @@
+{
+  "date": "2026-09-24",
+  "platform": "macOS-27.0-arm64-arm-64bit-Mach-O",
+  "scope": "Production pool scheduler on Node worker threads; browser correctness verified separately. Terrain session resets each cold case; helper workers persist within each report.",
+  "terrain": [
+    {
+      "workers": 0,
+      "fallbackErrors": [],
+      "terrain": "Grand Teton Terrarium z12",
+      "bounds": {
+        "west": -110.94,
+        "east": -110.65,
+        "south": 43.63,
+        "north": 43.84
+      },
+      "widthMm": 3000,
+      "heightMm": 3000,
+      "materialThicknessMm": 3,
+      "verticalExaggeration": 2,
+      "annotations": true,
+      "nesting": true,
+      "grid": 768,
+      "roads": 0,
+      "sourceHash": "cce0c22b6f8b14f14ed7d555e5f5e85cbc471cfccbed80b71ae1976c9ff2680a",
+      "node": "v26.5.0",
+      "results": [
+        {
+          "run": 0,
+          "kind": "cold",
+          "ms": 15386.350625000001,
+          "stages": {
+            "prepare": 7.4100839999999835,
+            "water": 0.5878749999999968,
+            "ladder": 5.379624999999976,
+            "contours": 3431.066584,
+            "split": 0.44258300000001327,
+            "nesting": 1880.836667,
+            "fabrication": 13.173999999999978,
+            "routing": 0.08991599999990285,
+            "alignment": 4603.475541,
+            "assembly-labels": 0.17845799999849987,
+            "elevation-labels": 5438.878125000001,
+            "annotations": 1.4296249999988504
+          },
+          "layers": 193,
+          "markings": 3336,
+          "outputHash": "5ebb7ccdf1fca6d3845bef814976ea5710be54f9ed0cc56d6c1379b587ecdda9"
+        },
+        {
+          "run": 0,
+          "kind": "annotation-edit",
+          "ms": 8495.200708,
+          "stages": {
+            "prepare": 0.6263330000001588,
+            "terrain-cache": 449.7323749999996,
+            "split": 0.05700000000069849,
+            "nesting": 2498.5860829999983,
+            "fabrication": 19.356582999997045,
+            "routing": 0.01224999999976717,
+            "alignment": 5523.906958,
+            "assembly-labels": 0.027375000001484295,
+            "elevation-labels": 0.010375000001658918,
+            "annotations": 2.0081669999999576
+          },
+          "layers": 193,
+          "markings": 3212,
+          "outputHash": "b32e0c01ba7a9225a6ccf09f80caa05039d1cf9c3fb4c14d03dab394c8bedb95"
+        },
+        {
+          "run": 1,
+          "kind": "cold",
+          "ms": 21626.913249999998,
+          "stages": {
+            "prepare": 9.927333999999973,
+            "water": 0.5274580000004789,
+            "ladder": 4.607707999999548,
+            "contours": 3636.5162090000013,
+            "split": 0.1426659999997355,
+            "nesting": 2365.2393329999977,
+            "fabrication": 16.78333399999974,
+            "routing": 0.008249999998952262,
+            "alignment": 5410.896167000003,
+            "assembly-labels": 0.048666999995475635,
+            "elevation-labels": 10176.773541999995,
+            "annotations": 4.273958000005223
+          },
+          "layers": 193,
+          "markings": 3336,
+          "outputHash": "5ebb7ccdf1fca6d3845bef814976ea5710be54f9ed0cc56d6c1379b587ecdda9"
+        },
+        {
+          "run": 1,
+          "kind": "annotation-edit",
+          "ms": 8648.492208000003,
+          "stages": {
+            "prepare": 0.11175000000366708,
+            "terrain-cache": 471.4512089999989,
+            "split": 0.1317909999997937,
+            "nesting": 2598.9925000000003,
+            "fabrication": 20.689124999997148,
+            "routing": 0.01304099999833852,
+            "alignment": 5553.786584000001,
+            "assembly-labels": 0.01937500000349246,
+            "elevation-labels": 0.012584000003698748,
+            "annotations": 2.434000000001106
+          },
+          "layers": 193,
+          "markings": 3212,
+          "outputHash": "b32e0c01ba7a9225a6ccf09f80caa05039d1cf9c3fb4c14d03dab394c8bedb95"
+        }
+      ]
+    },
+    {
+      "workers": 2,
+      "fallbackErrors": [],
+      "terrain": "Grand Teton Terrarium z12",
+      "bounds": {
+        "west": -110.94,
+        "east": -110.65,
+        "south": 43.63,
+        "north": 43.84
+      },
+      "widthMm": 3000,
+      "heightMm": 3000,
+      "materialThicknessMm": 3,
+      "verticalExaggeration": 2,
+      "annotations": true,
+      "nesting": true,
+      "grid": 768,
+      "roads": 0,
+      "sourceHash": "cce0c22b6f8b14f14ed7d555e5f5e85cbc471cfccbed80b71ae1976c9ff2680a",
+      "node": "v26.5.0",
+      "results": [
+        {
+          "run": 0,
+          "kind": "cold",
+          "ms": 13228.638417,
+          "stages": {
+            "prepare": 8.082499999999982,
+            "water": 0.8231250000000045,
+            "ladder": 5.130291,
+            "contours": 3648.4060830000003,
+            "split": 0.454874999999447,
+            "nesting": 1893.9899169999999,
+            "fabrication": 13.315666999999848,
+            "routing": 0.08400000000074215,
+            "alignment": 4139.995459000001,
+            "assembly-labels": 0.31270799999947485,
+            "elevation-labels": 3514.034708000001,
+            "annotations": 1.0909999999985303
+          },
+          "layers": 193,
+          "markings": 3336,
+          "outputHash": "5ebb7ccdf1fca6d3845bef814976ea5710be54f9ed0cc56d6c1379b587ecdda9"
+        },
+        {
+          "run": 0,
+          "kind": "annotation-edit",
+          "ms": 6575.274374999999,
+          "stages": {
+            "prepare": 0.1086250000007567,
+            "terrain-cache": 482.5735829999994,
+            "split": 0.1053330000013375,
+            "nesting": 2482.9577499999996,
+            "fabrication": 19.228457999997772,
+            "routing": 0.011582999999518506,
+            "alignment": 3588.443707999999,
+            "assembly-labels": 0.013792000001558335,
+            "elevation-labels": 0.0057500000002619345,
+            "annotations": 1.0430420000011509
+          },
+          "layers": 193,
+          "markings": 3212,
+          "outputHash": "b32e0c01ba7a9225a6ccf09f80caa05039d1cf9c3fb4c14d03dab394c8bedb95"
+        },
+        {
+          "run": 1,
+          "kind": "cold",
+          "ms": 12950.078583000002,
+          "stages": {
+            "prepare": 13.119665999998688,
+            "water": 0.19295799999963492,
+            "ladder": 4.3972499999981665,
+            "contours": 3514.6938340000015,
+            "split": 0.11587499999950523,
+            "nesting": 2216.748416999999,
+            "fabrication": 14.987625000001572,
+            "routing": 0.009332999998150626,
+            "alignment": 3658.467792000003,
+            "assembly-labels": 0.010999999998603016,
+            "elevation-labels": 3525.0545410000013,
+            "annotations": 1.193915999996534
+          },
+          "layers": 193,
+          "markings": 3336,
+          "outputHash": "5ebb7ccdf1fca6d3845bef814976ea5710be54f9ed0cc56d6c1379b587ecdda9"
+        },
+        {
+          "run": 1,
+          "kind": "annotation-edit",
+          "ms": 7127.5483749999985,
+          "stages": {
+            "prepare": 0.10562499999650754,
+            "terrain-cache": 515.8439999999973,
+            "split": 0.13245800000004238,
+            "nesting": 2573.177334,
+            "fabrication": 18.55566700000054,
+            "routing": 0.008000000001629815,
+            "alignment": 4018.111125000003,
+            "assembly-labels": 0.012584000003698748,
+            "elevation-labels": 0.00637500000448199,
+            "annotations": 1.0144170000057784
+          },
+          "layers": 193,
+          "markings": 3212,
+          "outputHash": "b32e0c01ba7a9225a6ccf09f80caa05039d1cf9c3fb4c14d03dab394c8bedb95"
+        }
+      ]
+    },
+    {
+      "workers": 4,
+      "fallbackErrors": [],
+      "terrain": "Grand Teton Terrarium z12",
+      "bounds": {
+        "west": -110.94,
+        "east": -110.65,
+        "south": 43.63,
+        "north": 43.84
+      },
+      "widthMm": 3000,
+      "heightMm": 3000,
+      "materialThicknessMm": 3,
+      "verticalExaggeration": 2,
+      "annotations": true,
+      "nesting": true,
+      "grid": 768,
+      "roads": 0,
+      "sourceHash": "cce0c22b6f8b14f14ed7d555e5f5e85cbc471cfccbed80b71ae1976c9ff2680a",
+      "node": "v26.5.0",
+      "results": [
+        {
+          "run": 0,
+          "kind": "cold",
+          "ms": 10085.32375,
+          "stages": {
+            "prepare": 11.871125000000006,
+            "water": 0.5755409999999301,
+            "ladder": 7.388000000000034,
+            "contours": 3686.2735829999997,
+            "split": 0.8511250000001382,
+            "nesting": 1937.4844169999997,
+            "fabrication": 13.683291000000281,
+            "routing": 0.15945800000008603,
+            "alignment": 2396.9814159999996,
+            "assembly-labels": 0.1575830000001588,
+            "elevation-labels": 2025.7141250000004,
+            "annotations": 1.0368749999997817
+          },
+          "layers": 193,
+          "markings": 3336,
+          "outputHash": "5ebb7ccdf1fca6d3845bef814976ea5710be54f9ed0cc56d6c1379b587ecdda9"
+        },
+        {
+          "run": 0,
+          "kind": "annotation-edit",
+          "ms": 5166.059334,
+          "stages": {
+            "prepare": 0.1269589999992604,
+            "terrain-cache": 496.37445900000057,
+            "split": 0.08979100000033213,
+            "nesting": 2557.613958,
+            "fabrication": 19.283832999999504,
+            "routing": 0.011209000000235392,
+            "alignment": 2090.9009160000005,
+            "assembly-labels": 0.01316699999915727,
+            "elevation-labels": 0.0062499999985448085,
+            "annotations": 0.9525840000005701
+          },
+          "layers": 193,
+          "markings": 3212,
+          "outputHash": "b32e0c01ba7a9225a6ccf09f80caa05039d1cf9c3fb4c14d03dab394c8bedb95"
+        },
+        {
+          "run": 1,
+          "kind": "cold",
+          "ms": 10111.334542,
+          "stages": {
+            "prepare": 11.771874999998545,
+            "water": 0.140917000000627,
+            "ladder": 4.1571250000015425,
+            "contours": 3616.5549169999977,
+            "split": 0.11375000000043656,
+            "nesting": 2368.022167000003,
+            "fabrication": 14.35962500000096,
+            "routing": 0.009375000001455192,
+            "alignment": 2186.6950419999994,
+            "assembly-labels": 0.009541999999783002,
+            "elevation-labels": 1907.2669580000002,
+            "annotations": 1.270833999999013
+          },
+          "layers": 193,
+          "markings": 3336,
+          "outputHash": "5ebb7ccdf1fca6d3845bef814976ea5710be54f9ed0cc56d6c1379b587ecdda9"
+        },
+        {
+          "run": 1,
+          "kind": "annotation-edit",
+          "ms": 5442.266291,
+          "stages": {
+            "prepare": 0.17241700000158744,
+            "terrain-cache": 491.6788749999978,
+            "split": 0.14233400000011898,
+            "nesting": 2651.3745409999974,
+            "fabrication": 21.32012499999837,
+            "routing": 0.010208000003331108,
+            "alignment": 2275.5905840000014,
+            "assembly-labels": 0.027083000000857282,
+            "elevation-labels": 0.015167000001383713,
+            "annotations": 1.1602920000004815
+          },
+          "layers": 193,
+          "markings": 3212,
+          "outputHash": "b32e0c01ba7a9225a6ccf09f80caa05039d1cf9c3fb4c14d03dab394c8bedb95"
+        }
+      ]
+    }
+  ],
+  "denseRoads": [
+    {
+      "workers": 0,
+      "fallbackErrors": [],
+      "terrain": "Grand Teton Terrarium z12",
+      "bounds": {
+        "west": -110.94,
+        "east": -110.65,
+        "south": 43.63,
+        "north": 43.84
+      },
+      "widthMm": 3000,
+      "heightMm": 3000,
+      "materialThicknessMm": 3,
+      "verticalExaggeration": 2,
+      "annotations": true,
+      "nesting": true,
+      "grid": 768,
+      "roads": 300,
+      "sourceHash": "e63cc7cea578551b27690aab556ee50154a391ca9fbc9282a03311e1371e0cd0",
+      "node": "v26.5.0",
+      "results": [
+        {
+          "run": 0,
+          "kind": "cold",
+          "ms": 22816.276,
+          "stages": {
+            "prepare": 9.389874999999961,
+            "water": 0.9901659999999879,
+            "ladder": 5.335541999999975,
+            "contours": 3598.562708,
+            "split": 0.5310419999996157,
+            "nesting": 1898.7007090000002,
+            "fabrication": 4402.925249999999,
+            "routing": 3873.6432920000007,
+            "alignment": 4580.100834000001,
+            "assembly-labels": 0.21791699999812408,
+            "elevation-labels": 4374.134249999999,
+            "annotations": 61.41783399999986
+          },
+          "layers": 193,
+          "markings": 138492,
+          "outputHash": "12eba79e4e31850693b03d1611d7fc221f05b05c4a79ec4af285c3a4b2cde998"
+        },
+        {
+          "run": 0,
+          "kind": "annotation-edit",
+          "ms": 18789.008208000003,
+          "stages": {
+            "prepare": 0.7040420000012091,
+            "terrain-cache": 472.87604199999987,
+            "split": 0.0736670000005688,
+            "nesting": 2535.718499999999,
+            "fabrication": 5221.309832999999,
+            "routing": 4688.845458,
+            "alignment": 5784.597499999996,
+            "assembly-labels": 0.05025000000023283,
+            "elevation-labels": 0.007959000002301764,
+            "annotations": 83.80299999999988
+          },
+          "layers": 193,
+          "markings": 138384,
+          "outputHash": "16004c7eca8eb4ba57a31135ae1745e7b6e5db483a0f7d4d2c931095d083f901"
+        }
+      ]
+    },
+    {
+      "workers": 4,
+      "fallbackErrors": [],
+      "terrain": "Grand Teton Terrarium z12",
+      "bounds": {
+        "west": -110.94,
+        "east": -110.65,
+        "south": 43.63,
+        "north": 43.84
+      },
+      "widthMm": 3000,
+      "heightMm": 3000,
+      "materialThicknessMm": 3,
+      "verticalExaggeration": 2,
+      "annotations": true,
+      "nesting": true,
+      "grid": 768,
+      "roads": 300,
+      "sourceHash": "e63cc7cea578551b27690aab556ee50154a391ca9fbc9282a03311e1371e0cd0",
+      "node": "v26.5.0",
+      "results": [
+        {
+          "run": 0,
+          "kind": "cold",
+          "ms": 18402.491,
+          "stages": {
+            "prepare": 8.116582999999991,
+            "water": 0.6485410000000229,
+            "ladder": 5.029416999999967,
+            "contours": 3727.3035830000003,
+            "split": 0.42808400000012625,
+            "nesting": 1937.5589580000005,
+            "fabrication": 4751.201499999999,
+            "routing": 4116.061707999999,
+            "alignment": 2073.401417000001,
+            "assembly-labels": 0.14345800000228337,
+            "elevation-labels": 1728.0027910000026,
+            "annotations": 51.11937500000204
+          },
+          "layers": 193,
+          "markings": 138492,
+          "outputHash": "12eba79e4e31850693b03d1611d7fc221f05b05c4a79ec4af285c3a4b2cde998"
+        },
+        {
+          "run": 0,
+          "kind": "annotation-edit",
+          "ms": 15400.3975,
+          "stages": {
+            "prepare": 0.7065829999992275,
+            "terrain-cache": 558.2537499999999,
+            "split": 0.10216700000091805,
+            "nesting": 2594.1979580000007,
+            "fabrication": 5395.042375000001,
+            "routing": 4651.343292000001,
+            "alignment": 2157.808916000002,
+            "assembly-labels": 0.04637499999807915,
+            "elevation-labels": 0.006166999999550171,
+            "annotations": 40.33079100000032
+          },
+          "layers": 193,
+          "markings": 138384,
+          "outputHash": "16004c7eca8eb4ba57a31135ae1745e7b6e5db483a0f7d4d2c931095d083f901"
+        }
+      ]
+    }
+  ]
+}

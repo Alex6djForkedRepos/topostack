@@ -24,6 +24,6 @@
 ## Next releases
 
 1. Make regional terrain reproducible at release scale and promote it to production, then add USGS 3DEP as the first independent provider. See the [terrain expansion plan](terrain-expansion-plan.md). Add user-uploaded DEM support where no source has trustworthy terrain or depth.
-2. Add custom SVG crop boundaries, DXF export, general translated/rotated sheet nesting, and per-piece material nesting so a work-area split keeps its nests.
+2. Add custom SVG crop boundaries, DXF export, and per-piece material nesting so a work-area split keeps its nests. (Translated and rotated sheet nesting shipped; see [nesting.md](nesting.md). Filling holes in parts with smaller parts is next there.)
 3. Add frames, advanced joinery templates, bills of material, machine presets (including saved work areas), and explicit kerf calibration projects.
 4. Add optional cloud project synchronization behind a portable identity adapter.

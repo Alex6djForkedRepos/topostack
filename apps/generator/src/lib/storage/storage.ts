@@ -1,5 +1,5 @@
 import { getMany, set, setMany } from "idb-keyval";
-import { PAINT_REGION_KINDS, DEFAULT_PROJECT, DEPTH_CHART_ID_PATTERN, isDepthChartLakeKey, MAP_MARKER_SIZE_MM, MARKER_ICON_ID_PATTERN, MARKER_ICON_UNITS, MARKER_SYMBOLS, MAX_MARKER_ICON_POINTS, MAX_MARKER_ICONS, markerIconPointCount, GRAPHIC_MAX_SIZE_MM, GRAPHIC_MIN_SIZE_MM, GRAPHIC_OPERATIONS, MAX_CUSTOM_GRAPHIC_POINTS, MAX_CUSTOM_GRAPHICS, MAX_PLACED_GRAPHICS, type CustomGraphicV1, type GraphicOperation, type PlacedGraphicV1, MAX_CUSTOM_DATA_NAME_LENGTH, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, NORTH_ARROW_ANCHORS, isTextFont, validateProject, type CustomLineFeatureV1, type CustomLineKind, type MapMarkerV1, type MarkerIconShapeV1, type MarkerIconV1, type MarkerSymbol, type NorthArrowAnchor, type NorthArrowStyle, type PlaqueV1, type ProjectConfigV1, type UserDepthChartRefV1 } from "@topostack/core";
+import { PAINT_REGION_KINDS, DEFAULT_PROJECT, DEPTH_CHART_ID_PATTERN, isDepthChartLakeKey, MAP_MARKER_SIZE_MM, MARKER_ICON_ID_PATTERN, MARKER_ICON_UNITS, MARKER_SYMBOLS, MAX_MARKER_ICON_POINTS, MAX_MARKER_ICONS, markerIconPointCount, GRAPHIC_MAX_SIZE_MM, GRAPHIC_MIN_SIZE_MM, GRAPHIC_OPERATIONS, MAX_CUSTOM_GRAPHIC_POINTS, MAX_CUSTOM_GRAPHICS, MAX_PLACED_GRAPHICS, type CustomGraphicV1, type GraphicOperation, type PlacedGraphicV1, MAX_CUSTOM_DATA_NAME_LENGTH, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, NORTH_ARROW_ANCHORS, SHEET_NEST_ROTATIONS, type SheetNestSettingsV1, isTextFont, validateProject, type CustomLineFeatureV1, type CustomLineKind, type MapMarkerV1, type MarkerIconShapeV1, type MarkerIconV1, type MarkerSymbol, type NorthArrowAnchor, type NorthArrowStyle, type PlaqueV1, type ProjectConfigV1, type UserDepthChartRefV1 } from "@topostack/core";
 
 const PROJECT_KEY = "topostack:project:v1";
 /** When the IndexedDB copy was written, stored in the same transaction as the project. */
@@ -51,6 +51,23 @@ function paintTemplatesValue(value: unknown): ProjectConfigV1["paintTemplates"] 
   if (value === undefined) return [...DEFAULT_PROJECT.paintTemplates];
   if (!Array.isArray(value) || value.some((kind) => !PAINT_REGION_KINDS.includes(kind)) || new Set(value).size !== value.length) throw new Error("Paint templates must list each supported region kind at most once.");
   return value as ProjectConfigV1["paintTemplates"];
+}
+/** Sheet nesting is an export setting; out-of-range numbers are clamped when it is used, so only shape is checked here. */
+function sheetNestingValue(value: unknown): SheetNestSettingsV1 {
+  if (!value || typeof value !== "object") throw new Error("Sheet nesting settings are invalid.");
+  const record = value as Record<string, unknown>;
+  if (!SHEET_NEST_ROTATIONS.includes(record.rotation as SheetNestSettingsV1["rotation"])) throw new Error("Sheet nesting rotation must be none, half, quarter, or free.");
+  const settings: SheetNestSettingsV1 = {
+    sheetWidthMm: numberValue(record.sheetWidthMm),
+    sheetHeightMm: numberValue(record.sheetHeightMm),
+    marginMm: numberValue(record.marginMm),
+    spacingMm: numberValue(record.spacingMm),
+    rotation: record.rotation as SheetNestSettingsV1["rotation"],
+    timeBudgetS: numberValue(record.timeBudgetS),
+    seed: numberValue(record.seed),
+  };
+  if (Object.values(settings).some((entry) => typeof entry === "number" && !Number.isFinite(entry))) throw new Error("Sheet nesting settings must be numbers.");
+  return settings;
 }
 function outputModeValue(value: unknown): ProjectConfigV1["outputMode"] {
   if (value === undefined) return DEFAULT_PROJECT.outputMode;
@@ -445,6 +462,7 @@ export function parseProject(value: unknown): ProjectConfigV1 {
     seamTabs: record.seamTabs === undefined ? DEFAULT_PROJECT.seamTabs : booleanValue(record.seamTabs, "seamTabs"),
     showAssemblyLabels: record.showAssemblyLabels === undefined ? DEFAULT_PROJECT.showAssemblyLabels : booleanValue(record.showAssemblyLabels, "showAssemblyLabels"),
     paintTemplates: paintTemplatesValue(record.paintTemplates),
+    ...(record.sheetNesting === undefined ? {} : { sheetNesting: sheetNestingValue(record.sheetNesting) }),
     showElevationLabels: booleanValue(record.showElevationLabels, "showElevationLabels"), showNorthArrow: booleanValue(record.showNorthArrow, "showNorthArrow"), showScaleBar: booleanValue(record.showScaleBar, "showScaleBar"),
     elevationLabelPosition: labelPositionRecord ? { x: numberValue(labelPositionRecord.x), y: numberValue(labelPositionRecord.y) } : { ...DEFAULT_PROJECT.elevationLabelPosition },
     textStyle: textStyleRecord ? {
