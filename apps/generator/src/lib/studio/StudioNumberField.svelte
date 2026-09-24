@@ -16,6 +16,7 @@
     error = field.value === "" || !Number.isFinite(next) ? "Enter a number." : next < min ? `Use ${min} or more.` : next > max ? `Use ${max} or less.` : "";
     return !error;
   }
+  // Step controls gestures, not valid typed values: min may not align with the step grid.
   let drag: { x: number; value: number; moved: boolean; direction: number } | undefined;
   function commit(next: number, field?: HTMLInputElement) {
     if (!Number.isFinite(next)) return;
@@ -55,7 +56,7 @@
 
 {#if isEmbedded()}
   <span class="atomm-number-control">
-  <input class="atomm-number" type="number" inputmode="decimal" aria-label={label} {value} {disabled} min={Number.isFinite(min) ? min : undefined} max={Number.isFinite(max) ? max : undefined} {step} {...rest} aria-describedby={describedBy} aria-invalid={error ? "true" : undefined} oninput={input} onchange={finishInput} onblur={finishInput} onpointerdown={start} onpointermove={move} onpointerup={finish} onpointercancel={finish} onkeydown={(event) => { if (event.shiftKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) { event.preventDefault(); commit(value + step * 10 * (event.key === "ArrowUp" ? 1 : -1), event.currentTarget); } }} />
+  <input class="atomm-number" type="number" inputmode="decimal" aria-label={label} {value} {disabled} min={Number.isFinite(min) ? min : undefined} max={Number.isFinite(max) ? max : undefined} step="any" {...rest} aria-describedby={describedBy} aria-invalid={error ? "true" : undefined} oninput={input} onchange={finishInput} onblur={finishInput} onpointerdown={start} onpointermove={move} onpointerup={finish} onpointercancel={finish} onkeydown={(event) => { if (event.key === "ArrowUp" || event.key === "ArrowDown") { event.preventDefault(); const current = Number.isFinite(event.currentTarget.valueAsNumber) ? event.currentTarget.valueAsNumber : value; commit(current + step * (event.shiftKey ? 10 : 1) * (event.key === "ArrowUp" ? 1 : -1), event.currentTarget); } }} />
   {#if error}<span class="atomm-number-error" id={errorId} aria-live="polite">{error}</span>{/if}
   </span>
 {:else}

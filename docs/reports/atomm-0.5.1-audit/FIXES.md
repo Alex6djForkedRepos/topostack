@@ -57,3 +57,7 @@ The refresh chip now exposes the actual stage and count: Step 1 of 2 while prepa
 Integrated dev through `907faaf`, preserving sheet nesting and third-party license output in the standalone app. The Atomm embed does not start the sheet planner or pass a nested plan to its export hook. Removed standalone 0.5.1 release preparation; versions match dev (0.5.0), with unreleased changelog fragments for the normal release workflow. PR #107 now targets dev.
 
 Integrated validation passed: 444 generator unit tests, 149 client tests, all 27 Atomm browser checks across Chromium/Firefox/WebKit, workspace type checking, ESLint, version/changelog checks, standalone production build and budget, and dedicated Atomm packaging with its validation gates and budget. The packaging run uses dev’s current version and is validation-only; rebuild the final 0.6.0 submission after its remaining improvements land.
+
+## Latest performance integration
+
+See the [post-performance-merge regression review](../atomm-performance-integration-20260924.md) for validation against dev `2288ad4`, including production helper workers, imported nesting projects, and the numeric validity correction.

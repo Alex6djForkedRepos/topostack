@@ -36,4 +36,28 @@ describe("embedded numeric fields", () => {
     expect(commit).toHaveBeenLastCalledWith(1.5);
     await unmount(component);
   });
+  it("accepts dimensions off the native step grid while keeping keyboard increments bounded", async () => {
+    const target = document.createElement("div");
+    const commit = vi.fn();
+    const component = mount(StudioNumberField, {
+      target, context: new Map([["atomm-embedded", () => true]]),
+      props: { label: "Width", value: 300, min: 0.01, max: 301, step: 0.1, onValueChange: commit },
+    });
+    await tick();
+    const field = target.querySelector("input")!;
+    expect(field.validity.valid).toBe(true);
+    field.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
+    expect(commit).toHaveBeenLastCalledWith(300.1);
+    field.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", shiftKey: true, bubbles: true }));
+    expect(commit).toHaveBeenLastCalledWith(301);
+    field.value = "300.125";
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(field.validity.valid).toBe(true);
+    expect(commit).toHaveBeenLastCalledWith(300.125);
+    field.value = "0.01";
+    field.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    expect(commit).toHaveBeenLastCalledWith(0.01);
+    await unmount(component);
+  });
+
 });

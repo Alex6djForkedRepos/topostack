@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { DEFAULT_PROJECT, DEFAULT_SHEET_NESTING } from "@topostack/core";
 
 // Startup prepares sample geometry before mounting the embedded workbench.
 // Deep stacks also take longer than a normal DOM assertion on CI workers.
@@ -61,6 +62,7 @@ test("Atomm uses the platform export hook and template layout across desktop, RT
   expect([...await studio.locator('.mode-switch [role="radio"]').allTextContents()].map(text => text.trim())).toEqual(["2D", "3D", "Export"]);
   await studio.getByRole("button", { name: "Cut size", exact: true }).click();
   const width = studio.getByRole("spinbutton", { name: "Width", exact: true });
+  expect(await width.evaluate(el => (el as HTMLInputElement).validity.valid)).toBe(true);
   expect(await width.evaluate(el => el.closest(".number-input")!.getBoundingClientRect().width)).toBe(92);
   expect(await width.evaluate(el => el.closest(".number-input")!.getBoundingClientRect().height)).toBe(28);
   // An active segment is the white item on the grey track, with no border of its own.
@@ -585,4 +587,43 @@ test("Atomm controls and Tips remain reachable in narrow and short frames", asyn
     }
     await expect(dialog).toBeHidden();
   }
+});
+
+
+test("Atomm imports nesting-enabled projects without starting the sheet planner or changing export mode", async ({ page }) => {
+  test.setTimeout(120_000);
+  const plannerRequests: string[] = [];
+  const errors: string[] = [];
+  page.on("request", request => {
+    if (/nest\.worker-|topostack_nest_wasm/.test(request.url())) plannerRequests.push(request.url());
+  });
+  page.on("pageerror", error => errors.push(error.message));
+  await page.route("**/v1/**", route => route.abort("internetdisconnected"));
+  await page.route("https://static-res.makextool.com/**", route => route.fulfill({ contentType: "application/javascript", body: `
+    window.atomm = { lifecycle: { on(event, hook) { window.testExport = hook; } }, ui: { toast: async () => 'ok' } };
+  ` }));
+  await page.route("**/atomm-nesting-import", route => route.fulfill({ contentType: "text/html", body: '<iframe title="Generator" src="/studio" style="width:100%;height:900px"></iframe>' }));
+  await page.goto("/atomm-nesting-import");
+  const studio = page.frameLocator("iframe");
+  await expect(studio.locator(".status-line")).toContainText("Real terrain ready", { timeout: 45_000 });
+  await studio.locator('input[type="file"]').first().setInputFiles({
+    name: "nested-project.json", mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify({ ...DEFAULT_PROJECT, name: "Nested import", sheetNesting: { ...DEFAULT_SHEET_NESTING, sheetWidthMm: 400, sheetHeightMm: 300 } })),
+  });
+  await expect(studio.getByRole("textbox", { name: "Project name" })).toHaveValue("Nested import");
+  await expect(studio.locator(".status-line")).toContainText("Real terrain ready", { timeout: 45_000 });
+  await expect(studio.locator(".preview-stage")).toHaveAttribute("aria-busy", "false");
+  const exported = await studio.locator("body").evaluate(async () => {
+    type File = { filename: string; blob: Blob };
+    const hook = (window as unknown as { testExport: (input: { intent: string }) => Promise<File[]> }).testExport;
+    const files = await hook({ intent: "download" });
+    const manifest = files.find(file => file.filename.endsWith("-project.json"))!;
+    return { names: files.map(file => file.filename), manifest: JSON.parse(await manifest.blob.text()) };
+  });
+  expect(exported.manifest.project.sheetNesting.sheetWidthMm).toBe(400);
+  expect(exported.manifest.result.fabrication.sheetNesting).toBeUndefined();
+  expect(exported.names.some(name => /-sheet-\d+/.test(name))).toBe(false);
+  expect(exported.names.some(name => /-master\.svg$/.test(name))).toBe(true);
+  expect(plannerRequests).toEqual([]);
+  expect(errors).toEqual([]);
 });
