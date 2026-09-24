@@ -1,0 +1,36 @@
+layout 960 {"tabs":{"x":368,"y":16,"width":224,"height":32},"tips":{"x":555.25,"y":16,"width":68.75,"height":32},"collapsed":null,"canvas":{"x":320,"y":0,"width":320,"height":800},"manifest":null,"zoom":{"x":336,"y":752,"width":178,"height":32}}
+layout 390 {"tabs":{"x":47,"y":16,"width":260,"height":32},"tips":{"x":305.25,"y":16,"width":68.75,"height":32},"collapsed":null,"canvas":{"x":0,"y":0,"width":390,"height":416},"manifest":null,"zoom":{"x":16,"y":368,"width":178,"height":32}}
+layout 320 {"tabs":{"x":40,"y":16,"width":204,"height":32},"tips":{"x":235.25,"y":16,"width":68.75,"height":32},"collapsed":null,"canvas":{"x":0,"y":0,"width":320,"height":416},"manifest":null,"zoom":{"x":16,"y":368,"width":178,"height":32}}
+export960 {"tabs":{"x":368,"y":16,"width":224,"height":32},"tips":{"x":555.25,"y":16,"width":68.75,"height":32},"collapsed":null,"canvas":{"x":320,"y":0,"width":320,"height":800},"manifest":{"x":336,"y":64,"width":260,"height":139},"zoom":{"x":336,"y":752,"width":178,"height":32}}
+font {
+  focus: 'listbox',
+  position: 'absolute',
+  z: '40',
+  height: 360,
+  parent: 'font-picker'
+}
+invalidInput 10000 null
+tips600 {
+  dialog: {
+    x: 400,
+    y: 16,
+    width: 480,
+    height: 568,
+    top: 16,
+    right: 880,
+    bottom: 584,
+    left: 400
+  },
+  footer: {
+    x: 400,
+    y: 524,
+    width: 480,
+    height: 66,
+    top: 524,
+    right: 880,
+    bottom: 590,
+    left: 400
+  },
+  scrollHeight: 574,
+  clientHeight: 568
+}

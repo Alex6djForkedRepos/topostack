@@ -1,0 +1,95 @@
+{
+  "edits": 339,
+  "samples": [
+    {
+      "elapsed": 0,
+      "heapBytes": 11457384,
+      "buffers": 53,
+      "textures": 9,
+      "programs": 5,
+      "draws": 1080
+    },
+    {
+      "elapsed": 30,
+      "heapBytes": 12721492,
+      "buffers": 25,
+      "textures": 9,
+      "programs": 5,
+      "draws": 5160
+    },
+    {
+      "elapsed": 61,
+      "heapBytes": 12886668,
+      "buffers": 36,
+      "textures": 9,
+      "programs": 5,
+      "draws": 7837
+    },
+    {
+      "elapsed": 91,
+      "heapBytes": 13215876,
+      "buffers": 36,
+      "textures": 9,
+      "programs": 5,
+      "draws": 12242
+    },
+    {
+      "elapsed": 121,
+      "heapBytes": 13329856,
+      "buffers": 25,
+      "textures": 9,
+      "programs": 5,
+      "draws": 16518
+    },
+    {
+      "elapsed": 151,
+      "heapBytes": 13485516,
+      "buffers": 36,
+      "textures": 9,
+      "programs": 5,
+      "draws": 21175
+    },
+    {
+      "elapsed": 181,
+      "heapBytes": 13801608,
+      "buffers": 36,
+      "textures": 9,
+      "programs": 5,
+      "draws": 25772
+    },
+    {
+      "elapsed": 211,
+      "heapBytes": 13811412,
+      "buffers": 25,
+      "textures": 9,
+      "programs": 5,
+      "draws": 30525
+    },
+    {
+      "elapsed": 242,
+      "heapBytes": 13663256,
+      "buffers": 36,
+      "textures": 9,
+      "programs": 5,
+      "draws": 35419
+    },
+    {
+      "elapsed": 272,
+      "heapBytes": 13623676,
+      "buffers": 25,
+      "textures": 9,
+      "programs": 5,
+      "draws": 40088
+    },
+    {
+      "elapsed": 300,
+      "heapBytes": 13728792,
+      "buffers": 36,
+      "textures": 9,
+      "programs": 5,
+      "draws": 44631
+    }
+  ],
+  "reducedMotionStopsRendering": true,
+  "errors": []
+}

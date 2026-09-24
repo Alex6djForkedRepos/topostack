@@ -66,4 +66,24 @@ describe("Atomm bridge", () => {
     disconnectAgain();
     vi.useRealTimers();
   });
+  it("awaits automatic layout and refuses a result after disconnect", async () => {
+    vi.useFakeTimers();
+    const geometry = generateGeometry(DEFAULT_PROJECT, createSyntheticSource(DEFAULT_PROJECT));
+    let handler!: (value: AtommExportIntent) => Promise<AtommExportFile | AtommExportFile[]>;
+    window.atomm = { lifecycle: { on: (_event: string, callback: typeof handler) => { handler = callback; } } } as unknown as AtommSdk;
+    const { connectAtomm } = await import("$lib/atomm/atomm-bridge");
+    let finish!: (snapshot: { geometry: typeof geometry; project: typeof DEFAULT_PROJECT; layoutNote: string }) => void;
+    const updates = vi.fn();
+    const disconnect = connectAtomm(() => new Promise(resolve => { finish = resolve; }), vi.fn(), updates);
+    const pending = handler({ intent: "openInStudio" });
+    const rejected = expect(pending).rejects.toThrow("disconnected");
+    await vi.advanceTimersByTimeAsync(20);
+    expect(createAtommExport).not.toHaveBeenCalled();
+    disconnect();
+    finish({ geometry, project: DEFAULT_PROJECT, layoutNote: "Automatic layout" });
+    await rejected;
+    expect(createAtommExport).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
 });

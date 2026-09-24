@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createSyntheticSource, DEFAULT_PROJECT, generateGeometry, type SourceBundleV1 } from "@topostack/core";
-import { createAtommExport, exportBlockReason } from "$lib/studio/export-policy";
+import { createSyntheticSource, DEFAULT_PROJECT, generateGeometry, type SourceBundleV1, buildProjectPackage, nestableParts, planSheets, rectangleEngine, resolveSheetNestSettings } from "@topostack/core";
+import { buildAtommPackage, createAtommExport, exportBlockReason } from "$lib/studio/export-policy";
 
 function geometry(kind: SourceBundleV1["sourceKind"] = "real") {
   return generateGeometry(DEFAULT_PROJECT, { ...createSyntheticSource(DEFAULT_PROJECT, 32), sourceKind: kind });
@@ -36,21 +36,38 @@ describe("Atomm export policy", () => {
     expect(exportBlockReason(completeWithoutVectors, withoutVectorDetails)).toBeUndefined();
   });
 
-  it("returns one master for Studio and all files for download", () => {
+  it("maps nested assembly labels to blue without changing geometry or standalone exports", async () => {
+    const project = { ...DEFAULT_PROJECT, sheetNesting: { sheetWidthMm: 600, sheetHeightMm: 400, marginMm: 3, spacingMm: 2, rotation: "quarter" as const, timeBudgetS: 5, seed: 1 } };
+    const result = generateGeometry(project, { ...createSyntheticSource(project, 32), sourceKind: "real" });
+    const settings = resolveSheetNestSettings(project);
+    if (!settings.ok) throw new Error(settings.error);
+    const sheetPlan = await planSheets(nestableParts(result), settings.settings, { engine: rectangleEngine });
+    const original = buildProjectPackage(result, project, { sheetPlan });
+    const adapted = await buildAtommPackage(result, project, [], sheetPlan);
+    const originalSvg = await original.master.blob.text();
+    expect(originalSvg).toContain("#00A651");
+    expect(await adapted.master.blob.text()).toBe(originalSvg.replaceAll("#00A651", "#2366FF"));
+    for (const file of adapted.files.filter(file => /\.(svg|html|txt)$/.test(file.filename))) {
+      expect(await file.blob.text()).not.toMatch(/#00A651|green id|engraved in green/);
+    }
+    expect(await original.master.blob.text()).toContain("#00A651");
+  });
+
+  it("returns one master for Studio and all files for download", async () => {
     const result = geometry();
-    const studio = createAtommExport(result, DEFAULT_PROJECT, "openInStudio");
-    const download = createAtommExport(result, DEFAULT_PROJECT, "download");
+    const studio = await createAtommExport(result, DEFAULT_PROJECT, "openInStudio");
+    const download = await createAtommExport(result, DEFAULT_PROJECT, "download");
     expect(Array.isArray(studio)).toBe(false);
     expect("filename" in studio && studio.filename.endsWith("-master.svg")).toBe(true);
     expect(Array.isArray(download)).toBe(true);
     expect(Array.isArray(download) && download.length).toBe((result.layers.length - result.fabricationNests.length) * 2 + 5);
   });
 
-  it("returns the engrave-only artwork for a flat project", () => {
+  it("returns the engrave-only artwork for a flat project", async () => {
     const project = { ...DEFAULT_PROJECT, outputMode: "engraving" as const, engravingContourCount: 10 };
     const result = generateGeometry(project, { ...createSyntheticSource(project, 32), sourceKind: "real" });
-    const studio = createAtommExport(result, project, "openInStudio");
-    const download = createAtommExport(result, project, "download");
+    const studio = await createAtommExport(result, project, "openInStudio");
+    const download = await createAtommExport(result, project, "download");
     expect("filename" in studio && studio.filename.endsWith("-engraving.svg")).toBe(true);
     expect(Array.isArray(download) && download).toHaveLength(4);
   });
@@ -58,7 +75,7 @@ describe("Atomm export policy", () => {
     for (const outputMode of ["stack", "engraving"] as const) {
       const project = { ...DEFAULT_PROJECT, outputMode, name: "Map / expedition\\draft" };
       const result = generateGeometry(project, { ...createSyntheticSource(project, 32), sourceKind: "real" });
-      const output = createAtommExport(result, project, "openInStudio");
+      const output = await createAtommExport(result, project, "openInStudio");
       if (Array.isArray(output)) throw new Error("Studio must receive one editable SVG");
       const svg = await output.blob.text();
       expect(output.filename).toMatch(/^[a-z0-9-]+\.svg$/);
@@ -76,7 +93,7 @@ describe("Atomm export policy", () => {
         expect(shape).toMatch(/stroke="#(?:2366FF|FE0002)"/);
       }
       expect(shapes.some(shape => /alignment-|contour-/.test(shape))).toBe(true);
-      const files = createAtommExport(result, project, "download");
+      const files = await createAtommExport(result, project, "download");
       if (!Array.isArray(files)) throw new Error("Download must receive the project files");
       for (const file of files) {
         expect(file.filename).not.toMatch(/[\\/]/);
@@ -113,7 +130,7 @@ describe("assembly guide fonts", () => {
   it("embeds the loaded fonts in the downloaded guide", async () => {
     const { createAtommExport } = await import("$lib/studio/export-policy");
     const result = generateGeometry(DEFAULT_PROJECT, { ...createSyntheticSource(DEFAULT_PROJECT, 32), sourceKind: "real" });
-    const files = createAtommExport(result, DEFAULT_PROJECT, "download", [{ family: "Jost", weight: 500, woff2Base64: "d09GMg==" }]);
+    const files = await createAtommExport(result, DEFAULT_PROJECT, "download", [{ family: "Jost", weight: 500, woff2Base64: "d09GMg==" }]);
     if (!Array.isArray(files)) throw new Error("Download must receive the project files");
     const guide = await files.find((file) => file.filename.endsWith("-assembly-guide.html"))!.blob.text();
     expect(guide).toContain('font-family:"Jost";src:url(data:font/woff2;base64,d09GMg==)');

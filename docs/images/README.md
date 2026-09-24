@@ -26,3 +26,17 @@ Set `TOPOSTACK_CAPTURE_URL` if the frontend uses a different origin. The script 
 The captured project is 406.4 × 270.933 mm with 3.175 mm material, requested 4× terrain exaggeration, 1.75× water-depth exaggeration, and Fit lake depth enabled. Layer limits can reduce the applied terrain scale. Attribution and coverage warnings remain visible in the studio screenshot.
 
 Regenerate after changes to the UI, theme, survey data, or `TerrainIllustration.svelte`; visually inspect both PNGs before committing. No AI-generated terrain is used.
+
+## Atomm Tips pictures
+
+`apps/generator/src/lib/atomm/tips/*.webp` are the pictures in the Atomm embed's Tips walkthrough, one per step. Each is an unaltered crop of what the studio draws inside the embed (light canvas, rails and overlays hidden) for the bundled Crater Lake project after real terrain has loaded: the map selection, the exploded and assembled 3D stack, a cut layer, the Export view and a close-up of its cut and score lines. Captures are 960 × 534 for the platform's 480 × 267 media band. Regenerate after changes to the embed, the Export view or the 3D preview, against a frontend with a working map API:
+
+```sh
+node scripts/dev/capture-atomm-tips.mjs
+```
+
+It needs cwebp on PATH and honours `TOPOSTACK_CAPTURE_URL` like the other capture scripts. Look at every picture before committing.
+
+## Atomm listing refresh
+
+Run `TOPOSTACK_CAPTURE_URL=http://127.0.0.1:5284 node scripts/dev/capture-atomm-listing.mjs` against a normal frontend with the deployed data API. Requires Playwright Chromium and ffmpeg (`FFMPEG_PATH` can select its executable). On macOS, set `TOPOSTACK_CAPTURE_GPU=1` to use installed Google Chrome with Metal acceleration; software rendering remains the default fallback. The script captures the current embedded UI, captures 3200 × 2400 gallery cards and renders 360 distinct native 3D frames for a 60 fps orbit/explode loop. A capture-only response hook exposes the existing renderer without modifying shipped code. Native model stills render at their presentation resolution, avoiding enlarged crops. Warnings are dismissed before promotional screenshots. The feature tour combines the native loop with moving gallery scenes and short fades. It records project settings, source attribution, hashes and successful survey requests in `atomm/media-provenance.json`. Historical assets and their v5 provenance remain on disk. Run Tips capture first and avoid source edits during capture, because hot reload resets the studio. Tips hashes and capture details are recorded beside the WebP assets in `media-provenance.json`.

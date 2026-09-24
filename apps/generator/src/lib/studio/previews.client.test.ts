@@ -3,7 +3,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { DEFAULT_PROJECT, generateGeometry, type GeometryIRV1 } from "@topostack/core";
 import { createSamplePreviewSource } from "$lib/domain/sample-preview";
 
-const three = vi.hoisted(() => ({ renderers: [] as Array<{ dispose: ReturnType<typeof vi.fn>; forceContextLoss: ReturnType<typeof vi.fn>; render: ReturnType<typeof vi.fn> }> }));
+const three = vi.hoisted(() => ({ renderers: [] as Array<{ dispose: ReturnType<typeof vi.fn>; forceContextLoss: ReturnType<typeof vi.fn>; render: ReturnType<typeof vi.fn>; setSize: ReturnType<typeof vi.fn> }> }));
 vi.mock("three", async (importOriginal) => {
   const original = await importOriginal<typeof import("three")>();
   class FakeRenderer {
@@ -50,16 +50,19 @@ import EngravingPreview from "$lib/studio/EngravingPreview.svelte";
 import ThreePreview from "$lib/studio/ThreePreview.svelte";
 import ThreePreviewHost from "$lib/studio/ThreePreviewHost.svelte";
 import * as THREE from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+
+const resizeCallbacks: ResizeObserverCallback[] = [];
 
 describe("preview resource cleanup", () => {
   let component: ReturnType<typeof mount> | undefined;
   beforeAll(() => {
-    Object.defineProperty(globalThis, "ResizeObserver", { configurable: true, value: class { observe() {} disconnect() {} unobserve() {} } });
+    Object.defineProperty(globalThis, "ResizeObserver", { configurable: true, value: class { constructor(callback: ResizeObserverCallback) { resizeCallbacks.push(callback); } observe() {} disconnect() {} unobserve() {} } });
     // jsdom has no 2D canvas; the wood texture only needs drawing calls to exist.
     const context = new Proxy({}, { get: (_target, key) => key === "createLinearGradient" ? () => ({ addColorStop() {} }) : () => undefined, set: () => true });
     Object.defineProperty(HTMLCanvasElement.prototype, "getContext", { configurable: true, value: () => context });
   });
-  afterEach(async () => { if (component) await unmount(component); component = undefined; three.renderers.length = 0; maplibre.maps.length = 0; });
+  afterEach(async () => { if (component) await unmount(component); component = undefined; three.renderers.length = 0; maplibre.maps.length = 0; resizeCallbacks.length = 0; vi.unstubAllGlobals(); });
 
   it("merges markings into per-material draw calls and releases GPU resources on unmount", async () => {
     const geometry = generateGeometry({ ...DEFAULT_PROJECT, showTransportationLabels: true }, createSamplePreviewSource());
@@ -243,6 +246,112 @@ describe("preview resource cleanup", () => {
     await unmount(component);
     component = undefined;
     for (const dispose of disposals) expect(dispose).toHaveBeenCalled();
+    target.remove();
+  });
+
+  it("preserves the camera across dimension, thickness and layer-count edits", async () => {
+    const update = vi.spyOn(OrbitControls.prototype, "update");
+    const geometry = generateGeometry(DEFAULT_PROJECT, createSamplePreviewSource());
+    const target = document.createElement("div");
+    document.body.append(target);
+    component = mount(ThreePreviewHost, { target, props: { initial: geometry } });
+    const host = component as unknown as { setGeometry: (next: GeometryIRV1) => void };
+    flushSync();
+    const renderer = three.renderers[0]!;
+    await vi.waitFor(() => expect(renderer.render.mock.calls.some(([scene]) => {
+      let meshes = 0;
+      (scene as THREE.Scene).traverse(object => { if (object instanceof THREE.Mesh) meshes++; });
+      return meshes > 0;
+    })).toBe(true));
+    const controls = update.mock.contexts.at(-1) as OrbitControls;
+    controls.target.set(12, -7, 15);
+    controls.object.position.set(130, -230, 450);
+    controls.update();
+    const position = controls.object.position.clone();
+    const orbitTarget = controls.target.clone();
+    const next = structuredClone(geometry);
+    next.widthMm *= 1.5;
+    next.heightMm *= 1.2;
+    next.layers = next.layers.slice(0, -1).map(layer => ({ ...layer, materialThicknessMm: layer.materialThicknessMm * 1.5 }));
+    renderer.render.mockClear();
+    host.setGeometry(next);
+    flushSync();
+    await new Promise(resolve => setTimeout(resolve, 250));
+    expect(renderer.render).toHaveBeenCalled();
+    expect(controls.object.position.distanceTo(position)).toBeLessThan(1e-8);
+    expect(controls.target.distanceTo(orbitTarget)).toBeLessThan(1e-8);
+    update.mockRestore();
+    target.remove();
+  });
+
+  it("keeps the ambient rig through rebuilds and pauses for reduced motion and hidden tabs", async () => {
+    const query = Object.assign(new EventTarget(), { matches: false });
+    vi.stubGlobal("matchMedia", () => query);
+    const geometry = generateGeometry(DEFAULT_PROJECT, createSamplePreviewSource());
+    geometry.layers = geometry.layers.slice(0, 2);
+    const target = document.createElement("div");
+    document.body.append(target);
+    component = mount(ThreePreviewHost, { target, context: new Map([["atomm-embedded", () => true]]), props: { initial: geometry } });
+    const host = component as unknown as { setGeometry: (next: GeometryIRV1) => void };
+    flushSync();
+    const renderer = three.renderers[0]!;
+    await vi.waitFor(() => expect(renderer.render).toHaveBeenCalled());
+    const scene = renderer.render.mock.lastCall![0] as THREE.Scene;
+    const rig = scene.children.find(object => object instanceof THREE.Group)!;
+    await vi.waitFor(() => expect(Math.abs(rig.rotation.x)).toBeGreaterThan(0));
+    const rail = document.createElement("div");
+    rail.className = "gen-rail";
+    const field = document.createElement("input");
+    rail.append(field); document.body.append(rail);
+    const heldRotation = rig.rotation.clone();
+    field.focus();
+    host.setGeometry({ ...geometry, widthMm: geometry.widthMm + 10 });
+    flushSync();
+    await new Promise(resolve => setTimeout(resolve, 250));
+    expect((renderer.render.mock.lastCall![0] as THREE.Scene).children).toContain(rig);
+    expect(rig.rotation.equals(heldRotation)).toBe(true);
+    renderer.render.mockClear();
+    await new Promise(resolve => setTimeout(resolve, 220));
+    expect(renderer.render).not.toHaveBeenCalled();
+    rail.remove();
+    await new Promise(resolve => setTimeout(resolve, 150));
+    expect(renderer.render).not.toHaveBeenCalled();
+    target.querySelector<HTMLButtonElement>(".three-stage")!.focus();
+    await vi.waitFor(() => expect(renderer.render).toHaveBeenCalled());
+
+    query.matches = true;
+    query.dispatchEvent(new Event("change"));
+    await vi.waitFor(() => expect(rig.rotation.x).toBe(0));
+    await new Promise(resolve => setTimeout(resolve, 50));
+    renderer.render.mockClear();
+    await new Promise(resolve => setTimeout(resolve, 220));
+    expect(renderer.render).not.toHaveBeenCalled();
+    expect(rig.position.z).toBe(0);
+
+    const hidden = vi.spyOn(document, "hidden", "get").mockReturnValue(true);
+    document.dispatchEvent(new Event("visibilitychange"));
+    query.matches = false;
+    query.dispatchEvent(new Event("change"));
+    await new Promise(resolve => setTimeout(resolve, 220));
+    expect(renderer.render).not.toHaveBeenCalled();
+    hidden.mockReturnValue(false);
+    document.dispatchEvent(new Event("visibilitychange"));
+    await vi.waitFor(() => expect(renderer.render).toHaveBeenCalled());
+    expect((renderer.render.mock.lastCall![0] as THREE.Scene).children).toContain(rig);
+    hidden.mockRestore();
+
+    const stage = target.querySelector(".three-stage")!;
+    Object.defineProperty(stage, "clientWidth", { value: 640 });
+    Object.defineProperty(stage, "clientHeight", { value: 400 });
+    const resize = resizeCallbacks[0]!;
+    renderer.setSize.mockClear();
+    resize([{ contentRect: { width: 0, height: 0 } }] as ResizeObserverEntry[], {} as ResizeObserver);
+    expect(renderer.setSize).not.toHaveBeenCalled();
+    resize([{ contentRect: { width: 640, height: 400 } }] as ResizeObserverEntry[], {} as ResizeObserver);
+    expect(renderer.setSize).toHaveBeenCalledWith(640, 400, false);
+    const camera = renderer.render.mock.lastCall![1] as THREE.PerspectiveCamera;
+    expect(camera.aspect).toBe(1.6);
+    expect(camera.projectionMatrix.elements.every(Number.isFinite)).toBe(true);
     target.remove();
   });
 

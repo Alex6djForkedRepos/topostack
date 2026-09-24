@@ -9,6 +9,9 @@
   import { DOCS_HOME, DOCS_NAV, docsNeighbours, docsSection, headingId } from "$lib/site/docs";
   // Pages outside the guides (the generated lake pages) pass their own breadcrumb trail.
   // Pages that never hydrate (static) leave out controls that only work with JavaScript.
+  // The Atomm package holds only the studio and its credits page, so an
+  // article there has no site header, guide navigation or footer to link to.
+  const atommBuild = import.meta.env.VITE_SITE_ENV === "atomm";
   let { title, intro, trail, static: plain = false, children }: { title: string; intro: string; trail?: { path: string; label: string }[]; static?: boolean; children: Snippet } = $props();
 
   const path = $derived(page.url.pathname.replace(/\/$/, "") || "/");
@@ -62,10 +65,11 @@
 {/snippet}
 
 <div class="article-page">
-  <SiteHeader meta="Guides" content="article" static={plain} />
-  <div class="docs-layout">
-    <nav class="docs-sidebar docs-links" aria-label="Guides">{@render guideLinks()}</nav>
+  {#if !atommBuild}<SiteHeader meta="Guides" content="article" static={plain} />{/if}
+  <div class="docs-layout" class:docs-layout--plain={atommBuild}>
+    {#if !atommBuild}<nav class="docs-sidebar docs-links" aria-label="Guides">{@render guideLinks()}</nav>{/if}
     <main id="article">
+      {#if !atommBuild}
       <details class="docs-menu" bind:open={menuOpen}>
         <summary>Browse guides</summary>
         <nav class="docs-links" aria-label="Guides menu">{@render guideLinks()}</nav>
@@ -83,17 +87,18 @@
           <span aria-hidden="true">/</span><span aria-current="page">{PUBLIC_PAGES[path]?.label ?? "Page"}</span>
         {/if}
       </nav>
+      {/if}
       <header><h1>{title}</h1><p class="intro">{intro}</p></header>
       <article bind:this={article}>{@render children()}</article>
-      {#if neighbours.previous || neighbours.next}
+      {#if !atommBuild && (neighbours.previous || neighbours.next)}
         <nav class="pager" aria-label="Previous and next guides">
           {#if neighbours.previous}<a class="previous" href={`${base}${neighbours.previous.path}`}><small>Previous</small>{neighbours.previous.label}</a>{/if}
           {#if neighbours.next}<a class="next" href={`${base}${neighbours.next.path}`}><small>Next</small>{neighbours.next.label}</a>{/if}
         </nav>
       {/if}
-      <p class="cta"><a class="start" href={`${base}/studio`}>Create a topographic map</a></p>
+      {#if !atommBuild}<p class="cta"><a class="start" href={`${base}/studio`}>Create a topographic map</a></p>{/if}
     </main>
-    {#if headings.length > 1}
+    {#if !atommBuild && headings.length > 1}
       <nav class="docs-toc docs-links" aria-label="On this page">
         <p class="docs-group">On this page</p>
         <ul>
@@ -104,7 +109,7 @@
       </nav>
     {/if}
   </div>
-  <SiteFooter static={plain} />
+  {#if !atommBuild}<SiteFooter static={plain} />{/if}
 </div>
 
 <style>
@@ -113,6 +118,7 @@
   :where(.article-page) :global(th) { font-size: 13px; color: var(--loidolt-text-muted); font-weight: 600; }
   .article-page { min-height: 100dvh; background: var(--loidolt-background); color: var(--loidolt-text); }
   .docs-layout { display: grid; grid-template-columns: 210px minmax(0, 760px) 200px; justify-content: center; gap: 56px; width: calc(100% - 40px); margin-inline: auto; }
+  .docs-layout.docs-layout--plain { grid-template-columns: minmax(0, 760px); }
   main { padding-block: 32px 64px; min-width: 0; }
   .docs-sidebar, .docs-toc { position: sticky; top: var(--loidolt-size-topbar); align-self: start; max-height: calc(100dvh - var(--loidolt-size-topbar)); overflow-y: auto; padding-block: 36px; font-size: 14px; }
   .docs-toc { font-size: 13px; }

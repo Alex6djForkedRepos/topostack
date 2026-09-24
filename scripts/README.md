@@ -16,6 +16,7 @@ Run by `npm run build` in the generator or by CI after a build.
 | `configure-redirects.mjs` | Apply the Cloudflare redirect rules (www and legacy paths) to the zone | manual: [seo-operations.md](../docs/seo-operations.md), [README](../README.md) |
 | `finalize-static-headers.mjs` | Rewrite `_headers` for the selected site environment after a build | generator `build`; generator `build:e2e` |
 | `generate-icons.mjs` | Regenerate favicons and app icons from `static/favicon.svg` | `npm run assets:icons` |
+| `prune-atomm-dist.mjs` | Drop the public site's images and example files from an Atomm build; no-op for other environments | generator `build` |
 | `write-build-version.mjs` | Record git metadata for the About page in the built site | generator `build`; generator `build:e2e` |
 | `write-third-party-licenses.mjs` | Write the licence notices for redistributed compiled code (the sheet-nesting engine) to `dist/licenses/third-party.txt` | generator `build`; generator `build:e2e` |
 | `packages/nest-wasm/scripts/build.mjs` | Compile the sparrow nesting engine to WebAssembly into the committed `packages/nest-wasm/pkg/` (needs Rust, wasm-bindgen-cli and wasm-opt; see the [package README](../packages/nest-wasm/README.md)). With `--check`, it verifies `pkg/` was built from the current sources without needing Rust | `npm run build:nest-wasm` (manual); `--check` from the package `test` script; `nest-wasm.yml` workflow |
@@ -29,6 +30,9 @@ Local helpers; nothing in CI depends on them.
 | `capture-feature-update.mjs` | Screenshot a feature for a release note or docs image | manual |
 | `capture-preview-fixture.mjs` | Regenerate the bundled Crater Lake preview source (`sample-preview.generated.ts`) | manual |
 | `capture-readme-assets.mjs` | Screenshot the studio and workflows for the README images | manual |
+| `atomm-native-capture.mjs` | Capture-only renderer access used by the listing script; preserves real meshes/materials and renders each motion frame at its output resolution; never ships in the app | helper |
+| `capture-atomm-listing.mjs` | Capture current Atomm listing cards and videos (`TOPOSTACK_CAPTURE_URL=http://127.0.0.1:5284 node scripts/dev/capture-atomm-listing.mjs`; requires Playwright Chromium and `ffmpeg`, or `FFMPEG_PATH`); see `docs/images/README.md` | manual |
+| `capture-atomm-tips.mjs` | Capture the Atomm Tips walkthrough pictures from the studio running as the embed (`node scripts/dev/capture-atomm-tips.mjs` against `npm run dev`; needs `cwebp`); see `docs/images/README.md` | manual |
 | `capture-examples.mjs` | Generate each example project in the studio and save its render, sharing card and project file (`node scripts/dev/capture-examples.mjs [slug ...]` against `npm run dev`; needs `cwebp`) | manual |
 | `dev.mjs` | Start the generator and the map-api Worker together, picking free ports | `npm run dev` |
 

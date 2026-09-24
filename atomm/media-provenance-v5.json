@@ -1,0 +1,529 @@
+{
+  "schemaVersion": 5,
+  "capturedAt": "2026-09-18T03:04:57.389Z",
+  "method": "Released Atomm v0.1.1 package loaded in the real Atomm local-preview host; live terrain and survey requests. Designed gallery cards combine genuine native WebGL renders, cropped real UI captures and explanatory typography. Export scene is a real master SVG imported into an isolated xTool Studio session at original physical size. No AI imagery, fixture terrain or fabricated UI.",
+  "software": {
+    "schemaVersion": 1,
+    "version": "0.1.1",
+    "atommVersion": "0.1.1",
+    "environment": "atomm",
+    "commit": "75446b75a38cfba86a37046d8dfc392f0d886a90",
+    "workingTreeDirty": false,
+    "archiveSha256": "be82bd11dba7f40112d8c41d9b2014f5aff9856fe0363f9c4f57c7f6e68090da",
+    "ciRun": "https://github.com/Echo-Foxtrot-Works/topostack/actions/runs/35294529983",
+    "release": "https://github.com/Echo-Foxtrot-Works/topostack/releases/tag/atomm-v0.1.1"
+  },
+  "source": {
+    "datasetVersion": "mapzen-terrarium+protomaps-20260905-z12-v1+usgs-crater-lake-v1",
+    "bathymetryStatus": "available",
+    "sourceKind": "real",
+    "attribution": [
+      {
+        "name": "Mapzen Terrain Tiles",
+        "url": "https://registry.opendata.aws/terrain-tiles/",
+        "license": "Composite terrain dataset; source-specific notices follow"
+      },
+      {
+        "name": "ArcticDEM",
+        "url": "https://www.pgc.umn.edu/data/arcticdem/",
+        "license": "Created from DigitalGlobe imagery and funded under NSF awards 1043681, 1559691, and 1542736"
+      },
+      {
+        "name": "Geoscience Australia",
+        "url": "https://www.ga.gov.au/",
+        "license": "© Commonwealth of Australia (Geoscience Australia) 2017"
+      },
+      {
+        "name": "Open Data Austria",
+        "url": "https://www.data.gv.at/",
+        "license": "© offene Daten Österreichs – Digitales Geländemodell (DGM) Österreich"
+      },
+      {
+        "name": "Government of Canada",
+        "url": "https://open.canada.ca/",
+        "license": "Contains information licensed under the Open Government Licence – Canada"
+      },
+      {
+        "name": "EU-DEM",
+        "url": "https://land.copernicus.eu/",
+        "license": "Produced using Copernicus data and information funded by the European Union"
+      },
+      {
+        "name": "NOAA ETOPO1",
+        "url": "https://www.ncei.noaa.gov/products/etopo-global-relief-model",
+        "license": "Terrain data courtesy of NOAA/NCEI"
+      },
+      {
+        "name": "INEGI",
+        "url": "https://www.inegi.org.mx/",
+        "license": "Source: INEGI, Continental relief, 2016"
+      },
+      {
+        "name": "Land Information New Zealand",
+        "url": "https://www.linz.govt.nz/",
+        "license": "Copyright 2011 Crown copyright © LINZ and the New Zealand Government"
+      },
+      {
+        "name": "Kartverket",
+        "url": "https://www.kartverket.no/",
+        "license": "© Kartverket"
+      },
+      {
+        "name": "UK Environment Agency",
+        "url": "https://www.gov.uk/government/organisations/environment-agency",
+        "license": "© Environment Agency copyright and/or database right 2015"
+      },
+      {
+        "name": "U.S. Geological Survey",
+        "url": "https://www.usgs.gov/",
+        "license": "3DEP, GMTED2010, and SRTM terrain data courtesy of the U.S. Geological Survey"
+      },
+      {
+        "name": "HydroLAKES v1.0",
+        "url": "https://www.hydrosheds.org/products/hydrolakes",
+        "license": "CC BY 4.0 — Messager, M.L., Lehner, B., Grill, G., Nedeva, I., Schmitt, O. (2016)"
+      },
+      {
+        "name": "GLOBathy",
+        "url": "https://doi.org/10.1038/s41597-022-01132-9",
+        "license": "CC0 1.0 — Khazaei, B., Read, L.K., Casali, M., Sampson, K.M., Yates, D.N. (2022)"
+      },
+      {
+        "name": "Protomaps Basemap 20260905",
+        "url": "https://protomaps.com",
+        "license": "ODbL Produced Work based on OpenStreetMap data"
+      },
+      {
+        "name": "OpenStreetMap contributors",
+        "url": "https://www.openstreetmap.org/copyright",
+        "license": "ODbL"
+      },
+      {
+        "name": "USGS Crater Lake multibeam bathymetry",
+        "url": "https://pubs.usgs.gov/dds/dds-72/",
+        "license": "Public domain; acknowledge source."
+      }
+    ]
+  },
+  "sourceKind": "real",
+  "layerCount": 41,
+  "initialProject": {
+    "schemaVersion": 1,
+    "id": "topostack-crater-automatic-depth",
+    "name": "Crater Lake · Automatic depth",
+    "location": {
+      "lat": 42.9446,
+      "lon": -122.109,
+      "label": "Crater Lake, Oregon",
+      "zoom": 11,
+      "bounds": {
+        "west": -122.2531955566406,
+        "east": -121.96480444335936,
+        "north": 43.01492844108113,
+        "south": 42.87419112307365
+      }
+    },
+    "cropShape": "rectangle",
+    "units": "metric",
+    "outputMode": "stack",
+    "widthMm": 406.4,
+    "heightMm": 270.933,
+    "engravingContourCount": 12,
+    "engravingIndexInterval": 5,
+    "showEngravingBorder": true,
+    "lineStyle": {
+      "contourMm": 0.16,
+      "indexContourMm": 0.32,
+      "majorRoadMm": 0.38,
+      "localRoadMm": 0.26,
+      "trailMm": 0.22,
+      "waterMm": 0.3,
+      "boundaryMm": 0.24,
+      "coordinateGridMm": 0.16,
+      "annotationMm": 0.2,
+      "borderMm": 0.34,
+      "trailPattern": "dashed",
+      "roadStyle": "centerline",
+      "majorRoadSpacingMm": 0.8,
+      "roadCap": "round"
+    },
+    "materialThicknessMm": 3.175,
+    "verticalExaggeration": 4,
+    "minimumFeatureMm": 0.8,
+    "smoothing": 1,
+    "showRoads": true,
+    "showTrails": true,
+    "showTransportationLabels": false,
+    "showWater": true,
+    "waterFillPattern": "none",
+    "showBoundaries": false,
+    "showCoordinateGrid": false,
+    "showWaterDepth": true,
+    "waterDepthExaggeration": 1.75,
+    "fitLakeDepth": false,
+    "waterDepthOverrides": {},
+    "showAlignmentGuides": true,
+    "optimizeMaterialUse": true,
+    "glueMarginMm": 8,
+    "laserKerfMm": 0.15,
+    "showElevationLabels": true,
+    "elevationLabelPosition": {
+      "x": -0.55,
+      "y": 0.55
+    },
+    "textStyle": {
+      "font": "technical",
+      "sizeMm": 3.1
+    },
+    "showNorthArrow": true,
+    "northArrowStyle": "classic",
+    "northArrowSizeMm": 24,
+    "northArrowPlacement": {
+      "anchor": "bottom-right",
+      "offset": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    "showScaleBar": true,
+    "markers": [],
+    "customLines": [],
+    "explodedPreview": 0
+  },
+  "projectFile": "media-project-v4.json",
+  "surveyResponses": [
+    "https://topostack.echofoxtrot.works/v1/bathymetry/usgs-crater-lake-v1.pmtiles"
+  ],
+  "geometryValidation": {
+    "requestedTerrainExaggeration": 4,
+    "waterDepthExaggeration": 1.75,
+    "fitLakeDepthEnabled": false,
+    "depthLayerLimit": null,
+    "automaticDepthCoverage": true,
+    "materialThicknessMm": 3.175,
+    "widthMm": 406.4,
+    "heightMm": 270.933,
+    "generatedLayers": 41,
+    "cutPanels": 31
+  },
+  "coverageNote": "USGS survey samples are applied where available; uncovered cells use existing terrain, modeled depths, or estimates near surveyed shores. Mixed coverage warnings remain visible in the UI screenshots. Automatic coverage adds depth layers without reducing the requested terrain scale; the previous 24-layer ceiling is absent.",
+  "coverPresentation": {
+    "file": "assets/topostack-cover-motion-4x3.png",
+    "alternate": "assets/topostack-cover-4x3.png",
+    "method": "Native v0.1.1 terrain renders with typography; primary has slight separation, alternate assembled. PNG fallbacks for the video cover.",
+    "width": 1600,
+    "height": 1200
+  },
+  "video": {
+    "file": "assets/topostack-product-showcase-v3.mp4",
+    "bytes": 8371536,
+    "sha256": "343ed653aefe5d84c7b66c5f32212acea5cc6db301b5bbf23b82917201e32089",
+    "width": 1600,
+    "height": 1200,
+    "sourceCommit": "75446b75a38cfba86a37046d8dfc392f0d886a90",
+    "durationSeconds": 36.0,
+    "fps": 30,
+    "decodedFrames": 1080,
+    "codec": "H.264",
+    "audio": false,
+    "fullDecodePassed": true,
+    "recipe": "media-storyboard-v3.json",
+    "projectFile": "media-project-v4.json",
+    "method": "36-second software showcase: genuine native terrain motion, six benefit-led still scenes and a matching motion finish. Silent, with brief background-colored fades."
+  },
+  "galleryNote": "Nine benefit-led compositions: hero, three locations, assembled/exploded, layered/flat, per-marker customization, automatic lake depth, genuine Studio import, full workbench, rectangular/circular artwork. All are software previews, not physical-build photos.",
+  "media": [
+    {
+      "file": "assets/topostack-cover-motion-4x3.png",
+      "bytes": 752824,
+      "sha256": "633eb0bfc6259b45df57695524a5ea5bac3f78b447aedddb71656fc94cb4e511",
+      "width": 1600,
+      "height": 1200,
+      "sourceCommit": "75446b75a38cfba86a37046d8dfc392f0d886a90"
+    },
+    {
+      "file": "assets/topostack-cover-4x3.png",
+      "bytes": 782025,
+      "sha256": "30f86a86e1d10ff55cc28e5600cec54c1455b2a0b23ace95aeba6c59a7859613",
+      "width": 1600,
+      "height": 1200,
+      "sourceCommit": "75446b75a38cfba86a37046d8dfc392f0d886a90"
+    },
+    {
+      "file": "assets/topostack-gallery-01-hero.png",
+      "bytes": 912629,
+      "sha256": "87053bcf740f127b7de2e7836a330d8c8230e4c8082e6bc4e92c7895a35e7091",
+      "width": 1600,
+      "height": 1200,
+      "sourceCommit": "75446b75a38cfba86a37046d8dfc392f0d886a90"
+    },
+    {
+      "file": "assets/topostack-gallery-02-places.png",
+      "bytes": 546981,
+      "sha256": "1bf016d6bf3b896575c6c70d5f22c6acc739533d62f53f1941090033b6cdfb99",
+      "width": 1600,
+      "height": 1200,
+      "sourceCommit": "75446b75a38cfba86a37046d8dfc392f0d886a90"
+    },
+    {
+      "file": "assets/topostack-gallery-03-exploded.png",
+      "bytes": 876384,
+      "sha256": "0a078129fd12094517d8e8972b4d5b436c1f60876d525b8a97ece11f83ae3c55",
+      "width": 1600,
+      "height": 1200,
+      "sourceCommit": "75446b75a38cfba86a37046d8dfc392f0d886a90"
+    },
+    {
+      "file": "assets/topostack-gallery-04-layered-flat.png",
+      "bytes": 615478,
+      "sha256": "5299d4b29d7497030fb152b3802b31865265ce9daaa105e5f5572e1f1bfd5509",
+      "width": 1600,
+      "height": 1200,
+      "sourceCommit": "75446b75a38cfba86a37046d8dfc392f0d886a90"
+    },
+    {
+      "file": "assets/topostack-gallery-05-personalize.png",
+      "bytes": 875834,
+      "sha256": "340204625449c2772ff767794696b0d0a1b5d30089d8f0002960207bde3e620f",
+      "width": 1600,
+      "height": 1200,
+      "sourceCommit": "75446b75a38cfba86a37046d8dfc392f0d886a90"
+    },
+    {
+      "file": "assets/topostack-gallery-06-lake-depth.png",
+      "bytes": 984936,
+      "sha256": "cf84ace082568d8fcb57ff9f76f2e0cb8cd3025a9907c95dd212c5cb8fda12fc",
+      "width": 1600,
+      "height": 1200,
+      "sourceCommit": "75446b75a38cfba86a37046d8dfc392f0d886a90"
+    },
+    {
+      "file": "assets/topostack-gallery-07-export.png",
+      "bytes": 226301,
+      "sha256": "222e72104fca7081ebfe14ec3b8c549e1027305cc30ad7c115eddc7136ef5062",
+      "width": 1600,
+      "height": 1200,
+      "sourceCommit": "75446b75a38cfba86a37046d8dfc392f0d886a90"
+    },
+    {
+      "file": "assets/topostack-gallery-08-workbench.png",
+      "bytes": 392392,
+      "sha256": "ea5b123ed6de51c7e7cc4f291cbc8d787efa8faeddb5790d9cafb6570583bbb9",
+      "width": 1600,
+      "height": 1200,
+      "sourceCommit": "75446b75a38cfba86a37046d8dfc392f0d886a90"
+    },
+    {
+      "file": "assets/topostack-gallery-09-shapes.png",
+      "bytes": 391170,
+      "sha256": "f6e6d2612e8c20b15e5af19440bdb47f3f039b68c87815bbea03d9803869a82a",
+      "width": 1600,
+      "height": 1200,
+      "sourceCommit": "75446b75a38cfba86a37046d8dfc392f0d886a90"
+    },
+    {
+      "file": "assets/topostack-product-showcase-v3.mp4",
+      "bytes": 8371536,
+      "sha256": "343ed653aefe5d84c7b66c5f32212acea5cc6db301b5bbf23b82917201e32089",
+      "width": 1600,
+      "height": 1200,
+      "sourceCommit": "75446b75a38cfba86a37046d8dfc392f0d886a90",
+      "durationSeconds": 36.0,
+      "fps": 30,
+      "decodedFrames": 1080,
+      "codec": "H.264",
+      "audio": false,
+      "fullDecodePassed": true
+    },
+    {
+      "file": "assets/topostack-cover-loop-v3.mp4",
+      "bytes": 4205045,
+      "sha256": "bea2e55535d9f5ac570a2081266c4af0e5a04aeec547006c850b4faab924c1d6",
+      "width": 1600,
+      "height": 1200,
+      "sourceCommit": "75446b75a38cfba86a37046d8dfc392f0d886a90",
+      "durationSeconds": 5.833333333333333,
+      "fps": 60,
+      "decodedFrames": 350,
+      "codec": "H.264",
+      "audio": false,
+      "fullDecodePassed": true
+    },
+    {
+      "file": "assets/topostack-exploded-stack-v2.mp4",
+      "bytes": 12110156,
+      "sha256": "c36feed890233d11894eca35c0e95129c314e46ca6b7925de6ad41ccafe9737d",
+      "width": 1600,
+      "height": 1200,
+      "durationSeconds": 7.983333333333333,
+      "fps": 60,
+      "capturedAt": "2026-09-16T18:51:20.888919+00:00",
+      "status": "older-capture",
+      "note": "Before the current UI and automatic-depth fixes; retained intentionally."
+    }
+  ],
+  "projectsFile": "media-projects-v5.json",
+  "storyboardFile": "media-storyboard-v3.json",
+  "legacyVideo": {
+    "file": "assets/topostack-exploded-stack-v2.mp4",
+    "durationSeconds": 7.983333333333333,
+    "width": 1600,
+    "height": 1200,
+    "fps": 60,
+    "decodedFrames": 479,
+    "uniqueDecodedFrames": 479,
+    "codec": "H.264",
+    "pixelFormat": "yuv420p",
+    "audio": false,
+    "recipe": "motion-recipe-v2.json",
+    "method": "Native app Three.js layer meshes, matching the app explode formula; eased separation and reassembly with a looping camera orbit and automatic framing. Fresh motion captured at 60 fps and encoded with fast-start playback. No AI-generated frames or optical-flow interpolation.",
+    "sequence": "0.4s assembled lead-in; 2.4s explosion to 90%; 1s exploded hold; 2.8s reassembly; 1.4s assembled finish. Camera motion continues throughout and returns to its starting pose.",
+    "capture": {
+      "mime": "video/mp4;codecs=avc1.640028",
+      "renderedFrames": 800,
+      "averageRenderFps": 99.85752493313676,
+      "longestRenderGapMs": 20,
+      "durationSeconds": 8,
+      "width": 1600,
+      "height": 1200,
+      "targetFps": 60,
+      "bytes": 35897974,
+      "datasetVersion": "mapzen-terrarium+protomaps-20260905-z12-v1+usgs-crater-lake-v1",
+      "layerCount": 24,
+      "depthClipped": false
+    },
+    "capturedAt": "2026-09-16T18:51:20.888919+00:00",
+    "status": "older-capture",
+    "projectFile": "media-project-v3.json",
+    "note": "Retained as an older capture at the user’s request. Historical reference only; use the new v0.1.1 showcase and cover loop for current product presentation.",
+    "source": {
+      "datasetVersion": "mapzen-terrarium+protomaps-20260905-z12-v1+usgs-crater-lake-v1",
+      "bathymetryStatus": "available",
+      "sourceKind": "real",
+      "attribution": [
+        {
+          "name": "Mapzen Terrain Tiles",
+          "url": "https://registry.opendata.aws/terrain-tiles/",
+          "license": "Composite terrain dataset; source-specific notices follow"
+        },
+        {
+          "name": "ArcticDEM",
+          "url": "https://www.pgc.umn.edu/data/arcticdem/",
+          "license": "Created from DigitalGlobe imagery and funded under NSF awards 1043681, 1559691, and 1542736"
+        },
+        {
+          "name": "Geoscience Australia",
+          "url": "https://www.ga.gov.au/",
+          "license": "© Commonwealth of Australia (Geoscience Australia) 2017"
+        },
+        {
+          "name": "Open Data Austria",
+          "url": "https://www.data.gv.at/",
+          "license": "© offene Daten Österreichs – Digitales Geländemodell (DGM) Österreich"
+        },
+        {
+          "name": "Government of Canada",
+          "url": "https://open.canada.ca/",
+          "license": "Contains information licensed under the Open Government Licence – Canada"
+        },
+        {
+          "name": "EU-DEM",
+          "url": "https://land.copernicus.eu/",
+          "license": "Produced using Copernicus data and information funded by the European Union"
+        },
+        {
+          "name": "NOAA ETOPO1",
+          "url": "https://www.ncei.noaa.gov/products/etopo-global-relief-model",
+          "license": "Terrain data courtesy of NOAA/NCEI"
+        },
+        {
+          "name": "INEGI",
+          "url": "https://www.inegi.org.mx/",
+          "license": "Source: INEGI, Continental relief, 2016"
+        },
+        {
+          "name": "Land Information New Zealand",
+          "url": "https://www.linz.govt.nz/",
+          "license": "Copyright 2011 Crown copyright © LINZ and the New Zealand Government"
+        },
+        {
+          "name": "Kartverket",
+          "url": "https://www.kartverket.no/",
+          "license": "© Kartverket"
+        },
+        {
+          "name": "UK Environment Agency",
+          "url": "https://www.gov.uk/government/organisations/environment-agency",
+          "license": "© Environment Agency copyright and/or database right 2015"
+        },
+        {
+          "name": "U.S. Geological Survey",
+          "url": "https://www.usgs.gov/",
+          "license": "3DEP, GMTED2010, and SRTM terrain data courtesy of the U.S. Geological Survey"
+        },
+        {
+          "name": "HydroLAKES v1.0",
+          "url": "https://www.hydrosheds.org/products/hydrolakes",
+          "license": "CC BY 4.0 — Messager, M.L., Lehner, B., Grill, G., Nedeva, I., Schmitt, O. (2016)"
+        },
+        {
+          "name": "GLOBathy",
+          "url": "https://doi.org/10.1038/s41597-022-01132-9",
+          "license": "CC0 1.0 — Khazaei, B., Read, L.K., Casali, M., Sampson, K.M., Yates, D.N. (2022)"
+        },
+        {
+          "name": "Protomaps Basemap 20260905",
+          "url": "https://protomaps.com",
+          "license": "ODbL Produced Work based on OpenStreetMap data"
+        },
+        {
+          "name": "OpenStreetMap contributors",
+          "url": "https://www.openstreetmap.org/copyright",
+          "license": "ODbL"
+        },
+        {
+          "name": "USGS Crater Lake multibeam bathymetry",
+          "url": "https://pubs.usgs.gov/dds/dds-72/",
+          "license": "Public domain; acknowledge source."
+        }
+      ]
+    },
+    "geometryValidation": {
+      "requestedTerrainExaggeration": 4,
+      "appliedTerrainExaggeration": 2.3185581841638463,
+      "waterDepthExaggeration": 1.75,
+      "fitLakeDepthEnabled": true,
+      "depthClippingWarning": false,
+      "materialThicknessMm": 3.175,
+      "stackHeightMm": 76.19999999999999,
+      "widthMm": 406.4,
+      "heightMm": 270.933
+    },
+    "coverageNote": "USGS survey samples are applied; uncovered cells use existing terrain or modeled depths. Mixed coverage is reported by the app. Lake depth is exaggerated but is not clipped by the stack floor. The 24-sheet limit refits the requested 4x terrain exaggeration to approximately 2.32x."
+  },
+  "studioImport": {
+    "source": "Fresh complete-project export from the released package",
+    "masterSvgSha256": "3756739e8f4e9eea6fd3f1452882de685ecef58fc5bde0643de000a9ddb7e1df",
+    "filesInDownload": 67,
+    "importOption": "Keep size",
+    "screenshotSha256": "fde20a50e81a4b35d75c50b5f32d28669690ed4aaecc8154a09f538ae8f35ef4",
+    "note": "Local import and visual inspection only; no machine processing run."
+  },
+  "coverVideo": {
+    "file": "assets/topostack-cover-loop-v3.mp4",
+    "bytes": 4205045,
+    "sha256": "bea2e55535d9f5ac570a2081266c4af0e5a04aeec547006c850b4faab924c1d6",
+    "width": 1600,
+    "height": 1200,
+    "sourceCommit": "75446b75a38cfba86a37046d8dfc392f0d886a90",
+    "durationSeconds": 5.833333333333333,
+    "fps": 60,
+    "decodedFrames": 350,
+    "codec": "H.264",
+    "audio": false,
+    "fullDecodePassed": true,
+    "recipe": "media-storyboard-v3.json",
+    "projectFile": "media-project-v4.json",
+    "method": "Native released-app Three.js meshes and materials. Real render frames 1–175 play forward then backward, returning to the same assembled pose. The initial recorder setup frame is excluded. No optical-flow interpolation."
+  }
+}

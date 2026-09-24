@@ -1,9 +1,23 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+import { DEFAULT_PROJECT, DEFAULT_SHEET_NESTING } from "@topostack/core";
 
 // Startup prepares sample geometry before mounting the embedded workbench.
 // Deep stacks also take longer than a normal DOM assertion on CI workers.
 const STARTUP_TIMEOUT_MS = 30_000;
 const PREVIEW_TIMEOUT_MS = 30_000;
+
+/**
+ * The embed loads terrain on its own at startup. Holding the geometry worker's
+ * second fetch (the first builds the page's bundled preview) pauses that run
+ * at its last step, so a test can watch it or cancel it.
+ */
+async function holdAutomaticTerrain(page: Page): Promise<() => void> {
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  let requests = 0;
+  await page.route("**/geometry.worker-*.js", async route => { if (++requests > 1) await gate; await route.continue(); });
+  return release;
+}
 
 test("Atomm uses the platform export hook and template layout across desktop, RTL, and narrow frames", async ({ page }) => {
   test.setTimeout(120_000);
@@ -42,25 +56,49 @@ test("Atomm uses the platform export hook and template layout across desktop, RT
       return { files: await Promise.all(files.map(async file => ({ filename: file.filename, text: file.filename.endsWith(".svg") ? await file.blob.text() : "", bytes: file.blob.size }))), error: "" };
     } catch (error) { return { files: [], error: (error as Error).message }; }
   }, intent);
-  expect((await invoke("download")).error).toMatch(/real terrain/i);
+  // The embed has no Generate step: it loads real terrain on its own.
+  await expect(studio.getByRole("button", { name: "Generate terrain", exact: true })).toHaveCount(0);
+  await expect(studio.locator(".status-line")).toContainText("Real terrain ready", { timeout: 45_000 });
+  expect([...await studio.locator('.mode-switch [role="radio"]').allTextContents()].map(text => text.trim())).toEqual(["2D", "3D", "Export"]);
   await studio.getByRole("button", { name: "Cut size", exact: true }).click();
   const width = studio.getByRole("spinbutton", { name: "Width", exact: true });
+  expect(await width.evaluate(el => (el as HTMLInputElement).validity.valid)).toBe(true);
   expect(await width.evaluate(el => el.closest(".number-input")!.getBoundingClientRect().width)).toBe(92);
   expect(await width.evaluate(el => el.closest(".number-input")!.getBoundingClientRect().height)).toBe(28);
-  await studio.getByRole("button", { name: "Generate terrain", exact: true }).click();
-  await expect(studio.locator(".status-line")).toContainText("Real terrain ready", { timeout: 45_000 });
+  // An active segment is the white item on the grey track, with no border of its own.
+  const rectangle = studio.getByRole("radio", { name: "Rectangle", exact: true });
+  expect(await rectangle.evaluate(el => ({ outline: getComputedStyle(el).outlineStyle, border: getComputedStyle(el).borderTopWidth }))).toEqual({ outline: "none", border: "0px" });
   const master = await invoke("openInStudio");
   expect(master.error).toBe("");
   expect(master.files).toHaveLength(1);
   expect(master.files[0]!.filename).toMatch(/-master\.svg$/);
   expect(master.files[0]!.text).toContain('stroke="#FE0002"');
   expect(master.files[0]!.text).toContain('stroke="#2366FF"');
-  await expect(studio.locator(".atomm-export-footer")).toContainText("blue lines → Score; red → Cut");
+  await studio.getByRole("radio", { name: "Export", exact: true }).click();
+  const manifest = studio.locator(".export-manifest");
+  await expect(manifest).toContainText(master.files[0]!.filename, { timeout: PREVIEW_TIMEOUT_MS });
+  await expect(manifest).toContainText("Red line · Cut");
+  await expect(manifest).toContainText("Blue line · Score");
+  // Credits share the zoom cluster's row, as light text without a plate.
+  const zoomBox = await studio.locator(".atomm-zoom-cluster").boundingBox();
+  const creditBox = await studio.locator(".preview-attribution").boundingBox();
+  expect(Math.abs((zoomBox!.y + zoomBox!.height / 2) - (creditBox!.y + creditBox!.height / 2))).toBeLessThan(1);
+  expect(await studio.locator(".preview-attribution").evaluate(el => getComputedStyle(el).backgroundColor)).toBe("rgba(0, 0, 0, 0)");
+  await studio.getByRole("radio", { name: "3D", exact: true }).click();
   expect(await page.evaluate(svg => {
     const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
     return !doc.querySelector("parsererror") && [...doc.querySelectorAll("path")].every(path =>
       path.getAttribute("fill") === "none" && ["#2366FF", "#FE0002"].includes(path.getAttribute("stroke") ?? ""));
   }, master.files[0]!.text)).toBe(true);
+  // Invalid edits remain visible, with the last valid fabrication model unchanged.
+  await width.fill("99999");
+  await width.blur();
+  await expect(width).toHaveValue("99999");
+  await expect(width).toHaveAttribute("aria-invalid", "true");
+  await expect(studio.locator(".atomm-number-error")).toContainText("10000");
+  expect((await invoke("openInStudio")).files[0]!.text).toBe(master.files[0]!.text);
+  await width.fill("300");
+  await expect(width).not.toHaveAttribute("aria-invalid", "true");
   // Parameter edits must change exported geometry without another Generate.
   await studio.getByRole("button", { name: "Terrain layers", exact: true }).click();
   await studio.getByRole("spinbutton", { name: "Vertical exaggeration", exact: true }).fill("8");
@@ -88,8 +126,8 @@ test("Atomm uses the platform export hook and template layout across desktop, RT
   const lakeHelp = studio.locator("#section-details").getByRole("button", { name: "How lake depths work", exact: true });
   await lakeHelp.click();
   const helpDialog = studio.getByRole("dialog", { name: "Fabrication tips" });
-  await expect(helpDialog.getByRole("heading", { name: "How lake depths work" })).toBeFocused();
-  await expect(helpDialog).toContainText("A modeled floor is not a measured survey.");
+  await expect(helpDialog.getByRole("heading", { name: "How lake depths work" })).toBeVisible();
+  await expect(helpDialog).toContainText("Neither reflects today's water level.");
   await expect(helpDialog.locator("a")).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(lakeHelp).toBeFocused();
@@ -106,18 +144,18 @@ test("Atomm uses the platform export hook and template layout across desktop, RT
   await arrows.scrollIntoViewIfNeeded();
   expect(await arrows.locator("button").evaluateAll(buttons => buttons.every(button => button.scrollWidth <= button.clientWidth))).toBe(true);
   expect(await arrows.evaluate(el => el.getBoundingClientRect().right <= el.closest(".gen-rail-params")!.getBoundingClientRect().right - 16)).toBe(true);
-  // The font picker is one row; its open list must stay inside the rail too.
+  // The embed uses the platform's native keyboard/touch picker without a clipping popup.
   const fontPicker = studio.getByRole("combobox", { name: "Engraving font", exact: true });
   await fontPicker.scrollIntoViewIfNeeded();
-  await fontPicker.click();
-  const fontList = studio.getByRole("listbox", { name: "Engraving font", exact: true });
-  await expect(fontList.getByRole("option")).toHaveCount(11);
-  for (const element of [fontPicker, fontList]) {
-    expect(await element.evaluate(el => el.getBoundingClientRect().right <= el.closest(".gen-rail-params")!.getBoundingClientRect().right - 16)).toBe(true);
-  }
-  expect(await fontList.getByRole("option").evaluateAll(options => options.every(option => option.scrollWidth <= option.clientWidth))).toBe(true);
-  await fontList.press("Escape");
-  await expect(fontList).toBeHidden();
+  expect(await fontPicker.evaluate(el => el.tagName)).toBe("SELECT");
+  await expect(fontPicker.locator("option")).toHaveCount(11);
+  expect(await fontPicker.evaluate(el => ({ width: el.getBoundingClientRect().width, height: el.getBoundingClientRect().height }))).toEqual({ width: 110, height: 28 });
+  await fontPicker.selectOption({ label: "Jost" });
+  await expect(studio.locator(".preview-stage")).toHaveAttribute("aria-busy", "false", { timeout: PREVIEW_TIMEOUT_MS });
+  await studio.getByRole("radio", { name: "Export", exact: true }).click();
+  await expect(manifest).toContainText("Blue fill · Engrave", { timeout: PREVIEW_TIMEOUT_MS });
+  await fontPicker.selectOption({ label: "Technical" });
+  await expect(studio.locator(".preview-stage")).toHaveAttribute("aria-busy", "false", { timeout: PREVIEW_TIMEOUT_MS });
   await studio.getByRole("radio", { name: "2D", exact: true }).click();
   expect(await studio.locator(".mode-switch").evaluate(el => getComputedStyle(el).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
   expect(await studio.locator(".status-line").evaluate(el => getComputedStyle(el).whiteSpace)).toBe("normal");
@@ -128,6 +166,10 @@ test("Atomm uses the platform export hook and template layout across desktop, RT
   expect(all.error).toBe("");
   expect(all.files.length).toBeGreaterThan(4);
   expect(all.files.every(file => !/[\\/]/.test(file.filename))).toBe(true);
+  await studio.getByRole("radio", { name: "Export", exact: true }).click();
+  const total = all.files.reduce((sum, file) => sum + file.bytes, 0);
+  const sizeLabel = total < 1024 ? `${total} B` : total < 1024 * 1024 ? `${Math.round(total / 1024)} KB` : `${(total / 1024 / 1024).toFixed(1)} MB`;
+  await expect(manifest.locator("summary")).toContainText(sizeLabel, { timeout: PREVIEW_TIMEOUT_MS });
   await studio.getByRole("radio", { name: "Flat engraving" }).click();
   await expect(studio.locator(".preview-stage")).toHaveAttribute("aria-busy", "false", { timeout: PREVIEW_TIMEOUT_MS });
   const flat = await invoke("openInStudio");
@@ -140,9 +182,20 @@ test("Atomm uses the platform export hook and template layout across desktop, RT
   expect(lead!.x).toBeGreaterThan(params!.x);
   expect(await studio.locator(".preview-stage").evaluate(el => getComputedStyle(el).direction)).toBe("ltr");
   await studio.getByRole("button", { name: "Tips", exact: true }).click();
-  await expect(studio.getByRole("dialog", { name: "Fabrication tips" })).toBeVisible();
+  const tipsDialog = studio.getByRole("dialog", { name: "Fabrication tips" });
+  await expect(tipsDialog).toBeVisible();
+  // One step at a time, as the platform's walkthrough does.
+  await expect(tipsDialog.getByRole("heading", { level: 3 })).toHaveText("Pick a place");
+  await tipsDialog.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(tipsDialog.getByRole("heading", { level: 3 })).toHaveText("Terrain layers");
+  await tipsDialog.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(tipsDialog.getByRole("button", { name: "Back", exact: true })).toBeDisabled();
   await page.keyboard.press("Escape");
   await expect(studio.getByRole("button", { name: "Tips", exact: true })).toBeFocused();
+  // Collapsed, the lead rail keeps its title in the canvas corner.
+  await studio.getByRole("button", { name: "Collapse Terrain project", exact: true }).click();
+  await expect(studio.getByRole("button", { name: "Expand Terrain project", exact: true })).toContainText("Terrain project");
+  await studio.getByRole("button", { name: "Expand Terrain project", exact: true }).click();
   await page.setViewportSize({ width: 700, height: 800 });
   await expect.poll(() => studio.locator(".gen-rail-params").evaluate(el => el.getBoundingClientRect().width)).toBe(700);
   expect(await studio.locator("body").evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -188,15 +241,16 @@ test("Atomm map selection tools leave view, Tips, and zoom controls accessible",
   for (const [width, height, direction] of [[1280, 900, "ltr"], [960, 600, "ltr"], [700, 800, "ltr"], [390, 700, "ltr"], [1280, 900, "rtl"]] as const) {
     await page.setViewportSize({ width, height });
     await studio.locator("html").evaluate((el, dir) => el.setAttribute("dir", dir), direction);
-    await studio.getByRole("radio", { name: "Map", exact: true }).click();
+    await studio.getByRole("button", { name: "Edit map area", exact: true }).click();
     await expect(studio.locator(".map-wrap")).toBeVisible();
+    await expect(studio.getByRole("radio", { name: "2D", exact: true })).toHaveAttribute("tabindex", "0");
     await expect(studio.locator(".selection-tools")).toHaveCount(0);
     expect(await studio.locator(".map-wrap").evaluate(el => getComputedStyle(el).isolation)).toBe("isolate");
     const lock = studio.locator(".gen-rail-lead #section-setup").getByRole("checkbox", { name: "Lock aspect ratio", exact: true });
     await expect(studio.locator(".gen-rail-params").getByRole("checkbox", { name: "Lock aspect ratio" })).toHaveCount(0);
     await lock.check();
     await studio.getByRole("radio", { name: "2D", exact: true }).click();
-    await studio.getByRole("radio", { name: "Map", exact: true }).click();
+    await studio.getByRole("button", { name: "Edit map area", exact: true }).click();
     await expect(lock).toBeChecked();
     if (width === 1280 && direction === "ltr") {
       const guide = studio.locator(".crop-guide");
@@ -228,7 +282,7 @@ test("Atomm map selection tools leave view, Tips, and zoom controls accessible",
   await expect(studio.locator(".gen-rail-params .custom-data-section")).toHaveCount(0);
   await expect(lead.locator('.config-section + .custom-data-section')).toHaveCount(1);
   await custom.click();
-  await studio.getByRole("radio", { name: "Map", exact: true }).click();
+  await studio.getByRole("button", { name: "Edit map area", exact: true }).click();
   await lead.getByRole("button", { name: "Add marker", exact: true }).click();
   await expect(studio.locator(".topostack-map-marker")).toHaveCount(1);
   await lead.getByRole("radio", { name: "Star", exact: true }).click();
@@ -272,7 +326,7 @@ test("Atomm layer and exploded controls stay above expanded settings", async ({ 
   const studio = page.frameLocator("iframe");
   const dock = studio.locator(".gen-rail-params .layer-dock");
   await expect(dock).toBeVisible({ timeout: STARTUP_TIMEOUT_MS });
-  await expect(studio.locator(".gen-params-content > :first-child")).toHaveClass("layer-dock");
+  await expect(studio.locator(".gen-params-content > :first-child")).toHaveClass(/\blayer-dock\b/);
   for (const name of ["Cut size", "Terrain layers", "Map details", "Linework", "Fabrication settings"]) {
     const section = studio.getByRole("button", { name, exact: true });
     if (await section.getAttribute("aria-expanded") === "false") await section.click();
@@ -389,25 +443,31 @@ test("Atomm depth allowance is explicit and fitting actions use readable theme b
   await page.route("**/v1/**", route => route.abort("internetdisconnected"));
   await page.route("https://static-res.makextool.com/**", route => route.fulfill({ contentType: "application/javascript", body: "window.atomm = { lifecycle: { on() {} }, app: { getLocale: async () => 'en', getSupportedLocales: async () => [{ code: 'en', name: 'English' }] } };" }));
   await page.route("**/atomm-test", route => route.fulfill({ contentType: "text/html", body: '<iframe title="Atomm generator" src="/studio" style="position:fixed;inset:0;width:100%;height:100%;border:0"></iframe>' }));
+  const releaseTerrain = await holdAutomaticTerrain(page);
   await page.goto("/atomm-test");
   const studio = page.frameLocator("iframe");
   await expect(studio.locator(".atomm-workbench")).toBeVisible({ timeout: STARTUP_TIMEOUT_MS });
+  // Cancelling the automatic load keeps the bundled Crater Lake preview, whose lake this test needs.
+  await studio.getByRole("button", { name: "Cancel generation", exact: true }).click();
+  await expect(studio.locator(".status-line")).toContainText("Generation canceled");
+  await expect(studio.getByRole("button", { name: "Load terrain", exact: true })).toBeVisible();
+  releaseTerrain();
   await studio.getByRole("button", { name: "Terrain layers", exact: true }).click();
-  const terrainSlider = studio.getByRole("slider", { name: "Vertical exaggeration slider", exact: true });
-  await expect(terrainSlider).toHaveAttribute("max", "10");
-  await terrainSlider.focus();
-  await page.keyboard.press("Home");
-  await page.keyboard.press("ArrowRight");
-  await expect(studio.getByRole("spinbutton", { name: "Vertical exaggeration", exact: true })).toHaveValue("1.1");
-  await studio.getByRole("spinbutton", { name: "Vertical exaggeration", exact: true }).fill("8");
+  // Each range is one numeric field; the duplicate slider is not shown in the embed.
+  await expect(studio.getByRole("slider", { name: "Vertical exaggeration slider", exact: true })).toBeHidden();
+  const terrainField = studio.getByRole("spinbutton", { name: "Vertical exaggeration", exact: true });
+  await expect(terrainField).toHaveAttribute("max", "10");
+  await terrainField.fill("1");
+  await terrainField.press("ArrowUp");
+  await expect(terrainField).toHaveValue("1.1");
+  await terrainField.fill("8");
   await studio.getByRole("button", { name: "Map details", exact: true }).click();
-  const depthSlider = studio.getByRole("slider", { name: "Water depth exaggeration slider", exact: true });
-  await expect(depthSlider).toHaveAttribute("min", "0.25");
-  await expect(depthSlider).toHaveAttribute("max", "4");
-  await depthSlider.focus();
-  await page.keyboard.press("Home");
-  await page.keyboard.press("ArrowRight");
-  await expect(studio.getByRole("spinbutton", { name: "Water depth exaggeration", exact: true })).toHaveValue("0.3");
+  const depthField = studio.getByRole("spinbutton", { name: "Water depth exaggeration", exact: true });
+  await expect(depthField).toHaveAttribute("min", "0.25");
+  await expect(depthField).toHaveAttribute("max", "4");
+  await depthField.fill("0.25");
+  await depthField.press("ArrowUp");
+  await expect(depthField).toHaveValue("0.3");
   const limit = studio.getByRole("checkbox", { name: "Limit depth layers", exact: true });
   await expect(limit).not.toBeChecked();
   await expect(studio.getByRole("spinbutton", { name: "Maximum depth layers", exact: true })).toHaveCount(0);
@@ -452,12 +512,16 @@ for (const embedded of [true, false]) {
     let releaseWorker!: () => void;
     const workerGate = new Promise<void>(resolve => { releaseWorker = resolve; });
     try {
+      // The embed starts loading terrain on its own, so it is held from the start.
+      if (embedded) { const release = await holdAutomaticTerrain(page); void workerGate.then(release); }
       await page.goto(embedded ? "/atomm-test" : "/studio");
       const studio = embedded ? page.frameLocator("iframe") : page;
       if (embedded) await expect(studio.locator(".atomm-workbench")).toBeVisible({ timeout: STARTUP_TIMEOUT_MS });
-      await expect(studio.getByRole("button", { name: "Generate terrain", exact: true })).toBeVisible();
-      await page.route("**/geometry.worker-*.js", async route => { await workerGate; await route.continue(); });
-      await studio.getByRole("button", { name: "Generate terrain", exact: true }).click();
+      else {
+        await expect(studio.getByRole("button", { name: "Generate terrain", exact: true })).toBeVisible();
+        await page.route("**/geometry.worker-*.js", async route => { await workerGate; await route.continue(); });
+        await studio.getByRole("button", { name: "Generate terrain", exact: true }).click();
+      }
       const overlay = studio.locator(".generation-overlay");
       await expect(overlay).toBeVisible();
       await expect(overlay).toContainText("Step 3 of 3");
@@ -467,7 +531,7 @@ for (const embedded of [true, false]) {
       await expect(loader).toBeVisible();
       await expect(loader).toHaveAttribute("aria-hidden", "true");
       const ring = loader.locator("span").first();
-      expect(await ring.evaluate(el => getComputedStyle(el).animationName)).toBe("contour");
+      expect(await ring.evaluate(el => getComputedStyle(el).animationName)).toBe(embedded ? "none" : "contour");
       await page.emulateMedia({ reducedMotion: "reduce" });
       expect(await ring.evaluate(el => getComputedStyle(el).animationName)).toBe("none");
       await expect(overlay).toContainText("Step 3 of 3");
@@ -478,3 +542,129 @@ for (const embedded of [true, false]) {
     } finally { releaseWorker(); }
   });
 }
+
+test("Atomm controls and Tips remain reachable in narrow and short frames", async ({ page }, testInfo) => {
+  test.setTimeout(120_000);
+  await page.route("**/v1/**", route => route.abort());
+  await page.route("https://static-res.makextool.com/**", route => route.fulfill({ contentType: "application/javascript", body: `window.atomm = { lifecycle: { on() {} }, app: { getLocale: async () => 'en', getSupportedLocales: async () => [] } };` }));
+  await page.route("**/atomm-layout", route => route.fulfill({ contentType: "text/html", body: '<body style="margin:0"><iframe src="/studio" style="width:100%;height:100vh;border:0;display:block"></iframe>' }));
+  await page.goto("/atomm-layout");
+  const studio = page.frameLocator("iframe");
+  await expect(studio.locator(".status-line")).toContainText("Real terrain ready", { timeout: 45_000 });
+  for (const direction of ["ltr", "rtl"]) {
+    await studio.locator("html").evaluate((el, value) => el.setAttribute("dir", value), direction);
+    for (const width of [1280, 960, 700, 390, 320]) {
+      await page.setViewportSize({ width, height: 800 });
+      for (const collapsed of [false, true]) {
+        if (collapsed) await studio.getByRole("button", { name: "Collapse Terrain project", exact: true }).click();
+        for (const view of ["2D", "3D", "Export"]) {
+          const control = studio.getByRole("radio", { name: view, exact: true });
+          await control.click();
+          await expect(control).toHaveAttribute("aria-checked", "true");
+        }
+        const tabs = (await studio.locator(".mode-switch").boundingBox())!;
+        const tips = (await studio.getByRole("button", { name: "Tips", exact: true }).boundingBox())!;
+        expect(tabs.x + tabs.width <= tips.x || tips.x + tips.width <= tabs.x || tabs.y + tabs.height <= tips.y || tips.y + tips.height <= tabs.y).toBe(true);
+        await studio.getByRole("button", { name: "Tips", exact: true }).click();
+        await expect(studio.getByRole("dialog", { name: "Fabrication tips" })).toBeVisible();
+        await page.keyboard.press("Escape");
+        if (width === 960 && direction === "ltr") await page.screenshot({ path: testInfo.outputPath(`fixed-controls-${collapsed}.png`) });
+        if (collapsed) await studio.getByRole("button", { name: "Expand Terrain project", exact: true }).click();
+      }
+    }
+  }
+  for (const height of [480, 320]) {
+    await page.setViewportSize({ width: 700, height });
+    await studio.getByRole("button", { name: "Tips", exact: true }).click();
+    const dialog = studio.getByRole("dialog", { name: "Fabrication tips" });
+    for (let step = 0; step < 7; step++) {
+      const next = dialog.getByRole("button", { name: step === 6 ? "Done" : "Next", exact: true });
+      const bounds = (await dialog.boundingBox())!;
+      const button = (await next.boundingBox())!;
+      expect(button.y).toBeGreaterThanOrEqual(bounds.y);
+      expect(button.y + button.height).toBeLessThanOrEqual(bounds.y + bounds.height);
+      await next.click();
+    }
+    await expect(dialog).toBeHidden();
+  }
+});
+
+
+for (const unavailable of [false, true]) test(`Atomm automatic nesting ${unavailable ? "falls back when its worker is unavailable" : "shares simple defaults with Export Preview"}`, async ({ page }) => {
+  if (unavailable) await page.route("**/nest.worker-*.js", route => route.abort());
+  test.setTimeout(120_000);
+  const plannerRequests: string[] = [];
+  const errors: string[] = [];
+  page.on("request", request => {
+    if (/nest\.worker-|topostack_nest_wasm/.test(request.url())) plannerRequests.push(request.url());
+  });
+  page.on("pageerror", error => errors.push(error.message));
+  await page.route("**/v1/**", route => route.abort("internetdisconnected"));
+  await page.route("https://static-res.makextool.com/**", route => route.fulfill({ contentType: "application/javascript", body: `
+    window.atomm = { lifecycle: { on(event, hook) { window.testExport = hook; } }, ui: { toast: async () => 'ok' } };
+  ` }));
+  await page.route("**/atomm-nesting-import", route => route.fulfill({ contentType: "text/html", body: '<iframe title="Generator" src="/studio" style="width:100%;height:900px"></iframe>' }));
+  await page.goto("/atomm-nesting-import");
+  const studio = page.frameLocator("iframe");
+  await expect(studio.locator(".status-line")).toContainText("Real terrain ready", { timeout: 45_000 });
+  await studio.locator('input[type="file"]').first().setInputFiles({
+    name: "nested-project.json", mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify({ ...DEFAULT_PROJECT, name: "Nested import", sheetNesting: { ...DEFAULT_SHEET_NESTING, sheetWidthMm: 800, sheetHeightMm: 600 } })),
+  });
+  await expect(studio.getByRole("textbox", { name: "Project name" })).toHaveValue("Nested import");
+  await expect(studio.locator(".status-line")).toContainText("Real terrain ready", { timeout: 45_000 });
+  await expect(studio.locator(".preview-stage")).toHaveAttribute("aria-busy", "false");
+  const exported = await studio.locator("body").evaluate(async () => {
+    type File = { filename: string; blob: Blob };
+    const hook = (window as unknown as { testExport: (input: { intent: string }) => Promise<File[]> }).testExport;
+    const files = await hook({ intent: "download" });
+    const manifest = files.find(file => file.filename.endsWith("-project.json"))!;
+    return { names: files.map(file => file.filename), manifest: JSON.parse(await manifest.blob.text()) };
+  });
+  expect(exported.manifest.project.sheetNesting.sheetWidthMm).toBe(800);
+  expect(Boolean(exported.manifest.result.fabrication.sheetNesting)).toBe(!unavailable);
+  expect(exported.names.some(name => /-sheet-\d+/.test(name))).toBe(!unavailable);
+  expect(exported.names.some(name => /-master\.svg$/.test(name))).toBe(true);
+  expect(plannerRequests.length).toBeGreaterThan(0);
+  await studio.getByRole("radio", { name: "Export", exact: true }).click();
+  await expect(studio.locator(".export-layout-note")).toContainText(unavailable ? "Using original panels" : "800 × 600 mm");
+  expect(errors).toEqual([]);
+});
+
+test("Atomm shows live nesting progress, keeps the current layout, and remembers material size", async ({ page }) => {
+  test.setTimeout(120_000);
+  let geometryRequests = 0;
+  page.on("request", request => { if (/geometry\.worker-/.test(request.url())) geometryRequests++; });
+  await page.route("**/v1/**", route => route.abort());
+  await page.route("https://static-res.makextool.com/**", route => route.fulfill({ contentType: "application/javascript", body: `window.atomm = { lifecycle: { on() {} }, app: { getLocale: async () => 'en' } };` }));
+  await page.route("**/atomm-live-nesting", route => route.fulfill({ contentType: "text/html", body: '<iframe src="/studio" style="width:100%;height:900px"></iframe>' }));
+  await page.goto("/atomm-live-nesting");
+  const studio = page.frameLocator("iframe");
+  await expect(studio.locator(".status-line")).toContainText("Real terrain ready", { timeout: 45_000 });
+  await expect(studio.locator(".preview-stage")).toHaveAttribute("aria-busy", "false");
+  const requestsBefore = geometryRequests;
+  await studio.getByRole("radio", { name: "Export", exact: true }).click();
+  const loader = studio.locator(".nesting-progress");
+  await expect(loader).toContainText("Arranging sheets");
+  await expect(loader).toContainText("Step 1 of 2");
+  await expect(studio.locator(".atomm-nesting-drafts svg").first()).toBeVisible();
+  await expect(loader).toContainText("material used");
+  expect(await loader.locator(".contour-loader span").first().evaluate(el => getComputedStyle(el).animationName)).toBe("none");
+  await studio.getByRole("button", { name: "Use current layout" }).click();
+  await expect(studio.locator(".export-layout-note")).toContainText("600 × 400 mm");
+  const width = studio.getByRole("spinbutton", { name: "Material width", exact: true });
+  await expect(width).toHaveValue("600");
+  await width.fill("10");
+  await expect(width).toHaveAttribute("aria-invalid", "true");
+  await expect(studio.locator(".export-layout-note")).toContainText("600 × 400 mm");
+  await width.fill("700");
+  await expect(loader).toContainText("Arranging sheets");
+  await expect(studio.locator(".export-layout-note")).toContainText("700 × 400 mm", { timeout: 20_000 });
+  expect(geometryRequests).toBe(requestsBefore);
+  await page.reload();
+  await expect(studio.locator(".status-line")).toContainText("Real terrain ready", { timeout: 45_000 });
+  await studio.getByRole("radio", { name: "Export", exact: true }).click();
+  await expect(width).toHaveValue("700");
+  await expect(studio.getByRole("spinbutton", { name: "Material height", exact: true })).toHaveValue("400");
+  await expect(studio.locator(".export-layout-note")).toContainText("700 × 400 mm", { timeout: 20_000 });
+});

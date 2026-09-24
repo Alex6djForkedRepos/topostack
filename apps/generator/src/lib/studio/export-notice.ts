@@ -17,8 +17,8 @@ export function describeExport(update: ExportUpdate): { title: string; detail: s
   if (update.phase === "ready") {
     const files = `${update.fileCount} ${update.fileCount === 1 ? "file" : "files"}`;
     return update.intent === "openInStudio"
-      ? { title: "Artwork ready", detail: "The master SVG is prepared for Atomm to open in Studio.", status: "Master SVG prepared for Studio" }
-      : { title: "Download ready", detail: `${files} prepared. Your browser should save them as one download.`, status: `Download prepared · ${files}` };
+      ? { title: "Artwork ready", detail: ["The master SVG is prepared for Atomm to open in Studio.", update.layoutNote].filter(Boolean).join(" "), status: "Master SVG prepared for Studio" }
+      : { title: "Download ready", detail: [`${files} prepared. Your browser should save them as one download.`, update.layoutNote].filter(Boolean).join(" "), status: `Download prepared · ${files}` };
   }
   return { title: "Export failed", detail: update.message, status: update.message };
 }
