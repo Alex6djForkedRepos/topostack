@@ -18,6 +18,8 @@ export interface TracedLevel {
   closed: boolean;
   /** Level in chart units: a depth, or an elevation when the chart labels elevations. */
   value: number;
+  inside?: "deeper" | "shallower";
+  interiorValue?: number;
 }
 
 export interface ChartRecordRequest {
@@ -29,7 +31,9 @@ export interface ChartRecordRequest {
   units: ChartUnit;
   labels: ChartLabelsV1;
   /** Contour interval in chart units. */
-  interval: number;
+  interval?: number;
+  /** Reviewed contours explicitly hold their interior unless a target is supplied. */
+  explicitInteriors?: boolean;
   contours: TracedLevel[];
   /**
    * The water's edge, one ring per tile, filled even-odd. `pixels` is the shore
@@ -45,6 +49,7 @@ export interface ChartRecordRequest {
 }
 
 export interface ChartRecordReport {
+  /** License eligibility only; never geometry, accuracy, or fabrication approval. */
   publishable: boolean;
   georefRmsM: number;
   contours: number;
@@ -97,11 +102,12 @@ export function buildChartRecord(request: ChartRecordRequest): { record: UserCha
   if (!levelled.length) throw new Error(`Depth chart ${request.id}: no contour got a level; add labels or check which lines are contours.`);
 
   // Simplify until the contours fit the contract's point budget.
-  let tolerance = request.resolutionM / 4 / metresPerUnit;
-  let contours: { depthM: number; closed: boolean; line: Point2[] }[];
+  let tolerance = request.explicitInteriors ? 0 : request.resolutionM / 4 / metresPerUnit;
+  let contours: { depthM: number; closed: boolean; line: Point2[]; inside?: "deeper" | "shallower"; interiorDepthM?: number }[];
   for (;;) {
-    contours = levelled.map((contour) => ({ depthM: Math.round(contour.depthM * 1000) / 1000, closed: contour.closed, line: simplify(contour.points, tolerance).map(toLonLat) }));
+    contours = levelled.map((contour) => ({ ...(contour.inside ? { inside: contour.inside } : {}), ...(request.explicitInteriors ? { interiorDepthM: Math.round((contour.interiorValue === undefined ? contour.depthM : chartLabelDepthM(request.labels, contour.interiorValue * unit)) * 1000) / 1000 } : {}), depthM: Math.round(contour.depthM * 1000) / 1000, closed: contour.closed, line: simplify(contour.points, tolerance).map(toLonLat) }));
     if (contours.reduce((sum, contour) => sum + contour.line.length, 0) <= CHART_BATHYMETRY_LIMITS.maxContourPoints) break;
+    if (request.explicitInteriors) throw new Error("Reviewed geometry exceeds the point limit.");
     tolerance *= 1.5;
   }
   contours = contours.filter((contour) => contour.line.length >= 2);
@@ -112,17 +118,17 @@ export function buildChartRecord(request: ChartRecordRequest): { record: UserCha
     .filter((ring) => ring.length >= 3);
   if (!waterRings.length) throw new Error(`Depth chart ${request.id}: no water outline; mark the shore before gridding.`);
 
-  const intervalM = request.interval * unit;
+  const intervalM = request.interval === undefined ? undefined : request.interval * unit;
   const grid = gridDepths({
     water: { rings: waterRings },
-    contours: contours.map((contour) => ({ depthM: contour.depthM, line: contour.line, closed: contour.closed })),
+    contours,
     spots: (request.spots ?? []).map((spot) => {
       const [lon, lat] = toLonLat([spot.x, spot.y]);
       return { lon: lon!, lat: lat!, depthM: chartLabelDepthM(request.labels, spot.value * unit) };
     }).filter((spot) => spot.depthM >= 0),
     resolutionM: request.resolutionM,
     method: request.method ?? "harmonic",
-    intervalM,
+    ...(intervalM === undefined ? {} : { intervalM }),
     maxSide: CHART_BATHYMETRY_LIMITS.maxGridSide,
   });
 
@@ -139,6 +145,7 @@ export function buildChartRecord(request: ChartRecordRequest): { record: UserCha
       ...(request.lake.region ? { region: request.lake.region } : {}),
       ...(request.lake.hylakId ? { hylakId: request.lake.hylakId } : {}),
       outline: outline.length >= 4 ? outline : [...outline, outline[0]!],
+      ...(request.explicitInteriors && waterRings.length > 1 ? { islands: waterRings.filter(ring => ring !== largest) } : {}),
     },
     georef: {
       method: request.georef.method,
@@ -149,7 +156,7 @@ export function buildChartRecord(request: ChartRecordRequest): { record: UserCha
     },
     units: request.units,
     labels: request.labels,
-    intervalM,
+    ...(intervalM === undefined ? {} : { intervalM }),
     contours,
     spots: [],
     grid: { bounds: grid.bounds, width: grid.width, height: grid.height, method: grid.method, depthsDm: encodeChartDepths(grid.depthsM) },

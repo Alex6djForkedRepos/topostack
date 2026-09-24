@@ -1,3 +1,5 @@
+import { readPdfPage } from "@topostack/chart-trace/pdf";
+import type { VectorPage } from "@topostack/chart-trace/vector-page";
 import * as pdfjs from "pdfjs-dist";
 import workerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
@@ -5,9 +7,9 @@ import workerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
  * One page of a PDF depth chart, drawn as a picture for the tracer.
  *
  * Only the chart tracing view imports this, when a PDF is chosen, so pdf.js
- * never reaches the studio's first load. The page is rasterised rather than
- * read as vector paths: the maker places depths on the picture either way, and
- * one route through the tracer keeps scans and GIS exports alike.
+ * never reaches the studio's first load. The rendered page remains the visual source of truth. Native vector paths
+ * are offered alongside it when extraction succeeds, so users can choose
+ * contour styles without losing geometry to rasterization.
  *
  * Nothing here needs `eval` (pdf.js 6 has none) or WebAssembly, which the
  * site's content security policy does not allow. pdf.js decodes most chart images in JavaScript; its
@@ -19,6 +21,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
 
 export interface RenderedPdfPage {
   pixels: ImageData;
+  vectors?: VectorPage;
   /** How many pages the file has, and which one this is (1-based, clamped). */
   pages: number;
   page: number;
@@ -34,6 +37,7 @@ const MIN_INK_SHARE = 0.0005;
 export async function renderPdfPage(data: Uint8Array, page: number, maxSide: number): Promise<RenderedPdfPage> {
   // pdf.js 6 no longer evaluates code; WebAssembly is turned off here because
   // the policy would refuse it, and trying first only costs time.
+  const vectorData = data.slice();
   const task = pdfjs.getDocument({ data, useWasm: false, disableFontFace: true, verbosity: 0 });
   let document: pdfjs.PDFDocumentProxy;
   try {
@@ -63,7 +67,17 @@ export async function renderPdfPage(data: Uint8Array, page: number, maxSide: num
     // one may have the chart on another page, so the caller lets the maker pick.
     const blank = inkShare(pixels) < MIN_INK_SHARE;
     if (blank && pages === 1) throw new Error(BLANK_PAGE);
-    return { pixels, pages, page: number, blank };
+    // Only unrotated, non-skewed PDF page coordinates are offered as editable vectors.
+    // Raster review remains available if extraction fails or the page is rotated.
+    let vectors: VectorPage | undefined;
+    if (!pdfPage.rotate) {
+      try {
+        const raw = await readPdfPage(pdfjs, vectorData, number);
+        const sx = pixels.width / raw.width, sy = pixels.height / raw.height;
+        vectors = { ...raw, width: pixels.width, height: pixels.height, paths: raw.paths.map(path => ({ ...path, points: path.points.map(([x, y]) => [x * sx, y * sy]) })), texts: [] };
+      } catch { /* Retain the rendered page for manual/raster review. */ }
+    }
+    return { pixels, pages, page: number, blank, ...(vectors ? { vectors } : {}) };
   } finally {
     await task.destroy();
   }

@@ -18,6 +18,8 @@ test("marker size persists and fabrication artwork spans visible stack layers", 
   await expect(size).toHaveValue("8");
   await page.getByRole("radiogroup", { name: "Marker 1 symbol" }).getByRole("radio", { name: "Circle", exact: true }).click();
   await size.fill("180");
+  // Terrain generation controls live in the output views, outside Custom data.
+  await page.getByRole("radio", { name: /3D stack/ }).click();
   await expect(page.locator(".status-line")).toContainText("Custom data updated", { timeout: 30_000 });
   await page.getByRole("button", { name: /^(?:Generate|Regenerate) terrain/ }).click();
   await expect(page.getByText("Ready to export")).toBeVisible({ timeout: 30_000 });

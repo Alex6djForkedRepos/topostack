@@ -12,7 +12,7 @@
   <table>
     <thead><tr><th scope="col">Section</th><th scope="col">What it adds</th><th scope="col">Guide</th></tr></thead>
     <tbody>
-      <tr><td><strong>Depth charts</strong></td><td>A lake floor traced from a printed depth chart, for lakes with no survey. Layered output only.</td><td><a href={`${base}/guides/trace-a-depth-chart`}>Carve a lake from a depth chart</a></td></tr>
+      <tr><td><strong>Depth charts</strong></td><td>A lake floor from reviewed chart contours and explicit geographic alignment. Layered output only.</td><td><a href={`${base}/guides/trace-a-depth-chart`}>Carve a lake from a depth chart</a></td></tr>
       <tr><td><strong>Markers</strong></td><td>Engraved symbols at map coordinates: built-in pins, stars and crosses, or your own SVG icons.</td><td><a href={`${base}/guides/custom-markers-and-paths`}>Custom markers and paths</a></td></tr>
       <tr><td><strong>Trails &amp; boundaries</strong></td><td>Routes and outlines drawn on the map or typed as coordinates, engraved in your trail and boundary styles.</td><td><a href={`${base}/guides/custom-markers-and-paths`}>Custom markers and paths</a></td></tr>
       <tr><td><strong>Graphics</strong></td><td>SVG logos and artwork placed on the piece itself, then engraved, scored or cut out.</td><td><a href={`${base}/guides/custom-graphics`}>Custom graphics</a></td></tr>
@@ -28,7 +28,9 @@
 
   <h2>What updates on its own</h2>
   <p>Markers, paths and graphics update the preview immediately, with no need to regenerate terrain. A depth chart changes the lake floor itself, so after choosing <strong>Use for</strong> on a chart, select <strong>Regenerate terrain</strong> to carve it.</p>
-  <p><strong>Undo</strong> reverses any custom data edit. A whole file import, a path drawn with many clicks, or a graphic placement session each count as a single step.</p>
+  <p>Project <strong>Undo</strong> reverses marker, path, and graphic edits. A whole file import, a path drawn with many clicks, or a graphic placement session each count as a single step. Contour correction has its own <strong>Undo edit</strong> and <strong>Redo edit</strong> controls.</p>
+
+  <p>Depth charts require confirmation of every included contour, at least four distributed geographic control points, and a separate layer review before saving. Use <strong>Export review draft</strong> before closing or reloading unfinished work; keep the original source file to restore it. Read <a href={`${base}/guides/how-depth-chart-tracing-works`}>how chart tracing works</a> for its current limits.</p>
 
   <h2>Layered and flat output</h2>
   <p>On a layered map, markers and graphics land on whichever sheet shows at each point, so they are visible once the stack is glued. On a flat engraving, everything is engraved on the one surface. Flat engravings have no lake floor, so the <strong>Depth charts</strong> section is hidden; the other four work the same way in both.</p>

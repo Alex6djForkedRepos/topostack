@@ -77,6 +77,7 @@ Check deployed services, SEO output, and data quality. CI and the production mon
 
 | Script | Purpose | Run by |
 | --- | --- | --- |
+| `stress-depth-charts.mjs` | Fetch pinned USGS charts; probe uploads, tracing, persistence, and screenshots | manual: [real-chart stress report](../docs/reports/real-depth-chart-stress-2026-09-23.md) |
 | `benchmark-data-layer.mjs` | Measure data-layer latency for representative projects (build core first) | `npm run data:benchmark` |
 | `verify-atomm-dist.mjs` | Check the Atomm build output for forbidden endpoints and required files | CI/workflows |
 | `verify-lake-directory.mjs` | Browser check of the lake directory and studio place links | `npm run data:verify-lake-directory` |
@@ -102,3 +103,8 @@ The changelog, version consistency, and the Atomm marketplace bundle. See [chang
 | `publish-atomm-release.mjs` | Tag, draft, upload, and publish the Atomm GitHub release for a version, with the changelog since the previous one | CI/workflows (automatically after production CI) |
 | `validate-submission-env.mjs` | Fail-closed gate for Atomm packaging: the embedded map API URL must be production | manual |
 | `versions.mjs` | Check or bump the one release version across workspaces, the lockfile, and the Atomm manifest | `npm run version:check`; `npm run version:main`; CI/workflows |
+- [`verify/chart-accuracy/`](verify/chart-accuracy/README.md): opt-in, pinned USGS charts and independent QA soundings; 20 raster variants, spatial error scoring, appearance diagnostics, and reproducible figures.
+
+Reviewed depth-chart release checks and real-source capture instructions: [chart-release/README.md](verify/chart-release/README.md).
+
+Reviewed Walden Pond announcement assets and project: [walden-example/README.md](verify/walden-example/README.md). The runbook covers source preparation, offline validation, and fresh-browser capture.
