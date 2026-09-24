@@ -145,6 +145,10 @@ surface references, missing references, source failures, and provenance retries.
 There is no single complete public lake-survey feed. Additional candidates need
 source-specific validation before being added to the registry:
 
+- NOAA's other lake depths (NBS Modeling/BlueTopo grids, CUDEM, and nautical
+  chart ENCs) are listed lake by lake in the
+  [NOAA lake depth coverage report](reports/noaa-lake-coverage-2026-09-24.md).
+  NCEI's Great Lakes product itself has no lakes beyond the six already used.
 - Yellowstone SIM 2973's downloadable GIS package lists geological polygons,
   faults, vents, and flow arrows; its bathymetry presentation is not a verified
   numeric bed grid in that package.
