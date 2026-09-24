@@ -1,6 +1,6 @@
 export * from "./types.js";
 export { cellEdges, planSeamGrid, seamShift, splitLayersForWorkArea } from "./pipeline/split.js";
-export { generateGeometry } from "./pipeline/generate.js";
+export { generateGeometry, createGeometryGenerator, createParallelGeometryGenerator, type ParallelGenerationOptions, type GenerationOptions, type GenerationStage } from "./pipeline/generate.js";
 export { validateProject } from "./pipeline/validate.js";
 export { createSyntheticSource } from "./pipeline/synthetic-source.js";
 export { projectFingerprint } from "./pipeline/fingerprint.js";
@@ -37,3 +37,5 @@ export * from "./water/water-pattern.js";
 export * from "./export/export-policy.js";
 export * from "./pipeline/source-requirements.js";
 export { cropRadiusMm } from "./primitives/crop.js";
+
+export { executeGeometryTask, type GeometryTask, type GeometryBatch, type GeometryTaskResult } from "./pipeline/generation-tasks.js";

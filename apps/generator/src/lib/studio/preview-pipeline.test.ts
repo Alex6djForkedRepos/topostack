@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createSyntheticSource, DEFAULT_PROJECT, type GeometryIRV1, type SourceBundleV1 } from "@topostack/core";
-import { GeometryWorkerClient, type GeometryWorkerRequest, type GeometryWorkerResponse } from "$lib/workers/geometry-worker-client";
+import { GeometryWorkerClient, type GeometryWorkerCancel, type GeometryWorkerRequest, type GeometryWorkerResponse } from "$lib/workers/geometry-worker-client";
 import { PreviewPipeline } from "$lib/studio/preview-pipeline";
 
 class FakeWorker {
@@ -9,7 +9,8 @@ class FakeWorker {
   onmessageerror: (() => void) | null = null;
   posted: GeometryWorkerRequest[] = [];
   terminated = false;
-  postMessage(message: GeometryWorkerRequest): void { this.posted.push(message); }
+  cancellations: number[] = [];
+  postMessage(message: GeometryWorkerRequest | GeometryWorkerCancel): void { if ("cancelId" in message) this.cancellations.push(message.cancelId); else this.posted.push(message); }
   terminate(): void { this.terminated = true; }
   reply(data: GeometryWorkerResponse): void { this.onmessage?.({ data }); }
   get last(): GeometryWorkerRequest { return this.posted.at(-1)!; }
@@ -75,6 +76,31 @@ describe("geometry worker client", () => {
     expect(factory).toHaveBeenCalledOnce();
     client.dispose();
     expect(workers[0]!.terminated).toBe(true);
+  });
+
+  it("uses progress and a cancellation acknowledgement to preserve a long job's source cache", async () => {
+    vi.useFakeTimers();
+    const { client, workers, factory } = setup();
+    try {
+      const bundle = source();
+      const pending = client.run(DEFAULT_PROJECT, bundle).catch((error: unknown) => error);
+      const id = workers[0]!.last.id;
+      await vi.advanceTimersByTimeAsync(5_000);
+      workers[0]!.reply({ id, progress: { stage: "alignment", completed: 2, total: 100 } });
+      client.cancel();
+      expect(await pending).toMatchObject({ name: "AbortError" });
+      expect(workers[0]!.cancellations).toEqual([id]);
+      expect(workers[0]!.terminated).toBe(false);
+      workers[0]!.reply({ id, cancelled: true });
+      await vi.advanceTimersByTimeAsync(2_000);
+      const next = client.run(DEFAULT_PROJECT, bundle);
+      expect(workers[0]!.last.source).toBeUndefined();
+      // Stale progress does not resolve the current request.
+      workers[0]!.reply({ id, progress: { stage: "alignment", completed: 4, total: 100 } });
+      workers[0]!.reply({ id: workers[0]!.last.id, result: geometry("current") });
+      await expect(next).resolves.toMatchObject({ projectName: "current" });
+      expect(factory).toHaveBeenCalledOnce();
+    } finally { client.dispose(); vi.useRealTimers(); }
   });
 
   it("terminates a worker still busy with abandoned work past the limit and moves the current request", async () => {
