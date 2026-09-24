@@ -6,7 +6,10 @@ import {
   close,
   pointAt,
   pointInBounds,
-  pointInPolygon,
+  pointInPreparedPolygons,
+  preparePolygons,
+  somePreparedEdge,
+  type PreparedPolygons,
   pointInRing,
   ringBounds,
   ringFitsInsidePolygon,
@@ -79,8 +82,10 @@ function indexMarkings(markings: LayerIR["markings"]): IndexedMarking[] {
   return markings.map((marking) => ({ marking, bounds: markingBounds(marking) }));
 }
 
-function indexPolygons(polygons: Polygon2D[]): Array<{ polygon: Polygon2D; bounds: Bounds2D }> {
-  return polygons.map((polygon) => ({ polygon, bounds: expanded(polygonBounds(polygon)) }));
+interface IndexedPolygon { polygon: Polygon2D; bounds: Bounds2D; prepared: PreparedPolygons }
+
+function indexPolygons(polygons: Polygon2D[]): IndexedPolygon[] {
+  return polygons.map((polygon) => ({ polygon, bounds: expanded(polygonBounds(polygon)), prepared: preparePolygons([polygon]) }));
 }
 
 function segmentIntersectsBounds(a: Point2D, b: Point2D, bounds: Bounds2D): boolean {
@@ -93,18 +98,9 @@ function segmentIntersectsBounds(a: Point2D, b: Point2D, bounds: Bounds2D): bool
     segmentsIntersect(a, b, bottomRight, bottomLeft) || segmentsIntersect(a, b, bottomLeft, topLeft);
 }
 
-function boundsInsidePolygon(bounds: Bounds2D, polygon: Polygon2D): boolean {
-  if (!boundsPoints(bounds).every((point) => pointInPolygon(point, polygon))) return false;
-  const rings = [polygon.outer, ...polygon.holes];
-  for (const ring of rings) {
-    if (ring.some((point) => pointInBounds(point, bounds))) return false;
-    for (let index = 0; index < ring.length - 1; index += 1) {
-      const start = ring[index];
-      const end = ring[index + 1];
-      if (start && end && segmentIntersectsBounds(start, end, bounds)) return false;
-    }
-  }
-  return true;
+function boundsInsidePolygon(bounds: Bounds2D, prepared: PreparedPolygons): boolean {
+  if (!boundsPoints(bounds).every((point) => pointInPreparedPolygons(point, prepared))) return false;
+  return !somePreparedEdge(prepared, expanded(bounds), (start, end) => segmentIntersectsBounds(start, end, bounds));
 }
 
 function labelFootprint(label: string, origin: Point2D, rotationRad: number, style: TextStyleV1, padding = 0.8): Point2D[] {
@@ -126,13 +122,13 @@ function pathsIntersect(left: Point2D[], right: Point2D[]): boolean {
   return false;
 }
 
-function footprintIntersectsPolygons(footprint: Point2D[], polygons: Array<{ polygon: Polygon2D; bounds: Bounds2D }>): boolean {
+function footprintIntersectsPolygons(footprint: Point2D[], polygons: IndexedPolygon[]): boolean {
   const bounds = ringBounds(footprint);
-  return polygons.some(({ polygon, bounds: box }) => {
+  return polygons.some(({ bounds: box, prepared }) => {
     if (!boundsOverlap(bounds, box)) return false;
-    if (footprint.slice(0, -1).some((point) => pointInPolygon(point, polygon))) return true;
-    if (polygon.outer.slice(0, -1).some((point) => pointInRing(point, footprint))) return true;
-    return [polygon.outer, ...polygon.holes].some((ring) => pathsIntersect(footprint, ring));
+    if (footprint.slice(0, -1).some((point) => pointInPreparedPolygons(point, prepared))) return true;
+    if (somePreparedEdge(prepared, expanded(bounds), (point) => pointInRing(point, footprint), true)) return true;
+    return somePreparedEdge(prepared, expanded(bounds), (a, b) => footprint.slice(1).some((end, i) => segmentsIntersect(footprint[i]!, end, a, b)));
   });
 }
 
@@ -179,7 +175,7 @@ function labelCandidates(preferred: Point2D, local: readonly Point2D[] = []): Po
 
 /** One layer's material and markings indexed for repeated `placeLabel` calls; add markings as they are placed. */
 export interface LabelLayerIndex {
-  material: Array<{ polygon: Polygon2D; bounds: Bounds2D }>;
+  material: IndexedPolygon[];
   obstacles: IndexedMarking[];
 }
 
@@ -209,8 +205,8 @@ export function placeLabel(label: string, config: ProjectConfigV1, { material, o
   if (!candidateMaterial.length) return undefined;
   const required = requiredPolygons && indexPolygons(requiredPolygons).filter(holdsLabel);
   if (required && !required.length) return undefined;
-  const inside = (bounds: Bounds2D) => ({ polygon, bounds: box }: { polygon: Polygon2D; bounds: Bounds2D }) =>
-    boundsContainBounds(box, bounds) && boundsInsidePolygon(bounds, polygon);
+  const inside = (bounds: Bounds2D) => ({ prepared, bounds: box }: IndexedPolygon) =>
+    boundsContainBounds(box, bounds) && boundsInsidePolygon(bounds, prepared);
   for (const candidate of labelCandidates(preferred, localCandidates)) {
     const center = { x: candidate.x * config.widthMm / 2, y: candidate.y * config.heightMm / 2 };
     const origin = { x: center.x - dimensions.width / 2, y: center.y - dimensions.height / 2 };
@@ -293,7 +289,7 @@ export function placeLinearLabel(label: string, config: ProjectConfigV1, layer: 
       const point = labelOriginAtCenter(label, labelCenter, rotationRad, config.textStyle);
       const footprint = labelFootprint(label, point, rotationRad, config.textStyle, Math.max(config.lineStyle.annotationMm / 2, 0.2));
       const bounds = ringBounds(footprint);
-      if (!material.some(({ polygon, bounds: box }) => boundsContainBounds(box, bounds) && ringFitsInsidePolygon(footprint, polygon, 0))) continue;
+      if (!material.some(({ polygon, bounds: box, prepared }) => boundsContainBounds(box, bounds) && ringFitsInsidePolygon(footprint, polygon, 0, false, prepared))) continue;
       if (footprintIntersectsPolygons(footprint, excluded)) continue;
       obstacles ??= indexMarkings(layer.markings);
       if (obstacles.some((obstacle) => boundsOverlap(obstacle.bounds, bounds) && markingIntersectsFootprint(obstacle.marking, footprint))) continue;
@@ -396,10 +392,10 @@ function contourLabelSlots(config: ProjectConfigV1, layer: LayerIR, normalOffset
   return slots;
 }
 
-function elevationLabelCandidates(label: string, config: ProjectConfigV1, layer: LayerIR, slots: ContourLabelSlot[], coveringLayer?: LayerIR, sharedObstacles?: IndexedMarking[]): ElevationLabelCandidate[] {
+function elevationLabelCandidates(label: string, config: ProjectConfigV1, layer: LayerIR, slots: ContourLabelSlot[], coveringLayer?: Pick<LayerIR, "polygons">, sharedObstacles?: IndexedMarking[]): ElevationLabelCandidate[] {
   const coveredPolygons = indexPolygons(coveringLayer?.polygons ?? []);
   const dimensions = labelDimensions(label, config.textStyle);
-  const materialBounds = layer.polygons.map((polygon) => ringBounds(polygon.outer));
+  const material = indexPolygons(layer.polygons);
   // Most candidates fail the material test, so index obstacles only once one passes.
   let obstacles: IndexedMarking[] | undefined;
   const valid: ElevationLabelCandidate[] = [];
@@ -411,12 +407,12 @@ function elevationLabelCandidates(label: string, config: ProjectConfigV1, layer:
     const point = labelOriginAtCenter(label, slot.center, slot.rotationRad, config.textStyle);
     const footprint = labelFootprint(label, point, slot.rotationRad, config.textStyle);
     const bounds = ringBounds(footprint);
-    const containers = layer.polygons.filter((_, polygonIndex) => boundsContainBounds(materialBounds[polygonIndex]!, bounds));
+    const containers = material.filter(({ prepared }) => boundsContainBounds(prepared.outerBounds[0]!, bounds));
     if (!containers.length) continue;
     // A fit check scans polygon edges and there is a slot per edge, so cap the
     // checks on intricate layers; slots are already preference-ordered.
     if (++fitChecks > MAX_ELEVATION_FIT_CHECKS) break;
-    const fitsMaterial = containers.some((polygon) => ringFitsInsidePolygon(footprint, polygon, 0));
+    const fitsMaterial = containers.some(({ polygon, prepared }) => ringFitsInsidePolygon(footprint, polygon, 0, false, prepared));
     if (!fitsMaterial || footprintIntersectsPolygons(footprint, coveredPolygons)) continue;
     obstacles ??= indexMarkings(layer.markings);
     const collides = (obstacle: IndexedMarking) => boundsOverlap(obstacle.bounds, bounds) && markingIntersectsBounds(obstacle.marking, bounds);
@@ -464,20 +460,26 @@ function footprintsOverlap(left: Point2D[], right: Point2D[]): boolean {
  * `sharedFace` there: candidates then avoid that face's markings as well, and
  * selected labels are kept clear of each other.
  */
+export interface ElevationLabelOption { label: string; candidate: ElevationLabelCandidate }
+
+/** Independent per-layer search; final stack-wide choice remains in the coordinator. */
+export function elevationLabelOptions(labels: string[], config: ProjectConfigV1, layer: LayerIR, coveringLayer?: Pick<LayerIR, "polygons">, sharedObstacles?: IndexedMarking[]): ElevationLabelOption[] {
+  const slots = contourLabelSlots(config, layer, labelNormalOffsetMm(config));
+  for (const label of labels) {
+    const candidates = elevationLabelCandidates(label, config, layer, slots, coveringLayer, sharedObstacles);
+    if (candidates.length) return candidates.map(candidate => ({ label, candidate }));
+  }
+  return [];
+}
+
 export function placeElevationLabelStack(labelsByLayer: string[][], config: ProjectConfigV1, layers: LayerIR[], sharedFace?: SharedFaceLabelOptions): Array<CoordinatedElevationLabel | undefined> {
   const sharedObstacles = sharedFace && indexMarkings(sharedFace.markings);
-  const options = layers.map((layer, layerIndex) => {
-    // Unlabeled layers on a shared face never receive a label, so skip their search.
-    if (sharedFace && !sharedFace.labeled(layer)) return [];
-    // One slot list serves every spelling of this layer's elevation.
-    const slots = contourLabelSlots(config, layer, labelNormalOffsetMm(config));
-    for (const label of labelsByLayer[layerIndex] ?? []) {
-      // The shared face's own layer already checks those markings itself.
-      const candidates = elevationLabelCandidates(label, config, layer, slots, layers[layerIndex + 1], layer.markings === sharedFace?.markings ? undefined : sharedObstacles);
-      if (candidates.length) return candidates.map((candidate) => ({ label, candidate }));
-    }
-    return [];
-  });
+  const options = layers.map((layer, index) => sharedFace && !sharedFace.labeled(layer) ? [] :
+    elevationLabelOptions(labelsByLayer[index] ?? [], config, layer, layers[index + 1], layer.markings === sharedFace?.markings ? undefined : sharedObstacles));
+  return selectElevationLabels(options, config, layers, sharedFace);
+}
+
+export function selectElevationLabels(options: ElevationLabelOption[][], config: ProjectConfigV1, layers: LayerIR[], sharedFace?: SharedFaceLabelOptions): Array<CoordinatedElevationLabel | undefined> {
   const result: Array<CoordinatedElevationLabel | undefined> = new Array(layers.length).fill(undefined);
   const diagonalSquared = config.widthMm ** 2 + config.heightMm ** 2;
   let segmentStart = 0;

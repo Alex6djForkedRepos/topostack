@@ -4,6 +4,29 @@ User-facing changes to TopoStack, newest first. Also at https://topostack.app/ch
 
 Generated from `changelog/releases.json` by `npm run changelog:prepare`; do not edit by hand. See [docs/changelog.md](docs/changelog.md).
 
+## 0.6.0 (2026-09-24)
+
+### New
+
+- **Nest your pieces onto stock sheets**: In **Export**, choose **Nested sheets**, set your sheet size and click **Nest parts**. TopoStack packs every piece onto as few sheets as it can, moving and turning them to fit, and exports one file per sheet with each piece's layer id engraved where it stays hidden. Nesting runs in your browser with the open-source sparrow nesting engine, and the layout is still there after a reload. ([#105](https://github.com/Echo-Foxtrot-Works/topostack/pull/105))
+- **Depths for 237 more US lakes and lagoons from NOAA surveys**: Water depth now uses NOAA's measured surveys for Lake Pontchartrain, Lake Washington, Lake Pend Oreille, Lake Roosevelt, Lake Winnebago, the St. Johns River lakes and more than 200 coastal lakes and lagoons from Florida to Alaska. Only surveyed areas are used; the rest of each lake keeps the modelled basin. Find them in the [lake depth directory](https://topostack.app/lakes/united-states). ([#108](https://github.com/Echo-Foxtrot-Works/topostack/pull/108))
+- **Depths for Lake Okeechobee, Lake Champlain and 133 more lakes from NOAA charts**: Water depth now uses NOAA nautical chart contours and soundings for lakes with no survey grid, including Lake Okeechobee, Lake Champlain, Oneida, Seneca, Cayuga and Onondaga lakes, and Burt, Mullett, Charlevoix and White lakes in Michigan. Chart depths are simplified for navigation, so these lake floors are smoother than surveyed ones. Find them in the [lake depth directory](https://topostack.app/lakes/united-states). ([#114](https://github.com/Echo-Foxtrot-Works/topostack/pull/114))
+
+### Improved
+
+- **Automatically arrange Atomm exports on sheets**: Layered exports now nest automatically, without extra controls. Export Preview, Download and Open in Studio share the same layout, with a short search, 3 mm margins and 2 mm spacing. Sheets default to 600 × 400 mm or use your work area. If pieces cannot fit or nesting is unavailable, the original panels remain available with an explanation. ([#107](https://github.com/Echo-Foxtrot-Works/topostack/pull/107))
+- **Understand what each Atomm export includes**: Export contents now explains that Open in Studio sends one editable SVG of the entire layout, while Download provides the complete project bundle. File sizes are secondary, and an expandable list shows the included files. ([#107](https://github.com/Echo-Foxtrot-Works/topostack/pull/107))
+- **Preview nesting progress and choose material size in Atomm**: Set your material width and height directly in Export. Watch real sheet layouts update while nesting runs, with the same progress card as terrain generation, or keep the current layout early. Material dimensions are saved with your project and do not trigger a terrain rebuild. ([#107](https://github.com/Echo-Foxtrot-Works/topostack/pull/107))
+- **Atomm terrain updates without a Generate step**: Inside Atomm, the studio loads real terrain when it opens and reloads it whenever you choose a place or move the map selection, so there is no Generate button to remember. A new **Export** view shows the file **Open in Studio** sends and lists everything a download includes, and **Tips** now walk through fabrication one step at a time. ([#107](https://github.com/Echo-Foxtrot-Works/topostack/pull/107))
+- **Faster generation for large terrain maps**: Large maps spend less time checking contour boundaries, arranging material nests, placing labels, and clipping roads across many layers. Changes to annotations and fabrication settings reuse terrain calculations when the map data and terrain settings are unchanged. Terrain detail and material-clearance rules stay the same. Large stacks also spread alignment guides and elevation-label searches across available processor cores, with automatic fallback when parallel workers are unavailable. ([#113](https://github.com/Echo-Foxtrot-Works/topostack/pull/113))
+- **Learn how terrain generation works**: A new [terrain generation guide](https://topostack.app/guides/how-terrain-generation-works) follows elevation data into cut layers and explains terrain caching, faster boundary searches, and parallel workers. It includes measured large-map performance and advice for working with demanding projects. ([#115](https://github.com/Echo-Foxtrot-Works/topostack/pull/115))
+
+### Fixed
+
+- **Keep Atomm controls reachable and export previews accurate**: Use every preview view in narrow frames and every Tips step on short screens; edit the map from Project setup. Font selection supports native keyboard and touch controls, invalid numbers explain their limits, and sliders show their filled range. Model edits preserve your 3D view, while export previews space operation labels clearly, distinguish scoring from filled engraving and include the same guide fonts as downloads. ([#107](https://github.com/Echo-Foxtrot-Works/topostack/pull/107))
+- **Accept valid dimensions in Atomm numeric controls**: Whole-number sizes and precise typed dimensions no longer appear invalid when the field has a fractional minimum. Arrow keys and dragging still use the expected increments and stay within the allowed range. ([#107](https://github.com/Echo-Foxtrot-Works/topostack/pull/107))
+- **Show progress while the Atomm preview refreshes**: The refresh status now shows its actual work stage: preparing map data, then building preview geometry. The step count and stage text stay visible without a looping animation. ([#107](https://github.com/Echo-Foxtrot-Works/topostack/pull/107))
+
 ## 0.5.0 (2026-09-23)
 
 ### New

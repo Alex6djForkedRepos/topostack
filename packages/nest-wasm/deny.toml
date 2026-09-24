@@ -1,0 +1,19 @@
+# cargo-deny: every crate compiled into the shipped engine must carry a licence we can redistribute.
+[graph]
+targets = ["wasm32-unknown-unknown"]
+exclude-dev = true
+
+[licenses]
+allow = ["MIT", "Apache-2.0", "Apache-2.0 WITH LLVM-exception", "MPL-2.0", "BSD-2-Clause", "BSD-3-Clause", "Zlib", "Unicode-3.0", "ISC", "BSL-1.0", "CC0-1.0"]
+confidence-threshold = 0.9
+unused-allowed-license = "allow"
+
+# sparrow's Cargo.toml has no licence field; its LICENSE file is MIT (© 2025 Jeroen Gardeyn, KU Leuven).
+[[licenses.clarify]]
+crate = "sparrow"
+expression = "MIT"
+license-files = [{ path = "LICENSE", hash = 0x0 }]
+
+[sources]
+unknown-git = "deny"
+allow-git = ["https://github.com/JeroenGar/sparrow"]

@@ -1,4 +1,7 @@
 <script lang="ts">
+  import AtommMaterialSize from "$lib/atomm/AtommMaterialSize.svelte";
+  import { getStudio } from "$lib/studio/studio-context";
+  const studio = getStudio();
   import SizeSection from "$lib/studio/panels/SizeSection.svelte";
   import TerrainSection from "$lib/studio/panels/TerrainSection.svelte";
   import DetailsSection from "$lib/studio/panels/DetailsSection.svelte";
@@ -13,6 +16,7 @@
    */
 </script>
 
+{#if studio.embeddedInPlatform && studio.mode === "export" && studio.project.outputMode === "stack"}<AtommMaterialSize />{/if}
 <SizeSection />
 <TerrainSection />
 <DetailsSection {openLakeDepthHelp} />

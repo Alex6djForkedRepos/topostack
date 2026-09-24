@@ -23,7 +23,7 @@ await run(async () => {
     ["Erie", 9, -81.5, 42], ["Ontario", 7, -77.8, 43.6], ["Saint Clair", 66, -82.7, 42.45],
   ]) {
     const result = await page.evaluate(async ({ name, hylakId, lon, lat }) => {
-      const { loadSurveyedLakeDepths } = await import("/src/data-provider.ts");
+      const { loadSurveyedLakeDepths } = await import("/src/lib/domain/data-provider.ts");
       const grid = { width: 16, height: 16, values: new Float32Array(256), min: 0, max: 0 };
       const loaded = await loadSurveyedLakeDepths({ west: lon - 0.02, east: lon + 0.02, south: lat - 0.02, north: lat + 0.02 }, grid, 11,
         [{ id: String(hylakId), kind: "lake", name, hylakId, polygon: { outer: [], holes: [] } }]);

@@ -36,6 +36,14 @@
     "nve-norway-lakes-v1": "Digital depth contours are joined to survey polygons and interpolated onto a masked 20 m grid for the covered Norwegian lakes.",
     "twdb-texas-reservoirs-v1": "Verified contours for Alan Henry, Lake Austin, and Lady Bird Lake are converted using report reference levels and interpolated onto masked 10 m grids.",
     "usbr-reservoirs-v1": "Verified surveys of Estes, Flatiron, and Pinewood use documented historical reference levels and conservative contour masks to produce 10 m depth grids.",
+    ...Object.fromEntries(["florida", "gulf-coast", "atlantic-coast", "great-lakes-basin", "california", "northwest-coast", "inland-northwest", "alaska", "caribbean"].map((region) => [
+      `noaa-nbs-${region}-v1`,
+      "Only cells from measured, openly licensed surveys are kept; NOAA’s modelled fill and restricted sources are removed. Depths below the surveys’ chart datum are averaged to an 8 m grid and clipped to each HydroLAKES outline. Lakes whose surveyed bed lies mostly above that datum are left out.",
+    ])),
+    ...Object.fromEntries(["florida", "gulf-coast", "atlantic-coast", "great-lakes-basin", "new-york-vermont", "california", "columbia-river", "alaska"].map((region) => [
+      `noaa-enc-${region}-v1`,
+      "Depth contours and soundings from NOAA electronic navigational charts, most detailed chart first, are interpolated onto a 20 m grid inside each HydroLAKES outline with the shoreline at 0 m. Chart depths are generalized for navigation and refer to the chart’s low-water or sounding datum. Lakes charted mostly as drying, and Lake Mead, whose soundings refer to a fixed pool elevation, are left out.",
+    ])),
   };
   const software = [
     { name: "Svelte and SvelteKit", url: "https://github.com/sveltejs", license: "MIT", use: "Application interface, routing, and static pages." },
@@ -48,6 +56,8 @@
     { name: "d3-contour", url: "https://github.com/d3/d3-contour", license: "ISC", use: "Tracing contour lines from elevation grids." },
     { name: "clipper-lib", url: "https://github.com/junmer/clipper-lib", license: "BSL-1.0", use: "Offsetting cut paths for kerf compensation and clearances around map markers." },
     { name: "polygon-clipping", url: "https://github.com/mfogel/polygon-clipping", license: "MIT", use: "Combining and clipping terrain and map geometry." },
+    { name: "sparrow", url: "https://github.com/JeroenGar/sparrow", license: "MIT, © 2025 Jeroen Gardeyn, KU Leuven", use: "Nesting pieces onto stock sheets, compiled to WebAssembly and run in your browser. Gardeyn, Vanden Berghe and Wauters, “An open-source heuristic to reboot 2D nesting research” (arXiv:2509.13329)." },
+    { name: "jagua-rs", url: "https://github.com/JeroenGar/jagua-rs", license: "MPL-2.0 (unmodified; source at crates.io/crates/jagua-rs/0.8.3)", use: "Collision detection behind sparrow's nesting. Gardeyn, Vanden Berghe and Wauters, INFORMS Journal on Computing, doi:10.1287/ijoc.2024.1025. Full licence texts for the nesting engine: /licenses/third-party.txt." },
     { name: "fflate", url: "https://github.com/101arrowz/fflate", license: "MIT", use: "Decompressing terrain tiles and creating downloadable project ZIP files." },
     { name: "idb-keyval", url: "https://github.com/jakearchibald/idb-keyval", license: "Apache-2.0", use: "Saving project settings in your browser." },
   ];

@@ -1,4 +1,4 @@
-import { buildProjectPackage, exportBlockReason, type GeometryIRV1, type GuideFont, type ProjectConfigV1 } from "@topostack/core";
+import { buildProjectPackage, exportBlockReason, type GeometryIRV1, type GuideFont, type ProjectConfigV1, type SheetNestPlanV1 } from "@topostack/core";
 import jostUrl from "@loidolt/theme-styles/fonts/Jost-Medium.woff2?url";
 import archivoUrl from "@loidolt/theme-styles/fonts/Archivo-Regular.woff2?url";
 
@@ -35,9 +35,21 @@ export function loadGuideFonts(): Promise<GuideFont[]> {
   return guideFonts;
 }
 
-export function createAtommExport(geometry: GeometryIRV1, project: ProjectConfigV1, intent: ExportIntent, fonts: readonly GuideFont[] = []) {
+/** Keep assembly ids in Atomm's standard line-engraving group, including its guide. */
+export async function buildAtommPackage(geometry: GeometryIRV1, project: ProjectConfigV1, fonts: readonly GuideFont[] = [], sheetPlan?: SheetNestPlanV1) {
+  const output = buildProjectPackage(geometry, project, { guideFonts: fonts, sheetPlan });
+  const files = await Promise.all(output.files.map(async file => {
+    if (!/\.(svg|html|txt)$/.test(file.filename)) return file;
+    const original = await file.blob.text();
+    const text = original.replace(/#00A651/gi, "#2366FF").replace(/engraved in green/g, "engraved in blue").replace(/green id/g, "blue id");
+    return text === original ? file : { ...file, blob: new Blob([text], { type: file.blob.type }) };
+  }));
+  return { ...output, files, master: files.find(file => file.filename === output.master.filename)! };
+}
+
+export async function createAtommExport(geometry: GeometryIRV1, project: ProjectConfigV1, intent: ExportIntent, fonts: readonly GuideFont[] = [], sheetPlan?: SheetNestPlanV1) {
   const reason = exportBlockReason(geometry, project);
   if (reason) throw new Error(reason);
-  const output = buildProjectPackage(geometry, project, { guideFonts: fonts });
+  const output = await buildAtommPackage(geometry, project, fonts, sheetPlan);
   return intent === "openInStudio" ? { filename: output.master.filename, blob: output.master.blob } : output.files;
 }

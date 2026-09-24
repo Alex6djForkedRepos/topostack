@@ -1,7 +1,6 @@
 <script lang="ts">
   import { ChevronDown } from "@lucide/svelte";
   import { Section } from "@loidolt/theme-svelte";
-  import GraphicTools from "$lib/studio/customdata/GraphicTools.svelte";
   import ImportTools from "$lib/studio/customdata/ImportTools.svelte";
   import MarkerTools from "$lib/studio/customdata/MarkerTools.svelte";
   import PathTools from "$lib/studio/customdata/PathTools.svelte";
@@ -12,7 +11,9 @@
    * platform's own and do not change with the preview.
    *
    * The standalone studio moved these into the custom data view, where they
-   * sit beside a map to place them on; both render the same editors.
+   * sit beside a map to place them on; both render the same editors. Graphics
+   * and depth charts stay out of the embed: Atomm's own Studio places artwork,
+   * and tracing a chart is a job for the full studio.
    */
 
   const studio = getStudio();
@@ -30,6 +31,5 @@
     <ImportTools />
     <MarkerTools />
     <PathTools />
-    <GraphicTools />
   </div>
 </Section>

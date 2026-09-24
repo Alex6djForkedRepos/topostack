@@ -1,0 +1,1302 @@
+{
+ "date": "2026-09-24",
+ "method": "Each lake was probed at one open-water point against the NBS tile schemes dated 2026-09-23 (Modeling_Tile_Scheme_20260923_175019.gpkg, BlueTopo_Tile_Scheme_20260923_202140.gpkg). Values are band-1 elevations in metres read over HTTP: 'point' at the probe point, and 'tile_min'/'valid_frac' from a 64x64 nearest-neighbour overview of the whole tile. A tile_min far deeper than the lake means the tile's depths come from a neighbouring Great Lake.",
+ "lakes": [
+  {
+   "name": "Lake Superior",
+   "state": "MI/WI/MN/ON",
+   "probe": [
+    47.6,
+    -87.0
+   ],
+   "modeling": {
+    "tile": "BC25V279",
+    "res": "16m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BC25V279/Modeling_BC25V279_20250722.tiff",
+    "point": -306.9,
+    "tile_min": -400.5,
+    "valid_frac": 0.82
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Michigan",
+   "state": "MI/WI/IL/IN",
+   "probe": [
+    44.0,
+    -87.0
+   ],
+   "modeling": {
+    "tile": "BC25V276",
+    "res": "16m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BC25V276/Modeling_BC25V276_20260729.tiff",
+    "point": -113.7,
+    "tile_min": -262.7,
+    "valid_frac": 0.78
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Huron",
+   "state": "MI/ON",
+   "probe": [
+    44.5,
+    -82.5
+   ],
+   "modeling": {
+    "tile": "BC262277",
+    "res": "16m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BC262277/Modeling_BC262277_20260609.tiff",
+    "point": -69.5,
+    "tile_min": -219.8,
+    "valid_frac": 0.68
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Erie",
+   "state": "OH/PA/NY/MI/ON",
+   "probe": [
+    42.2,
+    -81.2
+   ],
+   "modeling": {
+    "tile": "BC264275",
+    "res": "16m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BC264275/Modeling_BC264275_20260828.tiff",
+    "point": -22.1,
+    "tile_min": -26.1,
+    "valid_frac": 0.69
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Ontario",
+   "state": "NY/ON",
+   "probe": [
+    43.6,
+    -77.5
+   ],
+   "modeling": {
+    "tile": "BC267276",
+    "res": "16m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BC267276/Modeling_BC267276_20260901.tiff",
+    "point": -149.6,
+    "tile_min": -240.1,
+    "valid_frac": 0.82
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Lake St. Clair",
+   "state": "MI/ON",
+   "probe": [
+    42.45,
+    -82.7
+   ],
+   "modeling": {
+    "tile": "BH4S45GF",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BH4S45GF/Modeling_BH4S45GF_20250801.tiff",
+    "point": -5.6,
+    "tile_min": -6.0,
+    "valid_frac": 0.95
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Washington",
+   "state": "WA",
+   "probe": [
+    47.62,
+    -122.26
+   ],
+   "modeling": {
+    "tile": "BH44J5JX",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BH44J5JX/Modeling_BH44J5JX_20260720.tiff",
+    "point": -55.8,
+    "tile_min": -67.1,
+    "valid_frac": 0.37
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Union",
+   "state": "WA",
+   "probe": [
+    47.64,
+    -122.335
+   ],
+   "modeling": {
+    "tile": "BH44H5JZ",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BH44H5JZ/Modeling_BH44H5JZ_20260901.tiff",
+    "point": -11.9,
+    "tile_min": -31.7,
+    "valid_frac": 0.14
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Sammamish",
+   "state": "WA",
+   "probe": [
+    47.6,
+    -122.09
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Pend Oreille",
+   "state": "ID",
+   "probe": [
+    48.05,
+    -116.45
+   ],
+   "modeling": {
+    "tile": "BH47F5K7",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BH47F5K7/Modeling_BH47F5K7_20260702.tiff",
+    "point": NaN,
+    "tile_min": -341.7,
+    "valid_frac": 0.32
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Franklin D. Roosevelt Lake (south)",
+   "state": "WA",
+   "probe": [
+    47.97,
+    -118.95
+   ],
+   "modeling": {
+    "tile": "BH4665K6",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BH4665K6/Modeling_BH4665K6_20260708.tiff",
+    "point": NaN,
+    "tile_min": -121.6,
+    "valid_frac": 0.08
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Franklin D. Roosevelt Lake (north)",
+   "state": "WA",
+   "probe": [
+    48.6,
+    -118.1
+   ],
+   "modeling": {
+    "tile": "BH46L5KG",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BH46L5KG/Modeling_BH46L5KG_20260701.tiff",
+    "point": NaN,
+    "tile_min": -48.4,
+    "valid_frac": 0.1
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Bonneville (Columbia)",
+   "state": "OR/WA",
+   "probe": [
+    45.7,
+    -121.7
+   ],
+   "modeling": {
+    "tile": "BH44S5J2",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BH44S5J2/Modeling_BH44S5J2_20260818.tiff",
+    "point": -4.7,
+    "tile_min": -42.5,
+    "valid_frac": 0.16
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Celilo (Columbia)",
+   "state": "OR/WA",
+   "probe": [
+    45.65,
+    -121.0
+   ],
+   "modeling": {
+    "tile": "BH4565HZ",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BH4565HZ/Modeling_BH4565HZ_20260812.tiff",
+    "point": -4.9,
+    "tile_min": -43.5,
+    "valid_frac": 0.17
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Umatilla (Columbia)",
+   "state": "OR/WA",
+   "probe": [
+    45.8,
+    -120.0
+   ],
+   "modeling": {
+    "tile": "BH45M5J4",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BH45M5J4/Modeling_BH45M5J4_20260812.tiff",
+    "point": NaN,
+    "tile_min": -28.0,
+    "valid_frac": 0.24
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Wallula (Columbia)",
+   "state": "OR/WA",
+   "probe": [
+    46.0,
+    -118.95
+   ],
+   "modeling": {
+    "tile": "BH4665J7",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BH4665J7/Modeling_BH4665J7_20260714.tiff",
+    "point": NaN,
+    "tile_min": -36.9,
+    "valid_frac": 0.25
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Sacajawea (Snake)",
+   "state": "WA",
+   "probe": [
+    46.35,
+    -118.7
+   ],
+   "modeling": {
+    "tile": "BH46B5JD",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BH46B5JD/Modeling_BH46B5JD_20260708.tiff",
+    "point": NaN,
+    "tile_min": -23.5,
+    "valid_frac": 0.15
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Herbert G. West (Snake)",
+   "state": "WA",
+   "probe": [
+    46.55,
+    -118.1
+   ],
+   "modeling": {
+    "tile": "BH46L5JG",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BH46L5JG/Modeling_BH46L5JG_20260708.tiff",
+    "point": NaN,
+    "tile_min": -14.8,
+    "valid_frac": 0.06
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Bryan (Snake)",
+   "state": "WA",
+   "probe": [
+    46.65,
+    -117.6
+   ],
+   "modeling": {
+    "tile": "BH46S5JJ",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BH46S5JJ/Modeling_BH46S5JJ_20260708.tiff",
+    "point": NaN,
+    "tile_min": -19.8,
+    "valid_frac": 0.09
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Lower Granite Lake (Snake)",
+   "state": "WA/ID",
+   "probe": [
+    46.5,
+    -117.2
+   ],
+   "modeling": {
+    "tile": "BH4725JF",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BH4725JF/Modeling_BH4725JF_20260708.tiff",
+    "point": NaN,
+    "tile_min": -25.2,
+    "valid_frac": 0.09
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Tahoe",
+   "state": "CA/NV",
+   "probe": [
+    39.1,
+    -120.03
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Mead",
+   "state": "NV/AZ",
+   "probe": [
+    36.1,
+    -114.6
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Crater Lake",
+   "state": "OR",
+   "probe": [
+    42.94,
+    -122.1
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Winnebago",
+   "state": "WI",
+   "probe": [
+    44.0,
+    -88.42
+   ],
+   "modeling": {
+    "tile": "BH4P95H7",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BH4P95H7/Modeling_BH4P95H7_20260702.tiff",
+    "point": -5.8,
+    "tile_min": -5.8,
+    "valid_frac": 0.96
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Champlain",
+   "state": "NY/VT",
+   "probe": [
+    44.45,
+    -73.35
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Oneida Lake",
+   "state": "NY",
+   "probe": [
+    43.2,
+    -75.9
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Cayuga Lake",
+   "state": "NY",
+   "probe": [
+    42.65,
+    -76.7
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Seneca Lake",
+   "state": "NY",
+   "probe": [
+    42.6,
+    -76.9
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Onondaga Lake",
+   "state": "NY",
+   "probe": [
+    43.08,
+    -76.2
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Cross Lake",
+   "state": "NY",
+   "probe": [
+    43.12,
+    -76.48
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Charlevoix",
+   "state": "MI",
+   "probe": [
+    45.25,
+    -85.2
+   ],
+   "modeling": {
+    "tile": "BC25W277",
+    "res": "16m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BC25W277/Modeling_BC25W277_20260729.tiff",
+    "point": NaN,
+    "tile_min": -198.0,
+    "valid_frac": 0.38
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Portage Lake (Onekama)",
+   "state": "MI",
+   "probe": [
+    44.36,
+    -86.23
+   ],
+   "modeling": {
+    "tile": "BH4QC5HD",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BH4QC5HD/Modeling_BH4QC5HD_20260728.tiff",
+    "point": -13.8,
+    "tile_min": -16.8,
+    "valid_frac": 0.21
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Portage Lake (Keweenaw)",
+   "state": "MI",
+   "probe": [
+    47.08,
+    -88.52
+   ],
+   "modeling": {
+    "tile": "BC25T279",
+    "res": "16m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BC25T279/Modeling_BC25T279_20260727.tiff",
+    "point": NaN,
+    "tile_min": -334.1,
+    "valid_frac": 0.49
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Torch Lake (Keweenaw)",
+   "state": "MI",
+   "probe": [
+    47.16,
+    -88.42
+   ],
+   "modeling": {
+    "tile": "BC25T279",
+    "res": "16m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BC25T279/Modeling_BC25T279_20260727.tiff",
+    "point": NaN,
+    "tile_min": -334.1,
+    "valid_frac": 0.49
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Muskegon Lake",
+   "state": "MI",
+   "probe": [
+    43.23,
+    -86.29
+   ],
+   "modeling": {
+    "tile": "BH4QB5GS",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BH4QB5GS/Modeling_BH4QB5GS_20260728.tiff",
+    "point": -10.6,
+    "tile_min": -23.5,
+    "valid_frac": 0.42
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "White Lake",
+   "state": "MI",
+   "probe": [
+    43.38,
+    -86.35
+   ],
+   "modeling": {
+    "tile": "BH4Q95GV",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BH4Q95GV/Modeling_BH4Q95GV_20260728.tiff",
+    "point": NaN,
+    "tile_min": -21.1,
+    "valid_frac": 0.17
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Spring Lake",
+   "state": "MI",
+   "probe": [
+    43.08,
+    -86.2
+   ],
+   "modeling": {
+    "tile": "BH4QC5GQ",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BH4QC5GQ/Modeling_BH4QC5GQ_20260813.tiff",
+    "point": -7.6,
+    "tile_min": -11.9,
+    "valid_frac": 0.38
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Macatawa",
+   "state": "MI",
+   "probe": [
+    42.78,
+    -86.15
+   ],
+   "modeling": {
+    "tile": "BH4QD5GL",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BH4QD5GL/Modeling_BH4QD5GL_20260813.tiff",
+    "point": -4.3,
+    "tile_min": -7.7,
+    "valid_frac": 0.11
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Manistee Lake",
+   "state": "MI",
+   "probe": [
+    44.24,
+    -86.3
+   ],
+   "modeling": {
+    "tile": "BH4QB5HB",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BH4QB5HB/Modeling_BH4QB5HB_20260728.tiff",
+    "point": -0.8,
+    "tile_min": -14.6,
+    "valid_frac": 0.1
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Pere Marquette Lake",
+   "state": "MI",
+   "probe": [
+    43.94,
+    -86.44
+   ],
+   "modeling": {
+    "tile": "BC25V276",
+    "res": "16m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BC25V276/Modeling_BC25V276_20260729.tiff",
+    "point": NaN,
+    "tile_min": -262.7,
+    "valid_frac": 0.78
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Munuscong Lake",
+   "state": "MI/ON",
+   "probe": [
+    46.18,
+    -84.2
+   ],
+   "modeling": {
+    "tile": "BC25X278",
+    "res": "16m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BC25X278/Modeling_BC25X278_20260729.tiff",
+    "point": NaN,
+    "tile_min": -101.9,
+    "valid_frac": 0.1
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Lake George (St. Marys)",
+   "state": "MI/ON",
+   "probe": [
+    46.43,
+    -84.13
+   ],
+   "modeling": {
+    "tile": "BC25X278",
+    "res": "16m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BC25X278/Modeling_BC25X278_20260729.tiff",
+    "point": NaN,
+    "tile_min": -101.9,
+    "valid_frac": 0.1
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Nicolet",
+   "state": "MI",
+   "probe": [
+    46.35,
+    -84.2
+   ],
+   "modeling": {
+    "tile": "BC25X278",
+    "res": "16m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BC25X278/Modeling_BC25X278_20260729.tiff",
+    "point": NaN,
+    "tile_min": -101.9,
+    "valid_frac": 0.1
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Rainy Lake",
+   "state": "MN/ON",
+   "probe": [
+    48.6,
+    -93.1
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Namakan Lake",
+   "state": "MN/ON",
+   "probe": [
+    48.43,
+    -92.7
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Kabetogama Lake",
+   "state": "MN",
+   "probe": [
+    48.47,
+    -93.0
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Sand Point Lake",
+   "state": "MN/ON",
+   "probe": [
+    48.35,
+    -92.45
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Crane Lake",
+   "state": "MN",
+   "probe": [
+    48.27,
+    -92.48
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Lac la Croix",
+   "state": "MN/ON",
+   "probe": [
+    48.35,
+    -92.15
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Lake of the Woods",
+   "state": "MN/ON",
+   "probe": [
+    49.1,
+    -94.8
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Lake St. Lawrence",
+   "state": "NY/ON",
+   "probe": [
+    44.95,
+    -75.0
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Okeechobee",
+   "state": "FL",
+   "probe": [
+    26.95,
+    -80.8
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Lake George (St. Johns)",
+   "state": "FL",
+   "probe": [
+    29.28,
+    -81.6
+   ],
+   "modeling": {
+    "tile": "BH4SL57W",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BH4SL57W/Modeling_BH4SL57W_20260708.tiff",
+    "point": -3.4,
+    "tile_min": -3.6,
+    "valid_frac": 0.69
+   },
+   "bluetopo": {
+    "tile": "BH4SM57W",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/BlueTopo/BH4SM57W/BlueTopo_BH4SM57W_20260820.tiff",
+    "point": NaN,
+    "tile_min": -3.4,
+    "valid_frac": 0.81
+   }
+  },
+  {
+   "name": "Lake Dexter",
+   "state": "FL",
+   "probe": [
+    29.12,
+    -81.46
+   ],
+   "modeling": {
+    "tile": "BF2H72KQ",
+    "res": "8m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BF2H72KQ/Modeling_BF2H72KQ_20260708.tiff",
+    "point": NaN,
+    "tile_min": -9.7,
+    "valid_frac": 0.02
+   },
+   "bluetopo": {
+    "tile": "BF2H72KQ",
+    "res": "8m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/BlueTopo/BF2H72KQ/BlueTopo_BF2H72KQ_20260721.tiff",
+    "point": NaN,
+    "tile_min": -9.7,
+    "valid_frac": 0.02
+   }
+  },
+  {
+   "name": "Lake Monroe",
+   "state": "FL",
+   "probe": [
+    28.83,
+    -81.25
+   ],
+   "modeling": {
+    "tile": "BF2H82KP",
+    "res": "8m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BF2H82KP/Modeling_BF2H82KP_20260721.tiff",
+    "point": -2.0,
+    "tile_min": -4.0,
+    "valid_frac": 0.05
+   },
+   "bluetopo": {
+    "tile": "BF2H82KP",
+    "res": "8m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/BlueTopo/BF2H82KP/BlueTopo_BF2H82KP_20260721.tiff",
+    "point": -2.0,
+    "tile_min": -4.0,
+    "valid_frac": 0.05
+   }
+  },
+  {
+   "name": "Lake Harney",
+   "state": "FL",
+   "probe": [
+    28.76,
+    -81.05
+   ],
+   "modeling": {
+    "tile": "BF2H82KN",
+    "res": "8m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BF2H82KN/Modeling_BF2H82KN_20260708.tiff",
+    "point": -1.8,
+    "tile_min": -3.3,
+    "valid_frac": 0.07
+   },
+   "bluetopo": {
+    "tile": "BF2H82KN",
+    "res": "8m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/BlueTopo/BF2H82KN/BlueTopo_BF2H82KN_20260708.tiff",
+    "point": -1.8,
+    "tile_min": -3.3,
+    "valid_frac": 0.07
+   }
+  },
+  {
+   "name": "Crescent Lake",
+   "state": "FL",
+   "probe": [
+    29.45,
+    -81.5
+   ],
+   "modeling": {
+    "tile": "BH4SN57Z",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BH4SN57Z/Modeling_BH4SN57Z_20260708.tiff",
+    "point": -3.9,
+    "tile_min": -4.8,
+    "valid_frac": 0.49
+   },
+   "bluetopo": {
+    "tile": "BH4SN57Z",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/BlueTopo/BH4SN57Z/BlueTopo_BH4SN57Z_20260820.tiff",
+    "point": -3.9,
+    "tile_min": -4.8,
+    "valid_frac": 0.49
+   }
+  },
+  {
+   "name": "Lake Worth Lagoon",
+   "state": "FL",
+   "probe": [
+    26.65,
+    -80.045
+   ],
+   "modeling": {
+    "tile": "BH4TD56M",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BH4TD56M/Modeling_BH4TD56M_20260820.tiff",
+    "point": 0.5,
+    "tile_min": -14.2,
+    "valid_frac": 0.32
+   },
+   "bluetopo": {
+    "tile": "BH4TD56M",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/BlueTopo/BH4TD56M/BlueTopo_BH4TD56M_20260825.tiff",
+    "point": -0.2,
+    "tile_min": -15.0,
+    "valid_frac": 0.32
+   }
+  },
+  {
+   "name": "Lake Wimico",
+   "state": "FL",
+   "probe": [
+    29.83,
+    -85.28
+   ],
+   "modeling": {
+    "tile": "BF2GP2KS",
+    "res": "8m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BF2GP2KS/Modeling_BF2GP2KS_20260824.tiff",
+    "point": NaN,
+    "tile_min": -22.8,
+    "valid_frac": 0.51
+   },
+   "bluetopo": {
+    "tile": "BF2GP2KS",
+    "res": "8m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/BlueTopo/BF2GP2KS/BlueTopo_BF2GP2KS_20260921.tiff",
+    "point": NaN,
+    "tile_min": -23.0,
+    "valid_frac": 0.51
+   }
+  },
+  {
+   "name": "Lake Pontchartrain",
+   "state": "LA",
+   "probe": [
+    30.18,
+    -90.1
+   ],
+   "modeling": {
+    "tile": "BH4NF58D",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BH4NF58D/Modeling_BH4NF58D_20250130.tiff",
+    "point": -4.8,
+    "tile_min": -5.4,
+    "valid_frac": 0.94
+   },
+   "bluetopo": {
+    "tile": "BH4NF58D",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/BlueTopo/BH4NF58D/BlueTopo_BH4NF58D_20260903.tiff",
+    "point": -5.4,
+    "tile_min": -5.5,
+    "valid_frac": 0.94
+   }
+  },
+  {
+   "name": "Lake Maurepas",
+   "state": "LA",
+   "probe": [
+    30.25,
+    -90.5
+   ],
+   "modeling": {
+    "tile": "BH4N858F",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BH4N858F/Modeling_BH4N858F_20260311.tiff",
+    "point": -3.7,
+    "tile_min": -4.1,
+    "valid_frac": 0.94
+   },
+   "bluetopo": {
+    "tile": "BH4N858F",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/BlueTopo/BH4N858F/BlueTopo_BH4N858F_20260903.tiff",
+    "point": -3.5,
+    "tile_min": -3.9,
+    "valid_frac": 0.94
+   }
+  },
+  {
+   "name": "Lake Borgne",
+   "state": "LA/MS",
+   "probe": [
+    30.05,
+    -89.65
+   ],
+   "modeling": {
+    "tile": "BF2G72KT",
+    "res": "8m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BF2G72KT/Modeling_BF2G72KT_20260613.tiff",
+    "point": -3.2,
+    "tile_min": -7.9,
+    "valid_frac": 0.79
+   },
+   "bluetopo": {
+    "tile": "BF2G72KT",
+    "res": "8m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/BlueTopo/BF2G72KT/BlueTopo_BF2G72KT_20260530.tiff",
+    "point": -3.2,
+    "tile_min": -8.0,
+    "valid_frac": 0.79
+   }
+  },
+  {
+   "name": "Lake Salvador",
+   "state": "LA",
+   "probe": [
+    29.72,
+    -90.25
+   ],
+   "modeling": {
+    "tile": "BH4NC586",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BH4NC586/Modeling_BH4NC586_20231230.tiff",
+    "point": -2.4,
+    "tile_min": -2.7,
+    "valid_frac": 0.78
+   },
+   "bluetopo": null
+  },
+  {
+   "name": "Sabine Lake",
+   "state": "TX/LA",
+   "probe": [
+    29.85,
+    -93.85
+   ],
+   "modeling": {
+    "tile": "BH4LK588",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BH4LK588/Modeling_BH4LK588_20260725.tiff",
+    "point": -2.3,
+    "tile_min": -14.8,
+    "valid_frac": 0.85
+   },
+   "bluetopo": {
+    "tile": "BH4LK588",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/BlueTopo/BH4LK588/BlueTopo_BH4LK588_20260424.tiff",
+    "point": -2.2,
+    "tile_min": -14.6,
+    "valid_frac": 0.85
+   }
+  },
+  {
+   "name": "Calcasieu Lake",
+   "state": "LA",
+   "probe": [
+    29.9,
+    -93.3
+   ],
+   "modeling": {
+    "tile": "BH4LS588",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/Test-and-Evaluation/Modeling/BH4LS588/Modeling_BH4LS588_20260725.tiff",
+    "point": -2.0,
+    "tile_min": -14.1,
+    "valid_frac": 0.77
+   },
+   "bluetopo": {
+    "tile": "BH4LS588",
+    "res": "4m",
+    "url": "https://noaa-ocs-nationalbathymetry-pds.s3.amazonaws.com/BlueTopo/BH4LS588/BlueTopo_BH4LS588_20260424.tiff",
+    "point": -2.0,
+    "tile_min": -14.1,
+    "valid_frac": 0.77
+   }
+  },
+  {
+   "name": "Grand Lake (Mermentau)",
+   "state": "LA",
+   "probe": [
+    29.9,
+    -92.8
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Mattamuskeet",
+   "state": "NC",
+   "probe": [
+    35.48,
+    -76.2
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Drummond",
+   "state": "VA",
+   "probe": [
+    36.6,
+    -76.45
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Mille Lacs Lake",
+   "state": "MN",
+   "probe": [
+    46.25,
+    -93.65
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Sakakawea",
+   "state": "ND",
+   "probe": [
+    47.6,
+    -102.0
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Flathead Lake",
+   "state": "MT",
+   "probe": [
+    47.9,
+    -114.1
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Coeur d'Alene",
+   "state": "ID",
+   "probe": [
+    47.55,
+    -116.8
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Chelan",
+   "state": "WA",
+   "probe": [
+    47.9,
+    -120.3
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Clear Lake",
+   "state": "CA",
+   "probe": [
+    39.05,
+    -122.8
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Salton Sea",
+   "state": "CA",
+   "probe": [
+    33.3,
+    -115.8
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Great Salt Lake",
+   "state": "UT",
+   "probe": [
+    41.1,
+    -112.5
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Utah Lake",
+   "state": "UT",
+   "probe": [
+    40.2,
+    -111.8
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Powell",
+   "state": "UT/AZ",
+   "probe": [
+    37.0,
+    -111.3
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Havasu",
+   "state": "AZ/CA",
+   "probe": [
+    34.45,
+    -114.35
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Mohave",
+   "state": "AZ/NV",
+   "probe": [
+    35.4,
+    -114.65
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Texoma",
+   "state": "TX/OK",
+   "probe": [
+    33.85,
+    -96.65
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Iliamna",
+   "state": "AK",
+   "probe": [
+    59.6,
+    -154.9
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Pepin",
+   "state": "MN/WI",
+   "probe": [
+    44.5,
+    -92.3
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Marion",
+   "state": "SC",
+   "probe": [
+    33.5,
+    -80.3
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Moultrie",
+   "state": "SC",
+   "probe": [
+    33.3,
+    -80.05
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Kentucky Lake",
+   "state": "KY/TN",
+   "probe": [
+    36.6,
+    -88.1
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Lanier",
+   "state": "GA",
+   "probe": [
+    34.2,
+    -83.95
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "Lake Seminole",
+   "state": "GA/FL",
+   "probe": [
+    30.75,
+    -84.85
+   ],
+   "modeling": null,
+   "bluetopo": null
+  },
+  {
+   "name": "West Point Lake",
+   "state": "GA/AL",
+   "probe": [
+    33.0,
+    -85.15
+   ],
+   "modeling": null,
+   "bluetopo": null
+  }
+ ]
+}

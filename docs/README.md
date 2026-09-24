@@ -5,8 +5,13 @@
 - [Architecture and geometry conventions](architecture.md) — the one authoritative geometry flow, coordinate conventions, versioning, launch invariants.
 - [Data, attribution, and fabrication safety](data-and-fabrication.md)
 - [Flat engraving workflow and SVG contract](flat-engraving.md)
+- [Atomm automatic nesting validation](reports/atomm-automatic-nesting-20260924.md) — shared export layouts without additional embedded controls.
+- [Atomm performance integration verification](reports/atomm-performance-integration-20260924.md) — regression results after integrating terrain performance and sheet nesting for the next Atomm review.
+- [The Atomm embed](atomm-embed.md) — what the platform build shows differently (automatic terrain, Export view, no depth charts) and why.
 - [Placement mode](placement.md) — the top-down draft layer for positioning annotations and custom graphics, and how to add a placeable.
+- [Sheet nesting](nesting.md): the sparrow engine, how its WebAssembly wrapper handles coordinates and spacing, credits and citations. The phased plan is [plans/sheet-nesting.md](plans/sheet-nesting.md).
 - [Engraving fonts](fonts.md) — the font kinds, the glyph build, adding a typeface, and why glyph data is immutable.
+- [Geometry generation performance](generation-performance.md) — stage timings, cache ownership, parallel layer workers, boundary indexes, and the Grand Teton stress benchmark.
 - [Terrain source selection](terrain-selection.md)
 - [Terrain-informed lake basins](terrain-informed-lake-basins.md)
 - [Lake shoreline smoothing](lake-shoreline-smoothing.md)
@@ -18,6 +23,7 @@
 
 - [Generator](../apps/generator/README.md): layers, import rules, studio panels, stylesheet layout.
 - [Core](../packages/core/README.md) and [data contracts](../packages/data-contracts/README.md).
+- [Nest engine](../packages/nest-wasm/README.md): the sparrow WebAssembly build, rebuilding it, and upgrading the solver.
 - [Map API Worker](../workers/map-api/README.md): setup and operations.
 - [Scripts](../scripts/README.md): every operational script and what runs it.
 - [CLAUDE.md](../CLAUDE.md): one-page map of where a change goes and the enforced rules.
@@ -27,6 +33,7 @@
 - [Data operations and measured baseline](data-layer-operations.md) — provisioning, cache lifecycle, archive pruning.
 - [Surveyed lake-floor data](lake-bathymetry.md) — survey coverage and provisioning.
 - [NOAA Great Lakes bathymetry](noaa-bathymetry.md)
+- [NOAA lake depth integration plan](noaa-lake-integration-plan.md) — phased local runbook for adding NBS grids and ENC contours for every NOAA-covered lake.
 - [Depth charts traced into bathymetry](depth-chart-tracing.md) — chart record contract, how traced charts carve, and the staged rollout.
 - [NRCan HRDEM terrain](hrdem-terrain.md)
 - [Curated terrain coverage](terrain-coverage.md)
@@ -47,3 +54,8 @@ Dated snapshots kept for history. Do not update them; write a new one.
 - [Canadian terrain packaging benchmark, 2026-09-16](reports/terrain-benchmark-20260916.md) ([data](reports/data/terrain-benchmark-20260916.json))
 
 - [Depth chart readiness review, 2026-09-23](reports/depth-chart-readiness-2026-09-23.md)
+- [Lakes NOAA nautical charts can supply depths for, 2026-09-24](reports/noaa-chart-lake-coverage-2026-09-24.md) ([data](reports/data/noaa-chart-lakes-20260924.json)) — every US lake with charted contours or soundings, tiered by detail, for plan phase 4.
+- [NOAA lake depth coverage, 2026-09-24](reports/noaa-lake-coverage-2026-09-24.md) ([data](reports/data/noaa-lake-coverage-20260924.json), [NBS inventory](reports/data/nbs-inventory-hydrolakes-20260924.json)) — every lake NOAA grids or charts can supply depths for, and what is not yet integrated.
+
+- [Grand Teton generation benchmark, 2026-09-24](reports/generation-benchmark-20260924.md) ([data](reports/data/generation-benchmark-20260924.json))
+- [Parallel generation benchmark, 2026-09-24](reports/generation-parallel-benchmark-20260924.md) ([data](reports/data/generation-parallel-benchmark-20260924.json))

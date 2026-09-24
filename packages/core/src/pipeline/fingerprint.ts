@@ -2,7 +2,8 @@ import type { ProjectConfigV1 } from "../types.js";
 
 
 function stableProjectValue(config: ProjectConfigV1): unknown {
-  const { explodedPreview: _previewOnly, name: _packageMetadata, ...fabricationConfig } = config;
+  // Sheet nesting only arranges finished parts on stock at export time.
+  const { explodedPreview: _previewOnly, name: _packageMetadata, sheetNesting: _exportOnly, ...fabricationConfig } = config;
   return {
     ...fabricationConfig,
     // A marker's or path's name is what the maker calls it, never anything the
@@ -19,7 +20,7 @@ function stableProjectValue(config: ProjectConfigV1): unknown {
 
 // Canonical JSON: object keys sorted recursively so value-identical configs
 // hash identically regardless of key insertion order.
-function stableStringify(value: unknown): string {
+export function stableStringify(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map((item) => stableStringify(item)).join(",")}]`;
   if (value && typeof value === "object") {
     const entries = Object.keys(value as Record<string, unknown>)
@@ -31,12 +32,16 @@ function stableStringify(value: unknown): string {
   return JSON.stringify(value) ?? "null";
 }
 
-export function projectFingerprint(config: ProjectConfigV1): string {
-  const input = stableStringify(stableProjectValue(config));
+/** 32-bit FNV-1a of a string, as eight hex digits. */
+export function fnv1aHex(input: string): string {
   let hash = 2166136261;
   for (let index = 0; index < input.length; index += 1) {
     hash ^= input.charCodeAt(index);
     hash = Math.imul(hash, 16777619);
   }
-  return `v9-${(hash >>> 0).toString(16).padStart(8, "0")}`;
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+export function projectFingerprint(config: ProjectConfigV1): string {
+  return `v9-${fnv1aHex(stableStringify(stableProjectValue(config)))}`;
 }

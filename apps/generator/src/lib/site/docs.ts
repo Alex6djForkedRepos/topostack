@@ -41,8 +41,8 @@ export const DOCS_SECTIONS: readonly { id: string; title: string; summary: strin
   {
     id: "reference",
     title: "Reference",
-    summary: "Every studio setting, what each export contains, data sources and credits, how the site handles your projects, and what changed in each release.",
-    paths: ["/guides/settings-reference", "/guides/export-files", "/attribution", "/privacy", "/changelog"],
+    summary: "How terrain generation works, every studio setting, export contents, data sources, privacy, and release notes.",
+    paths: ["/guides/how-terrain-generation-works", "/guides/settings-reference", "/guides/export-files", "/attribution", "/privacy", "/changelog"],
   },
 ];
 

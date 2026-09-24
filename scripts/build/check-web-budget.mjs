@@ -25,13 +25,16 @@ const budgets = {
   largestJavaScriptGzip: 300_000,
   studioHtmlBytes: 10_000,
   // Fetched when browsing or searching lakes; grows with survey sources.
-  // 306,268 when set (7,775 records across 11 sources).
-  lakeDirectoryGzip: 340_000,
+  // 335,417 when set (8,147 records across 28 sources, with the NOAA NBS and chart lakes).
+  lakeDirectoryGzip: 370_000,
+  // The sheet-nesting engine (sparrow, WebAssembly). Lazy: fetched only when
+  // the maker nests parts, and never on startup (asserted below). 309,153 when set.
+  nestEngineWasmGzip: 340_000,
 };
 
 // Reported, never enforced: totals across every route, lazy tool and worker
 // grow with each guide page without costing anyone a byte they do not ask for.
-const reported = ["totalJavaScriptGzip", "totalCssGzip", "standaloneCssGzip", "atommCssGzip"];
+const reported = ["totalJavaScriptGzip", "totalCssGzip", "standaloneCssGzip", "atommCssGzip", "nestWorkerJavaScriptGzip"];
 
 const files = await filesBelow(dist);
 const measured = await Promise.all(files.filter((file) => /\.(?:js|css)$/.test(file.pathname)).map(async (file) => {
@@ -92,6 +95,12 @@ if (lazyStartup.length !== 2) throw new Error(`Expected App.svelte and ThreePrev
 for (const key of lazyStartup) includeModule(key);
 // Vite emits workers as independent assets, outside the client manifest graph.
 for (const file of files.filter((file) => /geometry\.worker[^/]*\.js$/.test(file.pathname))) startupFiles.add(file.href);
+// Sheet nesting is loaded on demand; its worker or engine on the startup path is a regression whatever its size.
+const nestOnStartup = [...startupFiles].filter((href) => /nest\.worker|nest_wasm/.test(href));
+if (nestOnStartup.length) throw new Error(`Sheet nesting reached the studio startup path: ${nestOnStartup.join(", ")}`);
+const nestWasm = files.filter((file) => /topostack_nest_wasm[^/]*\.wasm$/.test(file.pathname));
+if (nestWasm.length !== 1) throw new Error(`Expected one nesting engine .wasm in the build, found ${nestWasm.length}.`);
+const nestWorkers = files.filter((file) => /nest\.worker[^/]*\.js$/.test(file.pathname));
 
 const report = {
   landingJavaScriptGzip: await gzipTotal(preloads(indexHtmlBody, indexHtml)),
@@ -101,6 +110,8 @@ const report = {
   largestJavaScriptGzip: largestJavaScript?.gzip ?? 0,
   studioHtmlBytes: (await stat(studioHtml)).size,
   lakeDirectoryGzip: gzipSync(await readFile(new URL("data/lake-depth-directory.json", dist))).byteLength,
+  nestEngineWasmGzip: await gzipTotal(nestWasm),
+  nestWorkerJavaScriptGzip: await gzipTotal(nestWorkers),
   totalJavaScriptGzip: javascript.reduce((total, entry) => total + entry.gzip, 0),
   totalCssGzip,
   standaloneCssGzip: totalCssGzip - atommCssGzip,

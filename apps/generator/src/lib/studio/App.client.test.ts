@@ -1786,4 +1786,49 @@ describe("TopoStack Svelte shell", () => {
     expect(loadVectorMarkingsMock).not.toHaveBeenCalled();
     await vi.waitFor(() => expect(depth.getAttribute("aria-checked")).toBe("true"));
   });
+
+  it("loads terrain on its own inside Atomm, follows the map area, and previews the export", async () => {
+    // The embed is detected by running in a frame.
+    const parent = Object.getOwnPropertyDescriptor(window, "parent");
+    Object.defineProperty(window, "parent", { configurable: true, value: {} });
+    const createObjectURL = vi.fn(() => "blob:export-preview");
+    Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() });
+    onTestFinished(() => { if (parent) Object.defineProperty(window, "parent", parent); });
+    const source = { ...createSyntheticSource(DEFAULT_PROJECT, 32), sourceKind: "real" as const, vectorStatus: "available" as const, lakeDataStatus: "available" as const };
+    loadTerrainMock.mockResolvedValue({ source, fallback: false });
+    const target = document.createElement("div");
+    document.body.append(target);
+    onTestFinished(() => target.remove());
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await vi.waitFor(() => expect(target.querySelector(".atomm-workbench")).not.toBeNull());
+
+    // No Generate step: the bundled preview is replaced by real terrain on its own.
+    await vi.waitFor(() => expect(target.querySelector(".status-line")?.textContent).toContain("Real terrain ready"));
+    expect(loadTerrainMock).toHaveBeenCalledOnce();
+    expect(target.querySelector(".generate-button, .generate-retry")).toBeNull();
+    expect([...target.querySelectorAll('.mode-switch [role="radio"]')].map((tab) => tab.textContent?.trim())).toEqual(["2D", "3D", "Export"]);
+    // Depth charts and graphics belong to the full studio.
+    expect(target.textContent).not.toContain("Upload SVG");
+
+    // A new place reloads its terrain without pressing anything.
+    [...target.querySelectorAll<HTMLButtonElement>(".preset-row button")].find((button) => button.textContent?.includes("Rainier"))!.click();
+    await vi.waitFor(() => expect(loadTerrainMock).toHaveBeenCalledTimes(2), { timeout: 3_000 });
+    await vi.waitFor(() => expect(target.querySelector(".status-line")?.textContent).toContain("Terrain loaded for the new map area"));
+    expect(target.querySelector(".generate-retry")).toBeNull();
+
+    [...target.querySelectorAll<HTMLButtonElement>('.mode-switch [role="radio"]')].find((tab) => tab.textContent?.includes("Export"))!.click();
+    await vi.waitFor(() => expect(target.querySelector(".export-manifest")?.textContent).toMatch(/Open in Studio.*master\.svg/), { timeout: 5_000 });
+    expect(target.querySelector(".export-manifest-row")?.textContent).toMatch(/Open in Studio.*1 editable SVG.*Entire layout/);
+    expect(target.querySelector(".export-manifest summary")?.textContent).toMatch(/Download.*Complete project bundle.*\d+ files.*View included files/);
+    expect(target.querySelector(".export-sheet image")?.getAttribute("href")).toBe("blob:export-preview");
+
+    // Tips step through one slide at a time.
+    [...target.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.trim() === "Tips")!.click();
+    const tips = target.querySelector<HTMLDialogElement>(".atomm-tips-dialog")!;
+    await vi.waitFor(() => expect(tips.open).toBe(true));
+    expect(tips.querySelector("h3")?.textContent).toBe("Pick a place");
+    [...tips.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Next")!.click();
+    await tick();
+    expect(tips.querySelector("h3")?.textContent).toBe("Terrain layers");
+  });
 });

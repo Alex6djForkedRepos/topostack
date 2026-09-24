@@ -2,13 +2,22 @@ import { ASSEMBLY, CUT, ENGRAVE, MAX_EXPORT_PACKAGE_BYTES, SCORE, safeName } fro
 import { ENGRAVE_ONLY, OPERATIONS, masterToSvg, paintTemplateSvg, panelBodies, panelToSvg } from "./svg.js";
 import { fabricationPanels } from "./panel-layout.js";
 import { engravingToSvg } from "./engraving-svg.js";
-import { assemblyGuideToHtml, type GuideFont } from "./assembly-guide.js";
+import { assemblyGuideToHtml, type GuideFont, type GuideSheetMap } from "./assembly-guide.js";
 import { exportBlockReason } from "./export-policy.js";
 import { formatNumber as format } from "../primitives/format.js";
 import { horizontalScaleFor } from "../pipeline/stack-plan.js";
 import { displayLength, lengthUnit } from "../primitives/units.js";
 import { PAINT_BLEED_MM } from "../pipeline/paint-regions.js";
-import type { ExportFile, FabricationPackageV1, GeometryIRV1, LineStyleV1, ProjectConfigV1 } from "../types.js";
+import type { ExportFile, FabricationPackageV1, GeometryIRV1, LineStyleV1, Point2D, ProjectConfigV1, SheetNestPlanV1 } from "../types.js";
+import { nestableParts, polygonLabel } from "./sheet-nest/parts.js";
+import { resolveSheetNestSettings } from "./sheet-nest/resolve.js";
+import { sheetNestJobKey } from "./sheet-nest/job-key.js";
+import { verifySheetPlan } from "./sheet-nest/verify.js";
+import { withPartLabels } from "./sheet-nest/part-labels.js";
+import { nestedSheets, type NestedSheet } from "./sheet-nest/apply.js";
+import { nestedPaintTemplateSvg, nestedSheetBodies } from "./sheet-nest/sheet-svg.js";
+import { transformPoints } from "./sheet-nest/transform.js";
+import type { FabricationPanel } from "./panel-layout.js";
 
 
 function roadAppearance(style: LineStyleV1): string {
@@ -34,23 +43,81 @@ function attributionText(ir: GeometryIRV1): string {
 export interface PackageOptions {
   /** Fonts embedded in the assembly guide; system fonts are used without them. */
   guideFonts?: readonly GuideFont[];
+  /**
+   * Lay the parts out on stock sheets as this plan says, instead of one panel
+   * per nest family. It must have been made for this geometry and the
+   * project's current sheet settings, or the export is refused.
+   */
+  sheetPlan?: SheetNestPlanV1;
+}
+
+/** The plan checked against the geometry it is applied to, and the IR with part ids engraved. */
+function nestedLayout(ir: GeometryIRV1, config: ProjectConfigV1, plan: SheetNestPlanV1): NestedLayout {
+  const resolved = resolveSheetNestSettings(config);
+  if (!resolved.ok) throw new Error(resolved.error);
+  const parts = nestableParts(ir);
+  if (sheetNestJobKey(parts, resolved.settings) !== plan.jobKey) throw new Error("The sheet layout is out of date. Nest the parts again, or export the original panels.");
+  const problems = verifySheetPlan(parts, plan);
+  if (problems.length) throw new Error(`The sheet layout is not valid: ${problems[0]}`);
+  const labelled = withPartLabels(ir, config, parts);
+  return { plan, ir: labelled.ir, sheets: nestedSheets(labelled.ir, parts, plan), omittedLabels: labelled.omitted };
+}
+
+interface NestedLayout {
+  plan: SheetNestPlanV1;
+  ir: GeometryIRV1;
+  sheets: NestedSheet[];
+  omittedLabels: string[];
+}
+
+/** README paragraph for a nested export: what moved, how to tell pieces apart, and whose solver did it. */
+function sheetNestingText(nested: NestedLayout, shownLength: (valueMm: number) => string): string {
+  const { settings, engine } = nested.plan;
+  const parts = nested.sheets.reduce((total, sheet) => total + sheet.parts.length, 0);
+  const rotation = { none: "never rotated", half: "turned by half turns at most", quarter: "turned in quarter turns", free: "turned to any angle" }[settings.rotation];
+  const omitted = nested.omittedLabels;
+  const ids = omitted.length
+    ? `${omitted.length} piece${omitted.length === 1 ? " has" : "s have"} no covered room for an id (${omitted.slice(0, 4).join(", ")}${omitted.length > 4 ? ", ..." : ""}); find ${omitted.length === 1 ? "it" : "them"} on the sheet maps in the assembly guide.`
+    : "Pieces without an engraved id are named on the sheet maps in the assembly guide.";
+  const solver = nested.plan.sheets.some((sheet) => sheet.method === "sparrow")
+    ? "Layouts were packed with sparrow (MIT, Jeroen Gardeyn, KU Leuven; https://github.com/JeroenGar/sparrow) on the jagua-rs collision engine (MPL-2.0; https://github.com/JeroenGar/jagua-rs)."
+    : engine.name === "sparrow" ? "sparrow found no tighter layout than packing the pieces by their bounding boxes, so that layout was kept." : "Layouts were packed by bounding boxes.";
+  return `Sheet nesting laid the ${parts} pieces out on ${nested.sheets.length} stock sheet${nested.sheets.length === 1 ? "" : "s"} of ${shownLength(settings.sheetWidthMm)} x ${shownLength(settings.sheetHeightMm)}, keeping ${shownLength(settings.marginMm)} clear along every edge and at least ${shownLength(settings.spacingMm)} of material between pieces. Pieces were moved and ${rotation}, never mirrored. Pieces from different layers share a sheet, so each carries its id (layer number, plus island number or seam cell) engraved in green where the layer above hides it. ${ids} A smaller piece cut from inside a larger one stays in place inside it. ${solver}\n\n`;
+}
+
+/** Every piece on one sheet, placed as the sheet SVG places it, for the guide's drawing. */
+function sheetMap(ir: GeometryIRV1, sheet: NestedSheet): GuideSheetMap {
+  return {
+    widthMm: sheet.panel.maxX - sheet.panel.minX,
+    heightMm: sheet.panel.maxY - sheet.panel.minY,
+    pieces: sheet.parts.flatMap(({ part, placement }) => {
+      const place = (ring: Point2D[]) => transformPoints(ring, { rotationDeg: placement.rotationDeg, x: placement.xMm, y: placement.yMm });
+      return part.members.flatMap(({ layerIndex, polygonIndexes }) => polygonIndexes.flatMap((polygonIndex) => {
+        const polygon = ir.layers[layerIndex]?.polygons[polygonIndex];
+        return polygon ? [{ label: polygonLabel(ir, layerIndex, polygonIndex), layerIndex, polygon: { outer: place(polygon.outer), holes: polygon.holes.map(place) } }] : [];
+      }));
+    }),
+  };
 }
 
 export function buildFabricationPackage(generated: GeometryIRV1, config: ProjectConfigV1, options: PackageOptions = {}): FabricationPackageV1 {
-  const ir = { ...generated, projectId: config.id, projectName: config.name };
+  const unlabelled = { ...generated, projectId: config.id, projectName: config.name };
   if (config.outputMode !== "stack") throw new Error("Choose layered relief before exporting fabrication files.");
-  const reason = exportBlockReason(ir, config);
+  const reason = exportBlockReason(unlabelled, config);
   if (reason) throw new Error(reason);
   const base = safeName(config.name);
-  const panels = fabricationPanels(ir);
-  const bodies = panels.map((panel) => panelBodies(ir, panel));
+  const nested = options.sheetPlan ? nestedLayout(unlabelled, config, options.sheetPlan) : undefined;
+  const ir = nested?.ir ?? unlabelled;
+  const panels: FabricationPanel[] = nested ? nested.sheets.map((sheet) => sheet.panel) : fabricationPanels(ir);
+  const bodies = nested ? nested.sheets.map((sheet) => nestedSheetBodies(ir, sheet)) : panels.map((panel) => panelBodies(ir, panel));
   const panelFiles = panels.map((panel, index) => {
     const layers = panel.layerIndexes.map((layerIndex) => ir.layers[layerIndex]?.id.replace("layer-", "")).filter(Boolean).join("-");
     const cell = panel.cellName ? `-${panel.cellName.toLowerCase()}` : "";
-    const filename = panel.layerIndexes.length === 1 ? `${base}-${ir.layers[panel.rootLayerIndex]?.id}${cell}.svg` : `${base}-panel-${String(index + 1).padStart(2, "0")}-layers-${layers}${cell}.svg`;
+    const filename = nested ? `${base}-sheet-${String(index + 1).padStart(2, "0")}.svg`
+      : panel.layerIndexes.length === 1 ? `${base}-${ir.layers[panel.rootLayerIndex]?.id}${cell}.svg` : `${base}-panel-${String(index + 1).padStart(2, "0")}-layers-${layers}${cell}.svg`;
     const engravingFilename = filename.replace(/\.svg$/, "-engrave.svg");
     const paintTemplates = config.paintTemplates.flatMap((kind) => {
-      const svg = paintTemplateSvg(ir, config, panel, kind);
+      const svg = nested ? nestedPaintTemplateSvg(ir, config, nested.sheets[index]!, kind) : paintTemplateSvg(ir, config, panel, kind);
       return svg ? [{ kind, file: { filename: filename.replace(/\.svg$/, `-paint-${kind}.svg`), blob: new Blob([svg], { type: "image/svg+xml" }) } satisfies ExportFile }] : [];
     });
     const paintFiles = paintTemplates.map((template) => template.file);
@@ -105,7 +172,16 @@ export function buildFabricationPackage(generated: GeometryIRV1, config: Project
           bleedMm: PAINT_BLEED_MM,
           fileCount: panelFiles.reduce((total, { paintFiles }) => total + paintFiles.length, 0),
         } : undefined,
-        panels: panelFiles.map(({ panel, file, engravingFile, paintFiles }) => ({
+        sheetNesting: nested ? {
+          engine: nested.plan.engine,
+          settings: nested.plan.settings,
+          sheetCount: nested.sheets.length,
+          partCount: nested.sheets.reduce((total, sheet) => total + sheet.parts.length, 0),
+          utilization: nested.plan.utilization,
+          elapsedMs: nested.plan.elapsedMs,
+        } : undefined,
+        panels: panelFiles.map(({ panel, file, engravingFile, paintFiles }, index) => ({
+          ...(nested ? { sheet: index + 1, usedWidthMm: nested.sheets[index]!.sheet.usedWidthMm } : {}),
           filename: file.filename,
           engravingFilename: engravingFile.filename,
           paintTemplateFilenames: paintFiles.map((paintFile) => paintFile.filename),
@@ -113,6 +189,16 @@ export function buildFabricationPackage(generated: GeometryIRV1, config: Project
           widthMm: panel.maxX - panel.minX,
           heightMm: panel.maxY - panel.minY,
           layerIds: panel.layerIndexes.map((index) => ir.layers[index]?.id).filter(Boolean),
+          ...(nested ? {
+            parts: nested.sheets[index]!.parts.map(({ part, placement }) => ({
+              partId: part.id,
+              label: part.label,
+              layerIds: part.members.map((member) => ir.layers[member.layerIndex]?.id).filter(Boolean),
+              rotationDeg: placement.rotationDeg,
+              xMm: placement.xMm,
+              yMm: placement.yMm,
+            })),
+          } : {}),
         })),
       },
       bounds: ir.bounds,
@@ -161,7 +247,7 @@ export function buildFabricationPackage(generated: GeometryIRV1, config: Project
   const nesting = ir.fabricationNests.length ? `Material nesting reduced ${ir.layers.length} layer panels to ${panels.length} fabrication panels. Smaller layers share cut lines inside lower layers while preserving at least ${shownLength(config.glueMarginMm)} of covered glue land. Keep every loose cutout: nested pieces belong to the layer IDs listed in each panel filename and SVG data-layers attribute.\n\n` : config.optimizeMaterialUse ? (ir.splitPlan
     ? `No safe material nests fit the requested ${shownLength(config.glueMarginMm)} glue margin. A nested piece has to sit wholly inside one donor piece, and a work-area seam usually cuts through that room, so splitting a model normally costs its nesting.\n\n`
     : `No safe material nests fit the requested ${shownLength(config.glueMarginMm)} glue margin, so every layer remains on its own panel.\n\n`) : "Material-saving nesting is disabled.\n\n";
-  const readme = `${ir.projectName}\n\n${ir.layers.length} layers at ${shownLength(config.materialThicknessMm)} each\nFinished stack height: ${shownLength(ir.layers.length * config.materialThicknessMm)}\n${vertical}${fittedDepths}${linework}Fabrication panels: ${panels.length}\n\nCUT ${CUT}\nSCORE ${SCORE}\nENGRAVE ${ENGRAVE}\n${ir.splitPlan && config.showAssemblyLabels ? `ASSEMBLY ${ASSEMBLY}\n` : ""}\nEvery complete panel and the master SVG place engraved and scored paths in named ENGRAVE and SCORE groups, both using Atomm blue for line engraving, separate from red CUT paths. Each panel also has a registered -engrave.svg companion containing the same ENGRAVE paths only. Use either the complete panel SVG, or pair its engraving-only companion with a cut workflow; do not process both engraving copies in the same job.\n\n${alignment}${kerf}${seams}${nesting}${paint}Import the master SVG into xTool Studio, or use the fabrication-panel SVGs. In xTool Studio, choose Score for blue linework and Cut for red outlines. Engrave fills closed shapes; use it only for intentionally filled markers, not alignment outlines, contours, or line labels. Marker clearances are gaps in the line geometry; there is no white engraving operation. Verify each color layer's processing type, dimensions, and material settings before fabrication. Terrain data is decorative and is not survey or engineering data.\n`;
+  const readme = `${ir.projectName}\n\n${ir.layers.length} layers at ${shownLength(config.materialThicknessMm)} each\nFinished stack height: ${shownLength(ir.layers.length * config.materialThicknessMm)}\n${vertical}${fittedDepths}${linework}${nested ? `Stock sheets: ${panels.length}` : `Fabrication panels: ${panels.length}`}\n\nCUT ${CUT}\nSCORE ${SCORE}\nENGRAVE ${ENGRAVE}\n${(ir.splitPlan || nested) && config.showAssemblyLabels ? `ASSEMBLY ${ASSEMBLY}\n` : ""}\nEvery complete panel and the master SVG place engraved and scored paths in named ENGRAVE and SCORE groups, both using Atomm blue for line engraving, separate from red CUT paths. Each panel also has a registered -engrave.svg companion containing the same ENGRAVE paths only. Use either the complete panel SVG, or pair its engraving-only companion with a cut workflow; do not process both engraving copies in the same job.\n\n${alignment}${kerf}${seams}${nesting}${nested ? sheetNestingText(nested, shownLength) : ""}${paint}Import the master SVG into xTool Studio, or use the fabrication-panel SVGs. In xTool Studio, choose Score for blue linework and Cut for red outlines. Engrave fills closed shapes; use it only for intentionally filled markers, not alignment outlines, contours, or line labels. Marker clearances are gaps in the line geometry; there is no white engraving operation. Verify each color layer's processing type, dimensions, and material settings before fabrication. Terrain data is decorative and is not survey or engineering data.\n`;
   const files: ExportFile[] = [
     ...panelFiles.flatMap(({ file, engravingFile, paintFiles }) => [file, engravingFile, ...paintFiles]),
     master,
@@ -172,6 +258,7 @@ export function buildFabricationPackage(generated: GeometryIRV1, config: Project
       cellName: panel.cellName,
       included: panel.included,
       paintTemplates: paintTemplates.map((template) => ({ kind: template.kind, filename: template.file.filename })),
+      ...(nested ? { map: sheetMap(ir, nested.sheets[panel.sheetIndex!]!) } : {}),
     })), options.guideFonts)], { type: "text/html" }) },
     { filename: `${base}-project.json`, blob: new Blob([JSON.stringify(manifest, null, 2)], { type: "application/json" }) },
     { filename: "README.txt", blob: new Blob([readme], { type: "text/plain" }) },

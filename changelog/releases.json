@@ -2,6 +2,84 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "0.6.0",
+      "date": "2026-09-24",
+      "entries": [
+        {
+          "type": "feature",
+          "title": "Nest your pieces onto stock sheets",
+          "body": "In **Export**, choose **Nested sheets**, set your sheet size and click **Nest parts**. TopoStack packs every piece onto as few sheets as it can, moving and turning them to fit, and exports one file per sheet with each piece's layer id engraved where it stays hidden. Nesting runs in your browser with the open-source sparrow nesting engine, and the layout is still there after a reload.",
+          "pr": 105
+        },
+        {
+          "type": "feature",
+          "title": "Depths for 237 more US lakes and lagoons from NOAA surveys",
+          "body": "Water depth now uses NOAA's measured surveys for Lake Pontchartrain, Lake Washington, Lake Pend Oreille, Lake Roosevelt, Lake Winnebago, the St. Johns River lakes and more than 200 coastal lakes and lagoons from Florida to Alaska. Only surveyed areas are used; the rest of each lake keeps the modelled basin. Find them in the [lake depth directory](/lakes/united-states).",
+          "pr": 108
+        },
+        {
+          "type": "feature",
+          "title": "Depths for Lake Okeechobee, Lake Champlain and 133 more lakes from NOAA charts",
+          "body": "Water depth now uses NOAA nautical chart contours and soundings for lakes with no survey grid, including Lake Okeechobee, Lake Champlain, Oneida, Seneca, Cayuga and Onondaga lakes, and Burt, Mullett, Charlevoix and White lakes in Michigan. Chart depths are simplified for navigation, so these lake floors are smoother than surveyed ones. Find them in the [lake depth directory](/lakes/united-states).",
+          "pr": 114
+        },
+        {
+          "type": "improvement",
+          "title": "Automatically arrange Atomm exports on sheets",
+          "body": "Layered exports now nest automatically, without extra controls. Export Preview, Download and Open in Studio share the same layout, with a short search, 3 mm margins and 2 mm spacing. Sheets default to 600 × 400 mm or use your work area. If pieces cannot fit or nesting is unavailable, the original panels remain available with an explanation.",
+          "pr": 107
+        },
+        {
+          "type": "improvement",
+          "title": "Understand what each Atomm export includes",
+          "body": "Export contents now explains that Open in Studio sends one editable SVG of the entire layout, while Download provides the complete project bundle. File sizes are secondary, and an expandable list shows the included files.",
+          "pr": 107
+        },
+        {
+          "type": "improvement",
+          "title": "Preview nesting progress and choose material size in Atomm",
+          "body": "Set your material width and height directly in Export. Watch real sheet layouts update while nesting runs, with the same progress card as terrain generation, or keep the current layout early. Material dimensions are saved with your project and do not trigger a terrain rebuild.",
+          "pr": 107
+        },
+        {
+          "type": "improvement",
+          "title": "Atomm terrain updates without a Generate step",
+          "body": "Inside Atomm, the studio loads real terrain when it opens and reloads it whenever you choose a place or move the map selection, so there is no Generate button to remember. A new **Export** view shows the file **Open in Studio** sends and lists everything a download includes, and **Tips** now walk through fabrication one step at a time.",
+          "pr": 107
+        },
+        {
+          "type": "improvement",
+          "title": "Faster generation for large terrain maps",
+          "body": "Large maps spend less time checking contour boundaries, arranging material nests, placing labels, and clipping roads across many layers. Changes to annotations and fabrication settings reuse terrain calculations when the map data and terrain settings are unchanged. Terrain detail and material-clearance rules stay the same. Large stacks also spread alignment guides and elevation-label searches across available processor cores, with automatic fallback when parallel workers are unavailable.",
+          "pr": 113
+        },
+        {
+          "type": "improvement",
+          "title": "Learn how terrain generation works",
+          "body": "A new [terrain generation guide](/guides/how-terrain-generation-works) follows elevation data into cut layers and explains terrain caching, faster boundary searches, and parallel workers. It includes measured large-map performance and advice for working with demanding projects.",
+          "pr": 115
+        },
+        {
+          "type": "fix",
+          "title": "Keep Atomm controls reachable and export previews accurate",
+          "body": "Use every preview view in narrow frames and every Tips step on short screens; edit the map from Project setup. Font selection supports native keyboard and touch controls, invalid numbers explain their limits, and sliders show their filled range. Model edits preserve your 3D view, while export previews space operation labels clearly, distinguish scoring from filled engraving and include the same guide fonts as downloads.",
+          "pr": 107
+        },
+        {
+          "type": "fix",
+          "title": "Accept valid dimensions in Atomm numeric controls",
+          "body": "Whole-number sizes and precise typed dimensions no longer appear invalid when the field has a fractional minimum. Arrow keys and dragging still use the expected increments and stay within the allowed range.",
+          "pr": 107
+        },
+        {
+          "type": "fix",
+          "title": "Show progress while the Atomm preview refreshes",
+          "body": "The refresh status now shows its actual work stage: preparing map data, then building preview geometry. The step count and stage text stay visible without a looping animation.",
+          "pr": 107
+        }
+      ]
+    },
+    {
       "version": "0.5.0",
       "date": "2026-09-23",
       "entries": [

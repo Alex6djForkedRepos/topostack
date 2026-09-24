@@ -53,7 +53,8 @@ export interface StatusLineState {
   status: string;
   detailsUpdating: boolean;
   terrainDataStale: boolean;
-  terrainDataAction: "regenerate" | "generate";
+  /** "load" is the Atomm embed, which has no Generate button. */
+  terrainDataAction: "regenerate" | "generate" | "load";
   verticalExaggerationStale: boolean;
   exportReady: boolean;
   exportBlockedBy: string | undefined;
@@ -63,7 +64,7 @@ export interface StatusLineState {
 /** The generate dock's status: in-flight work first, then what blocks export, then the latest status. */
 export function statusLine(state: StatusLineState): string {
   if (state.generationState === "loading") return state.status;
-  if (!state.detailsUpdating && state.terrainDataStale) return state.terrainDataAction === "regenerate" ? "Map area changed · regenerate terrain data before export" : "Map area changed · generate terrain data before export";
+  if (!state.detailsUpdating && state.terrainDataStale) return `Map area changed · ${state.terrainDataAction === "load" ? "load terrain" : `${state.terrainDataAction} terrain data`} before export`;
   if (!state.detailsUpdating && state.verticalExaggerationStale) return "Preview update incomplete · retry before export";
   if (!state.detailsUpdating && !state.exportReady && state.sourceKind === "real") return state.exportBlockedBy ?? "Design changed · refresh before export";
   return state.status;

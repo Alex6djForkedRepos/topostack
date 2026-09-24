@@ -13,7 +13,14 @@ export default tseslint.config(
       "**/node_modules/**",
       "**/playwright-report/**",
       "**/test-results/**",
+      "**/test-results-live/**",
+      ".topostack/**",
+      ".terrain-venv/**",
+      ".venv-data/**",
+      ".claude/worktrees/**",
       "**/src/worker-configuration.d.ts",
+      "packages/nest-wasm/pkg/**",
+      "packages/nest-wasm/target/**",
     ],
   },
   js.configs.recommended,
@@ -23,7 +30,7 @@ export default tseslint.config(
     files: ["**/*.ts"],
     languageOptions: {
       parserOptions: {
-        projectService: { allowDefaultProject: ["apps/generator/vitest.config.ts", "apps/generator/vitest.client.config.ts", "packages/chart-trace/vitest.config.ts", "packages/core/vitest.config.ts", "packages/data-contracts/vitest.config.ts"] },
+        projectService: { allowDefaultProject: ["apps/generator/vitest.config.ts", "apps/generator/vitest.client.config.ts", "packages/chart-trace/vitest.config.ts", "packages/core/vitest.config.ts", "packages/data-contracts/vitest.config.ts", "packages/nest-wasm/vitest.config.ts"] },
         tsconfigRootDir: import.meta.dirname,
       },
     },

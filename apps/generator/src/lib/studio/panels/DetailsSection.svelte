@@ -103,14 +103,14 @@
                   {#if charted(lake.hylakId)}
                     <span>Depth chart in use</span>
                     <button type="button" onclick={() => void studio.clearDepthChart(String(lake.hylakId))}>Stop using it</button>
-                  {:else}
-                    <!-- Charts are built in their own view; this only points there. -->
+                  {:else if !studio.embeddedInPlatform}
+                    <!-- Charts are built in their own view; this only points there. The platform embed has no such view. -->
                     <button type="button" onclick={() => { openCustomDataSection("charts"); studio.mode = "custom"; }}>Use a depth chart…</button>
                   {/if}
                 </p>
               {/each}
             </div>
-            <small class="depth-note">Estimated from shoreline terrain slopes and GLOBathy/HydroLAKES depths. This is a modeled lake floor. A depth chart of your own replaces it.</small>
+            <small class="depth-note">Estimated from shoreline terrain slopes and GLOBathy/HydroLAKES depths. This is a modeled lake floor.{#if !studio.embeddedInPlatform} A depth chart of your own replaces it.{/if}</small>
           </div>
         {/if}
         <div class="depth-note">{#if !studio.embeddedInPlatform}<FeedbackButton label="Report lake data quality" type="lake" getContext={getFeedbackContext} />{/if} <LakeDepthHelp {openLakeDepthHelp} /></div>

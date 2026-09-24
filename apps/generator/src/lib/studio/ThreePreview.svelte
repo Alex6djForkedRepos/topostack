@@ -32,6 +32,7 @@
   } = $props();
   import AtommZoom from "$lib/atomm/AtommZoom.svelte";
   import { MARKING_COLORS, markingStyleKey, type MarkingStyleKey } from "$lib/studio/marking-style";
+  import { PreviewMotion } from "$lib/studio/preview-motion";
   import { sharedPieceEdges } from "$lib/studio/seam-lines";
   const isEmbedded = getContext<() => boolean>("atomm-embedded") ?? (() => false);
   let zoom = $state(1);
@@ -255,7 +256,7 @@
     runtime.topCamera.updateProjectionMatrix();
   }
 
-  const TOP_DOWN_EASE_MS = 260;
+  const TOP_DOWN_EASE_MS = 200;
   let orbitBeforePlacement: { position: THREE.Vector3; target: THREE.Vector3; minDistance: number } | undefined;
   let easeFrame = 0;
   const easeDuration = () => (matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : TOP_DOWN_EASE_MS);
@@ -327,7 +328,7 @@
     let renderer: THREE.WebGLRenderer;
     try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false }); }
     catch { onUnavailable?.(); return; }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05; renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; container.appendChild(renderer.domElement);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05; renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.shadowMap.autoUpdate = false; renderer.shadowMap.needsUpdate = true; container.appendChild(renderer.domElement);
     const pmrem = new THREE.PMREMGenerator(renderer); const room = new RoomEnvironment(); const environmentTarget = pmrem.fromScene(room); room.dispose(); pmrem.dispose(); scene.environment = environmentTarget.texture; scene.environmentIntensity = 0.38;
     // Layer steps read through cast shadows plus a cool fill from the opposite
     // quadrant; the warm key alone left the stepped edges flat. The key light's
@@ -341,31 +342,101 @@
     if (rememberCamera && savedCamera) { camera.position.set(...savedCamera.position); controls.target.set(...savedCamera.target); controls.update(); fitDistance = savedCamera.fitDistance; fitTarget = new THREE.Vector3(...savedCamera.fitTarget); }
     const texture = makeWoodTexture();
     let contextLost = false;
-    const requestRender = () => {
+    const motionQuery = isEmbedded() ? window.matchMedia("(prefers-reduced-motion: reduce)") : undefined;
+    const motion = new PreviewMotion();
+    let previousFrame = 0;
+    let editingControls = document.activeElement !== document.body && !container.contains(document.activeElement);
+    let pointer: { id: number; x: number; y: number } | undefined;
+    const onMotionChange = () => {
+      motion.reset(); previousFrame = 0;
+      controls.enableDamping = !motionQuery?.matches;
+      requestRender();
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      if (motionQuery?.matches || placement || event.button !== 0) return;
+      pointer = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    };
+    const onPointerMove = (event: PointerEvent) => {
+      if (!pointer || pointer.id !== event.pointerId) return;
+      motion.drag((event.clientX - pointer.x) / Math.max(container.clientWidth, 1), (event.clientY - pointer.y) / Math.max(container.clientHeight, 1));
+    };
+    const onPointerEnd = (event: PointerEvent) => { if (pointer?.id === event.pointerId) { pointer = undefined; motion.release(); } };
+    if (motionQuery) {
+      controls.enableDamping = !motionQuery.matches;
+      motionQuery.addEventListener("change", onMotionChange);
+      renderer.domElement.addEventListener("pointerdown", onPointerDown);
+      renderer.domElement.addEventListener("pointermove", onPointerMove);
+      renderer.domElement.addEventListener("pointerup", onPointerEnd);
+      renderer.domElement.addEventListener("pointercancel", onPointerEnd);
+      renderer.domElement.addEventListener("lostpointercapture", onPointerEnd);
+    }
+    let sceneDirty = true;
+    let idleRenderInterval = 100;
+    const scheduleRender = () => {
       if (!runtime || runtime.frame || contextLost || document.hidden) return;
       runtime.frame = requestAnimationFrame(render);
     };
-    const render = () => {
+    const requestRender = () => { sceneDirty = true; scheduleRender(); };
+    const render = (now = performance.now()) => {
       if (!runtime) return;
       runtime.frame = 0;
       if (contextLost || document.hidden) return;
-      // OrbitControls emits change while damping settles, requesting the next
-      // frame. Once the camera stops moving there is no ongoing render loop.
+      const motionEnabled = Boolean(motionQuery && !motionQuery.matches && !placement);
+      const ambient = motionEnabled && !editingControls;
       controls.update();
+      // Give edits and camera gestures priority, and limit idle decoration
+      // work on software-rendered or complex models.
+      if (ambient && !sceneDirty && previousFrame && now - previousFrame < idleRenderInterval) { scheduleRender(); return; }
+      if (ambient) {
+        const pose = motion.step(previousFrame ? (now - previousFrame) / 1000 : 0);
+        rig.rotation.set(pose.x, pose.y, 0);
+        rig.position.z = pose.lift * Math.hypot(geometry.widthMm / 2, geometry.heightMm / 2);
+      } else if (!motionEnabled) {
+        motion.reset(); rig.rotation.set(0, 0, 0); rig.position.z = 0;
+      }
+      previousFrame = ambient ? now : 0;
+      const renderStarted = performance.now();
       renderer.render(scene, runtime.topDown ? runtime.topCamera : camera);
+      idleRenderInterval = Math.max(100, Math.min(250, (performance.now() - renderStarted) * 4));
+      sceneDirty = false;
+      // Only the embedded ambient rig needs continuous frames. Reduced motion,
+      // hidden tabs and the standalone studio retain the on-demand loop.
+      if (ambient) scheduleRender();
     };
     controls.addEventListener("change", requestRender);
     const updateZoom = () => { zoom = fitDistance / controls.getDistance(); };
     controls.addEventListener("change", updateZoom);
     const resizeObserver = new ResizeObserver(([entry]) => { const width = entry?.contentRect.width ?? 0; const height = entry?.contentRect.height ?? 0; if (width <= 0 || height <= 0) return; if (placement) toolbarSpace = readToolbarSpace(); applyViewOffset(viewOffset); renderer.setSize(width, height, false); fitTopCamera(); stopFrame(); render(); }); resizeObserver.observe(container);
     const stopFrame = () => { if (runtime) { cancelAnimationFrame(runtime.frame); runtime.frame = 0; } };
-    const onVisibilityChange = () => { if (document.hidden) stopFrame(); else requestRender(); };
+    const onFocusChange = () => queueMicrotask(() => {
+      const active = document.activeElement;
+      // Controls can disappear after applying an edit. A focus loss to body
+      // must not restart decoration in the middle of the user's workflow.
+      if (active && active !== document.body && active !== document.documentElement) editingControls = !container.contains(active);
+      previousFrame = 0; requestRender();
+    });
+    const onControlPointerDown = (event: PointerEvent) => { editingControls = !container.contains(event.target as Node); previousFrame = 0; requestRender(); };
+    if (motionQuery) {
+      document.addEventListener("pointerdown", onControlPointerDown);
+      document.addEventListener("focusin", onFocusChange);
+      document.addEventListener("focusout", onFocusChange);
+    }
+    const onVisibilityChange = () => { previousFrame = 0; if (document.hidden) stopFrame(); else requestRender(); };
     const onContextLost = (event: Event) => { event.preventDefault(); contextLost = true; stopFrame(); };
-    const onContextRestored = () => { contextLost = false; requestRender(); };
+    const onContextRestored = () => { contextLost = false; renderer.shadowMap.needsUpdate = true; requestRender(); };
     renderer.domElement.addEventListener("webglcontextlost", onContextLost);
     renderer.domElement.addEventListener("webglcontextrestored", onContextRestored);
     document.addEventListener("visibilitychange", onVisibilityChange);
     const detachContextHandlers = () => {
+      motionQuery?.removeEventListener("change", onMotionChange);
+      document.removeEventListener("pointerdown", onControlPointerDown);
+      document.removeEventListener("focusin", onFocusChange);
+      document.removeEventListener("focusout", onFocusChange);
+      renderer.domElement.removeEventListener("pointerdown", onPointerDown);
+      renderer.domElement.removeEventListener("pointermove", onPointerMove);
+      renderer.domElement.removeEventListener("pointerup", onPointerEnd);
+      renderer.domElement.removeEventListener("pointercancel", onPointerEnd);
+      renderer.domElement.removeEventListener("lostpointercapture", onPointerEnd);
       renderer.domElement.removeEventListener("webglcontextlost", onContextLost);
       renderer.domElement.removeEventListener("webglcontextrestored", onContextRestored);
       document.removeEventListener("visibilitychange", onVisibilityChange);
@@ -521,8 +592,10 @@
       runtime.keyLight.shadow.normalBias = Math.max(radius * 0.003, 0.05);
       runtime.keyLight.shadow.camera.updateProjectionMatrix();
       // The overhead placement camera sits inside the orbit limit until it leaves.
-      if (orbitBeforePlacement) orbitBeforePlacement.minDistance = radius * 1.2; else runtime.controls.minDistance = radius * 1.2;
-      runtime.controls.maxDistance = radius * 8;
+      const currentDistance = runtime.controls.getDistance();
+      const minimumDistance = Math.min(radius * 1.2, currentDistance);
+      if (orbitBeforePlacement) orbitBeforePlacement.minDistance = minimumDistance; else runtime.controls.minDistance = minimumDistance;
+      runtime.controls.maxDistance = Math.max(radius * 8, currentDistance);
       runtime.camera.near = Math.max(radius * 0.15, 0.5); runtime.camera.far = radius * 24; runtime.camera.updateProjectionMatrix();
       const fitSignature = [activeGeometry.widthMm, activeGeometry.heightMm, activeGeometry.layers.length, activeGeometry.layers[0]?.materialThicknessMm ?? 1].join(":");
       if (runtime.fitSignature !== fitSignature) {
@@ -536,11 +609,15 @@
         const distance = modelRadius / Math.sin(Math.min(verticalFov, horizontalFov) / 2) * 1.15;
         fitDistance = Math.min(runtime.controls.maxDistance, Math.max(runtime.controls.minDistance, distance));
         fitTarget = target.clone();
-        runtime.controls.target.copy(target);
-        runtime.camera.position.copy(target).addScaledVector(direction, distance);
+        if (!runtime.fitSignature) {
+          runtime.controls.target.copy(target);
+          runtime.camera.position.copy(target).addScaledVector(direction, fitDistance);
+        }
         runtime.fitSignature = fitSignature;
+        zoom = fitDistance / runtime.controls.getDistance();
       }
       runtime.controls.update();
+      runtime.renderer.shadowMap.needsUpdate = true;
       runtime.requestRender();
     }, 160);
     return () => window.clearTimeout(timeout);
@@ -549,7 +626,7 @@
   // Exploded-slider changes only reposition existing meshes.
   $effect(() => {
     const activeExploded = exploded;
-    if (runtime && !untrack(() => placement)) { applyExploded(runtime.content, activeExploded); runtime.requestRender(); }
+    if (runtime && !untrack(() => placement)) { applyExploded(runtime.content, activeExploded); runtime.renderer.shadowMap.needsUpdate = true; runtime.requestRender(); }
   });
 
   // Placement mode on and off. Reads only whether it is active, so a new

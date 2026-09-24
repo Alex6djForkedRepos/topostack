@@ -1,4 +1,4 @@
-import { exportBlockReason, type GeometryIRV1, type ProjectConfigV1 } from "@topostack/core";
+import { exportBlockReason, type GeometryIRV1, type ProjectConfigV1, type SheetNestPlanV1 } from "@topostack/core";
 import { createSubscriber } from "svelte/reactivity";
 import type { ExportUpdate } from "$lib/atomm/atomm-bridge";
 import { prepareProjectSettings, prepareSelectedDownload, startBrowserDownload, type DownloadOption } from "$lib/studio/native-export";
@@ -17,8 +17,8 @@ export function describeExport(update: ExportUpdate): { title: string; detail: s
   if (update.phase === "ready") {
     const files = `${update.fileCount} ${update.fileCount === 1 ? "file" : "files"}`;
     return update.intent === "openInStudio"
-      ? { title: "Artwork ready", detail: "The master SVG is prepared for Atomm to open in Studio.", status: "Master SVG prepared for Studio" }
-      : { title: "Download ready", detail: `${files} prepared. Your browser should save them as one download.`, status: `Download prepared · ${files}` };
+      ? { title: "Artwork ready", detail: ["The master SVG is prepared for Atomm to open in Studio.", update.layoutNote].filter(Boolean).join(" "), status: "Master SVG prepared for Studio" }
+      : { title: "Download ready", detail: [`${files} prepared. Your browser should save them as one download.`, update.layoutNote].filter(Boolean).join(" "), status: `Download prepared · ${files}` };
   }
   return { title: "Export failed", detail: update.message, status: update.message };
 }
@@ -68,6 +68,8 @@ export interface DownloadRequest {
   option: DownloadOption;
   geometry: GeometryIRV1;
   project: ProjectConfigV1;
+  /** Lay the files out on stock sheets, when the maker nested them. */
+  sheetPlan?: SheetNestPlanV1;
   notice: ExportNotice;
   /** Reports fabrication export outcomes; project settings and assembly guides are not tracked. */
   track: (event: "export_prepared" | "export_failed") => void;
@@ -76,7 +78,7 @@ export interface DownloadRequest {
 }
 
 /** Build and start a browser download, reporting progress and failures through `notice`. */
-export async function downloadProject({ option, geometry, project, notice, track, nextFrame = () => new Promise((resolve) => requestAnimationFrame(() => resolve())) }: DownloadRequest): Promise<void> {
+export async function downloadProject({ option, geometry, project, sheetPlan, notice, track, nextFrame = () => new Promise((resolve) => requestAnimationFrame(() => resolve())) }: DownloadRequest): Promise<void> {
   if (notice.phase === "preparing") return;
   const tracked = option !== "project" && option !== "assembly";
   const reason = option === "project" ? undefined : exportBlockReason(geometry, project);
@@ -97,7 +99,7 @@ export async function downloadProject({ option, geometry, project, notice, track
         const { buildProjectPackage, loadGuideFonts } = await import("$lib/studio/export-policy");
         // Only the booklet uses the fonts; skip fetching them for files without it.
         const guideFonts = option === "all" || option === "assembly" ? await loadGuideFonts() : [];
-        return prepareSelectedDownload(buildProjectPackage(geometry, project, { guideFonts }), option);
+        return prepareSelectedDownload(buildProjectPackage(geometry, project, { guideFonts, sheetPlan }), option);
       })();
     startBrowserDownload(download);
     if (tracked) track("export_prepared");

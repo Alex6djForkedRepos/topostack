@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import { readFile, mkdir, writeFile } from 'node:fs/promises';
+import { buildChartFromImage } from '../../../apps/generator/src/lib/domain/chart-build.ts';
+import { reviewGeometryIssues, reviewAlignment } from '../../../apps/generator/src/lib/domain/chart-review.ts';
+const source = JSON.parse(await readFile('scripts/verify/walden-example/source.json'));
+const lake = JSON.parse(await readFile('scripts/verify/walden-example/lake.json'));
+const request = { image: { width: source.imageSize[0], height: source.imageSize[1], data: new Uint8ClampedArray() }, lake, review: source.review, units: 'm', labels: 'depth', resolutionM: 5, title: 'Walden Pond — reviewed USGS chart', attestation: 'public-domain', fileSha256: source.pdfSha256, tool: 'reviewed-source-example' };
+assert.deepEqual(reviewGeometryIssues(source.review, request), []);
+const alignment = reviewAlignment(source.review, lake.outline);
+const result = buildChartFromImage(request);
+assert.equal(result.record.contours.length, 18);
+assert.equal(result.report.deepestM, 30);
+assert.equal(result.report.inferred, 0);
+assert.equal(result.record.review, undefined, 'Generation must not grant layer approval');
+await mkdir('.topostack/walden-example', { recursive: true });
+await writeFile('.topostack/walden-example/record.json', JSON.stringify(result));
+console.log(JSON.stringify({ alignmentIou: alignment.iou, ...result.report }, null, 2));

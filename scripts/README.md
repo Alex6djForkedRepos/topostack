@@ -16,7 +16,10 @@ Run by `npm run build` in the generator or by CI after a build.
 | `configure-redirects.mjs` | Apply the Cloudflare redirect rules (www and legacy paths) to the zone | manual: [seo-operations.md](../docs/seo-operations.md), [README](../README.md) |
 | `finalize-static-headers.mjs` | Rewrite `_headers` for the selected site environment after a build | generator `build`; generator `build:e2e` |
 | `generate-icons.mjs` | Regenerate favicons and app icons from `static/favicon.svg` | `npm run assets:icons` |
+| `prune-atomm-dist.mjs` | Drop the public site's images and example files from an Atomm build; no-op for other environments | generator `build` |
 | `write-build-version.mjs` | Record git metadata for the About page in the built site | generator `build`; generator `build:e2e` |
+| `write-third-party-licenses.mjs` | Write the licence notices for redistributed compiled code (the sheet-nesting engine) to `dist/licenses/third-party.txt` | generator `build`; generator `build:e2e` |
+| `packages/nest-wasm/scripts/build.mjs` | Compile the sparrow nesting engine to WebAssembly into the committed `packages/nest-wasm/pkg/` (needs Rust, wasm-bindgen-cli and wasm-opt; see the [package README](../packages/nest-wasm/README.md)). With `--check`, it verifies `pkg/` was built from the current sources without needing Rust | `npm run build:nest-wasm` (manual); `--check` from the package `test` script; `nest-wasm.yml` workflow |
 
 ## Development and media capture (`dev/`)
 
@@ -27,6 +30,9 @@ Local helpers; nothing in CI depends on them.
 | `capture-feature-update.mjs` | Screenshot a feature for a release note or docs image | manual |
 | `capture-preview-fixture.mjs` | Regenerate the bundled Crater Lake preview source (`sample-preview.generated.ts`) | manual |
 | `capture-readme-assets.mjs` | Screenshot the studio and workflows for the README images | manual |
+| `atomm-native-capture.mjs` | Capture-only renderer access used by the listing script; preserves real meshes/materials and renders each motion frame at its output resolution; never ships in the app | helper |
+| `capture-atomm-listing.mjs` | Capture current Atomm listing cards and videos (`TOPOSTACK_CAPTURE_URL=http://127.0.0.1:5284 node scripts/dev/capture-atomm-listing.mjs`; requires Playwright Chromium and `ffmpeg`, or `FFMPEG_PATH`); see `docs/images/README.md` | manual |
+| `capture-atomm-tips.mjs` | Capture the Atomm Tips walkthrough pictures from the studio running as the embed (`node scripts/dev/capture-atomm-tips.mjs` against `npm run dev`; needs `cwebp`); see `docs/images/README.md` | manual |
 | `capture-examples.mjs` | Generate each example project in the studio and save its render, sharing card and project file (`node scripts/dev/capture-examples.mjs [slug ...]` against `npm run dev`; needs `cwebp`) | manual |
 | `dev.mjs` | Start the generator and the map-api Worker together, picking free ports | `npm run dev` |
 
@@ -45,6 +51,11 @@ Raster and vector processing that needs rasterio, fiona, scipy, and shapely. One
 | `chart_records.py` | Turn the published depth chart records in `scripts/data/depth-charts/` into the `community-charts-v1` archive's grids and source pins (library for build-survey-bathymetry.py) | manual: [depth-chart-tracing.md](../docs/depth-chart-tracing.md) |
 | `make-chart-trace-fixture.py` | Regenerate `packages/chart-trace/src/fixtures/tin-parity.json` from `survey_regions.contour_grid`, the parity target for the TypeScript TIN grid | manual, after changing `contour_grid`: [depth-chart-tracing.md](../docs/depth-chart-tracing.md) |
 | `discover-terrain.py` | Discover and register candidate terrain sources for a region | manual: [terrain-coverage.md](../docs/terrain-coverage.md), [terrain-selection.md](../docs/terrain-selection.md), [terrain-expansion-plan.md](../docs/terrain-expansion-plan.md) |
+| `nbs_inventory.py` | Inventory NOAA National Bathymetric Source tiles: record the scheme digest and each tile's published SHA-256, classify cells as survey, chart-derived or generalized fill from the attribute tables, and optionally match lake polygons and estimate each lake's surveyed share (`--lakes`, `--measure`) | manual: [noaa-lake-integration-plan.md](../docs/noaa-lake-integration-plan.md) |
+| `select-enc-lakes.py` | Choose the chart-only lakes to build from the chart coverage data, refuse fixed-pool datums, assign regional datasets, and pin every ENC cell by edition and SHA-256 in `scripts/data/noaa-enc-sources.json` | manual: [lake-bathymetry.md](../docs/lake-bathymetry.md#noaa-nautical-chart-lakes) |
+| `select-nbs-lakes.py` | Choose the NBS lakes to ship from a canonical `nbs_inventory.py` run: keep lakes at least half surveyed, name them from the USGS National Hydrography Dataset, place them by county and state from Census TIGERweb, assign regional datasets, and pin the scheme, HydroLAKES and every tile and attribute table in `scripts/data/noaa-nbs-sources.json` | manual: [lake-bathymetry.md](../docs/lake-bathymetry.md#noaa-national-bathymetric-source-lakes) |
+| `survey_enc.py` | Grid a lake's depths from NOAA electronic chart (ENC) cells: contours and soundings from the most detailed cells first, shoreline at 0 m, lakes mostly charted as drying refused (library for build-survey-bathymetry.py) | manual: [lake-bathymetry.md](../docs/lake-bathymetry.md#noaa-nautical-chart-lakes) |
+| `survey_nbs.py` | Build the `noaa-nbs-*` archives from those pins: survey cells only, clipped to HydroLAKES, lakes perched above chart datum refused (library for build-survey-bathymetry.py) | manual: [lake-bathymetry.md](../docs/lake-bathymetry.md#noaa-national-bathymetric-source-lakes) |
 | `snapshot-survey-service.py` | Snapshot a survey web service into a local raster for the survey builder | manual |
 | `survey_regions.py` | Regional contour and reservoir adapters used by build-survey-bathymetry.py (library) | manual |
 | `terrain_release.py` | Offline terrain registry helpers: immutable manifests and atomic catalog snapshots (library) | manual |
@@ -77,6 +88,9 @@ Check deployed services, SEO output, and data quality. CI and the production mon
 | Script | Purpose | Run by |
 | --- | --- | --- |
 | `stress-depth-charts.mjs` | Fetch pinned USGS charts; probe uploads, tracing, persistence, and screenshots | manual: [real-chart stress report](../docs/reports/real-depth-chart-stress-2026-09-23.md) |
+| `benchmark-generation.mjs` | Profile 3000 × 3000 mm Grand Teton geometry and cached edits, optionally with parallel helpers and synthetic roads | `npm run build -w @topostack/core` then `node scripts/verify/benchmark-generation.mjs --teton --workers 4` |
+| `generation-pool.mjs`, `generation-task-worker.mjs` | Adapt the production browser task pool to Node threads for the generation benchmark | Imported by `benchmark-generation.mjs`; not standalone commands |
+| `parallel-browser.mjs` | Check production parallel workers, custom fonts, cancellation, and fallback in Chromium/Firefox/WebKit | Build core and generator, then `node scripts/verify/parallel-browser.mjs` (optional browser names) |
 | `benchmark-data-layer.mjs` | Measure data-layer latency for representative projects (build core first) | `npm run data:benchmark` |
 | `verify-atomm-dist.mjs` | Check the Atomm build output for forbidden endpoints and required files | CI/workflows |
 | `verify-lake-directory.mjs` | Browser check of the lake directory and studio place links | `npm run data:verify-lake-directory` |
@@ -105,3 +119,5 @@ The changelog, version consistency, and the Atomm marketplace bundle. See [chang
 - [`verify/chart-accuracy/`](verify/chart-accuracy/README.md): opt-in, pinned USGS charts and independent QA soundings; 20 raster variants, spatial error scoring, appearance diagnostics, and reproducible figures.
 
 Reviewed depth-chart release checks and real-source capture instructions: [chart-release/README.md](verify/chart-release/README.md).
+
+Reviewed Walden Pond announcement assets and project: [walden-example/README.md](verify/walden-example/README.md). The runbook covers source preparation, offline validation, and fresh-browser capture.

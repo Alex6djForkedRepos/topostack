@@ -11,11 +11,11 @@ describe("ExportDialog", () => {
   });
   afterEach(async () => { if (component) await unmount(component); component = undefined; });
 
-  async function render(project: Partial<ProjectConfigV1> = {}, props: { blockedReason?: string; panelCount?: number } = {}) {
+  async function render(project: Partial<ProjectConfigV1> = {}, props: { blockedReason?: string; panelCount?: number; nested?: boolean } = {}) {
     const onDownload = vi.fn();
     const target = document.createElement("div");
     component = mount(ExportDialog, { target, props: {
-      open: true, project: { ...DEFAULT_PROJECT, ...project }, summary: "12 layers · 9 cut panels", panelCount: props.panelCount ?? 9,
+      open: true, project: { ...DEFAULT_PROJECT, ...project }, summary: "12 layers · 9 cut panels", panelCount: props.panelCount ?? 9, nested: props.nested,
       blockedReason: props.blockedReason, preparing: false, phase: "idle", title: "", detail: "",
       onDownload, onClose: () => undefined,
     } });
@@ -24,6 +24,11 @@ describe("ExportDialog", () => {
     const rows = () => [...target.querySelectorAll(".export-more .export-row strong")].map((node) => node.textContent);
     return { target, onDownload, button, rows };
   }
+
+  it("counts nested stock sheets instead of panels once the parts are nested", async () => {
+    const { target } = await render({ outputMode: "stack" }, { panelCount: 2, nested: true });
+    expect(target.querySelector(".export-hero")?.textContent).toContain("2 nested sheets");
+  });
 
   it("leads layered projects with the complete project and lists specialist files behind a disclosure", async () => {
     const { target, onDownload, button, rows } = await render({ outputMode: "stack", paintTemplates: [] });

@@ -1,4 +1,6 @@
-import { addMaterialNests, polygonCenter } from "./nesting.js";
+import { alignmentGuideMarkings } from "./alignment.js";
+import { executeGeometryTask, type GeometryBatch, type GeometryTaskResult } from "./generation-tasks.js";
+import { addMaterialNests } from "./nesting.js";
 import { CONTOUR_SIMPLIFICATION_FACTOR, clipContours, removeTinyRing, contourToMm, layerForElevation, roundContourRing, sampleElevation, simplify } from "./contours.js";
 import { groundWidthMFor, horizontalScaleFor, planTerrainStack } from "./stack-plan.js";
 import { coordinateGridMarkings } from "./coordinate-grid.js";
@@ -10,7 +12,6 @@ import { cropBoundary as boundary, cropElevationRange } from "../primitives/crop
 import { contours } from "d3-contour";
 import polygonClipping, { type MultiPolygon, type Pair, type Ring } from "polygon-clipping";
 import {
-  boundsOverlap,
   clipPolyline,
   close,
   mercatorWorldY,
@@ -19,13 +20,11 @@ import {
   pointInRing,
   type PreparedPolygons,
   preparePolygons,
-  ringBounds,
-  signedArea,
   toPoint,
   toRing,
 } from "../primitives/geometry2d.js";
 import { labelDimensions, labelGeometry } from "../annotate/labels.js";
-import { addLabelObstacles, indexLabelLayer, placeElevationLabelStack, placeLabel, placeLinearLabel } from "../annotate/label-placement.js";
+import { addLabelObstacles, indexLabelLayer, placeElevationLabelStack, selectElevationLabels, type CoordinatedElevationLabel, placeLinearLabel } from "../annotate/label-placement.js";
 import { geoPointToMapPoint, longitudeInBounds, markerCenterForAnchor, markerPolygons } from "../annotate/markers.js";
 import { markerLayerPolygons } from "../annotate/marker-placement.js";
 import { GRAPHIC_CLEARANCE_MM, placedGraphicMarkingPrefix, placedGraphicPolygons } from "../annotate/graphics.js";
@@ -35,6 +34,7 @@ import { scaleBarMarkings } from "../annotate/scale-bar.js";
 import { plaqueFootprint, plaqueMarkings } from "../annotate/plaque.js";
 import { sourceRequirements } from "./source-requirements.js";
 import { splitLayersForWorkArea } from "./split.js";
+import { coveredLabelPoint } from "./piece-labels.js";
 import { displayElevation, elevationUnit } from "../primitives/units.js";
 import { MAP_MARKER_CLEARANCE_MM, MAP_MARKER_SIZE_MM, MIN_LAYER_COUNT, SEA_LEVEL_M } from "../types.js";
 import { type CarvedWater, carveWaterDepth, clampCarveToLadder, fitLakesToLadder, waterSurfaceLevelM } from "../water/water.js";
@@ -66,115 +66,52 @@ interface LayerClip {
   covering: PreparedPolygons;
 }
 
-/** `upper` followed by `lower`, reusing both sets' ring bounds. */
+/** Preserve the original rings when no union is needed or near-coincident edges defeat the boolean library. */
 function concatPrepared(upper: PreparedPolygons, lower: PreparedPolygons): PreparedPolygons {
-  const { bounds: a } = upper;
-  const { bounds: b } = lower;
   return {
     polygons: [...upper.polygons, ...lower.polygons],
     outerBounds: [...upper.outerBounds, ...lower.outerBounds],
     rings: [...upper.rings, ...lower.rings],
-    bounds: { minX: Math.min(a.minX, b.minX), minY: Math.min(a.minY, b.minY), maxX: Math.max(a.maxX, b.maxX), maxY: Math.max(a.maxY, b.maxY) },
+    polygonRings: [...upper.polygonRings, ...lower.polygonRings],
+    bounds: {
+      minX: Math.min(upper.bounds.minX, lower.bounds.minX), minY: Math.min(upper.bounds.minY, lower.bounds.minY),
+      maxX: Math.max(upper.bounds.maxX, lower.bounds.maxX), maxY: Math.max(upper.bounds.maxY, lower.bounds.maxY),
+    },
   };
 }
 
+/** Merge overlapping covering material once, instead of rechecking every buried contour per road segment. */
+function unionPrepared(upper: PreparedPolygons, lower: PreparedPolygons): PreparedPolygons {
+  if (!upper.polygons.length) return lower;
+  if (!lower.polygons.length) return upper;
+  const multi = (polygons: Polygon2D[]): MultiPolygon => polygons.map(({ outer, holes }) => [toRing(outer), ...holes.map(toRing)]);
+  try {
+    return preparePolygons(normalizeMultiPolygon(polygonClipping.union(multi(upper.polygons), multi(lower.polygons))));
+  } catch {
+    // This is only an acceleration structure. The original rings remain a
+    // complete, exact covering set if a union cannot resolve coincident edges.
+    return concatPrepared(upper, lower);
+  }
+}
+
 /** Built top-down: each layer's covering is the layer above's material plus that layer's covering. */
-function layerClips(layers: LayerIR[]): LayerClip[] {
+function layerClips(layers: LayerIR[], mergeCovering: boolean): LayerClip[] {
   const clips: LayerClip[] = new Array(layers.length);
   let covering = preparePolygons([]);
   for (let layerIndex = layers.length - 1; layerIndex >= 0; layerIndex -= 1) {
     const layer = layers[layerIndex]!;
     const material = preparePolygons(layer.polygons);
     clips[layerIndex] = { layer, material, covering };
-    covering = concatPrepared(material, covering);
+    covering = mergeCovering ? unionPrepared(material, covering) : concatPrepared(material, covering);
   }
   return clips;
 }
 
-/**
- * Engrave where the next layer goes. The outline comes from `outlines`, the
- * layers as they were before any work-area split: tracing the cut pieces
- * would also engrave the next layer's seams and key tabs, which sit a seam
- * offset away from this layer's own and read as stray ghost joints.
- */
 function addAlignmentGuides(config: ProjectConfigV1, clips: LayerClip[], outlines: Polygon2D[][]): void {
   for (let index = 0; index < clips.length - 1; index += 1) {
-    const layer = clips[index]?.layer;
-    const material = clips[index]?.material;
-    const nextLayer = clips[index + 1]?.layer;
-    if (!layer || !material || !nextLayer || nextLayer.polygons.length === 0) continue;
-    const layerNumber = String(layer.index + 1).padStart(2, "0");
-    const nextLayerNumber = String(nextLayer.index + 1).padStart(2, "0");
-    const labelIndex = indexLabelLayer(layer.polygons, layer.markings);
-    const outline = (polygon: Polygon2D, polygonIndex: number) => {
-      const guides: OperationPath[] = [];
-      offsetClosedRing(polygon.outer, -config.laserKerfMm, "round").forEach((inset, insetIndex) => {
-        clipPolyline(inset, material).forEach((points, clipIndex) => guides.push({
-          id: `alignment-layer-${layerNumber}-to-${nextLayerNumber}-${polygonIndex}-inset-${insetIndex}-outline-${clipIndex}`,
-          operation: "engrave",
-          kind: "guide",
-          points,
-        }));
-      });
-      addLabelObstacles(labelIndex, guides);
-      layer.markings.push(...guides);
-    };
-    const label = (polygon: Polygon2D, polygonIndex: number) => {
-      // After a work-area split the next layer is many pieces, so a repeated
-      // "L03" on one sheet says nothing; name the piece that belongs here.
-      const text = nextLayer.pieces[polygonIndex]?.id ?? `L${nextLayerNumber}`;
-      const point = placeLabel(text, config, labelIndex, polygonCenter(polygon, config), [polygon]);
-      if (!point) return;
-      const guideLabel: OperationPath = { id: `alignment-layer-${layerNumber}-to-${nextLayerNumber}-${polygonIndex}-label`, operation: "engrave", kind: "guide", points: [point], label: text, textStyle: config.textStyle };
-      addLabelObstacles(labelIndex, [guideLabel]);
-      layer.markings.push(guideLabel);
-    };
-    if (!nextLayer.pieces.length) {
-      nextLayer.polygons.forEach((polygon, polygonIndex) => {
-        outline(polygon, polygonIndex);
-        label(polygon, polygonIndex);
-      });
-      continue;
-    }
-    (outlines[index + 1] ?? nextLayer.polygons).forEach(outline);
-    nextLayer.polygons.forEach(label);
+    const layer = clips[index]!.layer;
+    layer.markings.push(...alignmentGuideMarkings(config, layer, clips[index + 1]!.layer, outlines[index + 1]));
   }
-}
-
-function ringArea(points: Point2D[]): number {
-  return Math.abs(signedArea(points));
-}
-
-/** The parts of `polygon` that something stacked above it hides after assembly. */
-function coveredParts(polygon: Polygon2D, covering: PreparedPolygons): Polygon2D[] {
-  if (!covering.polygons.length) return [];
-  const box = ringBounds(polygon.outer);
-  // Layer 0's covering is every layer above it, so filter before clipping.
-  const near = covering.polygons.filter((_, index) => boundsOverlap(box, covering.outerBounds[index]!));
-  if (!near.length) return [];
-  return normalizeMultiPolygon(polygonClipping.intersection(
-    [[toRing(polygon.outer), ...polygon.holes.map(toRing)]] as MultiPolygon,
-    near.map((part) => [toRing(part.outer), ...part.holes.map(toRing)]) as MultiPolygon,
-  ) as MultiPolygon);
-}
-
-/**
- * Candidate label centres spanning a covered region at label-box spacing. The
- * global grid is 10% of the model, far coarser than one piece's covered area,
- * and the alignment guide usually already owns the region's centre.
- */
-function coveredCandidates(label: string, config: ProjectConfigV1, region: Polygon2D): Point2D[] {
-  const { width, height } = labelDimensions(label, config.textStyle);
-  const bounds = ringBounds(region.outer);
-  const stepX = (width + 1.6) / 2;
-  const stepY = height + 1.6;
-  const candidates: Point2D[] = [];
-  for (let y = bounds.minY + stepY / 2; y <= bounds.maxY - stepY / 2 && candidates.length < 400; y += stepY) {
-    for (let x = bounds.minX + stepX / 2; x <= bounds.maxX - stepX / 2 && candidates.length < 400; x += stepX) {
-      candidates.push({ x: x / (config.widthMm / 2), y: y / (config.heightMm / 2) });
-    }
-  }
-  return candidates;
 }
 
 /**
@@ -198,16 +135,7 @@ function addPieceLabels({ config, flatEngraving, warnings }: GenerationContext, 
     for (const piece of layer.pieces) {
       const polygon = layer.polygons[piece.polygonIndex];
       if (!polygon) continue;
-      const covered = coveredParts(polygon, covering);
-      // Aim at the middle of the largest covered region rather than the middle
-      // of the piece: `placeLabel` tries the preferred point first and then
-      // falls back to a grid spanning the whole model, whose spacing is far
-      // coarser than one cut piece, so a poor first guess loses the label.
-      const largest = covered.reduce<Polygon2D | undefined>((best, part) =>
-        !best || ringArea(part.outer) > ringArea(best.outer) ? part : best, undefined);
-      const point = largest
-        ? placeLabel(piece.id, config, labelIndex, polygonCenter(largest, config), covered, coveredCandidates(piece.id, config, largest))
-        : undefined;
+      const point = coveredLabelPoint(piece.id, config, labelIndex, polygon, covering);
       if (!point) {
         omitted.push(piece.id);
         continue;
@@ -818,7 +746,7 @@ function placeTransportationLabels(config: ProjectConfigV1, labels: Transportati
   return transportationLabelIndex;
 }
 
-function placeElevationLabels({ config, flatEngraving, warnings }: GenerationContext, layers: LayerIR[]): void {
+function placeElevationLabels({ config, flatEngraving, warnings }: GenerationContext, layers: LayerIR[], parallelPlacements?: Array<CoordinatedElevationLabel | undefined>): void {
   const omittedLayers: string[] = [];
   const labelsByLayer = layers.map((layer) => {
     const elevation = Math.round(displayElevation(layer.elevationM, config.units));
@@ -829,7 +757,7 @@ function placeElevationLabels({ config, flatEngraving, warnings }: GenerationCon
   // minor line overwhelms the engraving and implies a label on the base
   // crop boundary, which is not itself a contour.
   const flatLabeled = (layer: LayerIR) => layer.index !== 0 && layer.index % config.engravingIndexInterval === 0;
-  const placements = placeElevationLabelStack(labelsByLayer, config, layers, flatEngraving ? { markings: layers[0]!.markings, labeled: flatLabeled } : undefined);
+  const placements = parallelPlacements ?? placeElevationLabelStack(labelsByLayer, config, layers, flatEngraving ? { markings: layers[0]!.markings, labeled: flatLabeled } : undefined);
   layers.forEach((layer, layerIndex) => {
     if (flatEngraving && !flatLabeled(layer)) return;
     const placed = placements[layerIndex];
@@ -1025,13 +953,113 @@ function dedupeMarkingIds(layers: LayerIR[]): void {
   }));
 }
 
-export function generateGeometry(config: ProjectConfigV1, source: SourceBundleV1): GeometryIRV1 {
+export type GenerationStage = "prepare" | "water" | "ladder" | "contours" | "terrain-cache" | "split" | "nesting" | "fabrication" | "routing" | "alignment" | "assembly-labels" | "elevation-labels" | "annotations";
+export interface GenerationOptions {
+  /** Diagnostic timings only; never included in the geometry or its fingerprint. */
+  onStage?: (stage: GenerationStage, durationMs: number) => void;
+}
+
+interface TerrainCache {
+  input: SourceBundleV1;
+  key: string;
+  source: SourceBundleV1;
+  grid: ElevationGrid;
+  ladder: ElevationLadder;
+  layers: LayerIR[];
+  warnings: GeometryWarning[];
+}
+interface GenerationSession { terrain?: TerrainCache }
+
+// Everything affects terrain unless explicitly known to be downstream of it.
+// New config fields therefore invalidate safely until their dependency is reviewed.
+const TERRAIN_INDEPENDENT_FIELDS = [
+  "id", "name", "units", "lineStyle", "showRoads", "showTrails", "showTransportationLabels",
+  "showWater", "waterFillPattern", "showBoundaries", "showCoordinateGrid", "showAlignmentGuides",
+  "optimizeMaterialUse", "glueMarginMm", "laserKerfMm", "workAreaWidthMm", "workAreaHeightMm",
+  "seamOffsetMm", "seamTabs", "showAssemblyLabels", "paintTemplates", "showElevationLabels",
+  "elevationLabelPosition", "textStyle", "showNorthArrow", "northArrowStyle", "northArrowSizeMm",
+  "northArrowPlacement", "showScaleBar", "markers", "customLines", "explodedPreview",
+] satisfies Array<keyof ProjectConfigV1>;
+
+function terrainKey(config: ProjectConfigV1): string {
+  const terrain: Partial<ProjectConfigV1> = { ...config };
+  for (const field of TERRAIN_INDEPENDENT_FIELDS) delete terrain[field];
+  return JSON.stringify(terrain);
+}
+
+/**
+ * One bounded terrain cache per worker/client. Sources must be immutable snapshots:
+ * replace the source object when samples or metadata change. Returned contour geometry is
+ * independently owned; fabrication and consumers must never mutate cached terrain.
+ */
+export function createGeometryGenerator(): typeof generateGeometry {
+  const session: GenerationSession = {};
+  return (config, source, options) => generate(config, source, options, session);
+}
+
+export function generateGeometry(config: ProjectConfigV1, source: SourceBundleV1, options?: GenerationOptions): GeometryIRV1 {
+  return generate(config, source, options);
+}
+
+function generate(config: ProjectConfigV1, source: SourceBundleV1, options?: GenerationOptions, session?: GenerationSession): GeometryIRV1 {
+  const steps = generationSteps(config, source, options, session);
+  let step = steps.next();
+  while (!step.done) {
+    const batch = step.value;
+    step = steps.next(batch.tasks.map(task => executeGeometryTask(batch.config, task)));
+  }
+  return step.value;
+}
+
+export interface ParallelGenerationOptions extends GenerationOptions {
+  execute: (batch: GeometryBatch) => Promise<GeometryTaskResult[]>;
+  /** Called at stage boundaries, including after async jobs finish. */
+  checkCancelled?: () => void;
+}
+
+/** One async session per coordinator. Callers serialize requests; jobs never mutate shared layers. */
+export function createParallelGeometryGenerator() {
+  const session: GenerationSession = {};
+  let busy = false;
+  return async (config: ProjectConfigV1, source: SourceBundleV1, options: ParallelGenerationOptions): Promise<GeometryIRV1> => {
+    if (busy) throw new Error("A geometry session cannot run overlapping requests.");
+    busy = true;
+    const steps = generationSteps(config, source, options, session, true);
+    try {
+      options.checkCancelled?.();
+      let step = steps.next();
+      while (!step.done) {
+        const result = await options.execute(step.value);
+        options.checkCancelled?.();
+        step = steps.next(result);
+      }
+      options.checkCancelled?.();
+      return step.value;
+    } finally {
+      steps.return(undefined as never);
+      busy = false;
+    }
+  };
+}
+
+function* generationSteps(config: ProjectConfigV1, source: SourceBundleV1, options?: GenerationOptions, session?: GenerationSession, parallel = false): Generator<GeometryBatch, GeometryIRV1, GeometryTaskResult[]> {
+  let started = options?.onStage ? performance.now() : 0;
+  const stage = (name: GenerationStage) => {
+    if (!options?.onStage) return;
+    const ended = performance.now();
+    options.onStage(name, ended - started);
+    started = performance.now();
+  };
   validateProject(config);
   if (source.schemaVersion !== 1) throw new Error("Unsupported source-data schema version.");
-  source = smoothLakeShorelines(source, config);
-  const grid = measuredElevationGrid(source.elevation);
   assertGeographicBounds(source.bounds, "Source");
-
+  const input = source;
+  const key = session ? terrainKey(config) : "";
+  const cached = session?.terrain?.input === input && session.terrain.key === key ? session.terrain : undefined;
+  // Drop the previous map before allocating another large grid and contour stack.
+  if (session && !cached) session.terrain = undefined;
+  source = cached?.source ?? smoothLakeShorelines(source, config);
+  const grid = cached?.grid ?? measuredElevationGrid(source.elevation);
   const flatEngraving = config.outputMode === "engraving";
   const context: GenerationContext = {
     config,
@@ -1042,9 +1070,28 @@ export function generateGeometry(config: ProjectConfigV1, source: SourceBundleV1
     warnings: [],
   };
   addSourceWarnings(context);
-  const { waterAreas, carved } = carveWater(context, grid);
-  const ladder = buildLadder(context, carved, waterAreas);
-  const layers = contourLayers(context, ladder);
+  stage("prepare");
+  let ladder: ElevationLadder;
+  let layers: LayerIR[];
+  if (cached) {
+    ladder = cached.ladder;
+    layers = structuredClone(cached.layers);
+    context.warnings.push(...cached.warnings.map((warning) => ({ ...warning })));
+    stage("terrain-cache");
+  } else {
+    const warningStart = context.warnings.length;
+    const { waterAreas, carved } = carveWater(context, grid);
+    stage("water");
+    ladder = buildLadder(context, carved, waterAreas);
+    stage("ladder");
+    layers = contourLayers(context, ladder);
+    if (session) session.terrain = {
+      input, key, source, grid, ladder,
+      layers: structuredClone(layers),
+      warnings: context.warnings.slice(warningStart).map((warning) => ({ ...warning })),
+    };
+    stage("contours");
+  }
   cutPlacedGraphics(context, layers);
   const { waterSurfaces, waterPatternAreas } = waterOutputs(context, ladder);
 
@@ -1053,24 +1100,67 @@ export function generateGeometry(config: ProjectConfigV1, source: SourceBundleV1
   // open arc where a closed hole belongs.
   const unsplitOutlines = layers.map((layer) => layer.polygons);
   const splitPlan = splitLayersForWorkArea(config, layers, context.warnings);
+  stage("split");
   const fabricationNests = flatEngraving ? [] : addMaterialNests(config, layers);
+  stage("nesting");
   // Nesting has finished carving cavities, so layer material is final for routing.
-  const clips = layerClips(layers);
+  // Boolean unions pay off when many paths repeatedly query a tall stack.
+  // Sparse maps and flat engravings keep the cheap original covering sets.
+  const featureCount = source.markings.filter((feature) => markingEnabled(feature, config)).length + config.customLines.length;
+  const clips = layerClips(layers, !flatEngraving && featureCount * layers.length >= 1_000);
   const paintWindows = flatEngraving ? [] : paintRegions(config, clips, { waterSurfaces, flatWater: flatWaterAreas(context, grid, ladder), cellPitchMm: config.widthMm / Math.max(1, grid.width - 1) }, fabricationNests);
+  stage("fabrication");
   const transportationLabels = routeMarkings(context, clips, ladder);
+  stage("routing");
   placeAnnotations(context, clips);
-  if (!flatEngraving && config.showAlignmentGuides) addAlignmentGuides(config, clips, unsplitOutlines);
+  // Small maps keep the original path and never start extra workers.
+  const usePool = parallel && !flatEngraving && layers.length >= 32;
+  if (!flatEngraving && config.showAlignmentGuides) {
+    if (usePool) {
+      const results = yield { config, tasks: layers.slice(0, -1).map((layer, index) => ({
+        kind: "alignment" as const, layer,
+        nextLayer: { index: layers[index + 1]!.index, polygons: layers[index + 1]!.polygons, pieces: layers[index + 1]!.pieces },
+        outlines: unsplitOutlines[index + 1]!,
+      })) };
+      if (results.length !== layers.length - 1) throw new Error("Incomplete alignment batch.");
+      results.forEach((result, index) => {
+        if (result.kind !== "alignment") throw new Error("Invalid alignment result.");
+        layers[index]!.markings.push(...result.markings);
+      });
+    } else addAlignmentGuides(config, clips, unsplitOutlines);
+  }
+  stage("alignment");
   addPieceLabels(context, clips);
+  stage("assembly-labels");
   const placedTransportationLabels = placeTransportationLabels(config, transportationLabels);
   if (transportationLabels.size && !placedTransportationLabels) context.warnings.push({
     code: "LABEL_OMITTED",
     message: "Transportation labels do not fit the exposed material. Reduce Text size or Vertical exaggeration, or increase the artwork size.",
   });
-  if (config.showElevationLabels) placeElevationLabels(context, layers);
+  if (config.showElevationLabels) {
+    if (usePool) {
+      const results = yield { config, tasks: layers.map((layer, index) => {
+        const elevation = Math.round(displayElevation(layer.elevationM, config.units));
+        const unit = elevationUnit(config.units);
+        return { kind: "elevation-labels" as const, layer,
+          covering: layers[index + 1] && { polygons: layers[index + 1]!.polygons },
+          labels: [`${elevation} ${unit}`, `${elevation}${unit}`, `${elevation}`],
+        };
+      }) };
+      if (results.length !== layers.length) throw new Error("Incomplete elevation-label batch.");
+      const candidates = results.map(result => {
+        if (result.kind !== "elevation-labels") throw new Error("Invalid elevation-label result.");
+        return result.options;
+      });
+      placeElevationLabels(context, layers, selectElevationLabels(candidates, config, layers));
+    } else placeElevationLabels(context, layers);
+  }
+  stage("elevation-labels");
   placePlaque(context, clips);
   placeGraphics(context, clips);
   placeMarkers(context, clips);
   dedupeMarkingIds(layers);
+  stage("annotations");
 
   const { landMin, landMax, visibleMin, visibleMax, ladderBase, modelGrid } = ladder;
   return {
