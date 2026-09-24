@@ -5,6 +5,7 @@
 - [Architecture and geometry conventions](architecture.md) — the one authoritative geometry flow, coordinate conventions, versioning, launch invariants.
 - [Data, attribution, and fabrication safety](data-and-fabrication.md)
 - [Flat engraving workflow and SVG contract](flat-engraving.md)
+- [Atomm automatic nesting validation](reports/atomm-automatic-nesting-20260924.md) — shared export layouts without additional embedded controls.
 - [Atomm performance integration verification](reports/atomm-performance-integration-20260924.md) — regression results after integrating terrain performance and sheet nesting for the next Atomm review.
 - [The Atomm embed](atomm-embed.md) — what the platform build shows differently (automatic terrain, Export view, no depth charts) and why.
 - [Placement mode](placement.md) — the top-down draft layer for positioning annotations and custom graphics, and how to add a placeable.

@@ -590,7 +590,8 @@ test("Atomm controls and Tips remain reachable in narrow and short frames", asyn
 });
 
 
-test("Atomm imports nesting-enabled projects without starting the sheet planner or changing export mode", async ({ page }) => {
+for (const unavailable of [false, true]) test(`Atomm automatic nesting ${unavailable ? "falls back when its worker is unavailable" : "shares simple defaults with Export Preview"}`, async ({ page }) => {
+  if (unavailable) await page.route("**/nest.worker-*.js", route => route.abort());
   test.setTimeout(120_000);
   const plannerRequests: string[] = [];
   const errors: string[] = [];
@@ -620,10 +621,12 @@ test("Atomm imports nesting-enabled projects without starting the sheet planner 
     const manifest = files.find(file => file.filename.endsWith("-project.json"))!;
     return { names: files.map(file => file.filename), manifest: JSON.parse(await manifest.blob.text()) };
   });
-  expect(exported.manifest.project.sheetNesting.sheetWidthMm).toBe(400);
-  expect(exported.manifest.result.fabrication.sheetNesting).toBeUndefined();
-  expect(exported.names.some(name => /-sheet-\d+/.test(name))).toBe(false);
+  expect(exported.manifest.project.sheetNesting.sheetWidthMm).toBe(unavailable ? 400 : 600);
+  expect(Boolean(exported.manifest.result.fabrication.sheetNesting)).toBe(!unavailable);
+  expect(exported.names.some(name => /-sheet-\d+/.test(name))).toBe(!unavailable);
   expect(exported.names.some(name => /-master\.svg$/.test(name))).toBe(true);
-  expect(plannerRequests).toEqual([]);
+  expect(plannerRequests.length).toBeGreaterThan(0);
+  await studio.getByRole("radio", { name: "Export", exact: true }).click();
+  await expect(studio.locator(".export-layout-note")).toContainText(unavailable ? "Using original panels" : "600 × 400 mm");
   expect(errors).toEqual([]);
 });

@@ -1,11 +1,12 @@
 import type { GeometryIRV1, ProjectConfigV1, SheetNestPlanV1 } from "@topostack/core";
 import type { ExportIntent } from "$lib/studio/export-policy";
 
-type CurrentExport = () => { geometry: GeometryIRV1; project: ProjectConfigV1; sheetPlan?: SheetNestPlanV1 };
+type ExportSnapshot = { geometry: GeometryIRV1; project: ProjectConfigV1; sheetPlan?: SheetNestPlanV1; layoutNote?: string };
+type CurrentExport = () => ExportSnapshot | Promise<ExportSnapshot>;
 
 export type ExportUpdate =
   | { phase: "preparing"; intent: ExportIntent }
-  | { phase: "ready"; intent: ExportIntent; fileCount: number }
+  | { phase: "ready"; intent: ExportIntent; fileCount: number; layoutNote?: string }
   | { phase: "error"; intent: ExportIntent; message: string };
 
 let currentExport: CurrentExport | undefined;
@@ -34,9 +35,11 @@ export function connectAtomm(getCurrent: CurrentExport, onReady: () => void, onE
         const { createAtommExport, loadGuideFonts } = await import("$lib/studio/export-policy");
         if (!currentExport) throw new Error("TopoStack is not ready to export.");
         const fonts = intent === "download" ? await loadGuideFonts() : [];
-        const { geometry, project, sheetPlan } = currentExport();
-        const output = createAtommExport(geometry, project, intent, fonts, sheetPlan);
-        currentExportUpdate?.({ phase: "ready", intent, fileCount: Array.isArray(output) ? output.length : 1 });
+        const getter = currentExport;
+        const { geometry, project, sheetPlan, layoutNote } = await getter();
+        if (currentExport !== getter) throw new Error("TopoStack disconnected while preparing the export.");
+        const output = await createAtommExport(geometry, project, intent, fonts, sheetPlan);
+        currentExportUpdate?.({ phase: "ready", intent, fileCount: Array.isArray(output) ? output.length : 1, ...(layoutNote ? { layoutNote } : {}) });
         return output;
       } catch (error) {
         const message = error instanceof Error ? error.message : "TopoStack could not prepare this export.";

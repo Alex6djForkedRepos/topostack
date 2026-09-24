@@ -12,6 +12,7 @@
   import { createSamplePreviewSource } from "$lib/domain/sample-preview";
   import { exportBlockReason } from "@topostack/core";
   import { loadProject, parseProject, saveProject, saveProjectUnloadCopy } from "$lib/storage/storage";
+  import { AutomaticNesting } from "$lib/atomm/automatic-nesting";
   import { connectAtomm } from "$lib/atomm/atomm-bridge";
   import type { DownloadOption } from "$lib/studio/native-export";
   import { downloadProject as downloadWithNotice, ExportNotice } from "$lib/studio/export-notice";
@@ -123,6 +124,9 @@
   let resetOpen = $state(false);
   const exportNotice = new ExportNotice((message) => { status = message; });
   const sheetNesting = new SheetNesting();
+  const automaticNesting = new AutomaticNesting();
+  setContext("atomm-nesting", automaticNesting);
+  $effect(() => { if (embeddedInPlatform && previewBusy) automaticNesting.cancel(); });
   // A nested layout depends only on the geometry and the sheet settings, so
   // other edits (a rename, a style tweak) must not re-extract every part.
   // A string compares by value, so an unrelated edit leaves it unchanged.
@@ -458,7 +462,15 @@
     menuStateReady = true;
     embeddedInPlatform = window.parent !== window;
     if (embeddedInPlatform) void import("$lib/atomm/AtommWorkbench.svelte").then((module) => { if (!cancelled) AtommWorkbench = module.default; }).catch(() => { if (!cancelled) atommLayoutFailed = true; });
-    const disconnectAtomm = connectAtomm(() => ({ geometry, project, sheetPlan: embeddedInPlatform ? undefined : sheetNesting.exportPlan }), () => {
+    const disconnectAtomm = connectAtomm(() => {
+      if (!embeddedInPlatform) return { geometry, project, sheetPlan: sheetNesting.exportPlan };
+      if (exportBlockedBy || previewBusy) throw new Error(exportBlockedBy || "Wait for the preview to finish updating.");
+      const snapshot = { geometry, project };
+      return automaticNesting.prepare(snapshot.geometry, snapshot.project).then(layout => {
+        if (snapshot.geometry !== geometry || snapshot.project !== project) throw new Error("The design changed while arranging sheets. Export again when the preview is ready.");
+        return { geometry: snapshot.geometry, ...layout };
+      });
+    }, () => {
       atommReady = true;
       if (embeddedInPlatform && window.atomm) void readAtommLocale(window.atomm).then((locale) => { if (!cancelled) document.documentElement.lang = locale; });
     }, (update) => {
@@ -513,7 +525,7 @@
       if (!cancelled && autosave) booted = true;
       if (!cancelled) loadRealTerrain();
     });
-    return () => { cancelled = true; disconnectAtomm(); exportNotice.dispose(); sheetNesting.dispose(); generationAbort?.abort(); pipeline.dispose(); };
+    return () => { cancelled = true; disconnectAtomm(); exportNotice.dispose(); sheetNesting.dispose(); automaticNesting.dispose(); generationAbort?.abort(); pipeline.dispose(); };
   });
 
   $effect(() => {

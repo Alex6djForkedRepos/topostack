@@ -27,7 +27,7 @@
       "Surveyed floors come from underwater measurements or the terrain data. Where a lake has none, its floor is modelled from the shoreline, the slopes around it and published depth estimates. Neither reflects today's water level.",
       "Depth exaggeration deepens lake floors relative to the hills. Limit depth layers caps how many sheets go below the lowest land, and Fit lake depth compresses each lake into that allowance while keeping its shoreline.",
     ] },
-    { id: "export", image: exportView, title: "Check the export", body: ["The Export view shows the file that Open in Studio sends and lists everything Download includes: every sheet, the assembly guide, the settings and the data credits."] },
+    { id: "export", image: exportView, title: "Check the export", body: ["Layered designs are automatically arranged on 600 × 400 mm sheets, or your work area when set, with 3 mm margins and 2 mm spacing. The Export view shows the file that Open in Studio sends and lists everything Download includes: every sheet, the assembly guide, the settings and the data credits."] },
     { id: "assembly", image: assembly, title: "Assembly", body: ["Keep the nested pieces with their sheets and glue from the lowest layer upward, following the assembly guide. Test-fit a small piece before cutting the whole project."] },
   ];
 

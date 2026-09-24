@@ -29,3 +29,7 @@ The known platform account-bootstrap token errors and non-blocking Three.js shad
 ## Scope limits
 
 These results do not establish every possible input or device is regression-free. No new timing benchmark or five-minute soak was run; this review validates behavior/output parity, not a quantified browser speedup. Native Studio launch, physical fabrication, production billing, and an uploaded Atomm-hosted release remain untested. No upload, review submission, merge to dev, or version bump was performed. Rebuild the final 0.6.0 artifact through normal release preparation.
+
+## Follow-up: automatic Atomm nesting
+
+The subsequent automatic-nesting change supersedes the earlier exclusion of nested Atomm exports. See [automatic nesting validation](atomm-automatic-nesting-20260924.md) for the new defaults, export color adaptation and verification. The standalone planner UI remains excluded from the embed.

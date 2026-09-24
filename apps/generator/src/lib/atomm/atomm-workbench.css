@@ -1004,3 +1004,5 @@ html:has(.atomm-workbench), body:has(.atomm-workbench) { height: 100%; margin: 0
     .lead-collapsed .warning-stack, .lead-collapsed .export-manifest { inset-block-start: 112px; }
   }
 }
+
+.atomm-workbench.atomm-workbench .export-layout-note, .atomm-workbench.atomm-workbench .export-layout-credit { margin: 0; font: var(--font-12-regular); color: var(--color-text-secondary); }

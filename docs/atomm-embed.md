@@ -27,3 +27,11 @@ The Atomm package is the studio alone. With `VITE_SITE_ENV=atomm`, `svelte.confi
 ## Tests
 
 `e2e/atomm.spec.ts` covers the layout, the automatic load (held at the geometry worker to watch or cancel it), the Export view, the walkthrough and the collapsed pill. `App.client.test.ts` covers the embed's terrain flow without a browser.
+
+## Automatic export nesting
+
+Layered designs use a shared, lazy export layout for Export Preview, Download and Open in Studio. The automatic settings use the work area when set, otherwise 600 × 400 mm stock, with 3 mm margins, 2 mm spacing, quarter-turn rotation and a five-second search (eight-second watchdog). Imported advanced nesting settings do not add controls or alter these defaults. The source project remains unchanged; the exported manifest records the effective layout settings. Engravings bypass nesting. Changed geometry cancels obsolete work; exports reject designs changed during arrangement. Oversize pieces or unavailable nesting fall back to original panels with an explicit notice. Nothing is scaled to fit.
+
+The stock size is a layout default, not a detected machine bed: Atomm selects the machine after the export hook. Inspect Export Preview before cutting. The standalone nesting planner remains unchanged.
+
+Assembly ids use Atomm blue in embedded SVGs and accompanying guide text so they join the standard engraving group without a manual extra color assignment. Standalone packages retain their separate green assembly group. This follows the [SVG color specification](https://dev.atomm.com/docs/export/svg-color-spec).
