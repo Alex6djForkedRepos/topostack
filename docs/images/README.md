@@ -1,5 +1,7 @@
 # Website and README visuals
 
+The [Walden Pond announcement example](walden-example/README.md) includes reviewed chart screenshots, a generated terrain preview, source credits, and an importable project.
+
 - `workflows.svg` reuses the homepage's layered-relief and flat-engraving diagrams, with styles embedded for GitHub.
 - `studio-crater-lake.png` is a direct 1280 × 900 studio screenshot of freshly generated Crater Lake terrain using USGS lake-floor survey data. The script copies it to `apps/generator/static/images/studio-crater-lake.png` for the homepage and example page.
 - `apps/generator/static/images/social-crater-lake.png` is a 1200 × 630 sharing card composed around an unaltered screenshot of the same app-rendered model. Open Graph and Twitter metadata use this card.

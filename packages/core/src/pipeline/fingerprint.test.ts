@@ -8,6 +8,9 @@ describe("project fingerprint", () => {
     expect(projectFingerprint({ ...DEFAULT_PROJECT, widthMm: 301 })).not.toBe(projectFingerprint(DEFAULT_PROJECT));
     expect(projectFingerprint({ ...DEFAULT_PROJECT, explodedPreview: 0.9 })).toBe(projectFingerprint(DEFAULT_PROJECT));
     expect(projectFingerprint({ ...DEFAULT_PROJECT, name: "Renamed without geometry changes" })).toBe(projectFingerprint(DEFAULT_PROJECT));
+    // Sheet nesting only arranges finished parts at export time.
+    const sheetNesting = { sheetWidthMm: 600, sheetHeightMm: 400, marginMm: 3, spacingMm: 2, rotation: "quarter" as const, timeBudgetS: 30, seed: 1 };
+    expect(projectFingerprint({ ...DEFAULT_PROJECT, sheetNesting })).toBe(projectFingerprint(DEFAULT_PROJECT));
   });
 
   it("leaves projects without an optional field unchanged, and re-carves when one arrives", () => {

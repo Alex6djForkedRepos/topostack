@@ -7,6 +7,7 @@
 - [Flat engraving workflow and SVG contract](flat-engraving.md)
 - [The Atomm embed](atomm-embed.md) — what the platform build shows differently (automatic terrain, Export view, no depth charts) and why.
 - [Placement mode](placement.md) — the top-down draft layer for positioning annotations and custom graphics, and how to add a placeable.
+- [Sheet nesting](nesting.md): the sparrow engine, how its WebAssembly wrapper handles coordinates and spacing, credits and citations. The phased plan is [plans/sheet-nesting.md](plans/sheet-nesting.md).
 - [Engraving fonts](fonts.md) — the font kinds, the glyph build, adding a typeface, and why glyph data is immutable.
 - [Terrain source selection](terrain-selection.md)
 - [Terrain-informed lake basins](terrain-informed-lake-basins.md)
@@ -19,6 +20,7 @@
 
 - [Generator](../apps/generator/README.md): layers, import rules, studio panels, stylesheet layout.
 - [Core](../packages/core/README.md) and [data contracts](../packages/data-contracts/README.md).
+- [Nest engine](../packages/nest-wasm/README.md): the sparrow WebAssembly build, rebuilding it, and upgrading the solver.
 - [Map API Worker](../workers/map-api/README.md): setup and operations.
 - [Scripts](../scripts/README.md): every operational script and what runs it.
 - [CLAUDE.md](../CLAUDE.md): one-page map of where a change goes and the enforced rules.

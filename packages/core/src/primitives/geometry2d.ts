@@ -316,3 +316,37 @@ export function ringFitsInsidePolygon(ring: Point2D[], polygon: Polygon2D, margi
   }
   return allowContainedHoles || !polygon.holes.some((hole) => hole.slice(0, -1).some((point) => pointInRing(point, ring)));
 }
+
+/** Douglas-Peucker thinning of a closed ring; the result stays closed. */
+export function simplifyClosedRing(ring: Point2D[], tolerance: number): Point2D[] {
+  const open = ring.length > 1 && ring[0]!.x === ring.at(-1)!.x && ring[0]!.y === ring.at(-1)!.y ? ring.slice(0, -1) : ring;
+  if (open.length <= 4) return ring;
+  const keep = new Uint8Array(open.length);
+  keep[0] = 1;
+  keep[open.length - 1] = 1;
+  const stack: Array<[number, number]> = [[0, open.length - 1]];
+  while (stack.length) {
+    const [start, end] = stack.pop()!;
+    const a = open[start]!;
+    const b = open[end]!;
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const length = Math.hypot(dx, dy);
+    let farthest = -1;
+    let distance = tolerance;
+    for (let index = start + 1; index < end; index += 1) {
+      const point = open[index]!;
+      const d = length ? Math.abs(dy * point.x - dx * point.y + b.x * a.y - b.y * a.x) / length : Math.hypot(point.x - a.x, point.y - a.y);
+      if (d > distance) {
+        distance = d;
+        farthest = index;
+      }
+    }
+    if (farthest >= 0) {
+      keep[farthest] = 1;
+      stack.push([start, farthest], [farthest, end]);
+    }
+  }
+  const kept = open.filter((_, index) => keep[index]);
+  return kept.length >= 3 ? [...kept, kept[0]!] : ring;
+}
