@@ -170,6 +170,9 @@ jobs:
       - name: Enforce web performance budgets
         run: npm run budget:web
 
+      - name: Enforce the Worker bundle budget and geometry-free imports
+        run: npm run budget:worker
+
       # This build intentionally embeds the hermetic https://ci.invalid
       # sentinel, which the endpoint scan would reject. Packaging and release
       # runs always execute the full endpoint scan.

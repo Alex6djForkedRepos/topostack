@@ -1,3 +1,6 @@
+import packageJson from "../package.json";
+import { coverageRouteResponse, projectRouteResponse, type AgentContext } from "./agent/projects";
+import { openApiDocument } from "./agent/openapi";
 import { OUTLINE_INDEX_FILE, OUTLINE_PATH, outlineResponse } from "./routes/lake-outlines";
 import { PREVIEW_PATH, previewResponse } from "./routes/lake-previews";
 import { measureBucket } from "./data-metrics";
@@ -39,6 +42,30 @@ async function withinTerrainUpstreamBudget(request: Request, env: Env): Promise<
   return success;
 }
 
+const AGENT_GLOBAL_LIMIT_KEY = "agent-global";
+
+// Agent routes are called by chat platforms' servers, where one address stands
+// for many people, so they have their own budget rather than sharing the
+// browser's; the shared ceiling still caps a colo. Per-client first, as above.
+async function withinAgentBudget(request: Request, env: Env): Promise<boolean> {
+  const { success } = await env.AGENT_LIMITER.limit({ key: `${clientKey(request)}:agent` });
+  if (!success) return false;
+  const global = await env.AGENT_GLOBAL_LIMITER.limit({ key: AGENT_GLOBAL_LIMIT_KEY });
+  if (!global.success) console.warn(JSON.stringify({ message: "agent_global_budget_exceeded" }));
+  return global.success;
+}
+
+function agentContext(request: Request, env: Env, ctx: ExecutionContext): AgentContext {
+  return { request, env, ctx, admitTerrainUpstream: () => withinTerrainUpstreamBudget(request, env) };
+}
+
+/** POST routes for agents, answered before the read-only method check. */
+const PROJECT_ROUTES = new Map<string, "resolve" | "plan" | "link">([
+  ["/v1/projects/resolve", "resolve"],
+  ["/v1/projects/plan", "plan"],
+  ["/v1/projects/link", "link"],
+]);
+
 // Range reads of a present archive stay unmetered, including the conditional
 // ones a browser sends to revalidate them. Metadata-only requests (HEAD, or
 // If-None-Match without a Range) re-resolve from R2 each time, and missing or
@@ -69,6 +96,8 @@ const EXACT_ROUTES = new Map<string, Handler>([
     { headers: { "cache-control": "public, max-age=3600" } },
   ))],
   ["/v1/geocode", limited("geocode", (request, env, ctx, url) => geocodeResponse(request, env, ctx, url))],
+  ["/v1/coverage", limited("coverage", (request, env, _ctx, url) => coverageRouteResponse(url, { request, env }))],
+  ["/v1/openapi.json", limited("openapi", (request, env) => json(openApiDocument(new URL(request.url).origin, env.PUBLIC_ORIGIN || new URL(request.url).origin, packageJson.version), { headers: { "cache-control": "public, max-age=3600" } }))],
 ]);
 
 async function route(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -84,6 +113,12 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
   if (url.pathname === FEEDBACK_PATH) {
     if (request.method !== "POST") return json({ error: "Method not allowed." }, { status: 405, headers: { allow: "POST,OPTIONS" } });
     return feedbackResponse(request, env);
+  }
+  const projectAction = PROJECT_ROUTES.get(url.pathname);
+  if (projectAction) {
+    if (request.method !== "POST") return json({ error: "Method not allowed." }, { status: 405, headers: { allow: "POST,OPTIONS" } });
+    if (!(await withinAgentBudget(request, env))) return rateLimitExceeded();
+    return projectRouteResponse(projectAction, agentContext(request, env, ctx));
   }
   if (request.method !== "GET" && request.method !== "HEAD") return json({ error: "Method not allowed." }, { status: 405, headers: { allow: "GET,HEAD,OPTIONS" } });
 

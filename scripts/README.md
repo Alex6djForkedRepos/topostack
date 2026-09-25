@@ -14,6 +14,7 @@ Run by `npm run build` in the generator or by CI after a build.
 | `build-font-glyphs.mjs` | Convert the curated typefaces in `assets/fonts/` into the studio's glyph files and picker samples ([fonts.md](../docs/fonts.md)); `font-glyphs.test.mjs` fails when the committed output is stale | manual |
 | `build-locator-data.mjs` | Build `apps/generator/src/lib/site/locator-data.json`, the Natural Earth map data behind the locator on each lake page, clipped to the area around the directory's lakes ([seo-operations.md](../docs/seo-operations.md)) | manual, when the lake directory reaches a new area |
 | `check-web-budget.mjs` | Measure the built site against the JavaScript, CSS, and HTML budgets | `npm run budget:web` |
+| `check-worker-bundle.mjs` | Hold the map-api Worker script to its gzip budget and fail when geometry code (clipper, contour tracing, generation, export) reaches it; reads the dry-run build in `workers/map-api/dist/` | `npm run budget:worker` (CI `build-and-budget`) |
 | `configure-redirects.mjs` | Apply the Cloudflare redirect rules (www and legacy paths) to the zone | manual: [seo-operations.md](../docs/seo-operations.md), [development.md](../docs/development.md) |
 | `finalize-static-headers.mjs` | Rewrite `_headers` for the selected site environment after a build | generator `build`; generator `build:e2e` |
 | `generate-icons.mjs` | Regenerate favicons and app icons from `static/favicon.svg` | `npm run assets:icons` |
