@@ -1,1 +1,14 @@
 blank_issues_enabled: true
+contact_links:
+  - name: How-to guides
+    url: https://topostack.app/guides
+    about: Step-by-step guides for layered reliefs, engraving, splitting large maps, lake depth and export files.
+  - name: Troubleshooting
+    url: https://topostack.app/guides/troubleshooting
+    about: Common generation and export problems and how to fix them.
+  - name: Find a lake with depth data
+    url: https://topostack.app/lakes
+    about: Check whether a lake already has surveyed or charted depths before filing a lake-data request.
+  - name: Private feedback from the studio
+    url: https://topostack.app/studio
+    about: Use Feedback in the studio to send a report by email, optionally with location and data diagnostics, without a GitHub account.

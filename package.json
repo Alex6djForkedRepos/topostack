@@ -2,6 +2,28 @@
   "name": "topostack",
   "private": true,
   "version": "0.6.0",
+  "description": "Browser terrain studio for laser-cut layered reliefs and topographic engravings from real elevation, map and lake-depth data.",
+  "homepage": "https://topostack.app",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Echo-Foxtrot-Works/topostack.git"
+  },
+  "bugs": "https://github.com/Echo-Foxtrot-Works/topostack/issues",
+  "license": "MIT",
+  "funding": "https://www.paypal.com/donate/?hosted_button_id=QXCUQVC3XAEZA",
+  "keywords": [
+    "topographic-map",
+    "laser-cutting",
+    "laser-engraving",
+    "terrain",
+    "relief-map",
+    "bathymetry",
+    "contours",
+    "svg",
+    "digital-fabrication",
+    "xtool",
+    "glowforge"
+  ],
   "type": "module",
   "workspaces": [
     "apps/*",
