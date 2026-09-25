@@ -2,6 +2,7 @@ import { AREA_SCHEMA, PROJECT_REQUEST_SCHEMA, areaBounds, cleanRequestText, pars
 import { attributionFor } from "../agent/attribution";
 import { areaCoverage } from "../agent/coverage";
 import { AgentError, linkFor, planProject, projectSummary, publicOrigin, resolveProjectRequest, type AgentContext, type ProjectPlan } from "../agent/projects";
+import { ATTRIBUTION_SCHEMA, COVERAGE_SCHEMA, PLAN_SCHEMA, SUMMARY_SCHEMA, type Schema } from "../agent/schemas";
 import { bathymetryArchives } from "../routes/archive";
 import { geocodeResponse } from "../routes/geocode";
 import { PREVIEW_TOOL_META } from "./app-resource";
@@ -13,8 +14,6 @@ import { RPC_ERRORS, RpcError } from "./protocol";
  * content matching `outputSchema`, a text summary for clients that show only
  * text, and the attribution the data requires.
  */
-type Schema = Record<string, unknown>;
-
 export interface ToolResult { structured: Record<string, unknown>; text: string }
 
 export interface ToolDefinition {
@@ -34,58 +33,6 @@ const TOOL_REQUEST_SCHEMA: Schema = {
   ...requestSchema,
   required: ["area"],
   properties: { ...(requestSchema.properties as Record<string, Schema>), requestVersion: { const: 1, description: "Optional; 1 is assumed." } },
-};
-
-const ATTRIBUTION_SCHEMA: Schema = {
-  type: "object",
-  required: ["text", "sources", "fullNotice"],
-  properties: {
-    text: { type: "string", description: "Credit line to keep with anything shown from this result." },
-    sources: { type: "array", items: { type: "object", required: ["name", "license"], properties: { name: { type: "string" }, license: { type: "string" }, url: { type: "string" } } } },
-    fullNotice: { type: "string", format: "uri" },
-  },
-};
-const BOUNDS_SCHEMA: Schema = { type: "object", required: ["west", "south", "east", "north"], properties: { west: { type: "number" }, south: { type: "number" }, east: { type: "number" }, north: { type: "number" } } };
-const SUMMARY_SCHEMA: Schema = {
-  type: "object",
-  required: ["name", "placeLabel", "output", "widthMm", "heightMm", "shape", "materialThicknessMm", "verticalExaggeration", "bounds"],
-  properties: {
-    name: { type: "string" }, placeLabel: { type: "string" }, output: { enum: ["layered", "flat"] },
-    widthMm: { type: "number" }, heightMm: { type: "number" }, shape: { enum: ["rectangle", "circle"] },
-    materialThicknessMm: { type: "number" }, verticalExaggeration: { type: "number" }, bounds: BOUNDS_SCHEMA,
-  },
-};
-const COVERAGE_SCHEMA: Schema = {
-  type: "object",
-  required: ["terrain", "lakeSurveys", "roadsAndWater", "notes"],
-  properties: {
-    terrain: { type: "object", required: ["base", "highResolution"], properties: { base: { type: "string" }, highResolution: { type: "array", items: { type: "object", properties: { id: { type: "string" }, name: { type: "string" }, resolutionM: { type: "number" }, license: { type: "string" } } } } } },
-    lakeSurveys: { type: "array", items: { type: "object", properties: { id: { type: "string" }, name: { type: "string" }, license: { type: "string" } } } },
-    roadsAndWater: { type: "string" },
-    notes: { type: "array", items: { type: "string" } },
-  },
-};
-const PLAN_SCHEMA: Schema = {
-  type: "object",
-  required: ["project", "plan", "relief", "coverage", "notes", "studioUrl", "attribution"],
-  properties: {
-    project: SUMMARY_SCHEMA,
-    plan: {
-      type: "object",
-      required: ["output", "sheetCount", "heightOfModelMm", "fittedVerticalExaggeration", "scaleDenominator", "reliefM", "estimate"],
-      properties: {
-        output: { enum: ["layered", "flat"] }, sheetCount: { type: "integer", description: "Sheets to cut; 1 for flat output. An estimate." },
-        heightOfModelMm: { type: "number" }, materialThicknessMm: { type: "number" }, requestedVerticalExaggeration: { type: "number" }, fittedVerticalExaggeration: { type: "number" },
-        metersPerStep: { type: "number", description: "Elevation per sheet, or between engraved contours." }, scaleDenominator: { type: "integer", description: "The model is 1:scaleDenominator across its width." },
-        groundWidthKm: { type: "number" }, groundHeightKm: { type: "number" }, minElevationM: { type: "number" }, maxElevationM: { type: "number" }, reliefM: { type: "number" }, estimate: { const: true },
-      },
-    },
-    relief: { type: "object", properties: { sampleZoom: { type: "integer" }, tiles: { type: "integer" }, coastal: { type: "boolean" } } },
-    coverage: COVERAGE_SCHEMA,
-    notes: { type: "array", items: { type: "string" } },
-    studioUrl: { type: "string", format: "uri", description: "Opens the design in TopoStack and generates it; files are exported there." },
-    attribution: ATTRIBUTION_SCHEMA,
-  },
 };
 
 const readOnly = (title: string, openWorldHint = false) => ({ title, readOnlyHint: true as const, destructiveHint: false as const, idempotentHint: true as const, openWorldHint });
