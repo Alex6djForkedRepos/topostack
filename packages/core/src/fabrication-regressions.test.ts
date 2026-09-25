@@ -168,6 +168,15 @@ describe("fabrication geometry regressions", () => {
     expect(flat.horizontalScale).toBeGreaterThan(0);
   });
 
+  it("closes both README texts with the TopoStack credit", async () => {
+    const readme = async (config: typeof base) => buildProjectPackage(generateGeometry(config, source(config, (x, y) => 400 + x * 12 + y * 5)), config).files.find((file) => file.filename === "README.txt")!.blob.text();
+    for (const config of [base, { ...base, outputMode: "engraving" as const }]) {
+      const text = await readme(config);
+      expect(text.endsWith("\n\nMade with TopoStack · https://topostack.app\n")).toBe(true);
+      expect(text.match(/Made with TopoStack/g)).toHaveLength(1);
+    }
+  });
+
   it("omits annotations that cannot fit a valid small output", () => {
     const config = { ...base, widthMm: 10, heightMm: 10, outputMode: "engraving" as const, northArrowSizeMm: 12, showNorthArrow: true, showScaleBar: true };
     const result = generateGeometry(config, source(config, (x) => x));

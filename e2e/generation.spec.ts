@@ -79,6 +79,8 @@ test("generates deterministic real terrain and downloads the complete fabricatio
   expect(svg).toContain("data-layers=");
   expect(svg).not.toContain("<text");
   expect(svg).toContain("Crater Lake — master layout");
+  expect(svg).toContain("Made with TopoStack");
+  expect(Buffer.from(files["README.txt"]!).toString("utf8")).toContain("Made with TopoStack");
   expect(browserErrors).toEqual([]);
   await expect(page.locator(".export-feedback")).toContainText("Download ready");
   await expect.poll(() => usage.map((event) => event.event)).toEqual(["studio_open", "generation_started", "generation_succeeded", "export_prepared"]);
