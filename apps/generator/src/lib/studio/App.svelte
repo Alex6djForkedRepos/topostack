@@ -4,7 +4,7 @@
   import { Download } from "@lucide/svelte";
   import { AppShell, Brand, Button, ContextBar, Sidebar, Topbar, Workspace } from "@loidolt/theme-svelte";
   import { sourceRequirements, DEFAULT_PROJECT, planSeamGrid, displayElevation, displayLength, elevationUnit, generateGeometry, labelPathData, lengthUnit, MAX_PROJECT_NAME_LENGTH, millimetersFromDisplay, planTerrainStack, projectFingerprint, validateProject, type GeometryIRV1, type LineStyleV1, type OperationPath, type ProjectConfigV1, type SourceBundleV1 } from "@topostack/core";
-  import { assembleWater, boundsForProject, loadLakeAreas, loadSurveyedLakeDepths, loadTerrain, loadVectorMarkings, type PlaceResult } from "$lib/domain/data-provider";
+  import { assembleWater, boundsForProject, loadLakeAreas, loadSurveyedLakeDepths, loadTerrain, loadVectorMarkings, searchPlaces, type PlaceResult } from "$lib/domain/data-provider";
   import { applySurveyProvenance } from "$lib/domain/bathymetry";
   import { resolveLakeOutlines } from "$lib/domain/lake-outlines";
   import { CustomDataActions } from "$lib/studio/customdata/custom-data-actions.svelte";
@@ -15,6 +15,8 @@
   import { loadProject, saveProject, saveProjectUnloadCopy } from "$lib/storage/storage";
   import { AutomaticNesting } from "$lib/atomm/automatic-nesting";
   import { connectAtomm } from "$lib/atomm/atomm-bridge";
+  import type { ModelContextLike } from "$lib/studio/webmcp";
+  import type { WebMcpHost } from "$lib/studio/webmcp-tools";
   import type { DownloadOption } from "$lib/studio/native-export";
   import { downloadProject as downloadWithNotice, ExportNotice } from "$lib/studio/export-notice";
   import { SheetNesting } from "$lib/studio/sheet-nesting.svelte";
@@ -495,6 +497,7 @@
         const { replaceState } = await import("$app/navigation");
         const url = new URL(window.location.href);
         url.hash = "";
+        url.searchParams.delete("generate");
         replaceState(url, {});
       },
       loadExample: async (slug) => {
@@ -544,7 +547,14 @@
       if (!cancelled && autosave) booted = true;
       if (!cancelled) loadRealTerrain();
     });
-    return () => { cancelled = true; disconnectAtomm(); exportNotice.dispose(); sheetNesting.dispose(); automaticNesting.dispose(); generationAbort?.abort(); pipeline.dispose(); };
+    // Browser agents (WebMCP) get the studio's own tools. Detected inline so
+    // browsers without it never load the module; the Atomm embed never offers them.
+    let disconnectWebMcp = () => {};
+    const agentContext = (document as unknown as { modelContext?: ModelContextLike }).modelContext ?? (navigator as unknown as { modelContext?: ModelContextLike }).modelContext;
+    if (!embeddedInPlatform && import.meta.env.VITE_SITE_ENV !== "atomm" && typeof agentContext?.registerTool === "function") {
+      void import("$lib/studio/webmcp").then(({ connectWebMcp }) => { if (!cancelled) disconnectWebMcp = connectWebMcp(agentContext, webMcpHost()); });
+    }
+    return () => { cancelled = true; disconnectAtomm(); disconnectWebMcp(); exportNotice.dispose(); sheetNesting.dispose(); automaticNesting.dispose(); generationAbort?.abort(); pipeline.dispose(); };
   });
 
   $effect(() => {
@@ -819,6 +829,39 @@
     // A style edit kept a running Generate alive; it renders the new style itself.
     if (generationState === "loading") return Promise.resolve();
     return refreshPreview(updatesCustomData ? "customData" : "fabrication", delayMs);
+  }
+
+  const MAP_DETAIL_KEYS = new Set<string>(["showWater", "showWaterDepth", "showRoads", "showTrails", "showTransportationLabels", "showBoundaries", "showCoordinateGrid", "showElevationLabels", "showNorthArrow", "showScaleBar"]);
+
+  /** An agent's settings change, applied the way the matching controls apply it. */
+  function applyAgentPatch(patch: Partial<ProjectConfigV1>): Promise<void> {
+    if (patch.outputMode && patch.outputMode !== project.outputMode) mode = patch.outputMode === "engraving" ? "engraving" : threeUnavailable ? "2d" : "3d";
+    const keys = Object.keys(patch);
+    if (keys.every((key) => key === "name")) { updateProject(patch); return Promise.resolve(); }
+    if (keys.every((key) => key === "name" || MAP_DETAIL_KEYS.has(key))) return updateMapDetails(patch);
+    return updateFabrication(patch);
+  }
+
+  /** The live studio as the WebMCP tools see it; getters, so no tool reads a stale closure. */
+  function webMcpHost(): WebMcpHost {
+    return {
+      project: () => project,
+      geometry: () => geometry,
+      generationState: () => generationState,
+      status: () => status,
+      exportBlockedBy: () => exportBlockedBy,
+      searchPlaces: (query) => searchPlaces(query),
+      setLocation: (location, name) => {
+        invalidatePendingPreview();
+        projectHistory.push(project);
+        project = { ...project, ...(name ? { name } : {}), location };
+        if (!followMapArea()) status = "Map area changed · regenerate terrain data";
+      },
+      applyPatch: applyAgentPatch,
+      generate: () => generate(),
+      undo,
+      openExport: () => { exportOpen = true; },
+    };
   }
 
   /** An `automatic` run is the embed loading terrain on its own: it keeps the current view and skips the progress toasts. */

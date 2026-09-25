@@ -36,9 +36,8 @@ import {
   PLAQUE_MAX_LINES,
   PLAQUE_MAX_SIZE_MM,
   PLAQUE_MIN_SIZE_MM,
-  NORTH_ARROW_MAX_MAP_FRACTION,
-  NORTH_ARROW_MAX_SIZE_MM,
   NORTH_ARROW_MIN_SIZE_MM,
+  northArrowMaximumMm,
   NORTH_ARROW_STYLES,
 } from "../types.js";
 import type { GeoBounds, MarkerIconShapeV1, NorthArrowPlacementV1, PlaqueV1, ProjectConfigV1 } from "../types.js";
@@ -145,7 +144,7 @@ export function validateProject(config: ProjectConfigV1): void {
   if (config.textStyle.sizeMm < 2 || config.textStyle.sizeMm > 10) throw new Error("Text size must be between 2 and 10 mm.");
   if (!NORTH_ARROW_STYLES.includes(config.northArrowStyle)) throw new Error("North arrow style must be minimal, classic, or mariner.");
   if (!NORTH_ARROW_ANCHORS.includes(config.northArrowPlacement.anchor)) throw new Error("North arrow anchor is invalid.");
-  const northArrowMaximum = Math.min(NORTH_ARROW_MAX_SIZE_MM, Math.max(NORTH_ARROW_MIN_SIZE_MM, Math.min(config.widthMm, config.heightMm) * NORTH_ARROW_MAX_MAP_FRACTION));
+  const northArrowMaximum = northArrowMaximumMm(config.widthMm, config.heightMm);
   if (config.northArrowSizeMm < NORTH_ARROW_MIN_SIZE_MM || config.northArrowSizeMm > northArrowMaximum) throw new Error(`North arrow size must be between ${NORTH_ARROW_MIN_SIZE_MM} and ${northArrowMaximum} mm.`);
   if (Math.abs(config.northArrowPlacement.offset.x) > 1 || Math.abs(config.northArrowPlacement.offset.y) > 1) throw new Error("North arrow offsets must be between -100% and 100%.");
   if (config.plaque !== undefined) validatePlaque(config.plaque);

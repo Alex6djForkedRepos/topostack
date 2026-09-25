@@ -149,6 +149,11 @@ export const NORTH_ARROW_MIN_SIZE_MM = 12;
 export const NORTH_ARROW_MAX_SIZE_MM = 200;
 export const NORTH_ARROW_MAX_MAP_FRACTION = 0.45;
 
+/** The largest north arrow that fits a map of this size. */
+export function northArrowMaximumMm(widthMm: number, heightMm: number): number {
+  return Math.min(NORTH_ARROW_MAX_SIZE_MM, Math.max(NORTH_ARROW_MIN_SIZE_MM, Math.min(widthMm, heightMm) * NORTH_ARROW_MAX_MAP_FRACTION));
+}
+
 /** Engraved title text, such as a place name and date, anchored like the north arrow. */
 export interface PlaqueV1 {
   /** Kept when switched off so the text survives toggling. */

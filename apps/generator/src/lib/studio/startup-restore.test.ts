@@ -49,6 +49,21 @@ describe("startup restore", () => {
     expect(statuses.at(-1)).toContain("Shared design opened");
   });
 
+  it("generates a shared design on arrival when its link asks to", async () => {
+    const shared = { ...DEFAULT_PROJECT, name: "Agent ridge" };
+    const hash = new URL(shareLinkFor(shared, "https://topostack.app/studio")).hash;
+    const { value, statuses, project } = host({ hash, search: "?generate=1" });
+    await restoreStartupProject(value);
+    expect(project()).toMatchObject({ name: "Agent ridge" });
+    // Generation starts after the design is open, so it builds the shared design.
+    expect(value.generate).toHaveBeenCalledOnce();
+    expect((value.openSharedProject as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]).toBeLessThan((value.generate as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]!);
+    expect(statuses.at(-1)).toContain("generating its terrain");
+    const damaged = host({ hash: "#p=1.not-a-real-payload", search: "?generate=1" });
+    await restoreStartupProject(damaged.value);
+    expect(damaged.value.generate).not.toHaveBeenCalled();
+  });
+
   it("keeps the saved project when a share link is damaged", async () => {
     const saved = { ...DEFAULT_PROJECT, materialThicknessMm: 5 };
     const { value, loadProject, statuses, project } = host({ hash: "#p=1.not-a-real-payload" });

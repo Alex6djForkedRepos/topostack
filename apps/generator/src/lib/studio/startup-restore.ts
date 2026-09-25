@@ -16,7 +16,7 @@ export interface StartupRestoreHost {
   /** `window.location.hash` at startup. */
   hash: string;
   loadShareLink: () => Promise<typeof import("$lib/studio/share-link")>;
-  /** Clears the share fragment so a refresh restores later edits instead. */
+  /** Clears the share fragment (and its `generate` flag) so a refresh restores later edits instead. */
   consumeShareLink: () => Promise<void>;
   /** The published `examples/<slug>.json` file, parsed; undefined when there is no such example. */
   loadExample: (slug: string) => Promise<unknown>;
@@ -47,7 +47,8 @@ export interface StartupRestoreResult {
  * `?example=` link or a `?lake=` directory link on top of it, in that order of
  * precedence. A saved project that cannot be read still lets the link open.
  * Examples and directory lakes are generated on arrival; a shared design waits
- * for Generate.
+ * for Generate unless its link carries `?generate=1`, as the links assistants
+ * make do.
  */
 export async function restoreStartupProject(host: StartupRestoreHost): Promise<StartupRestoreResult> {
   let autosave = true;
@@ -77,7 +78,12 @@ export async function restoreStartupProject(host: StartupRestoreHost): Promise<S
       await host.consumeShareLink();
       if (host.isCancelled() || !shared) return { autosave };
       host.openSharedProject(shared, host.currentProject());
-      host.setStatus("Shared design opened · generate terrain to preview it · Undo returns to your previous project");
+      if (new URLSearchParams(host.search).get("generate") === "1") {
+        host.setStatus("Shared design opened · generating its terrain · Undo returns to your previous project");
+        host.generate();
+      } else {
+        host.setStatus("Shared design opened · generate terrain to preview it · Undo returns to your previous project");
+      }
       return { autosave };
     }
     const example = new URLSearchParams(host.search).get("example");
