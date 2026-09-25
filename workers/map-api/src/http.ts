@@ -51,8 +51,11 @@ export function corsHeaders(request: Request, env: Env): Headers {
   const origin = request.headers.get("origin");
   const pathname = new URL(request.url).pathname;
   const isEvent = pathname === "/v1/events" || pathname === "/v1/feedback";
+  // Agent routes take public POSTs with no side effects and no credentials, so
+  // they stay open to every origin like the read-only data.
+  const isAgentPost = pathname.startsWith("/v1/projects/");
   const headers = new Headers({
-    "access-control-allow-methods": isEvent ? "POST,OPTIONS" : "GET,HEAD,OPTIONS",
+    "access-control-allow-methods": isEvent || isAgentPost ? "POST,OPTIONS" : "GET,HEAD,OPTIONS",
     "access-control-allow-headers": "range,content-type,if-none-match",
     "access-control-expose-headers": "content-length,content-range,etag,x-topostack-dataset,x-topostack-cache,x-topostack-imagery-sources,x-topostack-r2-reads",
     "access-control-max-age": "86400",

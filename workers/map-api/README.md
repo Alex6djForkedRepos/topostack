@@ -1,6 +1,6 @@
 # TopoStack map API
 
-The Worker is deliberately a streaming data gateway, not a GIS compute service. Terrain-to-contour processing stays in the portable browser engine.
+The Worker is deliberately a streaming data gateway, not a GIS compute service. Terrain-to-contour processing stays in the portable browser engine. It also answers agent requests (validating a project, estimating its sheets from a coarse terrain sample, minting a studio link), for which it imports only `@topostack/core/project`; an ESLint rule and `npm run budget:worker` keep the contour engine out of its bundle.
 
 ## Provision Cloudflare resources
 
@@ -70,6 +70,24 @@ npx wrangler secret put GEOCODER_API_KEY --env production
 The `/v1/feedback` route emails studio feedback through Cloudflare Email Service and needs the `FEEDBACK_EMAIL_TO` secret plus an onboarded sender domain; see [docs/feedback.md](../../docs/feedback.md#email-delivery).
 
 CI normally synchronizes these secrets from the matching GitHub environment during deployment, so the interactive commands are for recovery or local administration only. Copy `.dev.vars.example` to `.dev.vars` and replace its value for local development. Review Geoapify plan limits and attribution terms before launch.
+
+## Agent API
+
+The routes an AI assistant or a script uses to plan a model and hand it to the studio. They are documented at `/v1/openapi.json`, and the design is in [docs/plans/agent-api.md](../../docs/plans/agent-api.md).
+
+| Route | Purpose |
+| --- | --- |
+| `POST /v1/projects/resolve` | Validate a `ProjectRequestV1` and return the expanded project and its studio link; 422 lists each invalid field |
+| `POST /v1/projects/plan` | Estimate sheets, stack height and scale from at most four low-zoom terrain tiles, read through the terrain route's caches and budgets |
+| `POST /v1/projects/link` | A studio link for a request or a full project (`{ "project": ... }`); 413 past the 8,000-character link limit |
+| `GET /v1/coverage` | Which high-resolution terrain and lake surveys cover `?bbox=` or `?lat=&lon=&widthKm=` |
+| `GET /v1/openapi.json` | The OpenAPI 3.1 document |
+
+- **Links.** A studio link is `PUBLIC_ORIGIN/studio?generate=1#p=1.<design>`: the design rides in the fragment and the studio generates it on open, so files are always made in the browser. `PUBLIC_ORIGIN` is set per environment; `npm run dev` points it at the local generator.
+- **Budgets.** Chat platforms call from their own servers, so one address stands for many people. The POST routes are charged to `AGENT_LIMITER` (120 a minute per client) and `AGENT_GLOBAL_LIMITER` (1,200 a minute per colo) instead of the browser's `REQUEST_LIMITER`. A plan's tile fetches that miss the caches also pass the terrain upstream budget.
+- **CORS.** The POST routes have no side effects and take no credentials, so they answer every origin like the read-only data.
+- **Estimates.** Coarse tiles smooth peaks, and lake depth adds sheets only generation can count, so plans are labelled estimates and the studio's count is authoritative.
+- **Attribution.** Every response carries an `attribution` object; anything shown or passed on from it must keep that credit.
 
 ## GitHub deployment mapping
 

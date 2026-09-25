@@ -33,6 +33,7 @@ Run generator tests from `apps/generator` or via `npm run test -w @topostack/gen
 | Studio CSS | `apps/generator/src/lib/studio/styles/<area>.css`, imported in cascade order by `styles.css` |
 | Atomm embed behavior | `apps/generator/src/lib/atomm/`; the platform's stylesheet there is vendored, not ours |
 | Serving, caching, geocoding | `workers/map-api/src/routes/` |
+| Agent-facing API (project resolve, plan, link, coverage, OpenAPI) | `workers/map-api/src/agent/`; the request contract itself is `packages/core/src/project/` |
 | An operational script | `scripts/<purpose>/` and a row in `scripts/README.md` saying how it runs |
 | A design decision or runbook | `docs/`, then a line in `docs/README.md` |
 | What users will notice about a change | a fragment in `changelog/unreleased/` (`npm run changelog:new`); see [docs/changelog.md](docs/changelog.md) |
@@ -41,7 +42,7 @@ Run generator tests from `apps/generator` or via `npm run test -w @topostack/gen
 
 - Import workspace packages by name (`@topostack/core`, `@topostack/data-contracts/<module>`). Paths into another package's `src/` are rejected.
 - Inside the generator, cross-layer imports are `$lib/<layer>/<module>`; relative imports are for siblings only.
-- `@topostack/core` has no Svelte, Atomm, Cloudflare, DOM, or storage imports. The Worker never generates contours.
+- `@topostack/core` has no Svelte, Atomm, Cloudflare, DOM, or storage imports. The Worker never generates contours: it may import only `@topostack/core/project`, and `npm run budget:worker` fails if geometry code reaches its bundle.
 - Bundle budgets guard what a visitor waits for (homepage, studio first paint, default preview) with about 10% headroom; totals across every route are reported, not enforced. If a budget fails, first check the change did not pull something onto a critical path; if the growth is real, raise the budget in the same PR and give the measured number in the description.
 - `ProjectConfigV1`, `SourceBundleV1`, `GeometryIRV1`, and the export manifest are versioned; an incompatible change needs a migration, never a silent reinterpretation.
 - Tests sit beside the code they cover. Coverage thresholds live in each workspace's `vitest.config.ts`, not in npm scripts.
@@ -50,4 +51,4 @@ Run generator tests from `apps/generator` or via `npm run test -w @topostack/gen
 
 ## Verifying a change
 
-Typecheck, lint, and the affected workspace's tests before a PR. For anything that changes what the studio renders, run the generator client tests (they mount the whole app) and the build plus budget. For core geometry, `fabrication-regressions.test.ts` and the cluster tests next to the module are the regression net. State what you ran and what you did not.
+Typecheck, lint, and the affected workspace's tests before a PR. For anything that changes what the studio renders, run the generator client tests (they mount the whole app) and the build plus budget. For Worker changes, run the Worker tests and `npm run build -w @topostack/map-api && npm run budget:worker`. For core geometry, `fabrication-regressions.test.ts` and the cluster tests next to the module are the regression net. State what you ran and what you did not.
