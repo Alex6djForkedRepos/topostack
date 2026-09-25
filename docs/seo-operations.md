@@ -152,6 +152,15 @@ by `node scripts/build/build-locator-data.mjs` from Natural Earth v5.1.2. Run it
 again when the lake directory reaches a new area, because features outside every
 lake's map window are dropped.
 
+**Depth previews (not published yet).** `node scripts/dev/render-lake-previews.mjs --sample` renders a top-down depth map for each lake page:
+- **Data:** the studio's own terrain and survey data from the map API, via `loadTerrain`, `smoothLakeShorelines` and `carveWaterDepth` at true depth.
+- **Image:** shaded land, the lake floor tinted by depth, contours at a round interval, and a hatch over modelled depths. `apps/generator/src/lib/site/lake-preview/render.ts` draws it.
+- **Scale:** colours, contours and the reported maximum come from the previewed lake's own cells, at the 99.5th-percentile depth. Other water in frame cannot set them.
+- **Refusals:** a lake is not saved when its outline is missing or its survey is unavailable. Whole-Great-Lake frames currently exceed the lake and vector loaders, the same limit the studio hits, so the six Great Lakes wait for that fix.
+- **Frame shape:** the frame is the lake's studio framing, widened along its short side to at most 2:1, so long, narrow lakes such as Champlain show more of their valley instead of becoming a thin strip.
+- **Speed and size:** about 10 s and 25–80 KB per lake.
+- **Next step:** publishing them (R2, a Worker route and the page image) is a separate change.
+
 Named lakes with a surveyed grid, or with contours covering at least
 `PLACE_PAGE_MIN_KM2` (5 km²) of survey area, also get a page of their own at
 `/lake/<slug>` (`buildLakePlaces()` in `lake-places.ts`, rendered by
