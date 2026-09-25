@@ -8,8 +8,9 @@ import { gzipSync } from "node:zlib";
 // Raise the budget in the pull request that needs it, with the measured number.
 const bundle = new URL("../../workers/map-api/dist/index.js", import.meta.url);
 
-// Gzipped Worker script. 54,069 when set (2026-09-25, agent REST routes).
-const BUDGET_GZIP = 60_000;
+// Gzipped Worker script. 62,815 when set (2026-09-25, agent REST routes and
+// the MCP server).
+const BUDGET_GZIP = 69_000;
 
 // Identifiers that only exist in the geometry engine and its dependencies.
 const FORBIDDEN = ["ClipperLib", "contourDensity", "polygon-clipping", "generateGeometry", "buildFabricationPackage", "planSheets"];

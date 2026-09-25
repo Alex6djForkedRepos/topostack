@@ -108,9 +108,11 @@ const DEFAULT_PLACE_LABEL = "Custom coordinates";
 const DEFAULT_NAME = "Terrain model";
 
 const hex = (code: number) => code.toString(16).padStart(4, "0");
-/** C0 and C1 controls except newline, zero-width and bidirectional formatting marks, and the byte-order mark. */
-const HIDDEN_CHARACTERS = new RegExp(`[${[[0x00, 0x09], [0x0b, 0x1f], [0x7f, 0x9f], [0x200b, 0x200f], [0x202a, 0x202e], [0x2060, 0x2069], [0xfeff, 0xfeff]]
-  .map(([from, to]) => `\\u${hex(from!)}-\\u${hex(to!)}`).join("")}]`, "g");
+const characterClass = (ranges: Array<[number, number]>) => new RegExp(`[${ranges.map(([from, to]) => `\\u${hex(from)}-\\u${hex(to)}`).join("")}]`, "g");
+/** C0 and C1 controls except newline; each becomes a space. */
+const CONTROL_CHARACTERS = characterClass([[0x00, 0x09], [0x0b, 0x1f], [0x7f, 0x9f]]);
+/** Zero-width and bidirectional formatting marks and the byte-order mark; each is removed. */
+const INVISIBLE_CHARACTERS = characterClass([[0x200b, 0x200f], [0x202a, 0x202e], [0x2060, 0x2069], [0xfeff, 0xfeff]]);
 
 /**
  * Text that came from a person or a geocoder: control and bidirectional
@@ -118,7 +120,7 @@ const HIDDEN_CHARACTERS = new RegExp(`[${[[0x00, 0x09], [0x0b, 0x1f], [0x7f, 0x9
  * instructions or reorder what a reader sees.
  */
 export function cleanRequestText(text: string, maxLength: number, keepNewlines = false): string {
-  const stripped = text.replace(HIDDEN_CHARACTERS, " ");
+  const stripped = text.replace(INVISIBLE_CHARACTERS, "").replace(CONTROL_CHARACTERS, " ");
   const lines = (keepNewlines ? stripped.split("\n") : [stripped.replace(/\n/g, " ")]).map((line) => line.replace(/\s+/g, " ").trim());
   return lines.join("\n").slice(0, maxLength).trim();
 }

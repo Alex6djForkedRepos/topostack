@@ -103,7 +103,7 @@ describe("project requests", () => {
     expect(cleanRequestText(`Lake${hidden[0]} Tahoe${hidden[1]}\t ${hidden[2]}`, 240)).toBe("Lake Tahoe");
     expect(cleanRequestText("  One \r\n  Two  ", 240, true)).toBe("One\nTwo");
     expect(cleanRequestText("One\nTwo", 240)).toBe("One Two");
-    expect(parsed({ ...rainier, placeLabel: `Crater${hidden[0]}Lake` }).placeLabel).toBe("Crater Lake");
+    expect(parsed({ ...rainier, placeLabel: `Crater ${hidden[0]}Lake${hidden[1]}` }).placeLabel).toBe("Crater Lake");
   });
 });
 
