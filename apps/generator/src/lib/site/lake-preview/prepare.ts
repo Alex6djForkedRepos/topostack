@@ -17,11 +17,29 @@ export interface PreparedPreview {
 /** The directory entry being previewed; its survey outline and box pick the lake out of the other water in frame. */
 export interface PreviewLake { name: string; sourceId: string; surveyId: string; bounds: [number, number, number, number] }
 
-/** The studio link's framing: the survey bounds plus 8% on every side. */
+/** The most elongated preview, either way; a longer lake gets more of its surroundings instead of a thin strip. */
+const MAX_ASPECT = 2;
+
+/**
+ * The studio link's framing (the survey bounds plus 8% on every side), widened
+ * along its short side to at most 2:1 so a long, narrow lake still fills a
+ * readable image.
+ */
 export function previewBounds([west, south, east, north]: [number, number, number, number]): GeoBounds {
   const padX = (east - west) * 0.08;
   const padY = (north - south) * 0.08;
-  return { west: Math.max(-180, west - padX), south: Math.max(-85, south - padY), east: Math.min(180, east + padX), north: Math.min(85, north + padY) };
+  let [w, s, e, n] = [west - padX, south - padY, east + padX, north + padY];
+  const kmPerDegreeLon = 111.32 * Math.cos(((s + n) / 2) * Math.PI / 180);
+  const widthKm = (e - w) * kmPerDegreeLon;
+  const heightKm = (n - s) * 110.574;
+  if (widthKm * MAX_ASPECT < heightKm) {
+    const grow = (heightKm / MAX_ASPECT - widthKm) / kmPerDegreeLon / 2;
+    w -= grow; e += grow;
+  } else if (heightKm * MAX_ASPECT < widthKm) {
+    const grow = (widthKm / MAX_ASPECT - heightKm) / 110.574 / 2;
+    s -= grow; n += grow;
+  }
+  return { west: Math.max(-180, w), south: Math.max(-85, s), east: Math.min(180, e), north: Math.min(85, n) };
 }
 
 const mercatorY = (lat: number): number => Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));

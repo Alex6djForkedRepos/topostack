@@ -16,7 +16,7 @@ import { createServer } from "vite";
 // Writes <slug>.webp and manifest.json to --out, plus index.html to review them.
 // Lakes whose inputs match the manifest are skipped, so an interrupted run
 // resumes. Needs cwebp (brew install webp). Nothing is uploaded.
-const RENDERER_VERSION = 4;
+const RENDERER_VERSION = 5;
 const SAMPLE = [
   "crater-lake-oregon", "lake-tahoe-california-nevada", "mono-lake-california", "lake-superior-great-lakes-usa-canada",
   "leech-main-basin-cass-county-minnesota", "mille-lacs-mille-lacs-county-minnesota", "minnetonka-hennepin-county-minnesota", "pelican-crow-wing-county-minnesota",

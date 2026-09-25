@@ -38,8 +38,15 @@ describe("lake depth previews", () => {
     expect(contourInterval(0)).toBe(1);
   });
 
-  it("frames the survey box with the studio link's 8% margin", () => {
+  it("frames the survey box with the studio link's 8% margin, widening long lakes to at most 2:1", () => {
     expect(previewBounds([10, 40, 11, 41])).toEqual({ west: 9.92, south: 39.92, east: 11.08, north: 41.08 });
+    // A lake ten times taller than wide, like Lake Champlain, gains width but keeps its full length.
+    const narrow = previewBounds([-73.4, 44.0, -73.3, 45.0]);
+    expect(narrow.south).toBeCloseTo(43.92, 5);
+    expect(narrow.north).toBeCloseTo(45.08, 5);
+    const widthKm = (narrow.east - narrow.west) * 111.32 * Math.cos(44.5 * Math.PI / 180);
+    expect((narrow.north - narrow.south) * 110.574 / widthKm).toBeCloseTo(2, 5);
+    expect((narrow.west + narrow.east) / 2).toBeCloseTo(-73.35, 5);
   });
 
   it("keeps the ground's shape at 960 pixels on the long side", () => {
