@@ -13,7 +13,7 @@
   "assets": {
     "directory": "../../apps/generator/dist",
     "not_found_handling": "404-page",
-    "run_worker_first": ["/health", "/ready", "/v1", "/v1/*", "/data/lake-outlines/*"]
+    "run_worker_first": ["/health", "/ready", "/v1", "/v1/*", "/data/lake-outlines/*", "/mcp", "/.well-known/mcp/*"]
   },
   "vars": {
     "ENVIRONMENT": "development",

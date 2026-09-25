@@ -1,6 +1,7 @@
 import packageJson from "../package.json";
 import { coverageRouteResponse, projectRouteResponse, type AgentContext } from "./agent/projects";
 import { openApiDocument } from "./agent/openapi";
+import { MCP_PATH, mcpResponse, serverCard } from "./mcp/server";
 import { OUTLINE_INDEX_FILE, OUTLINE_PATH, outlineResponse } from "./routes/lake-outlines";
 import { measureBucket } from "./data-metrics";
 import { clientKey, corsHeaders, isAllowedOrigin, json, rateLimitExceeded, withCors } from "./http";
@@ -96,6 +97,7 @@ const EXACT_ROUTES = new Map<string, Handler>([
   ))],
   ["/v1/geocode", limited("geocode", (request, env, ctx, url) => geocodeResponse(request, env, ctx, url))],
   ["/v1/coverage", limited("coverage", (request, env, _ctx, url) => coverageRouteResponse(url, { request, env }))],
+  ["/.well-known/mcp/server-card.json", limited("mcp-card", (request, env) => json(serverCard({ request, env }), { headers: { "cache-control": "public, max-age=3600" } }))],
   ["/v1/openapi.json", limited("openapi", (request, env) => json(openApiDocument(new URL(request.url).origin, env.PUBLIC_ORIGIN || new URL(request.url).origin, packageJson.version), { headers: { "cache-control": "public, max-age=3600" } }))],
 ]);
 
@@ -112,6 +114,10 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
   if (url.pathname === FEEDBACK_PATH) {
     if (request.method !== "POST") return json({ error: "Method not allowed." }, { status: 405, headers: { allow: "POST,OPTIONS" } });
     return feedbackResponse(request, env);
+  }
+  if (url.pathname === MCP_PATH) {
+    if (!(await withinAgentBudget(request, env))) return rateLimitExceeded();
+    return mcpResponse(agentContext(request, env, ctx));
   }
   const projectAction = PROJECT_ROUTES.get(url.pathname);
   if (projectAction) {

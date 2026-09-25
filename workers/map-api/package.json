@@ -13,7 +13,9 @@
     "coverage": "WRANGLER_LOG_PATH=/tmp/topostack-wrangler-test.log vitest run --coverage"
   },
   "devDependencies": {
+    "@cfworker/json-schema": "^4.1.1",
     "@cloudflare/vitest-pool-workers": "^0.22.0",
-    "@cloudflare/workers-types": "^5.20260906.1"
+    "@cloudflare/workers-types": "^5.20260906.1",
+    "@modelcontextprotocol/sdk": "^1.30.1"
   }
 }

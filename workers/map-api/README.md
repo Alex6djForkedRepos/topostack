@@ -83,8 +83,18 @@ The routes an AI assistant or a script uses to plan a model and hand it to the s
 | `GET /v1/coverage` | Which high-resolution terrain and lake surveys cover `?bbox=` or `?lat=&lon=&widthKm=` |
 | `GET /v1/openapi.json` | The OpenAPI 3.1 document |
 
+### MCP server
+
+`/mcp` is a remote MCP server (Streamable HTTP, stateless, JSON responses; `src/mcp/`). Chat clients such as Claude and ChatGPT add it as a custom connector at `https://topostack.app/mcp`; no sign-in is needed.
+
+- **Tools** (all read-only): `search_places`, `check_coverage`, `plan_model`, `create_studio_link`. They call the same functions as the REST routes, return structured content that matches each tool's `outputSchema`, and report fixable request problems as tool errors the model can read.
+- **Resources:** `topostack://guide/making-a-model`, `topostack://data/sources`, `topostack://schema/project-request-v1`. **Prompts:** `design_topo_map`, `plan_for_my_laser`.
+- **Transport.** Each POST carries one message or a batch; notifications get `202`. There is no session or event stream, so `GET` and `DELETE` answer `405`. Supported protocol versions are listed in `src/mcp/protocol.ts`.
+- **Discovery:** `/.well-known/mcp/server-card.json`, following the draft server-card proposal.
+- **Tests** drive the Worker with the official SDK client (`@modelcontextprotocol/sdk`, a dev dependency only) using the Workers-compatible schema validator. To try it by hand, run `npm run dev` and point the MCP Inspector at `http://localhost:8787/mcp`.
+
 - **Links.** A studio link is `PUBLIC_ORIGIN/studio?generate=1#p=1.<design>`: the design rides in the fragment and the studio generates it on open, so files are always made in the browser. `PUBLIC_ORIGIN` is set per environment; `npm run dev` points it at the local generator.
-- **Budgets.** Chat platforms call from their own servers, so one address stands for many people. The POST routes are charged to `AGENT_LIMITER` (120 a minute per client) and `AGENT_GLOBAL_LIMITER` (1,200 a minute per colo) instead of the browser's `REQUEST_LIMITER`. A plan's tile fetches that miss the caches also pass the terrain upstream budget.
+- **Budgets.** Chat platforms call from their own servers, so one address stands for many people. The POST routes and `/mcp` are charged to `AGENT_LIMITER` (120 a minute per client) and `AGENT_GLOBAL_LIMITER` (1,200 a minute per colo) instead of the browser's `REQUEST_LIMITER`. A plan's tile fetches that miss the caches also pass the terrain upstream budget.
 - **CORS.** The POST routes have no side effects and take no credentials, so they answer every origin like the read-only data.
 - **Estimates.** Coarse tiles smooth peaks, and lake depth adds sheets only generation can count, so plans are labelled estimates and the studio's count is authoritative.
 - **Attribution.** Every response carries an `attribution` object; anything shown or passed on from it must keep that credit.
