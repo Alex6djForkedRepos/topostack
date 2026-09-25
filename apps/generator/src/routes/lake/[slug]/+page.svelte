@@ -4,4 +4,4 @@
   let { data } = $props();
 </script>
 
-<LakePlaceView page={data.lakePlace} />
+<LakePlaceView page={data.lakePlace} locator={data.locator} preview={data.preview} />

@@ -3,6 +3,7 @@ import { coverageRouteResponse, projectRouteResponse, type AgentContext } from "
 import { openApiDocument } from "./agent/openapi";
 import { MCP_PATH, mcpResponse, serverCard } from "./mcp/server";
 import { OUTLINE_INDEX_FILE, OUTLINE_PATH, outlineResponse } from "./routes/lake-outlines";
+import { PREVIEW_PATH, previewResponse } from "./routes/lake-previews";
 import { measureBucket } from "./data-metrics";
 import { clientKey, corsHeaders, isAllowedOrigin, json, rateLimitExceeded, withCors } from "./http";
 import { buildManifest } from "./manifest";
@@ -138,6 +139,7 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
   const archive = ARCHIVE_ROUTES.get(url.pathname);
   if (archive) return archiveResponse(request, env, ctx, archive);
   if (OUTLINE_PATH.test(url.pathname)) return limited("lake-outlines", outlineResponse)(request, env, ctx, url);
+  if (PREVIEW_PATH.test(url.pathname)) return limited("lake-previews", previewResponse)(request, env, ctx, url);
   const terrainMatch = TERRAIN_TILE_PATH.exec(url.pathname);
   if (terrainMatch) {
     const tile = validTile(terrainMatch[1] ?? "", terrainMatch[2] ?? "", terrainMatch[3] ?? "");
