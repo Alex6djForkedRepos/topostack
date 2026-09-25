@@ -19,6 +19,8 @@ Rules, enforced by ESLint (`no-restricted-imports` in the root config):
 
 `src/app.html`, `src/hooks.server.ts`, and the ambient `*.d.ts` files stay at the `src/` root because SvelteKit or the compiler looks for them there.
 
+`src/mcp-app/` is not part of the site. It is the in-chat preview that the map-api Worker serves as an MCP App (`ui://topostack/terrain-preview.html`): `vite.mcp-app.config.ts` builds it after the site into one self-contained `dist/mcp-app/terrain-preview.html`, which the Worker reads through its `ASSETS` binding. It speaks the MCP Apps postMessage protocol to the chat host (`host.ts`), loads terrain with `lib/domain/data-provider.ts` after pointing it at the Worker with `configureApiBase` (`lib/domain/api-base.ts`), generates with core, and draws with `render.ts`. It has its own bundle budget, is kept out of the Atomm package, and is never linked from the site.
+
 ## Styles
 
 `lib/studio/styles.css` is an index of `@import`s over `lib/studio/styles/*.css`, one file per studio area (shell, sidebar, each section, preview, overlays, export dialog) plus `responsive.css`, which holds every breakpoint. Order matters: equal-specificity rules resolve by position, so new area files go before `responsive.css`. The Atomm embed renders the same markup inside the platform's own design system, vendored as `lib/atomm/atomm-workbench.css`; it is a separate skin, not a copy of the studio styles, and has its own bundle budget.

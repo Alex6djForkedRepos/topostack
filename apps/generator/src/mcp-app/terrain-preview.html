@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="topostack-api-origin" content="%TOPOSTACK_API_ORIGIN%" />
+    <title>TopoStack preview</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --surface: #fbfaf7;
+        --text: #1f2421;
+        --muted: #5d6660;
+        --line: #d9dcd6;
+        --accent: #2f6b4f;
+        --accent-text: #ffffff;
+        --error: #a3342a;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) { --surface: #171a18; --text: #eef1ec; --muted: #a4ada6; --line: #333a35; --accent: #7cc4a0; --accent-text: #0f1612; --error: #f08a80; }
+      }
+      :root[data-theme="dark"] { --surface: #171a18; --text: #eef1ec; --muted: #a4ada6; --line: #333a35; --accent: #7cc4a0; --accent-text: #0f1612; --error: #f08a80; }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--surface); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+      main { padding: 16px; display: grid; gap: 12px; max-width: 720px; }
+      h1 { margin: 0; font-size: 17px; font-weight: 600; }
+      #place { margin: 2px 0 0; color: var(--muted); }
+      #figure { color: var(--text); min-height: 40px; }
+      #figure svg { display: block; max-width: 100%; height: auto; }
+      dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0; }
+      dt { color: var(--muted); }
+      dd { margin: 0; font-variant-numeric: tabular-nums; }
+      #status { margin: 0; color: var(--muted); }
+      #status[data-state="error"] { color: var(--error); }
+      button { justify-self: start; border: 0; border-radius: 6px; padding: 8px 14px; background: var(--accent); color: var(--accent-text); font: inherit; font-weight: 600; cursor: pointer; }
+      button:disabled { opacity: 0.5; cursor: default; }
+      #link { overflow-wrap: anywhere; font-size: 12px; color: var(--muted); }
+      footer { border-top: 1px solid var(--line); padding-top: 8px; font-size: 12px; color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1 id="title">TopoStack preview</h1>
+        <p id="place"></p>
+      </header>
+      <div id="figure" aria-live="polite"></div>
+      <dl id="stats"></dl>
+      <p id="status" role="status">Waiting for the model…</p>
+      <button id="open" type="button" disabled>Open in TopoStack</button>
+      <a id="link" hidden target="_blank" rel="noopener noreferrer"></a>
+      <footer id="attribution"></footer>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

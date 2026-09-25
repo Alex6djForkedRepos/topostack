@@ -12,6 +12,8 @@
   "alias": { "@topostack/core/project": "../../packages/core/src/project/index.ts" },
   "assets": {
     "directory": "../../apps/generator/dist",
+    // The MCP server reads the in-chat preview page (mcp-app/) through it.
+    "binding": "ASSETS",
     "not_found_handling": "404-page",
     "run_worker_first": ["/health", "/ready", "/v1", "/v1/*", "/data/lake-outlines/*", "/mcp", "/.well-known/mcp/*"]
   },

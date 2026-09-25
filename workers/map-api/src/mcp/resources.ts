@@ -1,6 +1,7 @@
 import { PROJECT_REQUEST_LIMITS, PROJECT_REQUEST_SCHEMA } from "@topostack/core/project";
 import { buildManifest } from "../manifest";
 import { bathymetryArchives, terrainArchives } from "../routes/archive";
+import { PREVIEW_URI, previewListing, readPreview } from "./app-resource";
 import { RPC_ERRORS, RpcError } from "./protocol";
 
 /**
@@ -86,11 +87,14 @@ export const RESOURCES: ResourceDefinition[] = [
   },
 ];
 
-export function resourceListing({ read: _read, ...resource }: ResourceDefinition) {
-  return resource;
+export interface ResourceContext { siteOrigin: string; apiOrigin: string; datasetVersion: string; assets?: Fetcher }
+
+export function resourceListings(context: Pick<ResourceContext, "apiOrigin">) {
+  return [...RESOURCES.map(({ read: _read, ...resource }) => resource), previewListing(context.apiOrigin)];
 }
 
-export function readResource(uri: string, context: { siteOrigin: string; datasetVersion: string }) {
+export async function readResource(uri: string, context: ResourceContext) {
+  if (uri === PREVIEW_URI) return readPreview(context.assets, context.apiOrigin);
   const resource = RESOURCES.find((entry) => entry.uri === uri);
   if (!resource) throw new RpcError(RPC_ERRORS.resourceNotFound, "Resource not found.", { uri });
   return { contents: [{ uri: resource.uri, mimeType: resource.mimeType, text: resource.read(context) }] };

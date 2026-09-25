@@ -4,6 +4,7 @@ import { areaCoverage } from "../agent/coverage";
 import { AgentError, linkFor, planProject, projectSummary, publicOrigin, resolveProjectRequest, type AgentContext, type ProjectPlan } from "../agent/projects";
 import { bathymetryArchives } from "../routes/archive";
 import { geocodeResponse } from "../routes/geocode";
+import { PREVIEW_TOOL_META } from "./app-resource";
 import { RPC_ERRORS, RpcError } from "./protocol";
 
 /**
@@ -203,6 +204,20 @@ export const TOOLS: ToolDefinition[] = [
     inputSchema: TOOL_REQUEST_SCHEMA,
     outputSchema: PLAN_SCHEMA,
     annotations: readOnly("Plan a model"),
+    run: async (args, context) => {
+      const { project } = toolRequest(args);
+      const result = await planProject(project, context);
+      return { structured: result as unknown as Record<string, unknown>, text: planText(result) };
+    },
+  },
+  {
+    name: "preview_model",
+    title: "Preview a model",
+    description: "Plan a model like plan_model and show an interactive preview of it in the conversation, generated from real terrain in the user's browser. Use it once a plan looks right, so the user can see the model before opening the studio link. Clients without app support receive the plan as text.",
+    inputSchema: TOOL_REQUEST_SCHEMA,
+    outputSchema: PLAN_SCHEMA,
+    annotations: readOnly("Preview a model"),
+    _meta: PREVIEW_TOOL_META,
     run: async (args, context) => {
       const { project } = toolRequest(args);
       const result = await planProject(project, context);

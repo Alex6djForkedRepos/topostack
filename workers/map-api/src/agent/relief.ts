@@ -46,11 +46,42 @@ export function reliefTiles(bounds: GeoBounds): ReliefTile[] {
   return tiles;
 }
 
+const EARTH_CIRCUMFERENCE_M = 2 * Math.PI * 6_378_137;
+/** An artifact stands at least this far from its surroundings, and further than this slope over two pixels. */
+const ARTIFACT_MIN_M = 400;
+const ARTIFACT_SLOPE = 2.5;
+
+/**
+ * Low-zoom Terrarium tiles hold small clusters of bad samples: Lake Tahoe's
+ * zoom-10 tile has 2×2 and 1×2 patches reading +5,492 m, 277 m and -4,079 m
+ * beside 1,900 m ground, which its zoom-11 tiles do not. A sample is one of
+ * them when it differs from the median of the ring two pixels out (which
+ * clears such a patch) by more than `thresholdM`; real summits and pits at
+ * these scales are gentler over that distance.
+ */
+function isArtifact(values: Float32Array, row: number, column: number, thresholdM: number): boolean {
+  const ring: number[] = [];
+  for (let dy = -2; dy <= 2; dy += 1) {
+    for (let dx = -2; dx <= 2; dx += 1) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) !== 2) continue;
+      const y = row + dy, x = column + dx;
+      if (y < 0 || x < 0 || y >= TILE_SIZE || x >= TILE_SIZE) continue;
+      const neighbour = values[y * TILE_SIZE + x]!;
+      if (Number.isFinite(neighbour)) ring.push(neighbour);
+    }
+  }
+  if (ring.length < 6) return false;
+  ring.sort((a, b) => a - b);
+  const median = (ring[Math.floor((ring.length - 1) / 2)]! + ring[Math.floor(ring.length / 2)]!) / 2;
+  return Math.abs(values[row * TILE_SIZE + column]! - median) > thresholdM;
+}
+
 /**
  * The land's lowest and highest samples inside the crop (inside the inscribed
- * ellipse for a circular model). As in generation, the stack is sized from
- * land alone: when the crop reaches the sea, samples at or below 0 m are left
- * out so the ocean floor does not inflate the relief.
+ * ellipse for a circular model), ignoring tile artifacts. As in
+ * generation, the stack is sized from land alone: when the crop reaches the
+ * sea, samples at or below 0 m are left out so the ocean floor does not
+ * inflate the relief.
  */
 export function sampleRelief(bounds: GeoBounds, circle: boolean, tiles: ReadonlyArray<{ tile: ReliefTile; png: Uint8Array }>): ReliefEstimate {
   const zoom = tiles[0]?.tile.z ?? 0;
@@ -64,6 +95,9 @@ export function sampleRelief(bounds: GeoBounds, circle: boolean, tiles: Readonly
   let nearest = { distance: Infinity, value: 0 };
   for (const { tile, png } of tiles) {
     const values = decodeTerrainPng(png, true);
+    const latitude = Math.atan(Math.sinh(Math.PI * (1 - (2 * (tile.y + 0.5)) / 2 ** tile.z)));
+    const pixelM = EARTH_CIRCUMFERENCE_M * Math.cos(latitude) / (TILE_SIZE * 2 ** tile.z);
+    const artifactM = Math.max(ARTIFACT_MIN_M, ARTIFACT_SLOPE * 2 * pixelM);
     for (let row = 0; row < TILE_SIZE; row += 1) {
       const worldY = tile.y * TILE_SIZE + row + 0.5;
       for (let column = 0; column < TILE_SIZE; column += 1) {
@@ -75,6 +109,8 @@ export function sampleRelief(bounds: GeoBounds, circle: boolean, tiles: Readonly
         if (distance < nearest.distance) nearest = { distance, value };
         const inside = circle ? distance <= 1 : Math.abs(dx) <= 1 && Math.abs(dy) <= 1;
         if (!inside) continue;
+        // Only a sample that would move the range is worth checking for an artifact.
+        if ((value < min || value > max) && isArtifact(values, row, column, artifactM)) continue;
         min = Math.min(min, value); max = Math.max(max, value);
         if (value > 0) landMax = Math.max(landMax, value);
       }

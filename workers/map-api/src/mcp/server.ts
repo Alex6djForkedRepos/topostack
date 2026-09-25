@@ -1,9 +1,10 @@
 import packageJson from "../../package.json";
 import { AgentError, agentErrorResponse, publicOrigin, readJsonBody, type AgentContext } from "../agent/projects";
 import { json } from "../http";
+import { PREVIEW_URI } from "./app-resource";
 import { getPrompt, promptListing, PROMPTS } from "./prompts";
 import { isJsonRpcMessage, isSupportedVersion, negotiateVersion, paramsRecord, RPC_ERRORS, rpcError, RpcError, rpcResult, SUPPORTED_PROTOCOL_VERSIONS, type JsonRpcMessage } from "./protocol";
-import { readResource, resourceListing, RESOURCES } from "./resources";
+import { readResource, resourceListings, RESOURCES } from "./resources";
 import { callTool, toolListing, TOOLS } from "./tools";
 
 /**
@@ -17,14 +18,14 @@ export const MCP_PATH = "/mcp";
 
 export const INSTRUCTIONS = [
   "TopoStack plans laser-cut terrain models: layered stacks of sheets or flat engravings.",
-  "Workflow: search_places (unless you have coordinates) → plan_model to check sheets, height and scale → adjust and re-plan if impractical → create_studio_link, and give the user that link.",
+  "Workflow: search_places (unless you have coordinates) → plan_model to check sheets, height and scale → adjust and re-plan if impractical → preview_model to show the user the model → create_studio_link, and give the user that link.",
   "Opening the link generates the model in the user's browser, where they review it and export SVG files. Nothing is generated or stored on the server.",
   "Sheet counts are estimates; the studio's count is authoritative. Output is decorative, not survey-grade.",
   "Every result includes attribution; keep it with anything you show.",
   "Read topostack://guide/making-a-model for material and sizing advice.",
 ].join(" ");
 
-interface ServerContext extends AgentContext { siteOrigin: string }
+interface ServerContext extends AgentContext { siteOrigin: string; apiOrigin: string }
 
 async function dispatch(message: JsonRpcMessage & { method: string }, context: ServerContext): Promise<unknown> {
   const params = paramsRecord(message.params);
@@ -51,12 +52,12 @@ async function dispatch(message: JsonRpcMessage & { method: string }, context: S
       return callTool(params.name, paramsRecord(params.arguments), context);
     }
     case "resources/list":
-      return { resources: RESOURCES.map(resourceListing) };
+      return { resources: resourceListings(context) };
     case "resources/templates/list":
       return { resourceTemplates: [] };
     case "resources/read": {
       if (typeof params.uri !== "string") throw new RpcError(RPC_ERRORS.invalidParams, "resources/read needs a uri.");
-      return readResource(params.uri, { siteOrigin: context.siteOrigin, datasetVersion: context.env.DATASET_VERSION });
+      return readResource(params.uri, { siteOrigin: context.siteOrigin, apiOrigin: context.apiOrigin, datasetVersion: context.env.DATASET_VERSION, assets: context.env.ASSETS });
     }
     case "prompts/list":
       return { prompts: PROMPTS.map(promptListing) };
@@ -102,7 +103,7 @@ export async function mcpResponse(context: AgentContext): Promise<Response> {
     if (error instanceof AgentError) return agentErrorResponse(error);
     throw error;
   }
-  const serverContext: ServerContext = { ...context, siteOrigin: publicOrigin(context) };
+  const serverContext: ServerContext = { ...context, siteOrigin: publicOrigin(context), apiOrigin: new URL(request.url).origin };
   if (Array.isArray(body)) {
     if (!body.length) return json(rpcError(null, new RpcError(RPC_ERRORS.invalidRequest, "Empty batch.")), { status: 400 });
     const replies = (await Promise.all(body.map((message) => answer(message, serverContext)))).filter((reply) => reply !== undefined);
@@ -130,7 +131,7 @@ export function serverCard(context: Pick<AgentContext, "env" | "request">) {
     protocolVersions: SUPPORTED_PROTOCOL_VERSIONS,
     capabilities: { tools: {}, resources: {}, prompts: {} },
     tools: TOOLS.map(({ name, title, description }) => ({ name, title, description })),
-    resources: RESOURCES.map(({ uri, title }) => ({ uri, title })),
+    resources: [...RESOURCES.map(({ uri, title }) => ({ uri, title })), { uri: PREVIEW_URI, title: "TopoStack model preview" }],
     prompts: PROMPTS.map(({ name, title }) => ({ name, title })),
   };
 }
