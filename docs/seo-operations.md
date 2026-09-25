@@ -152,6 +152,7 @@ Events:
 | export_failed | Fabrication export was blocked or preparation failed |
 | share_link_copied | A design share link was copied to the clipboard |
 | share_link_opened | A valid share link opened a design in the studio |
+| share_link_shared | A design share link was sent through the system share sheet |
 
 Settings-only and assembly-only downloads are excluded from successful
 fabrication counts. Sample previews and automatically updated geometry do not

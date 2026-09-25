@@ -911,14 +911,35 @@
     catch (error) { reportImportError(error instanceof Error ? error.message : "Could not import this project."); }
   }
 
+  async function shareLink(): Promise<string> {
+    const { shareLinkFor } = await import("$lib/studio/share-link");
+    return shareLinkFor(project, new URL("/studio", window.location.href).toString());
+  }
+
   async function copyShareLink(): Promise<void> {
     try {
-      const { shareLinkFor } = await import("$lib/studio/share-link");
-      await navigator.clipboard.writeText(shareLinkFor(project, new URL("/studio", window.location.href).toString()));
+      await navigator.clipboard.writeText(await shareLink());
       status = "Share link copied · anyone with it can open this design";
       trackUsage("share_link_copied", project.outputMode);
     } catch (error) {
       status = error instanceof Error && error.name !== "NotAllowedError" ? error.message : "Could not copy the share link. Check clipboard permissions and try again.";
+    }
+  }
+
+  /** Hands the link to the system share sheet; browsers without one, and share failures, copy it instead. */
+  async function shareDesign(): Promise<void> {
+    let url: string;
+    try { url = await shareLink(); } catch (error) { status = error instanceof Error ? error.message : "Could not create the share link."; return; }
+    const data = { title: `${project.name.trim() || "Topographic map"} · TopoStack`, text: "A topographic map design made with TopoStack", url };
+    if (typeof navigator.share !== "function" || navigator.canShare?.(data) === false) return copyShareLink();
+    try {
+      await navigator.share(data);
+      status = "Design shared · anyone with the link can open it";
+      trackUsage("share_link_shared", project.outputMode);
+    } catch (error) {
+      // Closing the share sheet is not a failure.
+      if (error instanceof Error && error.name === "AbortError") return;
+      await copyShareLink();
     }
   }
 
@@ -1033,7 +1054,7 @@
     saveChartToLibrary: (record) => customData.saveChartToLibrary(record),
     useChartForLake: (key, reference) => customData.useChartForLake(key, reference),
     clearDepthChart: (key) => customData.clearDepthChart(key),
-    importMarkerIcon: (file, markerId) => customData.importMarkerIcon(file, markerId), importGraphic: (file) => customData.importGraphic(file), choosePlace, startPlacement, placeGraphic, placeGraphics, commitPlacement, cancelPlacement, undo, redo, importProject, copyShareLink, importCustomData, generate, cancelGeneration, toggleSection, setAllSections, sectionSummary, navigateChoice, dismissPreviewWarning, previewMarkingPath, trailPatternDash, getFeedbackContext,
+    importMarkerIcon: (file, markerId) => customData.importMarkerIcon(file, markerId), importGraphic: (file) => customData.importGraphic(file), choosePlace, startPlacement, placeGraphic, placeGraphics, commitPlacement, cancelPlacement, undo, redo, importProject, copyShareLink, shareDesign, importCustomData, generate, cancelGeneration, toggleSection, setAllSections, sectionSummary, navigateChoice, dismissPreviewWarning, previewMarkingPath, trailPatternDash, getFeedbackContext,
   });
 </script>
 

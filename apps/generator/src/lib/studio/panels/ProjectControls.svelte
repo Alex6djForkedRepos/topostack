@@ -1,13 +1,15 @@
 <script lang="ts">
-  import { ChevronDown, Link, RotateCcw, Undo2, Redo2, Upload } from "@lucide/svelte";
+  import { ChevronDown, Link, RotateCcw, Share2, Undo2, Redo2, Upload } from "@lucide/svelte";
   import { IconButton, Input } from "@loidolt/theme-svelte";
   import { MAX_PROJECT_NAME_LENGTH } from "@topostack/core";
   import HeaderMenu from "$lib/studio/panels/HeaderMenu.svelte";
   import { getStudio } from "$lib/studio/studio-context";
 
   const studio = getStudio();
-  const { copyShareLink, importProject, redo, undo, updateProject } = studio;
+  const { copyShareLink, importProject, redo, shareDesign, undo, updateProject } = studio;
   let importInput: HTMLInputElement;
+  // Menu items render only once the menu opens, so this never runs during prerendering.
+  const nativeShare = () => typeof navigator.share === "function";
 </script>
 
 <div class="project-identity">
@@ -17,6 +19,9 @@
     <HeaderMenu label="Project actions" title="Project actions" triggerClass="ldt-button ldt-icon-button ldt-button--ghost ldt-button--sm project-menu-trigger" align="start">
       {#snippet trigger()}<ChevronDown size={16} aria-hidden="true" />{/snippet}
       <button type="button" class="ldt-menu__item" role="menuitem" onclick={() => importInput.click()}><span>Import project JSON</span><Upload size={16} aria-hidden="true" /></button>
+      {#if nativeShare()}
+        <button type="button" class="ldt-menu__item" role="menuitem" title="Send a link that opens this design" onclick={() => void shareDesign()}><span>Share design…</span><Share2 size={16} aria-hidden="true" /></button>
+      {/if}
       <button type="button" class="ldt-menu__item" role="menuitem" title="Copy a link that opens this design" onclick={() => void copyShareLink()}><span>Copy share link</span><Link size={16} aria-hidden="true" /></button>
       <hr class="ldt-menu__separator" />
       <button type="button" class="ldt-menu__item" role="menuitem" aria-haspopup="dialog" disabled={!studio.booted} onclick={() => { studio.resetOpen = true; }}><span>Reset project…</span><RotateCcw size={16} aria-hidden="true" /></button>

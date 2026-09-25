@@ -486,6 +486,48 @@ describe("TopoStack Svelte shell", () => {
     } finally { window.history.replaceState(null, "", "/"); }
   });
 
+  it("shares a design through the system share sheet, stays quiet on cancel and copies when sharing fails", async () => {
+    const { projectFromShareLink } = await import("$lib/studio/share-link");
+    const writeText = vi.fn(async () => undefined);
+    const share = vi.fn(async (_data: ShareData) => undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    Object.defineProperty(navigator, "share", { configurable: true, value: share });
+    try {
+      const target = document.createElement("div");
+      component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+      await vi.waitFor(() => expect(target.querySelector<HTMLInputElement>('[aria-label="Project name"]')).not.toBeNull());
+      (await menuItem(target, "Project actions", "Share design")).click();
+      await vi.waitFor(() => expect(share).toHaveBeenCalledOnce());
+      const data = share.mock.calls[0]![0];
+      expect(data.title).toContain("TopoStack");
+      expect(projectFromShareLink(new URL(data.url!).hash)).toMatchObject({ name: DEFAULT_PROJECT.name });
+      await vi.waitFor(() => expect(target.textContent).toContain("Design shared"));
+      expect(writeText).not.toHaveBeenCalled();
+
+      share.mockRejectedValueOnce(Object.assign(new Error("Share canceled"), { name: "AbortError" }));
+      (await menuItem(target, "Project actions", "Share design")).click();
+      await vi.waitFor(() => expect(share).toHaveBeenCalledTimes(2));
+      await tick();
+      expect(writeText).not.toHaveBeenCalled();
+
+      share.mockRejectedValueOnce(Object.assign(new Error("Not allowed"), { name: "NotAllowedError" }));
+      (await menuItem(target, "Project actions", "Share design")).click();
+      await vi.waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+      expect((writeText.mock.calls[0] as unknown as [string])[0]).toBe(data.url);
+      await vi.waitFor(() => expect(target.textContent).toContain("Share link copied"));
+    } finally {
+      delete (navigator as { share?: unknown }).share;
+    }
+  });
+
+  it("offers only the copy action where the browser has no share sheet", async () => {
+    const target = document.createElement("div");
+    component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });
+    await vi.waitFor(() => expect(target.querySelector<HTMLInputElement>('[aria-label="Project name"]')).not.toBeNull());
+    expect(await menuItem(target, "Project actions", "Copy share link")).toBeTruthy();
+    expect(await menuItem(target, "Project actions", "Share design")).toBeUndefined();
+  });
+
   it("edits and undoes the project name and switches preview modes", async () => {
     const target = document.createElement("div");
     component = mount(App, { target, props: { initialPreview: structuredClone(initialPreview) } });

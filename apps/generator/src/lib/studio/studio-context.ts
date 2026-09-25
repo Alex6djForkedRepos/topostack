@@ -163,6 +163,8 @@ export interface StudioContext {
   redo(): void;
   importProject(file: File | undefined): Promise<void>;
   copyShareLink(): Promise<void>;
+  /** Opens the system share sheet with the design's link, or copies it where there is none. */
+  shareDesign(): Promise<void>;
   /** Adds markers and paths from a GPX, KML or GeoJSON file as one undo step. */
   importCustomData(file: File | undefined): Promise<void>;
   /** Adds an SVG as a marker icon, and gives it to `markerId` when one is named. */
