@@ -139,7 +139,15 @@ test("lake depth pages list surveyed lakes without JavaScript and link into the 
   await expect(page).toHaveTitle("Crow Wing County, Minnesota Lake Depth Maps | TopoStack");
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://topostack.app/lakes/minnesota/crow-wing-county");
   await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toContainText(/Lake depth maps\s*\/\s*Minnesota\s*\/\s*Crow Wing County/);
-  await expect(page.getByRole("link", { name: "Pelican", exact: true }).first()).toHaveAttribute("href", /studio\?lake=Pelican&bounds=/);
+  await expect(page.getByRole("link", { name: "Open Pelican in the studio" }).first()).toHaveAttribute("href", /studio\?lake=Pelican&bounds=/);
+  // Larger lakes have a page of their own, also without JavaScript.
+  await page.getByRole("link", { name: "Pelican", exact: true }).first().click();
+  await expect(page).toHaveURL(/\/lake\/pelican-crow-wing-county-minnesota/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Pelican lake depth map");
+  await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toContainText(/Crow Wing County\s*\/\s*Pelican/);
+  await expect(page.getByRole("link", { name: "Open Pelican in the studio" })).toHaveAttribute("href", /studio\?lake=Pelican&bounds=/);
+  const graph = JSON.parse(await page.locator('script[type="application/ld+json"]').textContent() ?? "{}")["@graph"];
+  expect(graph).toContainEqual(expect.objectContaining({ "@type": "LakeBodyOfWater", name: "Pelican", containedInPlace: { "@type": "Place", name: "Crow Wing County, Minnesota" } }));
   await context.close();
 });
 
