@@ -151,6 +151,20 @@ test("lake depth pages list surveyed lakes without JavaScript and link into the 
   await context.close();
 });
 
+test("the region index and the lake search both lead to a lake's own page", async ({ page }) => {
+  await page.goto("/lakes");
+  await page.getByRole("link", { name: "Mille Lacs", exact: true }).first().click();
+  await expect(page).toHaveURL(/\/lake\/mille-lacs-mille-lacs-county-minnesota/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Mille Lacs lake depth map");
+
+  await page.goto("/guides/lake-depth-data");
+  await page.getByLabel("Search lakes").fill("Crater Lake Oregon");
+  const result = page.getByRole("listitem").filter({ has: page.getByRole("heading", { name: "Crater Lake", exact: true }) });
+  await result.getByRole("link", { name: /^Lake page/ }).click();
+  await expect(page).toHaveURL(/\/lake\/crater-lake-oregon/);
+  await expect(page.getByRole("link", { name: "Open Crater Lake in the studio" })).toHaveAttribute("href", /studio\?lake=Crater\+Lake&bounds=/);
+});
+
 test("the example gallery leads to an example with its render, sharing card and importable project", async ({ page, request }) => {
   await page.goto("/examples");
   await expect(page).toHaveTitle("Topographic Map Examples: Laser-Cut Terrain Projects | TopoStack");
