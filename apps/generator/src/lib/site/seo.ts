@@ -1,6 +1,6 @@
 // Constants live in site.ts so client components can import them without the
 // registry. The explicit extension lets the Node verification scripts load this file.
-import { DEFAULT_SOCIAL_IMAGE, DOCS_HOME, SITE_ORIGIN, type SocialImage } from "./site.ts";
+import { DEFAULT_SOCIAL_IMAGE, DOCS_HOME, SITE_ORIGIN, socialCard, type SocialImage } from "./site.ts";
 import latestRelease from "../../../../../changelog/latest.json" with { type: "json" };
 
 export { DEFAULT_SOCIAL_IMAGE, DOCS_HOME, REPOSITORY_URL, SITE_LOCALE, SITE_ORIGIN, type SocialImage } from "./site.ts";
@@ -17,7 +17,10 @@ export interface PageMeta {
    */
   published: string;
   updated: string;
-  /** Overrides the default sharing card where a page has its own screenshot. */
+  /**
+   * The page's sharing card; pages without one share the default Crater Lake card.
+   * `socialCard()` cards are drawn by scripts/dev/capture-social-cards.mjs.
+   */
   image?: SocialImage;
 }
 
@@ -51,6 +54,7 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     label: "Guides",
     published: "2026-09-17",
     updated: "2026-09-17",
+    image: socialCard("guides", "TopoStack guides card with an assembled Crater Lake relief rendered in the studio."),
   },
   "/guides/laser-cut-topographic-map": {
     title: "How to Make a Laser-Cut Topographic Map | TopoStack",
@@ -58,6 +62,7 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     label: "Layered map guide",
     published: "2026-09-15",
     updated: "2026-09-18",
+    image: socialCard("guides-laser-cut-topographic-map", "Laser-cut topographic map guide card with an exploded stack of Crater Lake layers rendered in the studio."),
   },
   "/guides/topographic-map-engraving": {
     title: "Create a Topographic Map SVG for Laser Engraving | TopoStack",
@@ -65,6 +70,7 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     label: "Engraving guide",
     published: "2026-09-15",
     updated: "2026-09-17",
+    image: socialCard("guides-topographic-map-engraving", "Topographic map engraving guide card with a flat Crater Lake contour engraving in the studio."),
   },
   "/guides/split-large-maps": {
     title: "Split a Large Laser-Cut Map to Fit Your Bed | TopoStack",
@@ -88,6 +94,7 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     label: "Lake depth directory",
     published: "2026-09-15",
     updated: "2026-09-17",
+    image: socialCard("guides-lake-depth-data", "Lake depth directory card with a map area selected around Crater Lake in the studio."),
   },
   "/guides/custom-lake-depth-map": {
     title: "How to Make a Custom Lake Depth Map from Wood | TopoStack",
@@ -95,6 +102,7 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     label: "Custom lake depth map",
     published: "2026-09-21",
     updated: "2026-09-23",
+    image: socialCard("guides-custom-lake-depth-map", "Custom lake depth map guide card with a layered Lake Tahoe relief showing the surveyed lake floor."),
   },
   "/lakes": {
     title: "Lake Depth Maps for Laser Cutting: Surveyed Lakes by Region | TopoStack",
@@ -102,6 +110,7 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     label: "Lake depth maps by region",
     published: "2026-09-21",
     updated: "2026-09-21",
+    image: socialCard("lakes", "Lake depth maps card with a Crater Lake relief whose lake floor is cut as layers."),
   },
   "/guides/how-lake-depths-work": {
     title: "How Lake Depths Work: Surveys, Predictions and Layers | TopoStack",
@@ -109,6 +118,7 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     label: "How lake depths work",
     published: "2026-09-16",
     updated: "2026-09-23",
+    image: socialCard("guides-how-lake-depths-work", "How lake depths work card with a Crater Lake relief showing the surveyed lake floor."),
   },
   "/guides/studio-tour": {
     title: "Studio Tour: Settings, Previews and Saving | TopoStack",
@@ -116,6 +126,7 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     label: "Studio tour",
     published: "2026-09-17",
     updated: "2026-09-23",
+    image: socialCard("guides-studio-tour", "Studio tour card with the TopoStack studio showing a Crater Lake relief in the 3D stack view."),
   },
   "/guides/map-details": {
     title: "Map Details, Labels and Linework for Laser Maps | TopoStack",
@@ -123,6 +134,7 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     label: "Map details and linework",
     published: "2026-09-17",
     updated: "2026-09-20",
+    image: socialCard("guides-map-details", "Map details guide card with a Grand Canyon relief showing roads, trails, a river and elevation labels."),
   },
   "/guides/custom-data": {
     title: "Add Your Own Data to a Topographic Map | TopoStack",
@@ -130,6 +142,7 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     label: "Custom data overview",
     published: "2026-09-23",
     updated: "2026-09-23",
+    image: socialCard("guides-custom-data", "Custom data card with a traced lake depth chart beside its generated lake bed in the studio."),
   },
   "/guides/custom-markers-and-paths": {
     title: "Add Custom Markers and Trails to a Topographic Map | TopoStack",
@@ -137,6 +150,7 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     label: "Custom markers and paths",
     published: "2026-09-17",
     updated: "2026-09-23",
+    image: socialCard("guides-custom-markers-and-paths", "Custom markers and paths card with the studio's marker settings beside a Crater Lake relief."),
   },
   "/guides/custom-graphics": {
     title: "Add a Logo or Graphic to a Laser-Cut Topographic Map | TopoStack",
@@ -144,6 +158,7 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     label: "Custom graphics",
     published: "2026-09-23",
     updated: "2026-09-23",
+    image: socialCard("guides-custom-graphics", "Custom graphics card with red cut lines and blue score lines on layers in the studio's export preview."),
   },
   "/guides/trace-a-depth-chart": {
     title: "Trace a Lake Depth Chart for a Laser-Cut Map | TopoStack",
@@ -151,6 +166,7 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     label: "Trace a depth chart",
     published: "2026-09-23",
     updated: "2026-09-23",
+    image: socialCard("guides-trace-a-depth-chart", "Depth chart tracing card with reviewed contours drawn over a USGS lake depth chart in the studio."),
   },
   "/guides/how-depth-chart-tracing-works": {
     title: "How Depth-Chart Tracing Works | TopoStack",
@@ -158,6 +174,7 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     label: "How chart tracing works",
     published: "2026-09-23",
     updated: "2026-09-23",
+    image: socialCard("guides-how-depth-chart-tracing-works", "Depth-chart tracing explainer card with a layered relief generated from a traced King City South Lake chart."),
   },
   "/guides/how-terrain-generation-works": {
     title: "How Terrain Generation Works in Your Browser | TopoStack",
@@ -165,6 +182,7 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     label: "How terrain generation works",
     published: "2026-09-24",
     updated: "2026-09-24",
+    image: socialCard("guides-how-terrain-generation-works", "Terrain generation card with a layered Matterhorn relief rendered in the studio."),
   },
   "/guides/settings-reference": {
     title: "Studio Settings Reference | TopoStack",
@@ -172,6 +190,7 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     label: "Settings reference",
     published: "2026-09-17",
     updated: "2026-09-23",
+    image: socialCard("guides-settings-reference", "Settings reference card with the studio's project controls beside a Crater Lake relief."),
   },
   "/guides/export-files": {
     title: "Laser Export Files and SVG Structure | TopoStack",
@@ -179,6 +198,7 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     label: "Export files",
     published: "2026-09-17",
     updated: "2026-09-18",
+    image: socialCard("guides-export-files", "Export files card with the studio's export preview of SVG cut panels."),
   },
   "/guides/troubleshooting": {
     title: "Troubleshooting Topographic Map Exports | TopoStack",
@@ -186,6 +206,7 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     label: "Troubleshooting",
     published: "2026-09-17",
     updated: "2026-09-23",
+    image: socialCard("guides-troubleshooting", "Troubleshooting card with studio notices shown above a Crater Lake relief."),
   },
   "/examples": {
     title: "Topographic Map Examples: Laser-Cut Terrain Projects | TopoStack",
@@ -193,6 +214,7 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     label: "Examples",
     published: "2026-09-21",
     updated: "2026-09-21",
+    image: socialCard("examples", "Topographic map examples card with layered reliefs of Mount Fuji, Yosemite Valley and Mount Rainier."),
   },
   "/examples/crater-lake": {
     title: "Crater Lake Topographic Map: A Terrain Project | TopoStack",

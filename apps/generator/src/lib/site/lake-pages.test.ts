@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import directoryJson from "../../../static/data/lake-depth-directory.json";
 import type { LakeDirectory } from "$lib/site/lake-directory";
-import { buildLakePages, lakePageSeo } from "$lib/site/lake-pages";
+import { LAKE_REGIONS, buildLakePages, lakePageSeo, lakeRegionCard } from "$lib/site/lake-pages";
 
 const directory = directoryJson as LakeDirectory;
 const { pages, regions } = buildLakePages(directory);
@@ -49,6 +49,16 @@ describe("generated lake pages", () => {
     const seo = lakePageSeo(pages.get("/lakes/minnesota/crow-wing-county")!);
     expect(seo.breadcrumbs.map((crumb) => crumb.name)).toEqual(["TopoStack", "Lake depth maps", "Minnesota", "Crow Wing County"]);
     expect(seo.canonical).toBe("https://topostack.app/lakes/minnesota/crow-wing-county");
+  });
+
+  it("shares each region's card with its county, state and letter-range pages", () => {
+    for (const page of all) {
+      const region = page.trail[1]!.path.split("/")[2]!;
+      expect(lakePageSeo(page).image, page.path).toEqual(lakeRegionCard(region));
+    }
+    expect(lakePageSeo(pages.get("/lakes/minnesota/crow-wing-county")!).image.url).toBe("/images/cards/lakes-minnesota.jpg");
+    expect(new Set(LAKE_REGIONS.map((region) => lakeRegionCard(region.slug).url)).size).toBe(LAKE_REGIONS.length);
+    expect(() => lakeRegionCard("atlantis")).toThrow(/atlantis/);
   });
 
   it("refuses a lake source that no region page covers", () => {

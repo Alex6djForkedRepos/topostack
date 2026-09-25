@@ -34,6 +34,7 @@ Local helpers; nothing in CI depends on them.
 | `capture-atomm-listing.mjs` | Capture current Atomm listing cards and videos (`TOPOSTACK_CAPTURE_URL=http://127.0.0.1:5284 node scripts/dev/capture-atomm-listing.mjs`; requires Playwright Chromium and `ffmpeg`, or `FFMPEG_PATH`); see `docs/images/README.md` | manual |
 | `capture-atomm-tips.mjs` | Capture the Atomm Tips walkthrough pictures from the studio running as the embed (`node scripts/dev/capture-atomm-tips.mjs` against `npm run dev`; needs `cwebp`); see `docs/images/README.md` | manual |
 | `capture-examples.mjs` | Generate each example project in the studio and save its render, sharing card and project file (`node scripts/dev/capture-examples.mjs [slug ...]` against `npm run dev`; needs `cwebp`) | manual |
+| `capture-social-cards.mjs` | Draw the 1200×630 sharing cards for guides, hubs and lake regions into `apps/generator/static/images/cards/` from pictures already in the repository and the lake directory (`node scripts/dev/capture-social-cards.mjs [name ...]`; Playwright Chromium only, no dev server); see [seo-operations.md](../docs/seo-operations.md). Card layout: `lib/social-card.mjs` | manual |
 | `dev.mjs` | Start the generator and the map-api Worker together, picking free ports | `npm run dev` |
 
 ## Data builders (Python) (`data-build/`)

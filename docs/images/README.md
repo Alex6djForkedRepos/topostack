@@ -6,6 +6,7 @@ The [Walden Pond announcement example](walden-example/README.md) includes review
 - `studio-crater-lake.png` is a direct 1280 × 900 studio screenshot of freshly generated Crater Lake terrain using USGS lake-floor survey data. The script copies it to `apps/generator/static/images/studio-crater-lake.png` for the homepage and example page.
 - `apps/generator/static/images/social-crater-lake.png` is a 1200 × 630 sharing card composed around an unaltered screenshot of the same app-rendered model. Open Graph and Twitter metadata use this card.
 - `media-provenance.json` records capture time, project settings, and successful survey request URLs.
+- `apps/generator/static/images/cards/*.jpg` are the guide, hub and lake-region sharing cards. `scripts/dev/capture-social-cards.mjs` composes them from the captures listed here, the example renders and the Atomm Tips pictures (cropped, not retouched), and draws the region cards' dot maps from the lake directory. No new imagery is generated; see [seo-operations.md](../seo-operations.md).
 
 Survey coverage is incomplete: existing terrain or modeled depths fill gaps. The pictured depth scale is exaggerated. The bundled startup preview still uses modeled depths; it is not the source of these screenshots. The Atomm gallery already has survey-backed media and its own record in `atomm/media-provenance.json`.
 
