@@ -12,6 +12,7 @@ Run by `npm run build` in the generator or by CI after a build.
 | --- | --- | --- |
 | `check-node.mjs` | Fail fast when the local Node.js release cannot run the script tests (needs native type stripping) | `npm run test:scripts` |
 | `build-font-glyphs.mjs` | Convert the curated typefaces in `assets/fonts/` into the studio's glyph files and picker samples ([fonts.md](../docs/fonts.md)); `font-glyphs.test.mjs` fails when the committed output is stale | manual |
+| `build-locator-data.mjs` | Build `apps/generator/src/lib/site/locator-data.json`, the Natural Earth map data behind the locator on each lake page, clipped to the area around the directory's lakes ([seo-operations.md](../docs/seo-operations.md)) | manual, when the lake directory reaches a new area |
 | `check-web-budget.mjs` | Measure the built site against the JavaScript, CSS, and HTML budgets | `npm run budget:web` |
 | `check-worker-bundle.mjs` | Hold the map-api Worker script to its gzip budget and fail when geometry code (clipper, contour tracing, generation, export) reaches it; reads the dry-run build in `workers/map-api/dist/` | `npm run budget:worker` (CI `build-and-budget`) |
 | `configure-redirects.mjs` | Apply the Cloudflare redirect rules (www and legacy paths) to the zone | manual: [seo-operations.md](../docs/seo-operations.md), [development.md](../docs/development.md) |
@@ -38,6 +39,7 @@ Local helpers; nothing in CI depends on them.
 | `capture-atomm-tips.mjs` | Capture the Atomm Tips walkthrough pictures from the studio running as the embed (`node scripts/dev/capture-atomm-tips.mjs` against `npm run dev`; needs `cwebp`); see `docs/images/README.md` | manual |
 | `capture-examples.mjs` | Generate each example project in the studio and save its render, sharing card and project file (`node scripts/dev/capture-examples.mjs [slug ...]` against `npm run dev`; needs `cwebp`) | manual |
 | `capture-social-cards.mjs` | Draw the 1200×630 sharing cards for guides, hubs and lake regions into `apps/generator/static/images/cards/` from pictures already in the repository and the lake directory (`node scripts/dev/capture-social-cards.mjs [name ...]`; Playwright Chromium only, no dev server); see [seo-operations.md](../docs/seo-operations.md). Card layout: `lib/social-card.mjs` | manual |
+| `render-lake-previews.mjs` | Render the top-down depth map for lake pages (`--sample`, `--slugs a,b` or `--all`) from the map API's terrain and survey data into `.topostack/lake-previews/` with a review page; resumable, uploads nothing (needs `cwebp`); see [seo-operations.md](../docs/seo-operations.md) | manual |
 | `dev.mjs` | Start the generator and the map-api Worker together, picking free ports | `npm run dev` |
 
 ## Data builders (Python) (`data-build/`)
