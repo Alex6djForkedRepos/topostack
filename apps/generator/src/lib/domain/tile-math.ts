@@ -1,19 +1,8 @@
-import type { GeoBounds, Point2D } from "@topostack/core";
+import { latToWorldY, lonToWorldX, TILE_SIZE, worldXToLon, worldYToLat, type GeoBounds, type Point2D } from "@topostack/core";
 
-/** Web-mercator tile arithmetic shared by terrain, vector, lake, and survey loaders. */
-export const TILE_SIZE = 256;
+/** Web-mercator tile arithmetic shared by terrain, vector, lake, and survey loaders. The projection itself lives in core. */
+export { latToWorldY, lonToWorldX, TILE_SIZE, worldSize, worldXToLon, worldYToLat } from "@topostack/core";
 export const MAX_DATA_TILES = 24;
-
-export const worldSize = (zoom: number) => TILE_SIZE * 2 ** zoom;
-export const lonToWorldX = (lon: number, zoom: number) => ((lon + 180) / 360) * worldSize(zoom);
-export function latToWorldY(lat: number, zoom: number): number {
-  const radians = Math.max(-85.0511, Math.min(85.0511, lat)) * Math.PI / 180;
-  return ((1 - Math.asinh(Math.tan(radians)) / Math.PI) / 2) * worldSize(zoom);
-}
-export const worldXToLon = (x: number, zoom: number) => (x / worldSize(zoom)) * 360 - 180;
-export function worldYToLat(y: number, zoom: number): number {
-  return Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / worldSize(zoom)))) * 180 / Math.PI;
-}
 
 /**
  * The inverse of `tilePointProjector`: artwork millimetres back to [lon, lat].

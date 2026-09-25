@@ -36,9 +36,10 @@ Every generated result records a deterministic project fingerprint and source qu
 | `annotate/` | Text and symbols: the font catalog and glyph registry (`font-data`), label metrics, drawing and placement, markers, the north arrow, the title |
 | `pipeline/` | Geometry generation: `generate.ts` orchestrates contour tracing, stack planning, material nesting, transportation styling, coordinate grids, validation, and the work-area split; `synthetic-source.ts` builds the deterministic preview source |
 | `export/` | Fabrication output: SVG primitives, panel layout, per-layer/master SVGs, the printable assembly booklet (`assembly-guide.ts`), the flat-engraving SVG, package builders, and the export block policy |
+| `project/` | Reading and describing projects without generating them: `parseProject` for untrusted JSON, the crop bounds, the agent-facing `ProjectRequestV1` and its JSON Schema, and stack plans from a relief sample. Also published alone as `@topostack/core/project` for the Worker |
 | `test-support/` | Fixtures shared by tests only; excluded from the build |
 
-`index.ts` names every public entry point explicitly. Consumers import `@topostack/core`; nothing outside the package may reach into these folders.
+`index.ts` names every public entry point explicitly. Consumers import `@topostack/core` (or the `@topostack/core/project` subpath); nothing outside the package may reach into these folders.
 
 ## Generator layout
 

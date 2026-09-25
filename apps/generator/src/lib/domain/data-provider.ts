@@ -1,8 +1,7 @@
 import { loadProviderOutlines, resolveLakeOutlines } from "$lib/domain/lake-outlines";
 import { mapTiles } from "$lib/domain/tile-requests";
-import { fitCutBounds } from "$lib/domain/selection-bounds";
 import { createFeatureBudget, yieldForCancellation } from "$lib/domain/feature-budget";
-import { OUTLINE_CHART_KEY_PREFIX, sourceRequirements, createSyntheticSource, type GeoBounds, type MarkingFeature, type Polygon2D, type ProjectConfigV1, type SourceBundleV1, type TransportationClass, type WaterAreaV1 } from "@topostack/core";
+import { boundsForProject, OUTLINE_CHART_KEY_PREFIX, sourceRequirements, createSyntheticSource, type GeoBounds, type MarkingFeature, type Polygon2D, type ProjectConfigV1, type SourceBundleV1, type TransportationClass, type WaterAreaV1 } from "@topostack/core";
 import { createArchive, networkSignal } from "$lib/domain/archive";
 import { classifyRings, VectorTile } from "@mapbox/vector-tile";
 import { PbfReader } from "pbf";
@@ -11,7 +10,7 @@ import { decodeTerrainPng } from "@topostack/data-contracts/terrain-png";
 import { loadLakeBathymetry, applySurveyProvenance, type SurveyResult } from "$lib/domain/bathymetry";
 import { applyPreferredTerrain } from "$lib/domain/terrain-sources";
 import { repairElevationSpikes } from "$lib/domain/elevation-cleanup";
-import { fittingTileWindow, groundWidthM, latToWorldY, lonToWorldX, tilePointProjector, TILE_SIZE, worldSize, worldXToLon, worldYToLat, type TileWindow } from "$lib/domain/tile-math";
+import { fittingTileWindow, groundWidthM, tilePointProjector, TILE_SIZE, type TileWindow } from "$lib/domain/tile-math";
 import { cleanBoundaryMarkings, cleanWaterwayMarkings, clipVectorTileLine, dissolveWaterAreas, limitVectorMarkingGroups, MAX_VECTOR_MARKINGS, shorelineMarkings, stitchTransportationMarkings } from "$lib/domain/vector-cleanup";
 import { assembleWater } from "$lib/domain/water-assembly";
 import { isSupportedCoordinate } from "$lib/domain/coordinates";
@@ -45,19 +44,8 @@ const LOCAL_ROAD_DETAILS = new Set(["tertiary", "tertiary_link", "residential", 
 const TRAIL_DETAILS = new Set(["pedestrian", "track", "path", "cycleway", "bridleway", "steps", "corridor", "sidewalk", "crossing"]);
 const EXCLUDED_TRANSPORT_KINDS = new Set(["rail", "aerialway", "ferry", "pier", "aeroway"]);
 
-
-export function boundsForProject(config: ProjectConfigV1): GeoBounds {
-  if (config.location.bounds) return fitCutBounds(config.location.bounds, config.widthMm, config.heightMm);
-  const zoom = Math.max(0, Math.min(15, Math.round(config.location.zoom)));
-  const size = worldSize(zoom);
-  const centerX = lonToWorldX(config.location.lon, zoom);
-  const centerY = latToWorldY(config.location.lat, zoom);
-  const widthPx = Math.min(420, size);
-  const heightPx = Math.min(280, size);
-  const northY = Math.max(0, Math.min(size - heightPx, centerY - heightPx / 2));
-  return fitCutBounds({ west: worldXToLon(centerX - widthPx / 2, zoom), east: worldXToLon(centerX + widthPx / 2, zoom), north: worldYToLat(northY, zoom), south: worldYToLat(northY + heightPx, zoom) }, config.widthMm, config.heightMm);
-}
-
+/** The crop is computed in core so the studio and the Worker agree on it. */
+export { boundsForProject };
 
 export function classifyTransportation(properties: Record<string, unknown>): TransportationClass | undefined {
   const kind = typeof properties.kind === "string" ? properties.kind : "";

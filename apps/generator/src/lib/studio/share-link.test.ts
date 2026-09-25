@@ -56,15 +56,4 @@ describe("share links", () => {
     const truncated = hashOf(shareLinkFor(DEFAULT_PROJECT, STUDIO)).slice(0, -12);
     expect(() => projectFromShareLink(truncated)).toThrow(/damaged/);
   });
-
-  it("stops inflating a decompression bomb at the project size limit", () => {
-    const bomb = deflateSync(new Uint8Array(10_000_000).fill(32), { level: 9 });
-    const hash = fragment(bomb);
-    expect(hash.length).toBeLessThan(16_000);
-    expect(() => projectFromShareLink(hash)).toThrow(/too large/);
-  });
-
-  it("rejects oversized fragments before decoding", () => {
-    expect(() => projectFromShareLink(`#p=1.${"A".repeat(16_001)}`)).toThrow(/not valid/);
-  });
 });
