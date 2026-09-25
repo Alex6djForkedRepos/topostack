@@ -128,6 +128,11 @@
       <p class="credit">OpenFreeMap · © OpenMapTiles · Data from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>. <a href="https://openfreemap.org/quick_start/">Provider credits</a> remain available on the interactive map.</p>
     </div>
     <div class="source">
+      <h3><a href="https://www.naturalearthdata.com/">Natural Earth</a></h3>
+      <p>The small maps on individual lake pages that show where each lake is use Natural Earth’s 1:50m land, lakes, country borders and state or province lines, simplified for the page.</p>
+      <p class="credit">Made with Natural Earth. Free vector and raster map data @ naturalearthdata.com. Public domain.</p>
+    </div>
+    <div class="source">
       <h3><a href="https://www.geoapify.com/">Geoapify</a></h3>
       <p>Place search turns a place name into coordinates and a location label so you can select an area. Search is powered by Geoapify and includes OpenStreetMap-derived information.</p>
       <p class="credit">Powered by Geoapify · © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>. <a href="https://www.geoapify.com/terms-and-conditions/">Service terms</a>.</p>

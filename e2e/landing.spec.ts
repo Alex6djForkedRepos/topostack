@@ -146,6 +146,8 @@ test("lake depth pages list surveyed lakes without JavaScript and link into the 
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Pelican lake depth map");
   await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toContainText(/Crow Wing County\s*\/\s*Pelican/);
   await expect(page.getByRole("link", { name: "Open Pelican in the studio" })).toHaveAttribute("href", /studio\?lake=Pelican&bounds=/);
+  // The locator map is plain SVG, so it is there without JavaScript.
+  await expect(page.getByRole("img", { name: /Map of where Pelican is in Crow Wing County, Minnesota/ })).toBeVisible();
   const graph = JSON.parse(await page.locator('script[type="application/ld+json"]').textContent() ?? "{}")["@graph"];
   expect(graph).toContainEqual(expect.objectContaining({ "@type": "LakeBodyOfWater", name: "Pelican", containedInPlace: { "@type": "Place", name: "Crow Wing County, Minnesota" } }));
   await context.close();
