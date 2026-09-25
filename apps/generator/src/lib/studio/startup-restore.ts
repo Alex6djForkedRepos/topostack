@@ -1,5 +1,5 @@
-import { DEFAULT_PROJECT, MAX_PROJECT_NAME_LENGTH, type ProjectConfigV1 } from "@topostack/core";
-import { parseProject, UnreadableSavedProjectError } from "$lib/storage/storage";
+import { DEFAULT_PROJECT, MAX_PROJECT_NAME_LENGTH, parseProject, type ProjectConfigV1 } from "@topostack/core";
+import { UnreadableSavedProjectError } from "$lib/storage/storage";
 
 /** Example slugs are lowercase words joined by hyphens; anything else never reaches the network. */
 const EXAMPLE_SLUG = /^[a-z0-9-]+$/;
