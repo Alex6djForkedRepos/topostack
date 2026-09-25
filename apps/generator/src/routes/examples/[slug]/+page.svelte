@@ -1,7 +1,8 @@
 <script lang="ts">
   import { base } from "$app/paths";
   import Article from "$lib/site/Article.svelte";
-  import { EXAMPLES_HOME } from "$lib/site/site";
+  import ExampleActions from "$lib/site/ExampleActions.svelte";
+  import { EXAMPLES_HOME, exampleStudioPath } from "$lib/site/site";
 
   let { data } = $props();
   const example = $derived(data.example);
@@ -19,6 +20,7 @@
     </picture>
     <figcaption>{example.place}, {example.region}, generated in the TopoStack studio. Terrain: Mapzen. Map data © OpenStreetMap contributors.</figcaption>
   </figure>
+  <ExampleActions slug={example.slug} download />
 
   <h2>The project</h2>
   <table>
@@ -36,11 +38,10 @@
 
   <h2>Make it yourself</h2>
   <ol>
-    <li><a href={`${base}/examples/${example.slug}.json`} download>Download the project file</a>. It holds the map area and every setting above.</li>
-    <li><a href={`${base}/studio`}>Open the studio</a> and choose <strong>Import project JSON</strong> next to the project name.</li>
-    <li>Select <strong>Generate terrain</strong>. Fresh data can change the layer count slightly from the one listed here.</li>
+    <li><a href={`${base}${exampleStudioPath(example.slug)}`}>Open this project in the studio</a>. It opens with the map area and every setting above and generates the terrain. Fresh data can change the layer count slightly from the one listed here, and <strong>Undo</strong> returns to the project you had open before.</li>
     <li>Check the cut layers and 3D preview, then open <strong>Export</strong> for the SVG cut panels and assembly guide.</li>
   </ol>
+  <p>The downloadable project file holds the same settings. Keep it as a record, or open it later with <strong>Import project JSON</strong> next to the project name in the studio.</p>
   <p>To change it, set your own sheet thickness in <strong>Terrain layers</strong> or a new size in <strong>Cut size</strong>; the studio recalculates the layers. The <a href={`${base}/guides/laser-cut-topographic-map`}>layered map guide</a> covers kerf, nesting and assembly, and the <a href={`${base}/guides/topographic-map-engraving`}>engraving guide</a> shows how to make the same place as a flat engraving.</p>
 
   <h2>More examples</h2>

@@ -189,7 +189,7 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
   },
   "/examples": {
     title: "Topographic Map Examples: Laser-Cut Terrain Projects | TopoStack",
-    description: "Layered topographic map projects of the Grand Canyon, Yosemite, Mount Rainier, Mount Fuji and more, with renders, settings and project files to import.",
+    description: "Layered topographic map projects of the Grand Canyon, Yosemite, Mount Rainier, Mount Fuji and more, with renders, settings and projects that open in the studio.",
     label: "Examples",
     published: "2026-09-21",
     updated: "2026-09-21",
@@ -199,7 +199,7 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     description: "Explore the Crater Lake terrain preview in TopoStack, follow the project setup, and learn how to generate fresh terrain for layered or engraved SVG exports.",
     label: "Crater Lake example",
     published: "2026-09-15",
-    updated: "2026-09-17",
+    updated: "2026-09-25",
   },
   "/attribution": {
     title: "Sources and Attribution | TopoStack",

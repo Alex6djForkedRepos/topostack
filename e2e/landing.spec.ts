@@ -109,11 +109,13 @@ test("mobile readers can navigate guides, examples and the studio with correct m
   await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toContainText("Get started");
   await expect(page.getByRole("navigation", { name: "Previous and next guides" }).getByRole("link", { name: /Next\s*Layered map guide/ })).toBeVisible();
   await expect(page.locator("article img")).toBeVisible();
-  await page.getByRole("link", { name: "Open the terrain studio", exact: true }).click();
+  await page.getByRole("link", { name: "Open Crater Lake in the studio", exact: true }).click();
+  // The example link is consumed once the project opens, so a refresh keeps later edits.
   await expect(page).toHaveURL(baseURL + "/studio");
   await expect(page.getByRole("button", { name: "Export", exact: true })).toBeVisible();
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex, follow");
-  await expect.poll(() => events.map((event) => event.event)).toEqual(["landing_view", "studio_open"]);
+  // Opening an example also starts its terrain generation, which reports its own events.
+  await expect.poll(() => events.map((event) => event.event).slice(0, 3)).toEqual(["landing_view", "studio_open", "generation_started"]);
   expect(events.every((event) => event.source === "github" && event.landing === "/")).toBe(true);
 });
 
@@ -153,6 +155,29 @@ test("the example gallery leads to an example with its render, sharing card and 
   const file = await (await request.get(new URL(await download.getAttribute("href") ?? "", page.url()).href)).json();
   expect(file.project).toMatchObject({ schemaVersion: 1, cropShape: "circle", outputMode: "stack" });
   expect(file.capture.layers).toBeGreaterThan(3);
+});
+
+test("an example opens in the studio with one click and Undo returns to the previous project", async ({ page, baseURL }) => {
+  await page.route("https://static-res.makextool.com/**", (route) => route.abort());
+  await page.goto("/examples/mount-fuji");
+  const open = page.getByRole("link", { name: "Open in studio", exact: true });
+  await expect(open).toHaveAttribute("href", /studio\?example=mount-fuji$/);
+  await open.click();
+  await expect(page).toHaveURL(baseURL + "/studio");
+  const name = page.getByRole("textbox", { name: "Project name", exact: true });
+  await expect(name).toHaveValue("Mount Fuji · TopoStack example");
+  await expect(page.getByRole("button", { name: "Export", exact: true })).toBeVisible();
+  // The example replaced the starting project as an ordinary, undoable change.
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(name).toHaveValue("Crater Lake");
+});
+
+test("an example link that names no example leaves the studio on its current project", async ({ page, baseURL }) => {
+  await page.route("https://static-res.makextool.com/**", (route) => route.abort());
+  await page.goto("/studio?example=atlantis");
+  await expect(page).toHaveURL(baseURL + "/studio");
+  await expect(page.getByText("Example not found · your project is unchanged")).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Project name", exact: true })).toHaveValue("Crater Lake");
 });
 
 test("the changelog lists releases newest first with a feed, without JavaScript", async ({ browser, baseURL }) => {

@@ -65,7 +65,7 @@ export const ALL_EXAMPLES: readonly ExampleConfig[] = [
     ],
     keywords: "Grand Canyon topographic map",
     published: "2026-09-21",
-    updated: "2026-09-21",
+    updated: "2026-09-25",
   },
   {
     slug: "yosemite-valley",
@@ -84,7 +84,7 @@ export const ALL_EXAMPLES: readonly ExampleConfig[] = [
     ],
     keywords: "Yosemite topographic map",
     published: "2026-09-21",
-    updated: "2026-09-21",
+    updated: "2026-09-25",
   },
   {
     slug: "mount-rainier",
@@ -103,7 +103,7 @@ export const ALL_EXAMPLES: readonly ExampleConfig[] = [
     ],
     keywords: "Mount Rainier topographic map",
     published: "2026-09-21",
-    updated: "2026-09-21",
+    updated: "2026-09-25",
   },
   {
     slug: "mount-fuji",
@@ -122,7 +122,7 @@ export const ALL_EXAMPLES: readonly ExampleConfig[] = [
     ],
     keywords: "Mount Fuji topographic map",
     published: "2026-09-21",
-    updated: "2026-09-21",
+    updated: "2026-09-25",
   },
   {
     slug: "matterhorn",
@@ -141,7 +141,7 @@ export const ALL_EXAMPLES: readonly ExampleConfig[] = [
     ],
     keywords: "Matterhorn topographic map",
     published: "2026-09-21",
-    updated: "2026-09-21",
+    updated: "2026-09-25",
   },
   {
     slug: "lake-tahoe",
@@ -161,7 +161,7 @@ export const ALL_EXAMPLES: readonly ExampleConfig[] = [
     ],
     keywords: "Lake Tahoe depth map",
     published: "2026-09-21",
-    updated: "2026-09-21",
+    updated: "2026-09-25",
   },
 ];
 
@@ -211,7 +211,7 @@ export function exampleProject<T extends Record<string, unknown>>(template: T, e
 export function exampleMeta(example: ExampleConfig): { title: string; description: string } {
   return {
     title: `${example.keywords.replace(/\b\w/g, (letter) => letter.toUpperCase())}: A Laser-Cut Project | TopoStack`,
-    description: `Make a layered ${example.place} map from real elevation data. See the finished render, the settings used, and download the project to open in TopoStack.`,
+    description: `Make a layered ${example.place} map from real elevation data. See the finished render and the settings used, then open the project in TopoStack.`,
   };
 }
 

@@ -1,11 +1,12 @@
 <script lang="ts">
   import { base } from "$app/paths";
   import Article from "$lib/site/Article.svelte";
+  import { exampleStudioPath } from "$lib/site/site";
 
   let { data } = $props();
 </script>
 
-<Article title="Topographic map examples" intro="Real TopoStack projects you can open and make: each one shows the finished relief, the settings behind it, and a project file to import into the studio.">
+<Article title="Topographic map examples" intro="Real TopoStack projects you can open and make: each one shows the finished relief and the settings behind it, and opens in the studio with one click.">
   <ul class="gallery">
     {#each data.examples as example (example.slug)}
       <li>
@@ -14,6 +15,7 @@
           <span class="title">{example.place}</span>
         </a>
         <span class="meta">{example.region} · {example.layers} layers{example.shape === "circle" ? " · round" : ""}</span>
+        <a class="open" href={`${base}${exampleStudioPath(example.slug)}`}>Open in studio<span class="sr-only">: {example.place}</span></a>
       </li>
     {/each}
     <li>
@@ -22,6 +24,7 @@
         <span class="title">Crater Lake</span>
       </a>
       <span class="meta">Oregon, USA · surveyed lake floor</span>
+      <a class="open" href={`${base}${exampleStudioPath("crater-lake")}`}>Open in studio<span class="sr-only">: Crater Lake</span></a>
     </li>
   </ul>
   <h2>Start your own</h2>
@@ -34,4 +37,7 @@
   .gallery img { aspect-ratio: 4 / 3; object-fit: contain; background: #20231d; }
   .gallery .title { font-size: 18px; font-weight: 600; }
   .meta { color: var(--loidolt-text-muted); font-size: 13px; }
+  .gallery li { display: grid; gap: 4px; align-content: start; }
+  .gallery .open { display: inline; font-size: 14px; font-weight: 600; justify-self: start; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 </style>
