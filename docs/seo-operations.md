@@ -140,6 +140,14 @@ generated at build time from `static/data/lake-depth-directory.json` by
 
 ### One page per lake
 
+**Depth previews (not published yet).** `node scripts/dev/render-lake-previews.mjs --sample` renders a top-down depth map for each lake page:
+- **Data:** the studio's own terrain and survey data from the map API, via `loadTerrain`, `smoothLakeShorelines` and `carveWaterDepth` at true depth.
+- **Image:** shaded land, the lake floor tinted by depth, contours at a round interval, and a hatch over modelled depths. `apps/generator/src/lib/site/lake-preview/render.ts` draws it.
+- **Scale:** colours, contours and the reported maximum come from the previewed lake's own cells, at the 99.5th-percentile depth. Other water in frame cannot set them.
+- **Refusals:** a lake is not saved when its outline is missing or its survey is unavailable. Whole-Great-Lake frames currently exceed the lake and vector loaders, the same limit the studio hits.
+- **Speed and size:** about 10 s and 25–80 KB per lake.
+- **Next step:** publishing them (R2, a Worker route and the page image) is a separate change.
+
 Named lakes with a surveyed grid, or with contours covering at least
 `PLACE_PAGE_MIN_KM2` (5 km²) of survey area, also get a page of their own at
 `/lake/<slug>` (`buildLakePlaces()` in `lake-places.ts`, rendered by
