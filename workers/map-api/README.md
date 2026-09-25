@@ -73,7 +73,7 @@ CI normally synchronizes these secrets from the matching GitHub environment duri
 
 ## Agent API
 
-The routes an AI assistant or a script uses to plan a model and hand it to the studio. They are documented at `/v1/openapi.json`, and the design is in [docs/plans/agent-api.md](../../docs/plans/agent-api.md).
+The routes an AI assistant or a script uses to plan a model and hand it to the studio. They are documented at `/v1/openapi.json`, the full reference (fields, errors, budgets, MCP and WebMCP) is [docs/agent-api.md](../../docs/agent-api.md), and the design is in [docs/plans/agent-api.md](../../docs/plans/agent-api.md).
 
 | Route | Purpose |
 | --- | --- |

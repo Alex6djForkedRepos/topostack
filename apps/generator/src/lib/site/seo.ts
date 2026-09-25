@@ -200,6 +200,22 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     updated: "2026-09-25",
     image: socialCard("guides-use-with-ai-assistants", "AI assistants guide card with a Mount Rainier model previewed inside a chat as stacked sheets."),
   },
+  "/guides/http-api": {
+    title: "Topographic Model HTTP API for Developers | TopoStack",
+    description: "Plan laser-cut terrain models over HTTP: send a place and size as JSON, get sheet counts and scale from real terrain, and a studio link that builds the model.",
+    label: "HTTP API",
+    published: "2026-09-25",
+    updated: "2026-09-25",
+    image: socialCard("guides-http-api", "HTTP API guide card with a round layered relief of Mount Rainier rendered in the studio."),
+  },
+  "/guides/mcp-server": {
+    title: "TopoStack MCP Server for AI Agents | TopoStack",
+    description: "Build an assistant or agent on TopoStack's MCP server: tools, resources and prompts, the in-chat preview, errors and limits, and WebMCP tools in the studio.",
+    label: "MCP server",
+    published: "2026-09-25",
+    updated: "2026-09-25",
+    image: socialCard("guides-mcp-server", "MCP server guide card with an in-chat plan of Mount Rainier and its Open in TopoStack button."),
+  },
   "/guides/export-files": {
     title: "Laser Export Files and SVG Structure | TopoStack",
     description: "What each TopoStack download contains: SVG panels, colors and operation groups, kerf compensation, assembly guide, project file and attribution.",

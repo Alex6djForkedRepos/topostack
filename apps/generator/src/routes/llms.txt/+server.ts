@@ -27,6 +27,8 @@ export function GET(): Response {
     "",
     `- MCP server (Streamable HTTP, no sign-in): ${SITE_ORIGIN}/mcp. Tools: search_places, check_coverage, plan_model, preview_model (an in-chat preview app), create_studio_link. Start with the resource topostack://guide/making-a-model.`,
     `- HTTP API: ${SITE_ORIGIN}/v1/openapi.json describes POST /v1/projects/resolve, /plan and /link, which take the same project request as the MCP tools.`,
+    // Plain text, as below: both guides are linked in their docs section.
+    `- Developer guides: ${SITE_ORIGIN}/guides/http-api (request fields, routes, errors, limits) and ${SITE_ORIGIN}/guides/mcp-server (tools, resources, prompts, the preview app, WebMCP).`,
     // Plain text: the guide is linked once, in its docs section below.
     `- Connecting Claude, ChatGPT, VS Code and browser agents: ${SITE_ORIGIN}/guides/use-with-ai-assistants`,
     "- Plans are estimates from sampled terrain; files are generated and exported in the studio, which a studio link opens and builds. Keep the attribution each response includes.",

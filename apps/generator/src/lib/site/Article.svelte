@@ -146,6 +146,9 @@
   article :global(figure) { margin: 32px 0; }
   article :global(img) { display: block; width: 100%; height: auto; border: 1px solid var(--loidolt-border); border-radius: var(--loidolt-border-radius); }
   article :global(figcaption) { font-size: 13px; line-height: 1.6; color: var(--loidolt-text-muted); margin-top: 12px; }
+  /* Code blocks scroll inside themselves and long inline code (JSON, URLs) in prose may break, so neither widens the page. */
+  article :global(pre) { overflow-x: auto; margin: 16px 0 24px; padding: 16px; border: 1px solid var(--loidolt-border); border-radius: var(--loidolt-border-radius); background: var(--loidolt-surface); font-size: 13px; line-height: 1.6; }
+  article :global(:is(p, li) > code) { overflow-wrap: anywhere; }
   article :global(.note) { padding: 20px; border-left: 3px solid var(--loidolt-accent); background: var(--loidolt-surface); }
   .pager { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 56px; padding-top: 32px; border-top: 1px solid var(--loidolt-border); }
   .pager a { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border: 1px solid var(--loidolt-border); border-radius: var(--loidolt-border-radius); text-decoration: none; font-weight: 600; }
