@@ -2,4 +2,4 @@
 type: fix
 title: Lake search and the region index link to lake pages
 ---
-One to three sentences on what a maker can now do or no longer runs into.
+Lakes with a page of their own now show a **Lake page** link in the [lake depth data search](/guides/lake-depth-data), and the featured lakes on [lake depth maps by region](/lakes) open their pages instead of going straight to the studio.
