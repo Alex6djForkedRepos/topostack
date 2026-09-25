@@ -1,12 +1,14 @@
 <script lang="ts">
   import { base } from "$app/paths";
   import Article from "$lib/site/Article.svelte";
+  import LakeDepthPreview from "$lib/site/LakeDepthPreview.svelte";
   import LakeLocator from "$lib/site/LakeLocator.svelte";
+  import type { LakePreview } from "$lib/site/lake-pages.server";
   import type { LocatorMap } from "$lib/site/lake-locator";
   import { depthKindLabel } from "$lib/site/lake-directory";
   import type { LakePlace } from "$lib/site/lake-places";
 
-  let { page, locator }: { page: LakePlace; locator?: LocatorMap } = $props();
+  let { page, locator, preview }: { page: LakePlace; locator?: LocatorMap; preview?: LakePreview } = $props();
 
   const listPage = $derived(page.trail.at(-2));
   const coordinates = $derived(`${Math.abs(page.center.lat).toFixed(4)}° ${page.center.lat < 0 ? "S" : "N"}, ${Math.abs(page.center.lon).toFixed(4)}° ${page.center.lon < 0 ? "W" : "E"}`);
@@ -17,6 +19,7 @@
 <Article title={page.heading} intro={page.intro} trail={page.trail} static>
   <p class="open"><a class="start" href={`${base}${page.studioPath}`}>Open {page.name} in the studio</a></p>
   <p>The studio frames the survey area, turns on <strong>Water depth</strong> and generates the terrain, ready to adjust and export as SVG layers.</p>
+  {#if preview}<LakeDepthPreview {preview} name={page.name} />{/if}
   {#if locator}<LakeLocator map={locator} name={page.name} place={page.place} />{/if}
 
   <h2>Survey facts</h2>
