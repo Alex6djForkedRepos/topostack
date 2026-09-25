@@ -78,7 +78,7 @@ for (const file of files) {
     const target = link.pathname;
     // The studio opens `?example=<slug>` from its published project file; Crater Lake is the starting project.
     const example = target === "/studio" ? link.searchParams.get("example") : null;
-    if (example !== null) assert.ok(example === "crater-lake" || builtPaths.includes(`examples/${example}.json`), file + ": example link without a project file " + href);
+    if (example !== null) assert.ok(example === "crater-lake" || builtPaths.has(`examples/${example}.json`), file + ": example link without a project file " + href);
     const expectedFile = target === "/" ? "index.html" : target.slice(1) + ".html";
     assert.ok(htmlFiles.has(expectedFile) || await isBuiltFile(target.slice(1)), file + ": broken internal link " + href);
   }
