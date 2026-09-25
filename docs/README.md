@@ -43,6 +43,7 @@
 - [Changelog and releases](changelog.md) — writing fragments, the automated release commit, tags, and the /changelog page.
 - [Search and discovery operations](seo-operations.md)
 - [Feedback workflow and triage](feedback.md)
+- [Launch kit](launch/README.md): sequencing, per-channel rules and post drafts, creator outreach, honest media captions, UTM scheme and the weekly measurement routine.
 
 Python data builders under `scripts/` use one pinned environment: `scripts/data-build/requirements.txt`.
 
