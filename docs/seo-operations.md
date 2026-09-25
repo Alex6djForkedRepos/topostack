@@ -54,7 +54,9 @@ sitemap. Each index entry's `lastmod` is the newest content date in that child.
 A new generated lake route adds its entries to `lakeSitemapEntries()` and marks
 its pages `lake: true` in `scripts/verify/seo-pages.mjs`; `verify-seo.mjs`
 fails when a page sits in the wrong child sitemap. Each child sitemap must stay
-under the protocol limits (50,000 URLs, 50 MB uncompressed).
+under the protocol limits (50,000 URLs, 50 MB uncompressed). The build
+verifier checks every page; the HTTP verifier checks a fixed, evenly spaced
+sample of 20 lake pages (`samplePaths()`) so deploy checks stay fast.
 
 `llms.txt` lists the registered pages, examples and `/lakes/*` region pages,
 and links `/sitemap-lakes.xml` for the complete lake list; individual `/lake/`
@@ -101,11 +103,9 @@ generated at build time from `static/data/lake-depth-directory.json` by
   so they share the site CSP instead of adding `_headers` rules (Cloudflare
   allows 100). `finalizeStaticHeaders` skips pages whose scripts the fallback
   policy already covers, and JSON-LD is not hashed.
-- Metadata comes from `lakePageSeo()`; the lakes sitemap, `llms.txt` and both
-  SEO verifiers include the generated pages. The build verifier checks every
-  page; the HTTP verifier checks a fixed, evenly spaced sample of 20 lake
-  pages (`samplePaths()`) so deploy checks stay fast. Usage events from any
-  `/lakes/*` page report the `/lakes` landing.
+- Metadata comes from `lakePageSeo()`; the sitemap, `llms.txt` and both SEO
+  verifiers include the generated pages. Usage events from any `/lakes/*` page
+  report the `/lakes` landing.
 
 ### One page per lake
 
