@@ -1,5 +1,6 @@
 import directory from "../../../static/data/lake-depth-directory.json";
 import locatorData from "$lib/site/locator-data.json";
+import previewPin from "$lib/site/lake-previews.json";
 import lock from "$lib/site/lake-slugs.json";
 import type { LakeDirectory } from "$lib/site/lake-directory";
 import { buildLakePages } from "$lib/site/lake-pages";
@@ -19,6 +20,31 @@ export function lakeLocator(id: string): LocatorMap | undefined {
   if (!lake) return undefined;
   const others = (directory as LakeDirectory).lakes.filter((entry) => entry.id !== id).map(({ bounds: [west, south, east, north] }) => [(west + east) / 2, (south + north) / 2] as [number, number]);
   return buildLocator(lake.bounds, locatorData as LocatorData, others);
+}
+
+export interface LakePreview {
+  src: string;
+  width: number;
+  height: number;
+  maxDepthM: number;
+  contourIntervalM: number;
+  surveyedShare: number;
+  /** Names of the surveys the depths come from. */
+  surveys: string[];
+}
+interface PreviewPinEntry { file: string; width: number; height: number; maxDepthM: number; contourIntervalM: number; surveyedShare: number; surveys: string[] }
+const previews = (previewPin as { lakes: Record<string, PreviewPinEntry> }).lakes;
+const sourceNames = new Map((directory as LakeDirectory).sources.map((source) => [source.id, source.name]));
+
+/**
+ * The published depth preview for a lake page, from the committed pin
+ * (scripts/provision/provision-lake-previews.mjs). Pages without one show none.
+ */
+export function lakePreview(slug: string, pin: Record<string, PreviewPinEntry> = previews): LakePreview | undefined {
+  const entry = pin[slug];
+  if (!entry) return undefined;
+  return { src: `/v1/lake-previews/${entry.file}`, width: entry.width, height: entry.height, maxDepthM: entry.maxDepthM,
+    contourIntervalM: entry.contourIntervalM, surveyedShare: entry.surveyedShare, surveys: entry.surveys.map((id) => sourceNames.get(id) ?? id) };
 }
 
 /** What /data/lake-pages.json serves: lake id → page slug, for every lake with a page. */

@@ -11,7 +11,7 @@ import { createServer } from "vite";
 // lake-floor data the studio uses, fetched from the map API.
 //
 //   node scripts/dev/render-lake-previews.mjs --sample | --slugs a,b | --all
-//     [--out .topostack/lake-previews] [--api https://topostack.app] [--concurrency 2]
+//     [--out .topostack/lake-previews] [--api https://topostack.app] [--concurrency 1]
 //
 // Writes <slug>.webp and manifest.json to --out, plus index.html to review them.
 // Lakes whose inputs match the manifest are skipped, so an interrupted run
@@ -27,7 +27,8 @@ const SAMPLE = [
 
 const argument = (name) => { const index = process.argv.indexOf(name); return index > 0 ? process.argv[index + 1] : undefined; };
 const out = resolve(argument("--out") ?? ".topostack/lake-previews");
-const concurrency = Math.max(1, Number(argument("--concurrency") ?? 2));
+// One at a time by default: the map API rate-limits uncached terrain per client, and this shares its limits with visitors.
+const concurrency = Math.max(1, Number(argument("--concurrency") ?? 1));
 process.env.VITE_MAP_API_URL = argument("--api") ?? process.env.VITE_MAP_API_URL ?? "https://topostack.app";
 try { execFileSync("cwebp", ["-version"], { stdio: "ignore" }); } catch { throw new Error("cwebp is required (brew install webp)."); }
 
@@ -66,11 +67,17 @@ try {
     const place = bySlug.get(slug);
     const lake = lakes.get(place.id);
     const t0 = Date.now();
-    // Map API reads can fail transiently (rate limits, timeouts); retry before giving up on a lake.
+    // Map API reads can fail transiently. Terrain refusals are rate limiting: the
+    // Worker refuses a client for 60 s after it passes 240 uncached tiles a
+    // minute, so wait that out rather than burning the remaining attempts.
     let prepared;
     for (let attempt = 1; !prepared; attempt++) {
       try { prepared = await preparePreview({ name: place.name, sourceId: lake.sourceId, surveyId: lake.surveyId, bounds: lake.bounds }); }
-      catch (error) { if (attempt >= 3) throw error; await new Promise((wait) => setTimeout(wait, attempt * 5000)); }
+      catch (error) {
+        if (attempt >= 4) throw error;
+        const limited = error instanceof Error && /terrain unavailable/.test(error.message);
+        await new Promise((wait) => setTimeout(wait, limited ? 65_000 : attempt * 5000));
+      }
     }
     const t1 = Date.now();
     const image = renderPreview(prepared.input);
