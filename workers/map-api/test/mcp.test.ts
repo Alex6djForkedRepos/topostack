@@ -50,7 +50,8 @@ describe("MCP server through the SDK client", () => {
     expect(client.getServerCapabilities()).toMatchObject({ tools: {}, resources: {}, prompts: {} });
     expect(client.getInstructions()).toMatch(/plan_model/);
     const { tools } = await client.listTools();
-    expect(tools.map(({ name }) => name)).toEqual(["search_places", "check_coverage", "plan_model", "create_studio_link"]);
+    expect(tools.map(({ name }) => name)).toEqual(["search_places", "check_coverage", "plan_model", "preview_model", "create_studio_link"]);
+    expect(tools.find(({ name }) => name === "preview_model")?._meta).toMatchObject({ ui: { resourceUri: "ui://topostack/terrain-preview.html" } });
     for (const tool of tools) {
       expect(tool.annotations).toMatchObject({ readOnlyHint: true, destructiveHint: false });
       expect(tool.outputSchema?.type).toBe("object");
@@ -119,13 +120,41 @@ describe("MCP server through the SDK client", () => {
   it("serves the guide, the data sources and the request schema", async () => {
     const client = await connect();
     const { resources } = await client.listResources();
-    expect(resources.map(({ uri }) => uri)).toEqual(["topostack://guide/making-a-model", "topostack://data/sources", "topostack://schema/project-request-v1"]);
+    expect(resources.map(({ uri }) => uri)).toEqual(["topostack://guide/making-a-model", "topostack://data/sources", "topostack://schema/project-request-v1", "ui://topostack/terrain-preview.html"]);
     const guide = await client.readResource({ uri: "topostack://guide/making-a-model" });
     expect((guide.contents[0] as { text: string }).text).toMatch(/## Layered or flat/);
     const schema = await client.readResource({ uri: "topostack://schema/project-request-v1" });
     expect(JSON.parse((schema.contents[0] as { text: string }).text)).toMatchObject({ required: ["requestVersion", "area"] });
     await expect(client.readResource({ uri: "topostack://nothing" })).rejects.toThrow(/not found/i);
     expect((await client.listResourceTemplates()).resourceTemplates).toEqual([]);
+    await client.close();
+  });
+
+  it("serves the in-chat preview with the map API as its only connection", async () => {
+    const page = `<meta name="topostack-api-origin" content="%TOPOSTACK_API_ORIGIN%"><script type="module">/* preview */</script>`;
+    const assets = { fetch: vi.fn(async (request: Request) => new URL(request.url).pathname === "/mcp-app/terrain-preview.html" ? new Response(page) : new Response("missing", { status: 404 })) };
+    const client = await connect({ ...env, ASSETS: assets } as unknown as Env);
+    const { resources } = await client.listResources();
+    const listed = resources.find(({ uri }) => uri.startsWith("ui://"));
+    expect(listed).toMatchObject({ mimeType: "text/html;profile=mcp-app", _meta: { ui: { csp: { connectDomains: ["https://api.topostack.test"] } } } });
+    const read = await client.readResource({ uri: "ui://topostack/terrain-preview.html" });
+    const content = read.contents[0] as unknown as { text: string; mimeType: string; _meta: { ui: { csp: { connectDomains: string[] } } } };
+    expect(content.mimeType).toBe("text/html;profile=mcp-app");
+    expect(content.text).toContain('content="https://api.topostack.test"');
+    expect(content._meta.ui.csp.connectDomains).toEqual(["https://api.topostack.test"]);
+    await client.close();
+    const unbuilt = await connect({ ...env, ASSETS: { fetch: async () => new Response("missing", { status: 404 }) } } as unknown as Env);
+    await expect(unbuilt.readResource({ uri: "ui://topostack/terrain-preview.html" })).rejects.toThrow(/not built/);
+    await unbuilt.close();
+  });
+
+  it("previews a model with the same plan as plan_model", async () => {
+    stubTerrain();
+    const client = await connect();
+    const args = { area: { center: { lat: 46.8523, lon: -121.7603 }, widthKm: 20 }, placeLabel: "Mount Rainier" };
+    const preview = await client.callTool({ name: "preview_model", arguments: args });
+    const plan = await client.callTool({ name: "plan_model", arguments: args });
+    expect(preview.structuredContent).toEqual(plan.structuredContent);
     await client.close();
   });
 

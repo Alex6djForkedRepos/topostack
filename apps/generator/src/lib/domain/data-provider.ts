@@ -1,5 +1,6 @@
 import { loadProviderOutlines, resolveLakeOutlines } from "$lib/domain/lake-outlines";
 import { mapTiles } from "$lib/domain/tile-requests";
+import { apiBase } from "$lib/domain/api-base";
 import { createFeatureBudget, yieldForCancellation } from "$lib/domain/feature-budget";
 import { boundsForProject, OUTLINE_CHART_KEY_PREFIX, sourceRequirements, createSyntheticSource, type GeoBounds, type MarkingFeature, type Polygon2D, type ProjectConfigV1, type SourceBundleV1, type TransportationClass, type WaterAreaV1 } from "@topostack/core";
 import { createArchive, networkSignal } from "$lib/domain/archive";
@@ -21,23 +22,6 @@ export { applyLakeShorelines, assembleWater, combineWaterAreas } from "$lib/doma
 
 export interface PlaceResult { id: string; label: string; lat: number; lon: number; type?: string; bounds?: GeoBounds; zoom?: number; surveyedLake?: boolean }
 
-function normalizeApiBase(value: string | undefined): string | undefined {
-  if (!value?.trim()) return undefined;
-  const url = new URL(value);
-  if ((url.protocol !== "https:" && url.protocol !== "http:") || url.username || url.password || (url.pathname !== "/" && url.pathname !== "") || url.search || url.hash) {
-    throw new Error("VITE_MAP_API_URL must be an HTTP(S) origin without credentials, a path, query, or fragment.");
-  }
-  return url.origin;
-}
-
-const configuredApiBase = normalizeApiBase(import.meta.env.VITE_MAP_API_URL as string | undefined);
-// Wrangler's default 8787 is often taken, so `npm run dev` (and a standalone
-// `npm run dev:web`) can retarget the local API with VITE_MAP_API_PORT.
-const developmentApiPort = (import.meta.env.VITE_MAP_API_PORT as string | undefined) || "8787";
-const developmentApiBase = import.meta.env.DEV ? `http://localhost:${developmentApiPort}` : undefined;
-// Standalone deployments serve the app and API from the same Worker. Atomm
-// packages still inject an explicit API URL during their build.
-const apiBase = configuredApiBase ?? developmentApiBase ?? "";
 const RAW_VECTOR_MARKING_BUDGET_MULTIPLIER = 4;
 const MAJOR_ROAD_DETAILS = new Set(["motorway", "motorway_link", "trunk", "trunk_link", "primary", "primary_link", "secondary", "secondary_link"]);
 const LOCAL_ROAD_DETAILS = new Set(["tertiary", "tertiary_link", "residential", "service", "unclassified", "road", "raceway", "driveway", "parking_aisle", "alley", "drive-through", "emergency_access"]);
@@ -75,13 +59,13 @@ export function isStateProvinceBoundary(properties: Record<string, unknown>): bo
 async function loadElevation(window: TileWindow, bounds: GeoBounds, signal?: AbortSignal) {
   const responses = await mapTiles(window.tiles, async (tile, signal) => {
     // Public tile URLs survive dataset releases; revalidate before fabrication.
-    const response = await fetch(`${apiBase}/v1/terrain/${tile.z}/${tile.x}/${tile.y}.png`, { signal: networkSignal(signal), cache: "no-cache" });
+    const response = await fetch(`${apiBase()}/v1/terrain/${tile.z}/${tile.x}/${tile.y}.png`, { signal: networkSignal(signal), cache: "no-cache" });
     if (!response.ok) throw new Error(`Terrain service returned ${response.status}.`);
     const bytes = new Uint8Array(await response.arrayBuffer());
     signal?.throwIfAborted();
     return { tile, response, values: decodeTerrainPng(bytes) };
   }, signal);
-  const preferred = await applyPreferredTerrain(apiBase, bounds, responses.map(({ tile, values }) => ({ ...tile, values })), signal);
+  const preferred = await applyPreferredTerrain(apiBase(), bounds, responses.map(({ tile, values }) => ({ ...tile, values })), signal);
   const minTileX = Math.min(...window.tiles.map((tile) => tile.worldX));
   const minTileY = Math.min(...window.tiles.map((tile) => tile.y));
   const mosaicWidth = (Math.max(...window.tiles.map((tile) => tile.worldX)) - minTileX + 1) * TILE_SIZE;
@@ -166,7 +150,7 @@ export interface VectorData {
 
 export async function loadVectorMarkings(bounds: GeoBounds, requestedZoom: number, config: ProjectConfigV1, signal?: AbortSignal): Promise<VectorData> {
   signal?.throwIfAborted();
-  const vectorArchive = createArchive(`${apiBase}/v1/osm.pmtiles`, signal);
+  const vectorArchive = createArchive(`${apiBase()}/v1/osm.pmtiles`, signal);
   const header = await vectorArchive.getHeader();
   signal?.throwIfAborted();
   const window = fittingTileWindow(bounds, Math.max(header.minZoom, Math.min(header.maxZoom, Math.round(requestedZoom) + 1)), header.minZoom);
@@ -286,7 +270,7 @@ export async function loadVectorMarkings(bounds: GeoBounds, requestedZoom: numbe
  */
 export async function loadLakeAreas(bounds: GeoBounds, requestedZoom: number, config: ProjectConfigV1, signal?: AbortSignal): Promise<WaterAreaV1[]> {
   const results = await Promise.allSettled([
-    loadProviderOutlines(apiBase, bounds, config, signal),
+    loadProviderOutlines(apiBase(), bounds, config, signal),
     loadHydroLakeAreas(bounds, requestedZoom, config, signal),
   ]);
   signal?.throwIfAborted();
@@ -298,7 +282,7 @@ export async function loadLakeAreas(bounds: GeoBounds, requestedZoom: number, co
 
 async function loadHydroLakeAreas(bounds: GeoBounds, requestedZoom: number, config: ProjectConfigV1, signal?: AbortSignal): Promise<WaterAreaV1[]> {
   signal?.throwIfAborted();
-  const lakeArchive = createArchive(`${apiBase}/v1/lakes.pmtiles`, signal);
+  const lakeArchive = createArchive(`${apiBase()}/v1/lakes.pmtiles`, signal);
   const header = await lakeArchive.getHeader();
   signal?.throwIfAborted();
   const window = fittingTileWindow(bounds, Math.max(header.minZoom, Math.min(header.maxZoom, Math.round(requestedZoom))), header.minZoom);
@@ -381,7 +365,7 @@ async function loadHydroLakeAreas(bounds: GeoBounds, requestedZoom: number, conf
  * come from this browser only, so a project opened elsewhere keeps the survey.
  */
 export async function loadSurveyedLakeDepths(bounds: GeoBounds, elevation: SourceBundleV1["elevation"], zoom: number, areas: WaterAreaV1[], signal?: AbortSignal, config?: Pick<ProjectConfigV1, "widthMm" | "heightMm" | "userDepthCharts">): Promise<SurveyResult & { missingCharts?: string[] }> {
-  const result = await loadLakeBathymetry(apiBase, bounds, elevation, zoom, areas, signal, config);
+  const result = await loadLakeBathymetry(apiBase(), bounds, elevation, zoom, areas, signal, config);
   if (!config?.userDepthCharts || !Object.keys(config.userDepthCharts).length) return result;
   const { loadUserCharts } = await import("$lib/storage/user-charts");
   const { applyUserCharts } = await import("$lib/domain/user-bathymetry");
@@ -502,7 +486,7 @@ export async function loadTerrain(config: ProjectConfigV1, signal?: AbortSignal,
 
 export async function searchPlaces(query: string, signal?: AbortSignal): Promise<PlaceResult[]> {
   if (query.trim().length < 2) return [];
-  const response = await fetch(`${apiBase}/v1/geocode?q=${encodeURIComponent(query.trim())}&limit=5`, { signal: networkSignal(signal) });
+  const response = await fetch(`${apiBase()}/v1/geocode?q=${encodeURIComponent(query.trim())}&limit=5`, { signal: networkSignal(signal) });
   if (!response.ok) throw new Error("Place search is temporarily unavailable.");
   const value: unknown = await response.json();
   if (!Array.isArray(value)) throw new Error("Place search returned an unexpected response.");

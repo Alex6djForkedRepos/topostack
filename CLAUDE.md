@@ -35,6 +35,7 @@ Run generator tests from `apps/generator` or via `npm run test -w @topostack/gen
 | Serving, caching, geocoding | `workers/map-api/src/routes/` |
 | Agent-facing API (project resolve, plan, link, coverage, OpenAPI) | `workers/map-api/src/agent/`; the request contract itself is `packages/core/src/project/` |
 | The remote MCP server (tools, resources, prompts, transport) | `workers/map-api/src/mcp/`; tools call `src/agent/` so REST and MCP agree |
+| The in-chat preview (MCP App) | `apps/generator/src/mcp-app/`, built by `vite.mcp-app.config.ts`; served by `workers/map-api/src/mcp/app-resource.ts` |
 | An operational script | `scripts/<purpose>/` and a row in `scripts/README.md` saying how it runs |
 | A design decision or runbook | `docs/`, then a line in `docs/README.md` |
 | What users will notice about a change | a fragment in `changelog/unreleased/` (`npm run changelog:new`); see [docs/changelog.md](docs/changelog.md) |
