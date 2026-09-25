@@ -481,7 +481,8 @@ describe("geocoder caching", () => {
     const second = await worker.fetch(request("/v1/geocode?q=%20Lake%09Tahoe%20%0AWhitespace"), env, context);
     expect(second.headers.get("x-topostack-cache")).toBe("HIT");
     await second.arrayBuffer();
-    expect(upstream).toHaveBeenCalledOnce();
+    // One miss searches twice (default and named features); the hit searches nothing.
+    expect(upstream).toHaveBeenCalledTimes(2);
     expect(new URL(String((upstream.mock.calls[0] as unknown[])[0])).searchParams.get("text")).toBe("lake tahoe whitespace");
   });
 
@@ -509,7 +510,8 @@ describe("geocoder caching", () => {
     expect(hit.headers.get("cache-control")).toMatch(/^public, max-age=\d+$/);
     expect(await hit.text()).toBe("");
     expect(get).not.toHaveBeenCalled();
-    expect(upstream).toHaveBeenCalledOnce();
+    // Only the GET that filled the cache searched (twice: default and named features).
+    expect(upstream).toHaveBeenCalledTimes(2);
     expect(perClient.limit).not.toHaveBeenCalled();
     expect(global.limit).not.toHaveBeenCalled();
   });
