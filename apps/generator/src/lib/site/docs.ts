@@ -11,8 +11,8 @@ export const DOCS_SECTIONS: readonly { id: string; title: string; summary: strin
   {
     id: "start",
     title: "Get started",
-    summary: "Find your way around the studio and follow a complete first project.",
-    paths: ["/guides/studio-tour", "/examples", "/examples/crater-lake"],
+    summary: "Find your way around the studio, start from an AI assistant, or follow a complete first project.",
+    paths: ["/guides/studio-tour", "/guides/use-with-ai-assistants", "/examples", "/examples/crater-lake"],
   },
   {
     id: "make",
