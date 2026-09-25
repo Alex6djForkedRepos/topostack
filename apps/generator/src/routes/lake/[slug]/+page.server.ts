@@ -1,5 +1,5 @@
 import { error } from "@sveltejs/kit";
-import { LAKE_PLACES } from "$lib/site/lake-pages.server";
+import { LAKE_PLACES, lakeLocator } from "$lib/site/lake-pages.server";
 import { LAKE_PLACE_HOME } from "$lib/site/lake-places";
 import type { EntryGenerator, PageServerLoad } from "./$types";
 
@@ -13,5 +13,5 @@ export const entries: EntryGenerator = () => import.meta.env.VITE_SITE_ENV === "
 export const load: PageServerLoad = ({ params }) => {
   const place = LAKE_PLACES.get(`${LAKE_PLACE_HOME}/${params.slug}`);
   if (!place) error(404, "Not found");
-  return { lakePlace: place };
+  return { lakePlace: place, locator: lakeLocator(place.id) };
 };
