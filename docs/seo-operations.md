@@ -86,6 +86,34 @@ tags and the file is fetched over HTTP by the deployment verifier, so a card
 that 404s or is mislabelled fails the deploy rather than rendering as a blank
 preview wherever the page is shared.
 
+Every guide, the `/guides`, `/lakes` and `/examples` hubs, and each lake region
+have their own card, so a link shared on a forum, in chat or on social media
+shows what that page is about. The homepage, `/examples/crater-lake`, the
+changelog and the policy pages keep the default Crater Lake card
+(`social-crater-lake.png`); examples use the card their capture writes.
+
+- Guide and hub cards are declared with `socialCard(name, alt)` in `seo.ts`;
+  `name` is the path without its leading slash, `/` replaced by `-`, and the
+  file is `static/images/cards/<name>.jpg`. Lake pages use
+  `lakeRegionCard(slug)`, shared by the region's county, state and letter-range
+  pages.
+- `scripts/dev/capture-social-cards.mjs` draws them (1200×630 JPEG, quality 85,
+  about 40–110 kB each) with Playwright from local HTML: no dev server or map
+  API. Guide and hub cards reuse pictures already in the repository (studio
+  screenshots, example renders, the Atomm Tips crops and the depth-chart guide
+  captures), cropped but not retouched, with a credit line. Region cards plot
+  each lake in the directory as a dot. The card title and line of text are
+  written for a feed in the script's `PAGE_CARDS` and `REGION_CARDS`; they are
+  shorter than the page titles.
+- The script refuses a declared card it has no recipe for, and a recipe whose
+  page declares no card. `seo.test.ts` checks that each card file exists at
+  1200×630 and under 150 kB, that no two pages share one, and that
+  `static/images/cards/` holds no stray files.
+- Re-run the script after changing a card's page text, its source picture or
+  the lake regions, look at the output, and commit the JPEGs:
+  `node scripts/dev/capture-social-cards.mjs [name ...]`. The Atomm build drops
+  `images/cards/` with the other site-only images.
+
 ## Generated lake depth pages
 
 `/lakes` (registered in `PUBLIC_PAGES`) indexes one page per lake region,
@@ -96,7 +124,8 @@ generated at build time from `static/data/lake-depth-directory.json` by
   rest are listed on the Minnesota page). Ontario, Finland and Norway are split
   into consecutive initial-letter ranges of at most 400 lakes.
 - Every lake appears on exactly one page (`lake-pages.test.ts`). A new directory
-  source must be assigned to a region in `REGIONS`, or the build fails.
+  source must be assigned to a region in `LAKE_REGIONS`, or the build fails.
+  A new region also needs a card in `capture-social-cards.mjs` (see above).
 - Letter-range slugs follow the data, so a large directory change can move a
   lake to a different range URL. Check the sitemap diff after data releases.
 - Lake pages set `csr = false`: they are plain HTML with no hydration script,

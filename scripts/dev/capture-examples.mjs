@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright";
+import { captureSocialCard, socialCardHtml } from "../lib/social-card.mjs";
 import { ALL_EXAMPLES, EXAMPLES, exampleProject } from "../../apps/generator/src/lib/site/examples.ts";
 
 // Generates each example in the real studio and saves what the example pages
@@ -125,20 +126,14 @@ try {
     // The small variant never upscales a narrow render.
     execFileSync("cwebp", ["-quiet", "-q", "80", ...(width > 800 ? ["-resize", "800", "0"] : []), renderPng, "-o", new URL(`${example.slug}-800.webp`, imageDir).pathname]);
 
-    const card = await browser.newPage({ viewport: { width: 1200, height: 630 }, deviceScaleFactor: 1 });
     const render = await readFile(renderPng);
-    await card.setContent(`<!doctype html><html lang="en"><head><style>
-      * { box-sizing: border-box; } body { margin: 0; background: #20231d; color: #f6f4ef; font-family: Arial, sans-serif; }
-      main { width: 1200px; height: 630px; padding: 42px 48px; position: relative; overflow: hidden; }
-      .brand { font-size: 22px; font-weight: 700; letter-spacing: -.6px; }
-      h1 { margin: 30px 0 16px; font-size: 50px; line-height: 1.05; letter-spacing: -2px; width: 360px; }
-      .intro { font-size: 21px; line-height: 1.45; width: 320px; color: #c2cabb; }
-      img { position: absolute; right: 16px; top: 60px; width: 760px; height: 470px; object-fit: contain; }
-      footer { position: absolute; bottom: 34px; left: 48px; right: 48px; border-top: 1px solid #58604f; padding-top: 17px; font-size: 15px; color: #c2cabb; }
-    </style></head><body><main><div class="brand">TopoStack</div><h1>${example.place}</h1><p class="intro">${match[2]} laser-cut layers from real elevation data.</p><img alt="" src="data:image/png;base64,${render.toString("base64")}"><footer>${example.region} · Terrain: Mapzen · Map: © OpenStreetMap contributors</footer></main></body></html>`);
-    await card.locator("img").evaluate((img) => img.decode());
-    await card.screenshot({ path: new URL(`${example.slug}-card.jpg`, imageDir).pathname, type: "jpeg", quality: 85 });
-    await card.close();
+    await captureSocialCard(browser, socialCardHtml({
+      title: example.place,
+      intro: `${match[2]} laser-cut layers from real elevation data.`,
+      media: `<img alt="" src="data:image/png;base64,${render.toString("base64")}">`,
+      footer: `${example.region} · Terrain: Mapzen · Map: © OpenStreetMap contributors`,
+      style: "img { position: absolute; right: 16px; top: 60px; width: 760px; height: 470px; object-fit: contain; }",
+    }), new URL(`${example.slug}-card.jpg`, imageDir).pathname);
 
     const capture = {
       capturedAt: new Date().toISOString().slice(0, 10),

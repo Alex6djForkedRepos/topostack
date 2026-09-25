@@ -7,6 +7,7 @@ The [Walden Pond announcement example](walden-example/README.md) includes review
 - `apps/generator/static/images/social-crater-lake.png` is a 1200 × 630 sharing card composed around an unaltered screenshot of the same app-rendered model. Open Graph and Twitter metadata use this card.
 - `topostack-stack.webp` is the README's animated preview: `atomm/assets/topostack-cover-loop-v6.mp4` (the studio's native 3D render of the Crater Lake stack, see `atomm/media-provenance.json`) cropped to the model, scaled to 800 px and re-encoded at 12 fps by `node scripts/dev/make-readme-media.mjs`. Rerun it after the cover loop is recaptured.
 - `media-provenance.json` records capture time, project settings, and successful survey request URLs.
+- `apps/generator/static/images/cards/*.jpg` are the guide, hub and lake-region sharing cards. `scripts/dev/capture-social-cards.mjs` composes them from the captures listed here, the example renders and the Atomm Tips pictures (cropped, not retouched), and draws the region cards' dot maps from the lake directory. No new imagery is generated; see [seo-operations.md](../seo-operations.md).
 
 Survey coverage is incomplete: existing terrain or modeled depths fill gaps. The pictured depth scale is exaggerated. The bundled startup preview still uses modeled depths; it is not the source of these screenshots. The Atomm gallery already has survey-backed media and its own record in `atomm/media-provenance.json`.
 

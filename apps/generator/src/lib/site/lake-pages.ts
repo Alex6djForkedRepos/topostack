@@ -1,5 +1,5 @@
 import type { LakeDirectory, LakeDirectoryEntry, LakeDirectorySource } from "./lake-directory.ts";
-import { DEFAULT_SOCIAL_IMAGE, LAKES_HOME, SITE_ORIGIN } from "./site.ts";
+import { LAKES_HOME, SITE_ORIGIN, socialCard, type SocialImage } from "./site.ts";
 import type { PageSeo } from "./seo.ts";
 
 /**
@@ -20,7 +20,7 @@ const MAX_LAKES_PER_PAGE = 400;
 /** Counties with fewer lakes are listed on the Minnesota page instead of a page of their own. */
 const MIN_COUNTY_PAGE_LAKES = 8;
 
-interface RegionConfig {
+export interface RegionConfig {
   slug: string;
   name: string;
   sources: readonly string[];
@@ -31,7 +31,8 @@ interface RegionConfig {
   description?: string;
 }
 
-const REGIONS: readonly RegionConfig[] = [
+/** One page per region. The sharing-card script reads these too, to draw each region's card. */
+export const LAKE_REGIONS: readonly RegionConfig[] = [
   { slug: "minnesota", name: "Minnesota", sources: ["mn-dnr-lakes-v1"], split: "county", about: "Minnesota DNR publishes depth contours surveyed for thousands of the state’s lakes, from small kettle lakes to Mille Lacs and Lake Minnetonka. TopoStack interpolates between the surveyed contours to build a lake floor you can cut as layers." },
   { slug: "ontario", name: "Ontario", sources: ["ontario-lakes-v1"], split: "alphabet", about: "Ontario’s provincial bathymetry covers thousands of inland lakes, most of them in cottage country and the north. Depths come from survey contours that TopoStack interpolates within the surveyed area." },
   { slug: "finland", name: "Finland", sources: ["syke-finland-lakes-v1"], split: "alphabet", about: "Finland’s environment institute (Syke) publishes depth contours for lakes across the country. Some records carry only a map reference instead of a name; they are listed as published." },
@@ -130,7 +131,7 @@ function alphabetGroups(lakes: LakeDirectoryEntry[]): { key: string; lakes: Lake
 
 export function buildLakePages(directory: LakeDirectory): { pages: Map<string, LakePage>; regions: LakeRegionSummary[] } {
   const sources = new Map(directory.sources.map((source) => [source.id, source]));
-  const mapped = new Set(REGIONS.flatMap((region) => region.sources));
+  const mapped = new Set(LAKE_REGIONS.flatMap((region) => region.sources));
   const unmapped = directory.sources.filter((source) => !mapped.has(source.id));
   if (unmapped.length) throw new Error(`Lake sources without a lake page: ${unmapped.map((source) => source.id).join(", ")}`);
   const updated = [LAKE_PAGES_UPDATED, directory.updated].sort().at(-1)!;
@@ -138,7 +139,7 @@ export function buildLakePages(directory: LakeDirectory): { pages: Map<string, L
   const regions: LakeRegionSummary[] = [];
   const home = { path: LAKES_HOME, label: "Lake depth maps" };
 
-  for (const region of REGIONS) {
+  for (const region of LAKE_REGIONS) {
     const regionSources = region.sources.map((id) => sources.get(id)).filter((source): source is LakeDirectorySource => Boolean(source));
     const lakes = directory.lakes.filter((lake) => region.sources.includes(lake.sourceId)).sort(byName);
     if (!lakes.length) continue;
@@ -253,14 +254,23 @@ export function buildLakePages(directory: LakeDirectory): { pages: Map<string, L
   return { pages, regions };
 }
 
+/** A region's sharing card; its county, state and letter-range pages share it. */
+export function lakeRegionCard(slug: string): SocialImage {
+  const region = LAKE_REGIONS.find((entry) => entry.slug === slug);
+  if (!region) throw new Error(`Unknown lake region: ${slug}`);
+  return socialCard(`lakes-${slug}`, `${region.name} lake depth maps on TopoStack, with a map of the region's lakes that have depth data.`);
+}
+
 export function lakePageSeo(page: LakePage): PageSeo {
   const canonical = SITE_ORIGIN + page.path;
+  // Generated pages sit under their region: /lakes/<region>[/<sub-page>].
+  const region = page.path.slice(LAKES_HOME.length + 1).split("/")[0]!;
   return {
     title: page.title,
     description: page.description,
     canonical,
     registered: true,
-    image: DEFAULT_SOCIAL_IMAGE,
+    image: lakeRegionCard(region),
     breadcrumbs: [{ name: "TopoStack", item: SITE_ORIGIN + "/" }, ...page.trail.map((step) => ({ name: step.label, item: SITE_ORIGIN + step.path }))],
   };
 }
