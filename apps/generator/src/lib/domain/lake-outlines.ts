@@ -63,27 +63,117 @@ export async function loadProviderOutlines(base: string, bounds: GeoBounds, conf
   return result;
 }
 
+interface EdgeBlock { box: Bounds; ring: Pair[]; start: number; end: number }
+interface Measured { shape: MultiPolygon; size: number; box: Bounds; blocks?: EdgeBlock[] }
+const measure = (p: Polygon2D): Measured => {
+  const shape = input(p);
+  const box: Bounds = [Infinity, Infinity, -Infinity, -Infinity];
+  for (const { x, y } of p.outer) {
+    box[0] = Math.min(box[0], x); box[1] = Math.min(box[1], y);
+    box[2] = Math.max(box[2], x); box[3] = Math.max(box[3], y);
+  }
+  return { shape, size: area(shape), box };
+};
+const boxOverlap = (a: Bounds, b: Bounds) => Math.max(0, Math.min(a[2], b[2]) - Math.max(a[0], b[0])) * Math.max(0, Math.min(a[3], b[3]) - Math.max(a[1], b[1]));
+// Closed comparison: an edge touching the box counts as entering it.
+const boxesTouch = (a: Bounds, b: Bounds) => a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
+const EDGE_BLOCK = 32;
+
+/** Every edge, closing edges included, grouped in runs with their bounding boxes. */
+function edgeBlocks(measured: Measured): EdgeBlock[] {
+  if (measured.blocks) return measured.blocks;
+  const blocks: EdgeBlock[] = [];
+  for (const ring of measured.shape.flat()) {
+    for (let start = 0; start < ring.length; start += EDGE_BLOCK) {
+      const end = Math.min(ring.length, start + EDGE_BLOCK), box: Bounds = [Infinity, Infinity, -Infinity, -Infinity];
+      for (let i = start; i <= end; i += 1) {
+        const [x, y] = ring[i % ring.length]!;
+        box[0] = Math.min(box[0], x); box[1] = Math.min(box[1], y);
+        box[2] = Math.max(box[2], x); box[3] = Math.max(box[3], y);
+      }
+      blocks.push({ box, ring, start, end });
+    }
+  }
+  return measured.blocks = blocks;
+}
+
+/** Whether any edge of `measured` may pass through `box`. */
+function boundaryEnters(measured: Measured, box: Bounds): boolean {
+  return edgeBlocks(measured).some(({ box: blockBox, ring, start, end }) => {
+    if (!boxesTouch(blockBox, box)) return false;
+    for (let i = start; i < end; i += 1) {
+      const [ax, ay] = ring[i]!, [bx, by] = ring[(i + 1) % ring.length]!;
+      if (boxesTouch([Math.min(ax, bx), Math.min(ay, by), Math.max(ax, bx), Math.max(ay, by)], box)) return true;
+    }
+    return false;
+  });
+}
+
+const inRing = ([x, y]: Pair, ring: Pair[]) => {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
+    const [ax, ay] = ring[i]!, [bx, by] = ring[j]!;
+    if ((ay > y) !== (by > y) && x < (bx - ax) * (y - ay) / (by - ay) + ax) inside = !inside;
+  }
+  return inside;
+};
+const inShape = (point: Pair, shape: MultiPolygon) => shape.some(([outer, ...holes]) => inRing(point, outer!) && !holes.some((hole) => inRing(point, hole)));
+
+/**
+ * When one outline's boundary never enters the other's bounding box, the other
+ * lies wholly inside or wholly outside it, so a single point decides the
+ * intersection exactly: all of the enclosed outline, or nothing.
+ */
+function containment(a: Measured, b: Measured): { shared: MultiPolygon | undefined } | undefined {
+  for (const [outer, inner] of [[a, b], [b, a]] as const) {
+    const point = inner.shape[0]?.[0]?.[0];
+    if (!point || boundaryEnters(outer, inner.box)) continue;
+    return { shared: inShape(point, outer.shape) ? inner.shape : undefined };
+  }
+  return undefined;
+}
+
 /** Prefer provider shores, but retain a complete lake over a partial survey mask.
  * Lower-priority copies of the same waterbody are suppressed, not cut into
  * strips that would create artificial shorelines and duplicate modeled basins.
  */
 export function resolveLakeOutlines(providers: WaterAreaV1[], hydro: WaterAreaV1[], inland: Polygon2D[]): WaterAreaV1[] {
+  // Lake-country crops compare hundreds of outlines pairwise, and a polygon
+  // boolean per pair took seconds. An intersection never exceeds the overlap of
+  // the two bounding boxes, so pairs whose boxes cannot reach the match
+  // threshold are decided without one.
+  const measured = new Map<Polygon2D, Measured>();
+  const measureOnce = (p: Polygon2D) => {
+    let entry = measured.get(p);
+    if (!entry) measured.set(p, entry = measure(p));
+    return entry;
+  };
+  /** The intersection when the two overlap by more than half the smaller one. */
+  const majorOverlap = (a: Measured, b: Measured): MultiPolygon | undefined => {
+    const threshold = Math.min(a.size, b.size) * 0.5;
+    if (boxOverlap(a.box, b.box) <= threshold) return undefined;
+    // A pond clear of a large lake's shore need not sweep that whole shoreline.
+    const known = containment(a, b);
+    const shared = known ? known.shared : polygonClipping.intersection(a.shape, b.shape);
+    if (!shared) return undefined;
+    return area(shared) > threshold ? shared : undefined;
+  };
   let resolved = providers.length ? [...providers] : [...hydro];
   for (const lake of providers.length ? hydro : []) {
-    const shape = input(lake.polygon), size = area(shape);
-    const matches = resolved.filter((p) => {
-      const other = input(p.polygon);
-      return area(polygonClipping.intersection(shape, other)) > Math.min(size, area(other)) * 0.5;
-    });
+    const candidate = measureOnce(lake.polygon), size = candidate.size;
+    const matches: WaterAreaV1[] = [], intersections: MultiPolygon[] = [];
+    for (const p of resolved) {
+      const shared = majorOverlap(candidate, measureOnce(p.polygon));
+      if (shared) { matches.push(p); intersections.push(shared); }
+    }
     if (!matches.length) { resolved.push(lake); continue; }
-    const intersections = matches.map((p) => polygonClipping.intersection(shape, input(p.polygon)));
     const covered = area(polygonClipping.union(intersections[0]!, ...intersections.slice(1)));
     if (covered < size * 0.8) {
       resolved = resolved.filter((p) => !matches.includes(p));
       resolved.push(lake);
     } else {
       // Whole-lake estimates must not be assigned to individual survey basins.
-      if (matches.length === 1 && covered >= area(input(matches[0]!.polygon)) * 0.8) resolved = resolved.map((p) => p === matches[0] ? {
+      if (matches.length === 1 && covered >= measureOnce(matches[0]!.polygon).size * 0.8) resolved = resolved.map((p) => p === matches[0] ? {
         ...lake, ...p, hylakId: lake.hylakId, surfaceElevationM: lake.surfaceElevationM,
       } : p);
     }
@@ -93,17 +183,20 @@ export function resolveLakeOutlines(providers: WaterAreaV1[], hydro: WaterAreaV1
     // by two rivers, say). One such polygon is skipped rather than costing the
     // whole map its water: it is map-only water, which carves nothing anyway.
     try {
-    const candidate = input(p), size = area(candidate);
+    const candidate = measureOnce(p), size = candidate.size;
     if (!(size > 0)) return;
-    const matches = resolved.filter((lake) => {
-      const other = input(lake.polygon);
-      return area(polygonClipping.intersection(candidate, other)) > Math.min(size, area(other)) * 0.5;
-    });
+    // Rebuilding shorelines resolves again with the map lakes already added;
+    // a lake made from this very outline is a non-provider match, so it stays out.
+    if (resolved.some((lake) => lake.polygon === p && lake.outlineSource !== "provider")) return;
+    const matches: WaterAreaV1[] = [], overlaps: MultiPolygon[] = [];
+    for (const lake of resolved) {
+      const shared = majorOverlap(candidate, measureOnce(lake.polygon));
+      if (shared) { matches.push(lake); overlaps.push(shared); }
+    }
     if (matches.length) {
       // A provider depth-area mask may cover only one bay of the OSM lake.
       // Keep the complete shore and let the raster mask limit surveyed depths.
       if (matches.every((lake) => lake.outlineSource === "provider")) {
-        const overlaps = matches.map((lake) => polygonClipping.intersection(candidate, input(lake.polygon)));
         if (area(polygonClipping.union(overlaps[0]!, ...overlaps.slice(1))) < size * 0.8) {
           resolved = resolved.filter((lake) => !matches.includes(lake));
         } else return;
