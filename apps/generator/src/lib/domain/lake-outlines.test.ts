@@ -30,8 +30,20 @@ describe("shoreline priority", () => {
     // polygon-clipping throws on some near-degenerate slivers; one must not cost the map its water.
     vi.spyOn(console, "warn").mockImplementation(() => {});
     const intersection = vi.spyOn(polygonClipping, "intersection").mockImplementationOnce(() => { throw new Error("Unable to find segment in SweepLine tree."); });
-    const result = resolveLakeOutlines([provider()], [], [box(-12, 12), box(20, 40)]);
+    // The first outline crosses the survey shore, so only the clipper can compare them.
+    const result = resolveLakeOutlines([provider()], [], [box(-5, 15), box(20, 40)]);
     expect(result.map((item) => item.id)).toEqual(["survey", "osm-lake-1"]);
+    intersection.mockRestore();
+  });
+  it("decides ponds clear of a lake's shoreline without polygon booleans", () => {
+    const survey = provider({ ...box(-100, 100), holes: [box(-20, 20).outer] });
+    const inIsland = box(-10, 10), inLake = box(60, 70), outside = box(200, 210);
+    const intersection = vi.spyOn(polygonClipping, "intersection");
+    const result = resolveLakeOutlines([survey], [], [inIsland, inLake, outside]);
+    expect(result.map((item) => item.id)).toEqual(["survey", "osm-lake-0", "osm-lake-2"]);
+    // Rebuilding shorelines resolves the result again with the same map water.
+    expect(resolveLakeOutlines([], result, [inIsland, inLake, outside])).toEqual(result);
+    expect(intersection).not.toHaveBeenCalled();
     intersection.mockRestore();
   });
   it("adds unmatched OSM water and preserves islands without inventing depths", () => {

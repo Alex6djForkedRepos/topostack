@@ -228,7 +228,7 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     description: "Explore TopoStack’s terrain, map, lake-depth, artwork, and software sources, how they are used, and their credits and licenses.",
     label: "Sources and attribution",
     published: "2026-09-16",
-    updated: "2026-09-17",
+    updated: "2026-09-25",
   },
   "/changelog": {
     title: "Changelog: New Features and Fixes | TopoStack",
