@@ -95,7 +95,8 @@ describe("cache failure isolation", () => {
     }))));
     const response = await worker.fetch(request("/v1/geocode?q=oversized-stream"), env, context);
     expect(response.status).toBe(502);
-    expect(cancel).toHaveBeenCalledOnce();
+    // Both searches (default and named features) hit the oversized stream; each is cancelled.
+    expect(cancel).toHaveBeenCalledTimes(2);
     expect(put).not.toHaveBeenCalled();
   });
 });

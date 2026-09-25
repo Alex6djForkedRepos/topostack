@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { env as workerEnv, exports } from "cloudflare:workers";
 import mapWorker, { geocodeLimit, isAllowedOrigin, isGeocoderConfigured, normalizeGeoapify, parseRangeHeader, validTile } from "../src/index";
 import { resetArchiveHeadCache } from "../src/archive-head";
+import { mergeGeoapify } from "../src/routes/geocode";
 
 beforeEach(() => resetArchiveHeadCache());
 
@@ -186,8 +187,56 @@ describe("geocoder proxy", () => {
     expect(requested.searchParams.get("limit")).toBe("2");
   });
 
+  // Shapes of real Geoapify answers (2026-09-25): the default search knows only
+  // the town called Mount Rainier; `type=amenity` finds the mountain.
+  const rainier = {
+    default: { results: [{ place_id: "town", formatted: "Mount Rainier, MD, United States of America", lat: 38.936, lon: -76.96, result_type: "city", rank: { importance: 0.187 } }] },
+    amenity: { results: [{ place_id: "peak", formatted: "Mount Rainier, Pierce County, WA, United States of America", lat: 46.852, lon: -121.758, result_type: "amenity", rank: { importance: 0.519 } }] },
+  };
+  const byType = (answers: { default: unknown; amenity: unknown }) => vi.fn(async (input: RequestInfo | URL) => {
+    const answer = new URL(String(input)).searchParams.get("type") === "amenity" ? answers.amenity : answers.default;
+    return answer instanceof Response ? answer : jsonResponse(answer);
+  });
+
+  it("searches named features too and puts the more important match first", async () => {
+    const upstream = byType(rainier);
+    vi.stubGlobal("fetch", upstream);
+    const response = await mapWorker.fetch(new Request("http://example.com/v1/geocode?q=Mount%20Rainier%20ranking", { headers: origin }), configuredEnv, context);
+    expect((await response.json<Array<{ place_id: string }>>()).map(({ place_id }) => place_id)).toEqual(["peak", "town"]);
+    expect(upstream.mock.calls.map(([input]) => new URL(String(input)).searchParams.get("type"))).toEqual([null, "amenity"]);
+  });
+
+  it("keeps a notable city above the features named after it", () => {
+    const merged = mergeGeoapify([
+      { results: [{ place_id: "city", formatted: "Denver, CO, United States of America", lat: 39.739, lon: -104.985, rank: { importance: 0.701 } }] },
+      { results: [
+        { place_id: "artwork", formatted: "Denver, 2314 Arapahoe Street, Denver, CO 80203", lat: 39.755, lon: -104.987, rank: { importance: 0 } },
+        { place_id: "building", formatted: "CU Denver Building, 1401 Lawrence Street, Denver, CO", lat: 39.747, lon: -105 },
+      ] },
+    ], 5);
+    expect(merged.map(({ place_id }) => place_id)).toEqual(["city", "artwork", "building"]);
+  });
+
+  it("drops a place both searches return and respects the limit", () => {
+    const lake = { place_id: "tahoe", formatted: "Lake Tahoe, Placer County, CA", lat: 39.089, lon: -120.05, rank: { importance: 0.575 } };
+    const copy = { ...lake, place_id: "tahoe-again", lat: 39.0891 };
+    const others = Array.from({ length: 6 }, (_, index) => ({ place_id: `other-${index}`, formatted: `Lake Tahoe ${index}`, lat: index, lon: index, rank: { importance: 0.133 } }));
+    const merged = mergeGeoapify([{ results: [lake, ...others] }, { results: [copy] }], 5);
+    expect(merged.map(({ place_id }) => place_id)).toEqual(["tahoe", "other-0", "other-1", "other-2", "other-3"]);
+  });
+
+  it("answers from one search when the other fails, and fails only when both do", async () => {
+    vi.stubGlobal("fetch", byType({ ...rainier, amenity: new Response("down", { status: 503 }) }));
+    const partial = await mapWorker.fetch(new Request("http://example.com/v1/geocode?q=Mount%20Rainier%20partial", { headers: origin }), configuredEnv, context);
+    expect(partial.status).toBe(200);
+    expect((await partial.json<Array<{ place_id: string }>>()).map(({ place_id }) => place_id)).toEqual(["town"]);
+    vi.stubGlobal("fetch", byType({ default: new Response("down", { status: 503 }), amenity: new Response("down", { status: 500 }) }));
+    const failed = await mapWorker.fetch(new Request("http://example.com/v1/geocode?q=Mount%20Rainier%20outage", { headers: origin }), configuredEnv, context);
+    expect(failed.status).toBe(502);
+  });
+
   it("refreshes expired cached results and limits browser freshness to the remaining age", async () => {
-    const keyHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${configuredEnv.GEOCODER_ORIGIN}|geoapify-v1|cache age regression|5`));
+    const keyHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${configuredEnv.GEOCODER_ORIGIN}|geoapify-v2|cache age regression|5`));
     const key = `geocode/${Array.from(new Uint8Array(keyHash)).map((byte) => byte.toString(16).padStart(2, "0")).join("")}.json`;
     const stored = [{ place_id: "cached", display_name: "Cached place", lat: 1, lon: 2 }];
     await workerEnv.MAP_CACHE.put(key, JSON.stringify(stored));
@@ -205,7 +254,8 @@ describe("geocoder proxy", () => {
     const miss = await mapWorker.fetch(request(), configuredEnv, context);
     expect(miss.headers.get("x-topostack-cache")).toBe("MISS");
     expect(await miss.json()).toMatchObject([{ display_name: "Fresh place" }]);
-    expect(upstream).toHaveBeenCalledOnce();
+    // The refresh searches twice (default and named features).
+    expect(upstream).toHaveBeenCalledTimes(2);
     await Promise.all(vi.mocked(context.waitUntil).mock.calls.map(([promise]) => promise));
   });
 
