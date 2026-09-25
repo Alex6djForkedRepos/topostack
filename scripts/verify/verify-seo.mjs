@@ -14,7 +14,8 @@ const recordedDate = (path) => pages.get(path)?.updated;
 // Thousands of generated pages each link to shared assets, so membership is
 // checked against Sets and each asset is stat'ed at most once.
 const builtPaths = new Set(await readdir(dist, { recursive: true }));
-const files = [...builtPaths].filter((path) => path.endsWith(".html"));
+// The in-chat preview (mcp-app/) is an MCP resource, never a site page.
+const files = [...builtPaths].filter((path) => path.endsWith(".html") && !path.startsWith("mcp-app/"));
 const htmlFiles = new Set(files);
 const fileChecks = new Map();
 function isBuiltFile(path) {
