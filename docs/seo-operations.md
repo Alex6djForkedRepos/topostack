@@ -140,6 +140,18 @@ generated at build time from `static/data/lake-depth-directory.json` by
 
 ### One page per lake
 
+Each page opens with a locator map, drawn at build time as inline SVG (no
+script) by `buildLocator()` in `lake-locator.ts` and `LakeLocator.svelte`. It
+shows at least 400 km, or three times the survey area, around the lake, with
+Natural Earth 1:50m land, lakes and borders. The survey area appears as a box, or
+as a marker when the box would be too small to see. Other directory lakes show as
+dots, thinned to one per 5-unit cell. The map is about 8 KB at the median and
+14 KB at the 95th percentile; the four Great Lakes pages reach about 38 KB.
+`apps/generator/src/lib/site/locator-data.json` (370 KB, server-only) is built
+by `node scripts/build/build-locator-data.mjs` from Natural Earth v5.1.2. Run it
+again when the lake directory reaches a new area, because features outside every
+lake's map window are dropped.
+
 Named lakes with a surveyed grid, or with contours covering at least
 `PLACE_PAGE_MIN_KM2` (5 km²) of survey area, also get a page of their own at
 `/lake/<slug>` (`buildLakePlaces()` in `lake-places.ts`, rendered by
