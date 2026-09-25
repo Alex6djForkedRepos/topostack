@@ -460,7 +460,8 @@ test("Atomm depth allowance is explicit and fitting actions use readable theme b
   await terrainField.fill("1");
   await terrainField.press("ArrowUp");
   await expect(terrainField).toHaveValue("1.1");
-  await terrainField.fill("8");
+  // Every edit below regenerates the whole stack, so it stays shallow: 8x made
+  // about 170 layers and pushed the test past its timeout on CI runners.
   await studio.getByRole("button", { name: "Map details", exact: true }).click();
   const depthField = studio.getByRole("spinbutton", { name: "Water depth exaggeration", exact: true });
   await expect(depthField).toHaveAttribute("min", "0.25");
@@ -481,20 +482,23 @@ test("Atomm depth allowance is explicit and fitting actions use readable theme b
   await expect(studio.locator(".preview-stage")).toHaveAttribute("aria-busy", "false", { timeout: PREVIEW_TIMEOUT_MS });
   await expect(fit).toBeVisible();
   expect(Number(await studio.getByRole("slider", { name: "Selected layer", exact: true }).getAttribute("max")) + 1).toBeLessThan(automaticCount);
-  for (const theme of ["light", "dark"]) {
-    await studio.locator("html").evaluate((el, value) => el.setAttribute("data-theme", value), theme);
-    for (const action of [fit, studio.getByRole("button", { name: "Use manual depth", exact: true })]) {
-      await page.mouse.move(0, 0);
+  const fitting = studio.getByRole("checkbox", { name: "Fit lake depth to available layers", exact: true });
+  // A theme only restyles the buttons, so both themes are checked in each
+  // fitting state and each button is clicked once: every click regenerates.
+  for (const [action, fitsAfter] of [[fit, true], [studio.getByRole("button", { name: "Use manual depth", exact: true }), false]] as const) {
+    await page.mouse.move(0, 0);
+    for (const theme of ["light", "dark"]) {
+      await studio.locator("html").evaluate((el, value) => el.setAttribute("data-theme", value), theme);
       const appearance = await action.evaluate(el => {
         const css = getComputedStyle(el);
         return { radius: css.borderRadius, transform: css.textTransform, border: css.borderTopWidth, height: el.getBoundingClientRect().height, color: css.color };
       });
       expect(appearance).toMatchObject({ radius: "6px", transform: "none", border: "1px", height: 32, color: "rgb(23, 23, 25)" });
-      await action.click();
-      await expect(studio.locator(".preview-stage")).toHaveAttribute("aria-busy", "false", { timeout: PREVIEW_TIMEOUT_MS });
     }
+    await action.click();
+    await expect(studio.locator(".preview-stage")).toHaveAttribute("aria-busy", "false", { timeout: PREVIEW_TIMEOUT_MS });
+    await expect(fitting).toBeChecked({ checked: fitsAfter });
   }
-  await expect(studio.getByRole("checkbox", { name: "Fit lake depth to available layers", exact: true })).not.toBeChecked();
   await limit.uncheck();
   await expect(studio.locator(".preview-stage")).toHaveAttribute("aria-busy", "false", { timeout: PREVIEW_TIMEOUT_MS });
   await expect(fit).toHaveCount(0);
