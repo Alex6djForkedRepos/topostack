@@ -1,4 +1,4 @@
-import { DEFAULT_PLAQUE_SIZE_MM, DEFAULT_PROJECT, MAP_MARKER_SIZE_MM, MARKER_SYMBOLS, MAX_CUSTOM_DATA_NAME_LENGTH, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, MIN_VERTICAL_EXAGGERATION, MIN_WORK_AREA_MM, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, PLAQUE_MAX_LINE_LENGTH, PLAQUE_MAX_LINES, type BuiltInMarkerSymbol, type CropShape, type GeoBounds, type GeoPoint, type MapMarkerV1, type ProjectConfigV1, type UnitSystem } from "../types.js";
+import { DEFAULT_PLAQUE_SIZE_MM, DEFAULT_PROJECT, MAP_MARKER_SIZE_MM, MARKER_SYMBOLS, MAX_CUSTOM_DATA_NAME_LENGTH, MAX_PROJECT_DIMENSION_MM, MAX_PROJECT_NAME_LENGTH, MAX_VERTICAL_EXAGGERATION, MIN_VERTICAL_EXAGGERATION, MIN_WORK_AREA_MM, northArrowMaximumMm, PLAQUE_MAX_LINE_LENGTH, PLAQUE_MAX_LINES, type BuiltInMarkerSymbol, type CropShape, type GeoBounds, type GeoPoint, type MapMarkerV1, type ProjectConfigV1, type UnitSystem } from "../types.js";
 import { fnv1aHex, stableStringify } from "../pipeline/fingerprint.js";
 import { boundsAround, boundsForProject, coverBounds, isMercatorBounds, zoomForBounds } from "./bounds.js";
 import { parseProject } from "./parse.js";
@@ -123,11 +123,6 @@ export function cleanRequestText(text: string, maxLength: number, keepNewlines =
   const stripped = text.replace(INVISIBLE_CHARACTERS, "").replace(CONTROL_CHARACTERS, " ");
   const lines = (keepNewlines ? stripped.split("\n") : [stripped.replace(/\n/g, " ")]).map((line) => line.replace(/\s+/g, " ").trim());
   return lines.join("\n").slice(0, maxLength).trim();
-}
-
-/** The largest north arrow that fits a map of this size. */
-export function northArrowMaximumMm(widthMm: number, heightMm: number): number {
-  return Math.min(NORTH_ARROW_MAX_SIZE_MM, Math.max(NORTH_ARROW_MIN_SIZE_MM, Math.min(widthMm, heightMm) * NORTH_ARROW_MAX_MAP_FRACTION));
 }
 
 class Issues {

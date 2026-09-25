@@ -101,6 +101,10 @@ for (const file of files.filter((file) => /geometry\.worker[^/]*\.js$/.test(file
 // Sheet nesting is loaded on demand; its worker or engine on the startup path is a regression whatever its size.
 const nestOnStartup = [...startupFiles].filter((href) => /nest\.worker|nest_wasm/.test(href));
 if (nestOnStartup.length) throw new Error(`Sheet nesting reached the studio startup path: ${nestOnStartup.join(", ")}`);
+// Browser-agent tools (WebMCP) load only where the browser offers WebMCP.
+const webMcpKeys = Object.keys(manifest).filter((key) => /src\/lib\/studio\/webmcp\.ts$/.test(key));
+if (webMcpKeys.length !== 1) throw new Error(`Expected the WebMCP module as its own chunk in the build manifest, found ${webMcpKeys.length}.`);
+if (startupFiles.has(new URL(manifest[webMcpKeys[0]].file, dist).href)) throw new Error("The WebMCP tools reached the studio startup path.");
 const nestWasm = files.filter((file) => /topostack_nest_wasm[^/]*\.wasm$/.test(file.pathname));
 if (nestWasm.length !== 1) throw new Error(`Expected one nesting engine .wasm in the build, found ${nestWasm.length}.`);
 const nestWorkers = files.filter((file) => /nest\.worker[^/]*\.js$/.test(file.pathname));

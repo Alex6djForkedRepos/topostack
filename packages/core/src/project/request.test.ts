@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import Ajv2020 from "ajv/dist/2020.js";
-import { DEFAULT_PROJECT, NORTH_ARROW_MIN_SIZE_MM, type ProjectConfigV1 } from "../types.js";
+import { DEFAULT_PROJECT, NORTH_ARROW_MIN_SIZE_MM, northArrowMaximumMm, type ProjectConfigV1 } from "../types.js";
 import { boundsForProject, isMercatorBounds } from "./bounds.js";
-import { cleanRequestText, describeProject, expandProjectRequest, northArrowMaximumMm, parseProjectRequest, parseProjectRequestPatch, requestPatch, type ProjectRequestV1 } from "./request.js";
+import { cleanRequestText, describeProject, expandProjectRequest, parseProjectRequest, parseProjectRequestPatch, requestPatch, type ProjectRequestV1 } from "./request.js";
 import { PROJECT_REQUEST_PATCH_SCHEMA, PROJECT_REQUEST_SCHEMA } from "./schema.js";
 
 const rainier: ProjectRequestV1 = { requestVersion: 1, area: { center: { lat: 46.8523, lon: -121.7603 }, widthKm: 20 }, placeLabel: "Mount Rainier, Washington, United States" };
