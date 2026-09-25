@@ -1,5 +1,5 @@
 import { PUBLIC_PAGES, SITE_ORIGIN } from "$lib/site/seo";
-import { LAKE_PAGES } from "$lib/site/lake-pages.server";
+import { LAKE_PAGES, LAKE_PLACES } from "$lib/site/lake-pages.server";
 import { examplePath } from "$lib/site/examples";
 import { PUBLISHED_EXAMPLES } from "$lib/site/examples.server";
 
@@ -27,7 +27,7 @@ export function pageSitemapEntries(): SitemapEntry[] {
 
 /** Every generated lake page. Add new generated lake routes here so the lakes sitemap lists them. */
 export function lakeSitemapEntries(): SitemapEntry[] {
-  return [...LAKE_PAGES.values()].map((page) => ({ path: page.path, updated: page.updated }));
+  return [...LAKE_PAGES.values(), ...LAKE_PLACES.values()].map((page) => ({ path: page.path, updated: page.updated }));
 }
 
 const ENTRIES: Record<SitemapPath, () => SitemapEntry[]> = {

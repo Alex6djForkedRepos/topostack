@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { LAKE_PAGES } from "$lib/site/lake-pages.server";
+import { LAKE_PAGES, LAKE_PLACES } from "$lib/site/lake-pages.server";
 import { SITE_ORIGIN } from "$lib/site/seo";
 import { SITEMAPS, lakeSitemapEntries, pageSitemapEntries, sitemapIndexResponse, sitemapResponse } from "$lib/site/sitemap.server";
 
@@ -10,8 +10,8 @@ describe("sitemaps", () => {
 
   it("splits generated lake pages from every other page", () => {
     const lakes = lakeSitemapEntries().map((entry) => entry.path);
-    expect(lakes.toSorted()).toEqual([...LAKE_PAGES.keys()].sort());
-    expect(lakes.every((path) => path.startsWith("/lakes/"))).toBe(true);
+    expect(lakes.toSorted()).toEqual([...LAKE_PAGES.keys(), ...LAKE_PLACES.keys()].sort());
+    expect(lakes.every((path) => path.startsWith("/lakes/") || path.startsWith("/lake/"))).toBe(true);
     const pages = pageSitemapEntries().map((entry) => entry.path);
     expect(pages).toContain("/lakes");
     expect(pages.filter((path) => lakes.includes(path))).toEqual([]);

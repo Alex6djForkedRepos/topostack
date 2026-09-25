@@ -262,6 +262,8 @@ export interface PageSeo {
   image: SocialImage;
   article?: { headline: string; published: string; updated: string };
   breadcrumbs: { name: string; item: string }[];
+  /** A lake page's subject: schema.org LakeBodyOfWater with its survey box ("south west north east"). */
+  place?: { name: string; alternateName?: string[]; box: string; containedIn: string };
 }
 
 export function pageSeo(path: string): PageSeo | undefined {

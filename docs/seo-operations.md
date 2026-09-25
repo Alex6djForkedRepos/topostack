@@ -107,6 +107,31 @@ generated at build time from `static/data/lake-depth-directory.json` by
   pages (`samplePaths()`) so deploy checks stay fast. Usage events from any
   `/lakes/*` page report the `/lakes` landing.
 
+### One page per lake
+
+Named lakes with a surveyed grid, or with contours covering at least
+`PLACE_PAGE_MIN_KM2` (5 km²) of survey area, also get a page of their own at
+`/lake/<slug>` (`buildLakePlaces()` in `lake-places.ts`, rendered by
+`LakePlaceView.svelte`). That was 2,728 lakes in September 2026. Map references,
+unnamed records, "Part of" fragments and Finnish records tagged with an N60 datum
+level stay list-only. Each page shows survey facts, piece sizes and scales at
+three widths, six nearby lakes and an **Open in the studio** link. The JSON-LD
+has a `LakeBodyOfWater` with its survey box. The region list that names a lake
+links to its page, with a small **studio** link beside it.
+
+- Slugs are locked in `apps/generator/src/lib/site/lake-slugs.json`, keyed by
+  source (without its version suffix) and survey id. After a lake directory
+  change, run `node scripts/build/lock-lake-slugs.mjs`; it only appends.
+  `lake-places.test.ts` fails until it has run. Colliding new slugs get the
+  survey id appended.
+- The pages carry their region's sharing card and are plain HTML (`csr = false`).
+  A production build takes about 45 s and adds about 19 KB per page. `dist`
+  holds about 5,900 files, well inside the Workers static-asset limit.
+- The pages repeat one template, so watch the indexed count for the lakes
+  sitemap in Search Console. If Google reports most of them as "Crawled –
+  currently not indexed", raise the threshold rather than adding more. Lower it
+  (about 5,300 lakes at 1 km²) only once indexing is healthy.
+
 ## Example projects
 
 `/examples` lists worked projects; each page under `/examples/<slug>` comes from

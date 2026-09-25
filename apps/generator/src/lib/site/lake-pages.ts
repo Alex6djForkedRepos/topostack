@@ -42,12 +42,16 @@ const REGIONS: readonly RegionConfig[] = [
 ];
 
 export interface LakeListing {
+  /** The directory id; never shown. */
+  id: string;
   name: string;
   aliases?: string[];
   note?: string;
   /** County or region, shown when a page mixes several. */
   place?: string;
   bounds: [number, number, number, number];
+  /** The lake's own page, for lakes that have one (lake-places.ts). */
+  page?: string;
 }
 export interface LakePageLink { path: string; label: string; count: number }
 export interface LakePage {
@@ -100,9 +104,12 @@ function largest(lakes: LakeDirectoryEntry[], count: number): LakeDirectoryEntry
 const namesOf = (lakes: LakeDirectoryEntry[]): string[] => lakes.map((lake) => lake.name);
 /** Notes repeat across large survey sets, so only short lists carry them. */
 const NOTE_LIMIT = 40;
+/** Lake id → slug of its own page; set for the duration of one buildLakePages call. */
+let placeSlugs: ReadonlyMap<string, string> = new Map();
 function listing(lake: LakeDirectoryEntry, place?: string, withNote = false): LakeListing {
   const aliases = lake.aliases?.filter((alias) => alias !== lake.name) ?? [];
-  return { name: lake.name, bounds: lake.bounds, ...(aliases.length ? { aliases } : {}), ...(withNote && lake.note ? { note: lake.note } : {}), ...(place ? { place } : {}) };
+  const slug = placeSlugs.get(lake.id);
+  return { id: lake.id, name: lake.name, bounds: lake.bounds, ...(aliases.length ? { aliases } : {}), ...(withNote && lake.note ? { note: lake.note } : {}), ...(place ? { place } : {}), ...(slug ? { page: `/lake/${slug}` } : {}) };
 }
 
 /** Consecutive initials grouped so each group stays within the page limit. */
@@ -128,7 +135,15 @@ function alphabetGroups(lakes: LakeDirectoryEntry[]): { key: string; lakes: Lake
   });
 }
 
-export function buildLakePages(directory: LakeDirectory): { pages: Map<string, LakePage>; regions: LakeRegionSummary[] } {
+/**
+ * @param slugs Lake id → slug for lakes with their own page, which the lists link to.
+ * @returns The pages, the region summaries, and for each lake the breadcrumb trail of the list that names it.
+ */
+export function buildLakePages(directory: LakeDirectory, slugs: ReadonlyMap<string, string> = new Map()): { pages: Map<string, LakePage>; regions: LakeRegionSummary[]; trails: Map<string, LakePage["trail"]> } {
+  placeSlugs = slugs;
+  try { return buildPages(directory); } finally { placeSlugs = new Map(); }
+}
+function buildPages(directory: LakeDirectory): { pages: Map<string, LakePage>; regions: LakeRegionSummary[]; trails: Map<string, LakePage["trail"]> } {
   const sources = new Map(directory.sources.map((source) => [source.id, source]));
   const mapped = new Set(REGIONS.flatMap((region) => region.sources));
   const unmapped = directory.sources.filter((source) => !mapped.has(source.id));
@@ -250,7 +265,10 @@ export function buildLakePages(directory: LakeDirectory): { pages: Map<string, L
     });
     regions.push({ path, name: region.name, count: lakes.length, kind: kindText(kinds), sources: regionSources.map((source) => source.name) });
   }
-  return { pages, regions };
+  // Each lake is listed on exactly one page: its county, state or letter page, or the region page itself.
+  const trails = new Map<string, LakePage["trail"]>();
+  for (const page of pages.values()) for (const lake of page.lakes) trails.set(lake.id, page.trail);
+  return { pages, regions, trails };
 }
 
 export function lakePageSeo(page: LakePage): PageSeo {

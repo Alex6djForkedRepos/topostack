@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { PUBLIC_PAGES, headline, isArticlePage, socialImage } from "../../apps/generator/src/lib/site/seo.ts";
 import { buildLakePages } from "../../apps/generator/src/lib/site/lake-pages.ts";
+import { buildLakePlaces, lakePlaceSlugs } from "../../apps/generator/src/lib/site/lake-places.ts";
 import { EXAMPLES, exampleImage, exampleMeta, examplePath } from "../../apps/generator/src/lib/site/examples.ts";
 
 /**
@@ -14,7 +15,12 @@ export function expectedPages() {
     pages.set(path, { updated: meta.updated, image: socialImage(path), ...(isArticlePage(path) ? { article: { headline: headline(meta.title), published: meta.published, updated: meta.updated } } : {}) });
   }
   const directory = JSON.parse(readFileSync(new URL("../../apps/generator/static/data/lake-depth-directory.json", import.meta.url), "utf8"));
-  for (const page of buildLakePages(directory).pages.values()) pages.set(page.path, { updated: page.updated, image: socialImage(page.path), lake: true });
+  const lock = JSON.parse(readFileSync(new URL("../../apps/generator/src/lib/site/lake-slugs.json", import.meta.url), "utf8"));
+  const slugs = lakePlaceSlugs(directory, lock);
+  const lakes = buildLakePages(directory, slugs);
+  for (const page of lakes.pages.values()) pages.set(page.path, { updated: page.updated, image: socialImage(page.path), lake: true });
+  // A lake's own page carries the card of its region list.
+  for (const place of buildLakePlaces(directory, slugs, lakes.trails).values()) pages.set(place.path, { updated: place.updated, image: socialImage(place.trail[1].path), lake: true });
   for (const example of EXAMPLES) {
     pages.set(examplePath(example.slug), { updated: example.updated, image: exampleImage(example), article: { headline: headline(exampleMeta(example).title), published: example.published, updated: example.updated } });
   }
