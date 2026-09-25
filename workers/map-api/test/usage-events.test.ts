@@ -21,12 +21,20 @@ describe("usage collection", () => {
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(JSON.parse(log.mock.calls[0]![0])).toEqual({ message: "usage_event", environment: "development", ...event });
   });
+  it("logs campaign and medium when the page sends them", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const attributed = { ...event, campaign: "launch", medium: "forum" };
+    expect((await collectUsage(request(attributed), "production")).status).toBe(204);
+    expect(JSON.parse(log.mock.calls[0]![0])).toEqual({ message: "usage_event", environment: "production", ...attributed });
+  });
   it.each([
     { ...event, name: "Private project" },
     { ...event, source: "private search query" },
     { ...event, landing: "/studio?coordinates=private" },
     { ...event, output: "unknown" },
     { ...event, event: "arbitrary" },
+    { ...event, campaign: "launch" },
+    { ...event, campaign: "private campaign", medium: "forum" },
     null, [], {},
   ])("rejects unrecognized or private fields: %j", async (payload) => {
     const log = vi.spyOn(console, "log");

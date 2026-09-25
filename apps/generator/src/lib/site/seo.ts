@@ -221,7 +221,7 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     description: "How TopoStack stores project settings, requests map data, and measures visits and successful exports.",
     label: "Privacy",
     published: "2026-09-15",
-    updated: "2026-09-17",
+    updated: "2026-09-25",
   },
 };
 export const STUDIO_META = {

@@ -80,8 +80,10 @@ generated at build time from `static/data/lake-depth-directory.json` by
   allows 100). `finalizeStaticHeaders` skips pages whose scripts the fallback
   policy already covers, and JSON-LD is not hashed.
 - Metadata comes from `lakePageSeo()`; the sitemap, `llms.txt` and both SEO
-  verifiers include the generated pages. Usage events from any `/lakes/*` page
-  report the `/lakes` landing.
+  verifiers include the generated pages. Lake pages run no script, so they
+  send no `landing_view`; when a visitor opens the studio from one, the session
+  takes its landing from the same-site referrer and reports `/lakes` (as do
+  per-lake `/lake/*` pages).
 
 ## Example projects
 
@@ -133,7 +135,7 @@ The endpoint requires same-origin JSON, limits bodies to 1,024 bytes, rejects
 unknown fields/values and uses the existing per-client rate limiter.
 
 Filter Workers Logs for `usage_event` and production, then group by `event`,
-`landing`, `source`, `device`, `output` and `delivery`. No new database,
+`landing`, `source`, `campaign`, `medium`, `device`, `output` and `delivery`. No new database,
 third-party analytics subscription or user identifier is required.
 
 Events:
@@ -161,8 +163,12 @@ Attribution is a fixed category derived from an allowlisted `utm_source` or the
 referrer host. Assistant and answer-engine referrers are grouped as `ai` and
 are matched before the search engines, because `gemini.google.com` is a Google
 host whose visitors did not come from a search result page. Unknown values
-become `other`. Only that category and the public
-landing path are kept in tab session storage, with entry deduplication flags and
+become `other`. Links we publish (README, launch posts, creator walkthroughs)
+can also carry `utm_campaign` (`launch`, `readme`, `newsletter`, `creator`,
+`atomm`) and `utm_medium` (`social`, `forum`, `email`, `video`, `referral`);
+unlisted values become `other` and absent ones `none`, so free text is never
+sent. Events from tabs loaded before this change carry neither field. Only
+those categories and the public landing path are kept in tab session storage, with entry deduplication flags and
 a 30-minute inactivity expiry. No coordinates, project names, raw query strings,
 custom data or stable user IDs are sent. Collection honors DNT and GPC and is
 best effort. It runs only on the production host (or the explicit E2E test build).
@@ -175,7 +181,8 @@ export aggregates regularly if a longer baseline is needed.
 
 Recommended weekly measures: non-brand search impressions/clicks by landing
 page, studio entries, generation success/attempts, and prepared fabrication
-exports, segmented by output and acquisition source. Use Search Console for
+exports, segmented by output and acquisition source, and by campaign and
+medium while a launch is running. Use Search Console for
 search traffic and Cloudflare Web Analytics for visit/device context.
 
 ## Account steps after publishing
