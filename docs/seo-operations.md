@@ -11,7 +11,8 @@ CI sets the value explicitly per deployment and verifies generated metadata.
 - Homepage, both guides, Crater Lake example and privacy page: indexable in production.
 - Studio: prerendered metadata/loading shell, client-loaded editor, always noindex.
 - Development and Atomm artifacts: noindex in HTML and static response headers.
-- Sitemap: production pages only; non-production builds emit an empty sitemap.
+- Sitemap: production pages only; non-production builds emit an empty index and
+  empty child sitemaps. See [Sitemaps](#sitemaps).
 - Sitemap `lastmod` comes from each page's recorded `updated` date in `PUBLIC_PAGES`.
 - `www.topostack.app` has no Worker route; a zone redirect rule sends it to the apex.
 - Workers.dev and preview URLs are disabled in Wrangler; custom domains remain.
@@ -37,6 +38,29 @@ prerender time and read by `Seo.svelte` from page data. The registry therefore
 does not ship in the homepage bundle; adding a page no longer costs homepage
 JavaScript. Client components that need site constants import `$lib/site/site`,
 not `$lib/site/seo`.
+
+## Sitemaps
+
+`/sitemap.xml` is a sitemap index; robots.txt names only it. It points at two
+prerendered child sitemaps, built by `apps/generator/src/lib/site/sitemap.server.ts`:
+
+| Sitemap | Lists | Entries from |
+| --- | --- | --- |
+| `/sitemap-pages.xml` | Every registered page in `PUBLIC_PAGES` (including the `/lakes` hub) and every published example | `pageSitemapEntries()` |
+| `/sitemap-lakes.xml` | Every generated lake page (`/lakes/<region>…`, later `/lake/<slug>`) | `lakeSitemapEntries()` |
+
+The split exists so Search Console reports submitted and indexed counts per
+sitemap. Each index entry's `lastmod` is the newest content date in that child.
+A new generated lake route adds its entries to `lakeSitemapEntries()` and marks
+its pages `lake: true` in `scripts/verify/seo-pages.mjs`; `verify-seo.mjs`
+fails when a page sits in the wrong child sitemap. Each child sitemap must stay
+under the protocol limits (50,000 URLs, 50 MB uncompressed). The build
+verifier checks every page; the HTTP verifier checks a fixed, evenly spaced
+sample of 20 lake pages (`samplePaths()`) so deploy checks stay fast.
+
+`llms.txt` lists the registered pages, examples and `/lakes/*` region pages,
+and links `/sitemap-lakes.xml` for the complete lake list; individual `/lake/`
+pages are deliberately not listed there.
 
 ## Page dates and sharing cards
 
@@ -197,7 +221,12 @@ search traffic and Cloudflare Web Analytics for visit/device context.
 
 1. Open the existing Search Console property, or verify ownership of the production
    domain. DNS verification requires a token from that account; it is not inferable
-   from the codebase. Submit `https://topostack.app/sitemap.xml`.
+   from the codebase. Submit the index, `https://topostack.app/sitemap.xml`;
+   Search Console then reads both child sitemaps. Under Sitemaps, watch the
+   indexed count of each child separately. `sitemap-lakes.xml` is the
+   thin-content early warning: if its indexed share stalls or falls while
+   `sitemap-pages.xml` holds steady, Google is judging the generated lake pages
+   too thin to index, and they need more distinct content before more are added.
 2. Inspect the homepage and new guides, their selected canonicals and index status.
    Check Cloudflare security events if the inspection fetch is blocked.
 3. Verify/submit the sitemap in Bing Webmaster Tools. Import from Search Console

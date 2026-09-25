@@ -20,40 +20,77 @@ export async function fetchSeoResponse(url, { expectedStatus = 200, deadline = 0
   }
 }
 
+/** The child sitemaps production's `/sitemap.xml` index lists, in order. */
+export const SITEMAPS = ["/sitemap-pages.xml", "/sitemap-lakes.xml"];
+/** Generated lake pages checked over HTTP per run; the build verifier checks every one. */
+export const LAKE_PAGE_SAMPLE = 20;
+
 /**
- * The sitemap is a prerendered asset the edge cache may still serve from the
+ * Evenly spaced paths from the sorted list, always including the first, so
+ * every run checks the same pages and the sample spans every region.
+ */
+export function samplePaths(paths, size = LAKE_PAGE_SAMPLE) {
+  const sorted = [...paths].sort();
+  if (sorted.length <= size) return sorted;
+  return Array.from({ length: size }, (_, index) => sorted[Math.floor(index * sorted.length / size)]);
+}
+
+const parseXml = async (response) => new JSDOM(await response.text(), { contentType: "application/xml" }).window.document;
+
+/**
+ * Reads a sitemap, following a sitemap index one level down. Child locations
+ * name the canonical origin; they are read from the origin being checked, so a
+ * development or local deployment is verified against its own files.
+ * Returns the child sitemap paths (empty for a plain urlset) and every
+ * `<url>` entry.
+ */
+async function readSitemap(url, { deadline, retryDelayMs }) {
+  const read = async (target) => {
+    const response = await fetchSeoResponse(target, { deadline, retryDelayMs });
+    assert.equal(response.status, 200, target + " status");
+    assert.match(response.headers.get("content-type"), /xml/, target + " content type");
+    return parseXml(response);
+  };
+  const root = await read(url);
+  const urlEntries = (document) => [...document.querySelectorAll("url")].map((entry) => ({
+    loc: entry.querySelector("loc")?.textContent,
+    lastmod: entry.querySelector("lastmod")?.textContent,
+  }));
+  if (root.documentElement.localName !== "sitemapindex") return { sitemaps: [], entries: urlEntries(root) };
+  const sitemaps = [...root.querySelectorAll("sitemap > loc")].map((node) => new URL(node.textContent).pathname);
+  const entries = [];
+  for (const path of sitemaps) entries.push(...urlEntries(await read(new URL(path, url))));
+  return { sitemaps, entries };
+}
+
+/**
+ * The sitemaps are prerendered assets the edge cache may still serve from the
  * previous deployment for a short while after the Worker itself is live, so a
- * fresh deployment keeps re-reading it until it lists the expected pages and
- * content dates, or
- * the propagation window closes. Returns the last URL list read, sorted.
+ * fresh deployment keeps re-reading them until they list the expected pages
+ * and content dates, or the propagation window closes. Returns the last URL
+ * list read, sorted, across every child sitemap of an index.
  *
  * `lastmod` maps each expected URL to the content date the build recorded for
  * it. Callers that know those dates pass them so the deployed sitemap is
- * checked in the same read that confirmed propagation.
+ * checked in the same read that confirmed propagation. `sitemaps`, when given,
+ * is the list of child sitemap paths the index must name; a plain urlset left
+ * from an older deployment then counts as not yet propagated.
  */
-export async function fetchSitemapUrls(url, expected, { deadline = 0, retryDelayMs = 3_000, lastmod } = {}) {
+export async function fetchSitemapUrls(url, expected, { deadline = 0, retryDelayMs = 3_000, lastmod, sitemaps } = {}) {
   const wanted = [...expected].sort();
+  const sameList = (a, b) => a.length === b.length && a.every((entry, index) => entry === b[index]);
   while (true) {
-    const sitemap = await fetchSeoResponse(url, { deadline, retryDelayMs });
-    assert.equal(sitemap.status, 200);
-    assert.match(sitemap.headers.get("content-type"), /xml/);
-    const sitemapDocument = new JSDOM(await sitemap.text(), { contentType: "application/xml" }).window.document;
-    const urls = [...sitemapDocument.querySelectorAll("loc")].map((node) => node.textContent).sort();
-    const pagesMatch = urls.length === wanted.length && urls.every((entry, index) => entry === wanted[index]);
-    const staleDates = pagesMatch && lastmod ? [...sitemapDocument.querySelectorAll("url")].filter((entry) => {
-      const loc = entry.querySelector("loc").textContent;
-      return entry.querySelector("lastmod")?.textContent !== lastmod[loc];
-    }) : [];
-    if (pagesMatch && !staleDates.length) return urls;
+    const read = await readSitemap(url, { deadline, retryDelayMs });
+    const urls = read.entries.map((entry) => entry.loc).sort();
+    const indexMatches = !sitemaps || sameList(read.sitemaps, sitemaps);
+    const pagesMatch = sameList(urls, wanted);
+    const staleDates = pagesMatch && lastmod ? read.entries.filter((entry) => entry.lastmod !== lastmod[entry.loc]) : [];
+    if (indexMatches && pagesMatch && !staleDates.length) return urls;
     if (Date.now() + retryDelayMs >= deadline) {
       // Monitors fail immediately; deployments fail after their retry window.
       // Preserve the specific date diagnostic when the URL list is correct.
-      if (pagesMatch) {
-        for (const entry of staleDates) {
-          const loc = entry.querySelector("loc").textContent;
-          assert.equal(entry.querySelector("lastmod")?.textContent, lastmod[loc], loc + ": deployed lastmod");
-        }
-      }
+      if (sitemaps) assert.deepEqual(read.sitemaps, sitemaps, url + ": sitemap index children");
+      for (const entry of staleDates) assert.equal(entry.lastmod, lastmod[entry.loc], entry.loc + ": deployed lastmod");
       return urls;
     }
     console.warn(`Sitemap at ${url} does not list the expected pages and content dates yet; waiting for deployment assets.`);
@@ -73,10 +110,14 @@ export async function verifyHttpSeo(origin, environment, { propagationTimeoutMs 
   const recorded = [...pages].map(([path, page]) => [path, page.updated]);
   const expectedUrls = production ? recorded.map(([path]) => SITE_ORIGIN + path).sort() : [];
   const recordedDates = Object.fromEntries(recorded.map(([path, updated]) => [SITE_ORIGIN + path, updated]));
-  const urls = await fetchSitemapUrls(new URL("/sitemap.xml", origin), expectedUrls, { deadline, lastmod: production ? recordedDates : undefined });
+  const urls = await fetchSitemapUrls(new URL("/sitemap.xml", origin), expectedUrls, {
+    deadline, lastmod: production ? recordedDates : undefined, sitemaps: production ? SITEMAPS : [],
+  });
   assert.deepEqual(urls, expectedUrls, "Sitemap must list exactly the public pages");
-  // Every page except the generated lake sub-pages, which the region pages sample.
-  const checked = [...pages].filter(([path, page]) => !page.lake || path.split("/").length === 3).map(([path]) => path);
+  // Every registered page and example, and a fixed sample of the generated
+  // lake pages: there are thousands, and the build verifier checks them all.
+  const lakePaths = [...pages].filter(([, page]) => page.lake).map(([path]) => path);
+  const checked = [...[...pages].filter(([, page]) => !page.lake).map(([path]) => path), ...samplePaths(lakePaths)];
   for (const path of [...checked, "/studio"]) {
     const response = await get(path);
     assert.equal(response.status, 200, path);

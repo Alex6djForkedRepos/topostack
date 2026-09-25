@@ -39,6 +39,7 @@ export function GET(): Response {
     "Generated from the surveyed lake directory: one page per region, split by county or initial letter where a region is large.",
     "",
     ...[...LAKE_PAGES.values()].map((page) => `- [${headline(page.title)}](${SITE_ORIGIN}${page.path}): ${page.description}`),
+    `- [Lake page sitemap](${SITE_ORIGIN}/sitemap-lakes.xml): every generated lake page, for a complete list.`,
     "",
     "## Optional",
     "",

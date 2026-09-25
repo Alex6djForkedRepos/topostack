@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { fetchSeoResponse, fetchSitemapUrls } from "../verify/verify-seo-http.mjs";
+import { fetchSeoResponse, fetchSitemapUrls, samplePaths } from "../verify/verify-seo-http.mjs";
 
 for (const status of [404, 429, 503]) {
   test(`deployment SEO retries a transient ${status}`, async (t) => {
@@ -83,4 +83,46 @@ test("stale sitemap dates fail when propagation expires instead of passing or re
     deadline: 20, retryDelayMs: 0, lastmod: { "https://ci.invalid/": "2026-09-19" },
   }), /deployed lastmod/);
   assert.equal(fetch.mock.callCount(), 2);
+});
+
+const sitemapIndex = (...paths) => new Response(
+  '<?xml version="1.0" encoding="UTF-8"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + paths.map((path) => `<sitemap><loc>https://topostack.app${path}</loc><lastmod>2026-09-18</lastmod></sitemap>`).join("") + "</sitemapindex>",
+  { headers: { "content-type": "application/xml; charset=utf-8" } },
+);
+const CHILDREN = ["/sitemap-pages.xml", "/sitemap-lakes.xml"];
+
+test("a sitemap index is followed to its child sitemaps on the origin being checked", async (t) => {
+  const fetch = t.mock.method(globalThis, "fetch", async (url) => ({
+    "https://ci.invalid/sitemap.xml": () => sitemapIndex(...CHILDREN),
+    "https://ci.invalid/sitemap-pages.xml": () => sitemap("https://ci.invalid/", "https://ci.invalid/guides"),
+    "https://ci.invalid/sitemap-lakes.xml": () => sitemap("https://ci.invalid/lakes/norway"),
+  })[String(url)]());
+  const urls = await fetchSitemapUrls("https://ci.invalid/sitemap.xml", ["https://ci.invalid/lakes/norway", "https://ci.invalid/guides", "https://ci.invalid/"], {
+    sitemaps: CHILDREN, lastmod: { "https://ci.invalid/": "2026-09-18", "https://ci.invalid/guides": "2026-09-18", "https://ci.invalid/lakes/norway": "2026-09-18" },
+  });
+  assert.deepEqual(urls, ["https://ci.invalid/", "https://ci.invalid/guides", "https://ci.invalid/lakes/norway"]);
+  assert.deepEqual(fetch.mock.calls.map((call) => String(call.arguments[0])), ["https://ci.invalid/sitemap.xml", ...CHILDREN.map((path) => "https://ci.invalid" + path)]);
+});
+
+test("a plain sitemap left by the previous deployment is re-read until the index replaces it", async (t) => {
+  const responses = [sitemap("https://ci.invalid/"), sitemapIndex(...CHILDREN), sitemap("https://ci.invalid/"), sitemap()];
+  const fetch = t.mock.method(globalThis, "fetch", async () => responses.shift());
+  assert.deepEqual(await fetchSitemapUrls("https://ci.invalid/sitemap.xml", ["https://ci.invalid/"], { sitemaps: CHILDREN, deadline: Date.now() + 1_000, retryDelayMs: 0 }), ["https://ci.invalid/"]);
+  assert.equal(fetch.mock.callCount(), 4);
+});
+
+test("a missing sitemap index fails once the propagation window closes", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => sitemap("https://ci.invalid/"));
+  await assert.rejects(fetchSitemapUrls("https://ci.invalid/sitemap.xml", ["https://ci.invalid/"], { sitemaps: CHILDREN }), /sitemap index children/);
+});
+
+test("lake pages are sampled deterministically and evenly", () => {
+  const paths = Array.from({ length: 2_700 }, (_, index) => `/lake/${String(index).padStart(4, "0")}`);
+  const sample = samplePaths(paths.toReversed());
+  assert.equal(sample.length, 20);
+  assert.deepEqual(sample, samplePaths(paths));
+  assert.equal(sample[0], "/lake/0000");
+  assert.equal(new Set(sample).size, 20);
+  assert.ok(sample.at(-1) > "/lake/2500", "the sample reaches the end of the list");
+  assert.deepEqual(samplePaths(["/lakes/b", "/lakes/a"]), ["/lakes/a", "/lakes/b"], "short lists are checked in full");
 });
