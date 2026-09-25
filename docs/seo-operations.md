@@ -195,11 +195,9 @@ search traffic and Cloudflare Web Analytics for visit/device context.
 5. Confirm the Cloudflare beacon script and collection request succeed in a fresh
    browser session on the deployed site.
 6. Update the published Atomm listing from `atomm/listing.md`. The immutable slug
-   stays `topographic-map-generator`.
-7. The GitHub description and topics were updated during implementation. As of
-   September 21, 2026 the repository website field still pointed at the legacy
-   `topostack.echofoxtrot.works`; set it to `https://topostack.app`.
-   Its custom social preview can be uploaded through repository settings using
+   is `topostack`.
+7. The GitHub description, topics and website field (`https://topostack.app`)
+   are set. The repository's custom social preview can be uploaded through repository settings using
    the existing studio screenshot. The site itself already references that image.
 
 The MIT license applies to project software. Source-data and dependency licenses

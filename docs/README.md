@@ -21,6 +21,8 @@
 
 ## Package and tool READMEs
 
+- [Development and operations](development.md): local setup, validation, deployment and releases, the Atomm package, and data provisioning (moved out of the root README).
+- [Contributing](../CONTRIBUTING.md) and the [code of conduct](../CODE_OF_CONDUCT.md).
 - [Generator](../apps/generator/README.md): layers, import rules, studio panels, stylesheet layout.
 - [Core](../packages/core/README.md) and [data contracts](../packages/data-contracts/README.md).
 - [Nest engine](../packages/nest-wasm/README.md): the sparrow WebAssembly build, rebuilding it, and upgrading the solver.
