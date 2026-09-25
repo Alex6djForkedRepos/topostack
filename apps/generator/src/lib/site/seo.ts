@@ -192,6 +192,14 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     updated: "2026-09-23",
     image: socialCard("guides-settings-reference", "Settings reference card with the studio's project controls beside a Crater Lake relief."),
   },
+  "/guides/use-with-ai-assistants": {
+    title: "Use TopoStack with Claude, ChatGPT and AI Agents | TopoStack",
+    description: "Connect an AI assistant to TopoStack's MCP server to plan and preview topographic models in a chat, then open them in the studio to export.",
+    label: "AI assistants",
+    published: "2026-09-25",
+    updated: "2026-09-25",
+    image: socialCard("guides-use-with-ai-assistants", "AI assistants guide card with a Mount Rainier model previewed inside a chat as stacked sheets."),
+  },
   "/guides/export-files": {
     title: "Laser Export Files and SVG Structure | TopoStack",
     description: "What each TopoStack download contains: SVG panels, colors and operation groups, kerf compensation, assembly guide, project file and attribution.",
@@ -240,7 +248,7 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
   },
   "/privacy": {
     title: "Privacy and Browser Storage | TopoStack",
-    description: "How TopoStack stores project settings, requests map data, and measures visits and successful exports.",
+    description: "How TopoStack stores project settings, requests map data, handles requests from AI assistants, and measures visits and successful exports.",
     label: "Privacy",
     published: "2026-09-15",
     updated: "2026-09-25",

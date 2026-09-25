@@ -9,7 +9,7 @@ export const USAGE_LANDINGS = [
   "/guides/studio-tour", "/guides/map-details", "/guides/custom-markers-and-paths", "/guides/settings-reference", "/guides/export-files",
   "/guides/troubleshooting", "/lakes", "/guides/custom-lake-depth-map", "/examples", "/changelog", "/guides/custom-graphics",
   "/guides/custom-data", "/guides/trace-a-depth-chart",
-  "/guides/how-depth-chart-tracing-works", "/guides/how-terrain-generation-works",
+  "/guides/how-depth-chart-tracing-works", "/guides/how-terrain-generation-works", "/guides/use-with-ai-assistants",
 ] as const;
 // "ai" covers assistant and answer-engine referrers, which send a visitor who
 // already read a description of the tool rather than a search result snippet.

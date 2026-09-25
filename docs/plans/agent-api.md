@@ -66,13 +66,15 @@ A stateless Streamable HTTP JSON-RPC handler with no runtime dependencies, answe
 
 ### The MCP App (`apps/generator/src/mcp-app/`)
 
-A single-file HTML bundle built from the generator's sources: it receives the tool result, loads terrain from `PUBLIC_ORIGIN/v1` (declared in the resource's CSP `connectDomains`), downsamples to at most 384 px, runs `generateGeometry`, and draws an oblique stacked-layer or engraving SVG with stats, attribution, and an "Open in TopoStack" button. The Worker serves it through its `ASSETS` binding.
+A single-file HTML bundle built from the generator's sources (`vite.mcp-app.config.ts`). It speaks the MCP Apps postMessage protocol through a small hand-written bridge (the reference SDK brings React and the v2 SDK along), receives the tool result, decodes the design from its studio link, and loads terrain from the Worker that served it (the only origin in the resource's CSP `connectDomains`). It generates with `generateGeometry` without the engraved details (roads, labels, markers, title), which do not change the stack but cost most of the time, and draws stacked sheets or contour lines with stats, attribution and an "Open in TopoStack" button. The Worker serves it through its `ASSETS` binding.
 
 ### WebMCP (`apps/generator/src/lib/studio/webmcp*.ts`)
 
 Loaded only when `document.modelContext` (or `navigator.modelContext`) exists, never in the Atomm embed, and kept off the startup path. Tools are prefixed `topostack_`: get design, search places, set area, update design, generate preview, undo, open export. Edits go through the studio's own update functions so undo history holds. `topostack_open_export` only opens the dialog; downloading stays a user action.
 
 ## Delivery
+
+Phase 1 shipped as the six steps below. Measured on real terrain, plans agree with generation within a sheet or two (Mount Rainier 35 planned / 36 generated, Lake Tahoe 9 / 9, Matterhorn 45 / 45, Big Sur coast 12 / 14). Low-zoom tiles carry small artifact patches, which the sampler ignores by comparing each extreme sample with the ring two pixels out.
 
 1. Shared contracts: core `project/`, the data-contracts share-link codec. No user-visible change.
 2. REST on the Worker, limiters (`AGENT_LIMITER`, `AGENT_GLOBAL_LIMITER`), `PUBLIC_ORIGIN`, the source alias, the Worker bundle check, OpenAPI.
