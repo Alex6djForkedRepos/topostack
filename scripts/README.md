@@ -14,9 +14,9 @@ Run by `npm run build` in the generator or by CI after a build.
 | `build-font-glyphs.mjs` | Convert the curated typefaces in `assets/fonts/` into the studio's glyph files and picker samples ([fonts.md](../docs/fonts.md)); `font-glyphs.test.mjs` fails when the committed output is stale | manual |
 | `check-web-budget.mjs` | Measure the built site against the JavaScript, CSS, and HTML budgets | `npm run budget:web` |
 | `configure-redirects.mjs` | Apply the Cloudflare redirect rules (www and legacy paths) to the zone | manual: [seo-operations.md](../docs/seo-operations.md), [README](../README.md) |
-| `lock-lake-slugs.mjs` | Append a URL slug for every lake that newly qualifies for its own `/lake/<slug>` page to `apps/generator/src/lib/site/lake-slugs.json`; existing slugs never change ([seo-operations.md](../docs/seo-operations.md)) | manual, after a lake directory change; `lake-places.test.ts` fails until it has run |
 | `finalize-static-headers.mjs` | Rewrite `_headers` for the selected site environment after a build | generator `build`; generator `build:e2e` |
 | `generate-icons.mjs` | Regenerate favicons and app icons from `static/favicon.svg` | `npm run assets:icons` |
+| `lock-lake-slugs.mjs` | Append a URL slug for every lake that newly qualifies for its own `/lake/<slug>` page to `apps/generator/src/lib/site/lake-slugs.json`; existing slugs never change ([seo-operations.md](../docs/seo-operations.md)) | manual, after a lake directory change; `lake-places.test.ts` fails until it has run |
 | `prune-atomm-dist.mjs` | Drop the public site's images and example files from an Atomm build; no-op for other environments | generator `build` |
 | `write-build-version.mjs` | Record git metadata for the About page in the built site | generator `build`; generator `build:e2e` |
 | `write-third-party-licenses.mjs` | Write the licence notices for redistributed compiled code (the sheet-nesting engine) to `dist/licenses/third-party.txt` | generator `build`; generator `build:e2e` |
