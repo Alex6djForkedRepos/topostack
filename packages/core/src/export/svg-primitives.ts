@@ -127,8 +127,11 @@ export function layerMarkingPaths(layer: LayerIR, operation: "score" | "engrave"
   }).join("");
 }
 
+/** Credit every export carries: the SVG <desc> (metadata, never drawn or cut) and the README's closing line. */
+export const EXPORT_CREDIT = "Made with TopoStack · https://topostack.app";
+
 export function svgDocument(width: number, height: number, body: string, title: string, viewX = -width / 2, viewY = -height / 2): string {
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${format(width)}mm" height="${format(height)}mm" viewBox="${format(viewX)} ${format(viewY)} ${format(width)} ${format(height)}"><title>${escapeXml(title)}</title>${body}</svg>`;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${format(width)}mm" height="${format(height)}mm" viewBox="${format(viewX)} ${format(viewY)} ${format(width)} ${format(height)}"><title>${escapeXml(title)}</title><desc>${escapeXml(EXPORT_CREDIT)}</desc>${body}</svg>`;
 }
 
 export function escapeXml(value: string): string {
