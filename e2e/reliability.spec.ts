@@ -1,6 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { fitCutBounds } from "../apps/generator/src/lib/domain/selection-bounds";
-import { DEFAULT_PROJECT } from "@topostack/core";
+import { DEFAULT_PROJECT, fitCutBounds } from "@topostack/core";
 
 test("keeps generation and location controls usable when WebGL is unavailable", async ({ page }) => {
   const errors: string[] = [];

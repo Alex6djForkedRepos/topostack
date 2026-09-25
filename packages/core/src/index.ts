@@ -48,3 +48,6 @@ export * from "./pipeline/source-requirements.js";
 export { cropRadiusMm } from "./primitives/crop.js";
 
 export { executeGeometryTask, type GeometryTask, type GeometryBatch, type GeometryTaskResult } from "./pipeline/generation-tasks.js";
+
+// Reading, describing and planning projects; also published alone as `@topostack/core/project`.
+export * from "./project/index.js";

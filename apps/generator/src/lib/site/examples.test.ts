@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ALL_EXAMPLES, EXAMPLES, exampleBounds, exampleImage, exampleMeta, examplePageSeo, exampleProject } from "$lib/site/examples";
-import { parseProject } from "$lib/storage/storage";
+import { parseProject } from "@topostack/core";
 
 const staticFile = (path: string) => new URL(`../../../static/${path}`, import.meta.url);
 // The capture script builds every example on this template project.

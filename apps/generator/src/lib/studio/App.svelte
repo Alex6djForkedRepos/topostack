@@ -11,8 +11,8 @@
   import { theme } from "$lib/site/theme";
   import { trackUsage } from "$lib/site/usage";
   import { createSamplePreviewSource } from "$lib/domain/sample-preview";
-  import { exportBlockReason } from "@topostack/core";
-  import { loadProject, parseProject, saveProject, saveProjectUnloadCopy } from "$lib/storage/storage";
+  import { exportBlockReason, parseProject } from "@topostack/core";
+  import { loadProject, saveProject, saveProjectUnloadCopy } from "$lib/storage/storage";
   import { AutomaticNesting } from "$lib/atomm/automatic-nesting";
   import { connectAtomm } from "$lib/atomm/atomm-bridge";
   import type { DownloadOption } from "$lib/studio/native-export";

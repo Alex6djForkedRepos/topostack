@@ -82,7 +82,7 @@ describe("export choices", () => {
   });
 
   it("backs up importable settings without generated geometry", async () => {
-    const { parseProject } = await import("$lib/storage/storage");
+    const { parseProject } = await import("@topostack/core");
     const download = prepareProjectSettings({ ...DEFAULT_PROJECT, name: "My / mountain" });
     expect(download.filename).toBe("my-mountain-project.json");
     const data = JSON.parse(await download.blob.text());
