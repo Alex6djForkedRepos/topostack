@@ -16,7 +16,7 @@
       <li>
         <h3><a href={`${base}${region.path}`}>{region.name}</a></h3>
         <p>{region.count.toLocaleString("en-US")} {region.count === 1 ? "lake" : "lakes"} · {region.kind} from {region.sources.join(", ")}.</p>
-        {#if region.largest.length}<p class="meta">Largest survey areas: {#each region.largest as lake, index (lake.name)}{index ? ", " : ""}<a href={lakeStudioLink(base, lake)} data-sveltekit-reload>{lake.name}</a>{/each}</p>{/if}
+        {#if region.largest.length}<p class="meta">Largest survey areas: {#each region.largest as lake, index (lake.name)}{index ? ", " : ""}<a href={lake.page ? `${base}${lake.page}` : lakeStudioLink(base, lake)} data-sveltekit-reload>{lake.name}</a>{/each}</p>{/if}
       </li>
     {/each}
   </ul>

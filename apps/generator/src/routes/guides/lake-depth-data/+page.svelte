@@ -5,6 +5,8 @@
   import { depthKindLabel, indexLakeDirectory, lakeStudioLink, searchLakes, type LakeDirectory } from "$lib/site/lake-directory";
 
   let directory = $state.raw<LakeDirectory>();
+  /** Lake id → slug of its own page. Optional: without it, results still open in the studio. */
+  let lakePages = $state.raw<Record<string, string>>({});
   let loading = $state(true);
   let failed = $state(false);
   let query = $state("");
@@ -31,9 +33,17 @@
     } catch { if (!signal?.aborted) failed = true; }
     finally { if (!signal?.aborted) loading = false; }
   }
+  async function loadLakePages(signal: AbortSignal): Promise<void> {
+    try {
+      const response = await fetch(`${base}/data/lake-pages.json`, { signal });
+      const data = response.ok ? await response.json() as { schemaVersion?: number; pages?: unknown } : undefined;
+      if (data?.schemaVersion === 1 && data.pages && typeof data.pages === "object") lakePages = data.pages as Record<string, string>;
+    } catch { /* The search works without page links. */ }
+  }
   onMount(() => {
     const controller = new AbortController();
     void loadDirectory(controller.signal);
+    void loadLakePages(controller.signal);
     return () => controller.abort();
   });
   function resetSearch(): void { query = ""; region = ""; kind = ""; pageNumber = 1; }
@@ -82,7 +92,7 @@
               <p class="lake-meta">{coordinates(lake.bounds)} · Survey {lake.surveyId}</p>
               {#if lake.aliases?.length}<p class="lake-meta">Also listed as {lake.aliases.join(" · ")}</p>{/if}
               {#if lake.note}<p class="lake-meta">{lake.note}</p>{/if}
-              <div class="lake-links"><a class="studio-link" href={lakeStudioLink(base, lake)} data-sveltekit-reload>Open in studio <span aria-hidden="true">↗</span><span class="ldt-visually-hidden">: {lake.name}</span></a><a class="source-link" href={lake.source.url} target="_blank" rel="noreferrer">{lake.source.name}<span class="ldt-visually-hidden"> (source, opens in a new tab)</span></a></div>
+              <div class="lake-links"><a class="studio-link" href={lakeStudioLink(base, lake)} data-sveltekit-reload>Open in studio <span aria-hidden="true">↗</span><span class="ldt-visually-hidden">: {lake.name}</span></a>{#if lakePages[lake.id]}<a class="page-link" href={`${base}/lake/${lakePages[lake.id]}`} data-sveltekit-reload>Lake page<span class="ldt-visually-hidden">: {lake.name}</span></a>{/if}<a class="source-link" href={lake.source.url} target="_blank" rel="noreferrer">{lake.source.name}<span class="ldt-visually-hidden"> (source, opens in a new tab)</span></a></div>
             </li>
           {/each}
         </ul>
@@ -132,6 +142,7 @@
   .lake-meta { font-size: 13px; margin: 4px 0; overflow-wrap: anywhere; }
   .lake-links { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-top: 12px; }
   .studio-link { display: inline-flex; align-items: center; gap: 12px; min-height: 44px; box-sizing: border-box; padding: 10px 14px; background: var(--loidolt-accent); color: var(--loidolt-on-accent) !important; text-decoration: none; font-size: 14px; }
+  .page-link { font-size: 14px; font-weight: 600; }
   .source-link { font-size: 13px; }
   .pagination { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-block: 20px; font-size: 14px; }
   .catalog-date { font-size: 13px; }

@@ -148,7 +148,7 @@ unnamed records, "Part of" fragments and Finnish records tagged with an N60 datu
 level stay list-only. Each page shows survey facts, piece sizes and scales at
 three widths, six nearby lakes and an **Open in the studio** link. The JSON-LD
 has a `LakeBodyOfWater` with its survey box. The region list that names a lake
-links to its page, with a small **studio** link beside it.
+links to its page, with a small **studio** link beside it. The featured lakes on `/lakes` link to their pages too, and the in-browser search at `/guides/lake-depth-data` adds a **Lake page** link from `/data/lake-pages.json` (lake id → slug, prerendered from the same lock, about 35 KB gzipped, fetched only by that page).
 
 - Slugs are locked in `apps/generator/src/lib/site/lake-slugs.json`, keyed by
   source (without its version suffix) and survey id. After a lake directory
