@@ -25,7 +25,7 @@ Assistants reach the same flow without a new geometry path ([design](plans/agent
 - **The MCP App** (`ui://topostack/terrain-preview.html`, built from `apps/generator/src/mcp-app/`) runs the real loaders and `generateGeometry` in the chat host's iframe.
 - **WebMCP** tools in the studio edit the live design through its own update, generate and undo paths.
 
-Files are still produced only in a browser; server-side generation is a later phase in the plan.
+Files are still produced only in a browser; server-side generation is a later phase in the plan. [mcp.md](mcp.md) covers the code, transport, limits and local testing.
 
 ## Where things live
 

@@ -54,12 +54,15 @@ Set `GEOCODER_API_KEY` in that local file. The geocoder key is not required to f
 | `VITE_SITE_ENV` | Set in the shell/CI build environment: `production` for the production custom domain; `development` (default) or `atomm` exclude the build from indexing. |
 | `VITE_DONATION_URL` | Optional donation destination; defaults to the TopoStack PayPal page |
 | `GEOCODER_API_KEY` | Worker-only Geoapify credential; keep it in `.dev.vars` locally or a deployment secret |
+| `PUBLIC_ORIGIN` | Worker variable: the site origin that agent studio links and attribution point at. Set per environment in `wrangler.jsonc`; `npm run dev` sets it to the local frontend. |
 
 Pass port overrides in the shell:
 
 ```sh
 VITE_MAP_API_PORT=8799 TOPOSTACK_WEB_PORT=5299 npm run dev
 ```
+
+The local Worker also serves the MCP server at `http://localhost:8787/mcp` and the agent API under `/v1/projects/`. See [running it locally](mcp.md#running-it-locally) for the MCP Inspector, the generator build the in-chat preview needs, and trying it from a chat client.
 
 Explicitly selected busy ports cause an error. The individual `dev:web` and `dev:api` commands honor their port variables but do not search for a free port. Set frontend API/donation overrides in `apps/generator/.env` or the shell; `VITE_` values are included in the browser build and must not contain secrets.
 
@@ -71,7 +74,7 @@ Explicitly selected busy ports cause an error. The individual `dev:web` and `dev
 | [`packages/chart-trace`](../packages/chart-trace) | Source-only lake depth chart tracing: georeferencing a chart against a lake outline, and gridding its contours into bathymetry |
 | [`packages/core`](../packages/core) | Portable TypeScript geometry engine, fabrication planning, and SVG generation |
 | [`packages/data-contracts`](../packages/data-contracts) | Source-only contracts shared by the studio, the Worker, and scripts: catalog validation, archive releases, terrain PNG decoding, usage events |
-| [`workers/map-api`](../workers/map-api) | Cloudflare Worker for terrain, map archives, geocoding, caching, and readiness checks |
+| [`workers/map-api`](../workers/map-api) | Cloudflare Worker for terrain, map archives, geocoding, caching, readiness checks, and the agent API and MCP server ([mcp.md](mcp.md)) |
 | [`e2e`](../e2e) | Deterministic Playwright tests for navigation, previews, generation, and exports |
 | [`e2e-live`](../e2e-live) | Browser canary that generates and exports against a deployed API |
 | [`scripts`](../scripts/README.md) | Build steps, data builders, provisioning, verification, and release tooling, grouped by purpose; the README lists how each is run |
@@ -88,9 +91,10 @@ npm run typecheck
 npm test
 npm run build
 npm run budget:web
+npm run budget:worker
 ```
 
-`npm run build` builds all workspaces, including a dry run of the Worker deployment; it does not publish the app. The generated frontend is in `apps/generator/dist`. `npm run budget:web` checks that built output against the homepage, studio preload, and default-preview startup budgets plus HTML limits, and reports total JavaScript and CSS without enforcing them.
+`npm run build` builds all workspaces, including a dry run of the Worker deployment; it does not publish the app. The generated frontend is in `apps/generator/dist`. `npm run budget:web` checks that built output against the homepage, studio preload, and default-preview startup budgets plus HTML limits, and reports total JavaScript and CSS without enforcing them. `npm run budget:worker` checks the Worker bundle's size and that it contains no geometry generation.
 
 The Python data builders under `scripts/` have their own tests, kept out of `npm test` so Node-only contributors need no GDAL stack. CI runs them on Python 3.13. Locally, use a virtual environment with the pinned builder dependencies:
 
