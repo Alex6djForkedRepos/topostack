@@ -92,7 +92,14 @@ generated at build time from `static/data/lake-depth-directory.json` by
 its own route). Pages never state numbers by hand: layer count, elevation range
 and model height come from `static/examples/<slug>.json`, which
 `scripts/dev/capture-examples.mjs` writes after generating the project in the
-real studio. The same file is the download; the studio imports it directly.
+real studio. The same file is the download and what **Open in studio** loads:
+`/studio?example=<slug>` makes the studio fetch `examples/<slug>.json`, open it
+as an undoable change on top of the saved project, drop the parameter from the
+address bar and generate terrain (`startup-restore.ts`). Crater Lake has no file
+and opens the studio's starting project. The link is used instead of a `#p=`
+share link so the committed file stays the only copy of each example and
+`share_link_opened` counts only designs people shared. `verify-seo.mjs` fails a
+build whose pages link to an example with no published project file.
 
 - To add or change an example, edit its entry and re-run the capture for that
   slug. `examples.test.ts` fails when the committed project file no longer

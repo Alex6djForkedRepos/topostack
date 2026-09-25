@@ -1,5 +1,10 @@
-import { MAX_PROJECT_NAME_LENGTH, type ProjectConfigV1 } from "@topostack/core";
-import { UnreadableSavedProjectError } from "$lib/storage/storage";
+import { DEFAULT_PROJECT, MAX_PROJECT_NAME_LENGTH, type ProjectConfigV1 } from "@topostack/core";
+import { parseProject, UnreadableSavedProjectError } from "$lib/storage/storage";
+
+/** Example slugs are lowercase words joined by hyphens; anything else never reaches the network. */
+const EXAMPLE_SLUG = /^[a-z0-9-]+$/;
+/** The Crater Lake example has no project file: it is the project a new browser starts with. */
+const DEFAULT_EXAMPLE_SLUG = "crater-lake";
 
 export interface StartupRestoreHost {
   loadProject: () => Promise<ProjectConfigV1 | undefined>;
@@ -13,6 +18,10 @@ export interface StartupRestoreHost {
   loadShareLink: () => Promise<typeof import("$lib/studio/share-link")>;
   /** Clears the share fragment so a refresh restores later edits instead. */
   consumeShareLink: () => Promise<void>;
+  /** The published `examples/<slug>.json` file, parsed; undefined when there is no such example. */
+  loadExample: (slug: string) => Promise<unknown>;
+  /** Consumes the `example` parameter so a refresh restores later edits instead. */
+  consumeExampleLink: () => Promise<void>;
   isCancelled: () => boolean;
   currentProject: () => ProjectConfigV1;
   /** Swap in the saved project as the new baseline (no undo into the default project). */
@@ -23,6 +32,8 @@ export interface StartupRestoreHost {
   generate: () => void;
   /** Open a shared design as an undoable change of `previous`, so Undo returns to the saved project. */
   openSharedProject: (next: ProjectConfigV1, previous: ProjectConfigV1) => void;
+  /** Open a published example as an undoable change of `previous`. */
+  openExample: (next: ProjectConfigV1, previous: ProjectConfigV1) => void;
   setStatus: (message: string) => void;
 }
 
@@ -32,10 +43,11 @@ export interface StartupRestoreResult {
 }
 
 /**
- * Restore the autosaved project, then apply a shared design (`#p=`) or a
- * `?lake=` directory link on top of it. A saved project that cannot be read
- * still lets the link open. A directory lake is generated on arrival; a
- * shared design waits for Generate.
+ * Restore the autosaved project, then apply a shared design (`#p=`), an
+ * `?example=` link or a `?lake=` directory link on top of it, in that order of
+ * precedence. A saved project that cannot be read still lets the link open.
+ * Examples and directory lakes are generated on arrival; a shared design waits
+ * for Generate.
  */
 export async function restoreStartupProject(host: StartupRestoreHost): Promise<StartupRestoreResult> {
   let autosave = true;
@@ -68,6 +80,11 @@ export async function restoreStartupProject(host: StartupRestoreHost): Promise<S
       host.setStatus("Shared design opened · generate terrain to preview it · Undo returns to your previous project");
       return { autosave };
     }
+    const example = new URLSearchParams(host.search).get("example");
+    if (example !== null) {
+      await openExampleLink(host, example);
+      return { autosave };
+    }
     if (!new URLSearchParams(host.search).has("lake")) return { autosave };
     const current = host.currentProject();
     const linkedLake = (await host.loadLakeLocation()).lakeLocationFromSearch(host.search, current.widthMm, current.heightMm);
@@ -86,4 +103,33 @@ export async function restoreStartupProject(host: StartupRestoreHost): Promise<S
     host.setStatus("Saved project could not be restored · starting from the sample preview");
   }
   return { autosave };
+}
+
+/**
+ * Open a published example from its committed project file, the same file the
+ * example page offers as a download. A link that names no example leaves the
+ * current project alone.
+ */
+async function openExampleLink(host: StartupRestoreHost, slug: string): Promise<void> {
+  let example: ProjectConfigV1 | undefined;
+  let failure = "Example not found · your project is unchanged";
+  if (slug === DEFAULT_EXAMPLE_SLUG) example = DEFAULT_PROJECT;
+  else if (EXAMPLE_SLUG.test(slug) && slug.length <= 80) {
+    try {
+      const file = await host.loadExample(slug);
+      if (file !== undefined) example = parseProject(file && typeof file === "object" && "project" in file ? file.project : file);
+    } catch (error) {
+      if (host.isCancelled()) return;
+      console.error("TopoStack could not open the example.", error);
+      failure = "Example could not be opened · your project is unchanged";
+    }
+  }
+  if (host.isCancelled()) return;
+  await host.consumeExampleLink();
+  if (host.isCancelled()) return;
+  if (!example) { host.setStatus(failure); return; }
+  host.openExample(example, host.currentProject());
+  host.setStatus("Example opened · loading its terrain · Undo returns to your previous project");
+  // Like a directory lake, the link promises the pictured terrain, so build it on arrival.
+  host.generate();
 }

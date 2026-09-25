@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_PROJECT, type ProjectConfigV1 } from "@topostack/core";
 import { UnreadableSavedProjectError } from "$lib/storage/storage";
@@ -16,12 +17,15 @@ function host(overrides: Partial<StartupRestoreHost> = {}) {
     hash: "",
     loadShareLink: () => import("$lib/studio/share-link"),
     consumeShareLink: vi.fn(async () => undefined),
+    loadExample: vi.fn<(slug: string) => Promise<unknown>>(async () => undefined),
+    consumeExampleLink: vi.fn(async () => undefined),
     isCancelled: () => false,
     currentProject: () => project,
     restoreSaved: vi.fn((saved: ProjectConfigV1) => { project = saved; }),
     openLinkedLake: vi.fn((next: ProjectConfigV1) => { project = next; }),
     generate: vi.fn(() => undefined),
     openSharedProject: vi.fn((next: ProjectConfigV1) => { project = next; }),
+    openExample: vi.fn((next: ProjectConfigV1) => { project = next; }),
     setStatus: (message: string) => { statuses.push(message); },
     ...overrides,
   };
@@ -69,6 +73,92 @@ describe("startup restore", () => {
     // Generation starts only after the lake is open, so it builds the lake rather than the saved project.
     expect(value.generate).toHaveBeenCalledOnce();
     expect(vi.mocked(value.openLinkedLake).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(value.generate).mock.invocationCallOrder[0]!);
+  });
+
+  const exampleFile = (slug: string): unknown => JSON.parse(readFileSync(new URL(`../../../static/examples/${slug}.json`, import.meta.url), "utf8"));
+
+  it("opens a published example on top of the saved project, clears the link and builds its terrain", async () => {
+    const saved = { ...DEFAULT_PROJECT, materialThicknessMm: 5 };
+    const { value, loadProject, statuses, project } = host({ search: "?example=mount-fuji" });
+    loadProject.mockResolvedValueOnce(saved);
+    vi.mocked(value.loadExample).mockImplementation(async (slug) => exampleFile(slug));
+    await expect(restoreStartupProject(value)).resolves.toEqual({ autosave: true });
+    expect(value.loadExample).toHaveBeenCalledWith("mount-fuji");
+    expect(value.openExample).toHaveBeenCalledWith(expect.objectContaining({ id: "topostack-example-mount-fuji", cropShape: "circle", outputMode: "stack" }), saved);
+    expect(project()).toMatchObject({ name: "Mount Fuji · TopoStack example" });
+    expect(value.consumeExampleLink).toHaveBeenCalledOnce();
+    expect(statuses.at(-1)).toContain("Example opened");
+    expect(value.generate).toHaveBeenCalledOnce();
+    expect(vi.mocked(value.openExample).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(value.generate).mock.invocationCallOrder[0]!);
+  });
+
+  it("opens the Crater Lake example as the default project without a download", async () => {
+    const saved = { ...DEFAULT_PROJECT, name: "My ridge", materialThicknessMm: 5 };
+    const { value, loadProject, project } = host({ search: "?example=crater-lake" });
+    loadProject.mockResolvedValueOnce(saved);
+    await restoreStartupProject(value);
+    expect(value.loadExample).not.toHaveBeenCalled();
+    expect(value.openExample).toHaveBeenCalledWith(DEFAULT_PROJECT, saved);
+    expect(project()).toBe(DEFAULT_PROJECT);
+    expect(value.generate).toHaveBeenCalledOnce();
+  });
+
+  it("never fetches an invalid example slug and keeps the saved project", async () => {
+    for (const slug of ["../storage", "Mount-Fuji", "fuji.json", "", "a".repeat(81)]) {
+      const saved = { ...DEFAULT_PROJECT, materialThicknessMm: 5 };
+      const { value, loadProject, statuses, project } = host({ search: `?example=${encodeURIComponent(slug)}` });
+      loadProject.mockResolvedValueOnce(saved);
+      await restoreStartupProject(value);
+      expect(value.loadExample, slug).not.toHaveBeenCalled();
+      expect(value.openExample, slug).not.toHaveBeenCalled();
+      expect(value.generate, slug).not.toHaveBeenCalled();
+      expect(value.consumeExampleLink, slug).toHaveBeenCalledOnce();
+      expect(project(), slug).toBe(saved);
+      expect(statuses.at(-1), slug).toBe("Example not found · your project is unchanged");
+    }
+  });
+
+  it("reports a missing example and keeps the saved project", async () => {
+    const saved = { ...DEFAULT_PROJECT, materialThicknessMm: 5 };
+    const { value, loadProject, statuses, project } = host({ search: "?example=atlantis" });
+    loadProject.mockResolvedValueOnce(saved);
+    await restoreStartupProject(value);
+    expect(value.loadExample).toHaveBeenCalledWith("atlantis");
+    expect(value.openExample).not.toHaveBeenCalled();
+    expect(value.consumeExampleLink).toHaveBeenCalledOnce();
+    expect(project()).toBe(saved);
+    expect(statuses.at(-1)).toBe("Example not found · your project is unchanged");
+  });
+
+  it("reports an example that cannot be read or fetched", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    for (const failure of [async () => ({ project: { schemaVersion: 2 } }), async () => { throw new TypeError("Failed to fetch"); }]) {
+      const { value, statuses } = host({ search: "?example=mount-fuji" });
+      vi.mocked(value.loadExample).mockImplementation(failure);
+      await expect(restoreStartupProject(value)).resolves.toEqual({ autosave: true });
+      expect(value.openExample).not.toHaveBeenCalled();
+      expect(value.generate).not.toHaveBeenCalled();
+      expect(value.consumeExampleLink).toHaveBeenCalledOnce();
+      expect(statuses.at(-1)).toBe("Example could not be opened · your project is unchanged");
+    }
+    errors.mockRestore();
+  });
+
+  it("gives a share link precedence over an example, and an example precedence over a directory lake", async () => {
+    const shared = { ...DEFAULT_PROJECT, name: "Shared ridge" };
+    const hash = `#${new URL(shareLinkFor(shared, "https://topostack.app/studio")).hash.slice(1)}`;
+    const withShare = host({ hash, search: "?example=mount-fuji" });
+    await restoreStartupProject(withShare.value);
+    expect(withShare.value.openSharedProject).toHaveBeenCalledOnce();
+    expect(withShare.value.loadExample).not.toHaveBeenCalled();
+    expect(withShare.value.consumeExampleLink).not.toHaveBeenCalled();
+
+    const withLake = host({ search: "?example=mount-fuji&lake=Crater%20Lake&bounds=-122.2,42.9,-122.0,43.0" });
+    vi.mocked(withLake.value.loadExample).mockImplementation(async (slug) => exampleFile(slug));
+    await restoreStartupProject(withLake.value);
+    expect(withLake.value.openExample).toHaveBeenCalledOnce();
+    expect(withLake.value.openLinkedLake).not.toHaveBeenCalled();
+    expect(withLake.value.generate).toHaveBeenCalledOnce();
   });
 
   it("keeps autosave running when an unreadable project was backed up, and still opens the link", async () => {

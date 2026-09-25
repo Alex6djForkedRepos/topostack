@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, untrack, setContext } from "svelte";
+  import { base } from "$app/paths";
   import { Download } from "@lucide/svelte";
   import { AppShell, Brand, Button, ContextBar, Sidebar, Topbar, Workspace } from "@loidolt/theme-svelte";
   import { sourceRequirements, DEFAULT_PROJECT, planSeamGrid, displayElevation, displayLength, elevationUnit, generateGeometry, labelPathData, lengthUnit, MAX_PROJECT_NAME_LENGTH, millimetersFromDisplay, planTerrainStack, projectFingerprint, validateProject, type GeometryIRV1, type LineStyleV1, type OperationPath, type ProjectConfigV1, type SourceBundleV1 } from "@topostack/core";
@@ -496,6 +497,18 @@
         url.hash = "";
         replaceState(url, {});
       },
+      loadExample: async (slug) => {
+        const response = await fetch(`${base}/examples/${slug}.json`);
+        if (response.status === 404) return undefined;
+        if (!response.ok) throw new Error(`Example request failed with status ${response.status}.`);
+        return response.json();
+      },
+      consumeExampleLink: async () => {
+        const { replaceState } = await import("$app/navigation");
+        const url = new URL(window.location.href);
+        url.searchParams.delete("example");
+        replaceState(url, {});
+      },
       isCancelled: () => cancelled,
       currentProject: () => project,
       restoreSaved: (saved) => {
@@ -517,6 +530,12 @@
         dismissedWarnings = [];
         replaceSourceProject(next, createProjectPreviewSource(next));
         trackUsage("share_link_opened", next.outputMode);
+      },
+      openExample: (next, previous) => {
+        invalidatePendingPreview();
+        projectHistory.push(previous);
+        dismissedWarnings = [];
+        replaceSourceProject(next, createProjectPreviewSource(next));
       },
       setStatus: (message) => { status = message; },
     }).then(({ autosave }) => {

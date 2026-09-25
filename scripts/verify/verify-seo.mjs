@@ -65,7 +65,11 @@ for (const file of files) {
   for (const anchor of document.querySelectorAll("a[href]")) {
     const href = anchor.getAttribute("href");
     if (href.startsWith("#") || /^(https?:|mailto:)/.test(href)) continue;
-    const target = new URL(href, origin + path).pathname;
+    const link = new URL(href, origin + path);
+    const target = link.pathname;
+    // The studio opens `?example=<slug>` from its published project file; Crater Lake is the starting project.
+    const example = target === "/studio" ? link.searchParams.get("example") : null;
+    if (example !== null) assert.ok(example === "crater-lake" || builtPaths.includes(`examples/${example}.json`), file + ": example link without a project file " + href);
     const expectedFile = target === "/" ? "index.html" : target.slice(1) + ".html";
     const assetPath = target.slice(1);
     const assetExists = builtPaths.includes(assetPath) && (await stat(new URL(assetPath, dist))).isFile();
