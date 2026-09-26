@@ -33,10 +33,10 @@ export const DOCS_SECTIONS: readonly { id: string; title: string; summary: strin
     paths: ["/guides/custom-lake-depth-map", "/guides/trace-a-depth-chart", "/guides/how-depth-chart-tracing-works", "/lakes", "/guides/lake-depth-data", "/guides/how-lake-depths-work"],
   },
   {
-    id: "developers",
-    title: "Developers",
-    summary: "Plan models and hand them to the studio from your own code or AI agent, over HTTP or the MCP server.",
-    paths: ["/guides/http-api", "/guides/mcp-server"],
+    id: "agents",
+    title: "AI agents and API",
+    summary: "Drive the studio with a browser agent, and build on TopoStack's MCP server and HTTP API.",
+    paths: ["/guides/browser-agents", "/guides/mcp-server", "/guides/agent-api"],
   },
   {
     id: "help",

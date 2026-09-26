@@ -17,8 +17,8 @@
 - [Lake shoreline smoothing](lake-shoreline-smoothing.md)
 - [Data layer and cache review](data-layer-review.md) — cache ownership, failure behavior, source registration.
 - [Terrain system review and source expansion plan](terrain-expansion-plan.md)
-- [Agent API reference](agent-api.md) — the request contract, REST routes, MCP tools and resources, the in-chat preview, WebMCP, errors, budgets, and known gaps.
-- [Agent API, MCP server, and in-studio agent tools](plans/agent-api.md) — REST, remote MCP with an in-chat preview, WebMCP in the studio, and the server-side generation phase after them.
+- [MCP server, in-chat preview and WebMCP](mcp.md) — where the agent code lives, how the server behaves, rate limits, running it locally, and adding a tool. The public references are the site guides `/guides/mcp-server`, `/guides/agent-api` and `/guides/browser-agents`.
+- [Agent API, MCP server, and in-studio agent tools](plans/agent-api.md) — the design: REST, remote MCP with an in-chat preview, WebMCP in the studio, and the server-side generation phase after them.
 - [Roadmap](roadmap.md)
 
 ## Package and tool READMEs

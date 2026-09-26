@@ -1,6 +1,6 @@
 # Agent API, MCP server, and in-studio agent tools
 
-This is the design and phase plan. For what the surfaces accept and return today, see the [agent API reference](../agent-api.md).
+This is the design record. The maintained contributor reference is [../mcp.md](../mcp.md); the public references are the site guides `/guides/mcp-server`, `/guides/agent-api` and `/guides/browser-agents`.
 
 ## Context
 

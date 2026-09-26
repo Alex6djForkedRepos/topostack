@@ -116,6 +116,8 @@
   :where(.article-page) :global(table) { width: 100%; border-collapse: collapse; margin-block: 16px 24px; font-size: 15px; }
   :where(.article-page) :global(th), :where(.article-page) :global(td) { padding: 10px 12px 10px 0; border-bottom: 1px solid var(--loidolt-border); text-align: left; vertical-align: top; line-height: 1.6; }
   :where(.article-page) :global(th) { font-size: 13px; color: var(--loidolt-text-muted); font-weight: 600; }
+  /* Commands and JSON keep their line breaks; long lines scroll inside the block, not the page. */
+  :where(.article-page) :global(pre) { max-width: 100%; overflow-x: auto; }
   .article-page { min-height: 100dvh; background: var(--loidolt-background); color: var(--loidolt-text); }
   .docs-layout { display: grid; grid-template-columns: 210px minmax(0, 760px) 200px; justify-content: center; gap: 56px; width: calc(100% - 40px); margin-inline: auto; }
   .docs-layout.docs-layout--plain { grid-template-columns: minmax(0, 760px); }
@@ -146,8 +148,7 @@
   article :global(figure) { margin: 32px 0; }
   article :global(img) { display: block; width: 100%; height: auto; border: 1px solid var(--loidolt-border); border-radius: var(--loidolt-border-radius); }
   article :global(figcaption) { font-size: 13px; line-height: 1.6; color: var(--loidolt-text-muted); margin-top: 12px; }
-  /* Code blocks scroll inside themselves and long inline code (JSON, URLs) in prose may break, so neither widens the page. */
-  article :global(pre) { overflow-x: auto; margin: 16px 0 24px; padding: 16px; border: 1px solid var(--loidolt-border); border-radius: var(--loidolt-border-radius); background: var(--loidolt-surface); font-size: 13px; line-height: 1.6; }
+  /* Long inline code (JSON, URLs) in prose may break rather than widen the page. */
   article :global(:is(p, li) > code) { overflow-wrap: anywhere; }
   article :global(.note) { padding: 20px; border-left: 3px solid var(--loidolt-accent); background: var(--loidolt-surface); }
   .pager { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 56px; padding-top: 32px; border-top: 1px solid var(--loidolt-border); }

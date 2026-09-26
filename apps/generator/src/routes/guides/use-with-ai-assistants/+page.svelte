@@ -49,12 +49,13 @@
   <p class="note">Assistants can misread a place name or pick an area that is too small or too large. Check the map area and size in the studio before you cut, and cut one layer as a test.</p>
 
   <h2>Browser agents in the studio</h2>
-  <p>Agents that drive a browser tab, such as Chrome's built-in agent or Claude in Chrome, can use the studio directly where the browser supports WebMCP. The studio then offers tools to read the design, search for a place, change the size, output, material and details, generate, undo, and open the export dialog. Every change is an ordinary undo step, and the agent can open the export dialog but never downloads files for you. In Chrome, WebMCP is currently experimental and has to be switched on.</p>
+  <p>Agents that drive a browser tab, such as Chrome's built-in agent or Claude in Chrome, can use the studio directly where the browser supports WebMCP. The studio then offers tools to read the design, search for a place, change the size, output, material and details, generate, undo, and open the export dialog. Every change is an ordinary undo step, and the agent can open the export dialog but never downloads files for you. In Chrome, WebMCP is currently experimental and has to be switched on. See <a href={`${base}/guides/browser-agents`}>use a browser agent in the studio</a> for the tools and how to try them.</p>
 
   <h2>For developers</h2>
   <p>The same operations are available over HTTP, described by the OpenAPI document at <code>https://topostack.app/v1/openapi.json</code>. For example, to plan a model:</p>
   <pre><code>curl -X POST https://topostack.app/v1/projects/plan -H 'content-type: application/json' -d '{request}'</code></pre>
-  <p>Requests are anonymous and rate limited. Nothing is generated or stored on a server: the response's studio link carries the whole design, and files are made in the browser. The <a href={`${base}/guides/http-api`}>HTTP API guide</a> covers every field, route and error, and the <a href={`${base}/guides/mcp-server`}>MCP server guide</a> covers the tools, resources and preview app for building your own agent.</p>
+  <p>Requests are anonymous and rate limited. Nothing is generated or stored on a server: the response's studio link carries the whole design, and files are made in the browser.</p>
+  <p>The <a href={`${base}/guides/mcp-server`}>MCP server reference</a> lists every tool, resource and prompt, the error codes and the rate limits. The <a href={`${base}/guides/agent-api`}>project request and HTTP API reference</a> describes each request field, studio links and the HTTP routes.</p>
 
   <h2>Data and credit</h2>
   <p>Every response includes attribution for the terrain, map and lake data it used, and anything you share from it should keep that credit. The full list of sources and licenses is on the <a href={`${base}/attribution`}>attribution page</a>. Your conversations stay with your assistant; TopoStack receives only the requests the assistant sends, as described in the <a href={`${base}/privacy`}>privacy notice</a>.</p>
