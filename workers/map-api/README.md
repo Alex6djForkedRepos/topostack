@@ -73,7 +73,7 @@ CI normally synchronizes these secrets from the matching GitHub environment duri
 
 ## Agent API
 
-The routes an AI assistant or a script uses to plan a model and hand it to the studio. They are documented at `/v1/openapi.json`, and the design is in [docs/plans/agent-api.md](../../docs/plans/agent-api.md).
+The routes an AI assistant or a script uses to plan a model and hand it to the studio. They are documented at `/v1/openapi.json` and in the public guides `/guides/agent-api` and `/guides/mcp-server`. [docs/mcp.md](../../docs/mcp.md) is the contributor reference, and the design is in [docs/plans/agent-api.md](../../docs/plans/agent-api.md).
 
 | Route | Purpose |
 | --- | --- |
@@ -92,7 +92,7 @@ The routes an AI assistant or a script uses to plan a model and hand it to the s
 - **In-chat preview.** `preview_model` names the MCP App `ui://topostack/terrain-preview.html` in its `_meta.ui.resourceUri`. Reading that resource returns the generator build's `mcp-app/terrain-preview.html` (through the `ASSETS` binding) with this Worker's origin filled in, and a CSP that lets it connect only here. The page generates the model in the chat's iframe, so the Worker still generates nothing. Without a generator build the resource answers an error saying so.
 - **Transport.** Each POST carries one message or a batch; notifications get `202`. There is no session or event stream, so `GET` and `DELETE` answer `405`. Supported protocol versions are listed in `src/mcp/protocol.ts`.
 - **Discovery:** `/.well-known/mcp/server-card.json`, following the draft server-card proposal.
-- **Tests** drive the Worker with the official SDK client (`@modelcontextprotocol/sdk`, a dev dependency only) using the Workers-compatible schema validator. To try it by hand, run `npm run dev` and point the MCP Inspector at `http://localhost:8787/mcp`; the dev script passes `--local-upstream` so links and the preview's CSP name the local Worker rather than the development route.
+- **Tests** drive the Worker with the official SDK client (`@modelcontextprotocol/sdk`, a dev dependency only) using the Workers-compatible schema validator. To try it by hand, run `npm run dev` and point the MCP Inspector at `http://localhost:8787/mcp`; the dev script passes `--local-upstream` so links and the preview's CSP name the local Worker rather than the development route. [docs/mcp.md](../../docs/mcp.md#running-it-locally) lists what else a local run needs.
 
 - **Links.** A studio link is `PUBLIC_ORIGIN/studio?generate=1#p=1.<design>`: the design rides in the fragment and the studio generates it on open, so files are always made in the browser. `PUBLIC_ORIGIN` is set per environment; `npm run dev` points it at the local generator.
 - **Budgets.** Chat platforms call from their own servers, so one address stands for many people. The POST routes and `/mcp` are charged to `AGENT_LIMITER` (120 a minute per client) and `AGENT_GLOBAL_LIMITER` (1,200 a minute per colo) instead of the browser's `REQUEST_LIMITER`. A plan's tile fetches that miss the caches also pass the terrain upstream budget.

@@ -1,5 +1,7 @@
 # Agent API, MCP server, and in-studio agent tools
 
+This is the design record. The maintained contributor reference is [../mcp.md](../mcp.md); the public references are the site guides `/guides/mcp-server`, `/guides/agent-api` and `/guides/browser-agents`.
+
 ## Context
 
 Makers increasingly start a project in a chat: "make me a layered map of Mount Rainier for 3 mm plywood". TopoStack should let an AI assistant do that directly, and let scripts do it over HTTP, for both layered (stacked sheets) and flat (engraved contours) output.

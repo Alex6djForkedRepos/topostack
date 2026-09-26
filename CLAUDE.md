@@ -34,7 +34,7 @@ Run generator tests from `apps/generator` or via `npm run test -w @topostack/gen
 | Atomm embed behavior | `apps/generator/src/lib/atomm/`; the platform's stylesheet there is vendored, not ours |
 | Serving, caching, geocoding | `workers/map-api/src/routes/` |
 | Agent-facing API (project resolve, plan, link, coverage, OpenAPI) | `workers/map-api/src/agent/`; the request contract itself is `packages/core/src/project/` |
-| The remote MCP server (tools, resources, prompts, transport) | `workers/map-api/src/mcp/`; tools call `src/agent/` so REST and MCP agree |
+| The remote MCP server (tools, resources, prompts, transport) | `workers/map-api/src/mcp/`; tools call `src/agent/` so REST and MCP agree. [docs/mcp.md](docs/mcp.md) has the checklist for adding a tool and the public guides to update |
 | The in-chat preview (MCP App) | `apps/generator/src/mcp-app/`, built by `vite.mcp-app.config.ts`; served by `workers/map-api/src/mcp/app-resource.ts` |
 | Browser-agent tools in the studio (WebMCP) | `apps/generator/src/lib/studio/webmcp-tools.ts` (tools against a host interface) and `webmcp.ts` (registration), loaded lazily from `App.svelte` |
 | An operational script | `scripts/<purpose>/` and a row in `scripts/README.md` saying how it runs |
