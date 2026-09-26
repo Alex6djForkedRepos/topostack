@@ -108,8 +108,9 @@ EOF`;
       <tr><td><code>413</code></td><td>The body is over 128,000 bytes, or the design does not fit in an 8,000-character link</td></tr>
       <tr><td><code>415</code></td><td>The body is not sent as <code>application/json</code></td></tr>
       <tr><td><code>422</code></td><td>The request or project is invalid</td></tr>
-      <tr><td><code>429</code></td><td>A rate limit, below. Retry after the <code>retry-after</code> seconds.</td></tr>
-      <tr><td><code>502</code></td><td>Terrain could not be fetched for a plan. Try again shortly.</td></tr>
+      <tr><td><code>429</code></td><td>A rate limit, below. Retry after the <code>retry-after</code> seconds. On a plan, "The terrain budget for this client is used up" means the terrain tiles, not the request budget, ran out.</td></tr>
+      <tr><td><code>502</code></td><td>Terrain could not be fetched for a plan, or place search failed. Try again shortly.</td></tr>
+      <tr><td><code>503</code>, <code>504</code></td><td>Place search is not configured on this server, or timed out.</td></tr>
     </tbody>
   </table>
 
@@ -130,6 +131,7 @@ EOF`;
     <li>the Matterhorn: 45 and 45.</li>
   </ul>
   <p>The count the studio shows after generating is the one that is cut. Output is decorative, not survey-grade.</p>
+  <p>A plan's <code>notes</code> are plain sentences worth showing to the person. The first always says the count is an estimate. Others appear when the ground is nearly flat, when a layered stack passes 60 sheets, when the area reaches the sea (the sea is cut flat and the stack is sized from the land), when surveyed lake depth will add sheets below the shoreline, and when the model is larger than the laser bed, so each sheet is split into pieces with alignment tabs.</p>
 
   <h2>Data and credit</h2>
   <p>Every plan, link and coverage response includes an <code>attribution</code> object for the terrain, map and lake data it used. Keep its credit line with anything shown or passed on. The full list of sources and licenses is on the <a href={`${base}/attribution`}>attribution page</a>, and the <a href={`${base}/privacy`}>privacy notice</a> covers what the API receives.</p>

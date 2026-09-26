@@ -221,7 +221,7 @@ export const PUBLIC_PAGES: Record<string, PageMeta> = {
     description: "Every field of the TopoStack project request, how studio links work, and the HTTP routes that plan models and make links, with errors and limits.",
     label: "Project request and HTTP API",
     published: "2026-09-25",
-    updated: "2026-09-25",
+    updated: "2026-09-26",
     image: socialCard("guides-agent-api", "Project request and HTTP API card with a layered Lake Tahoe relief rendered in the studio."),
   },
   "/guides/export-files": {

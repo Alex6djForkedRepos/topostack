@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { Validator } from "@cfworker/json-schema";
 import { env as workerEnv } from "cloudflare:workers";
 import { DEFAULT_PROJECT, parseProject } from "@topostack/core/project";
 import { decodeShareFragment } from "@topostack/data-contracts/share-link";
 import worker from "../src/index";
-import { AGENT_ROUTES } from "../src/agent/openapi";
+import { AGENT_ROUTES, openApiDocument } from "../src/agent/openapi";
 import { elevationPng } from "./terrain-fixture";
 
 const env = { ...workerEnv, PUBLIC_ORIGIN: "https://topostack.test" } as unknown as Env;
@@ -160,5 +161,28 @@ describe("GET /v1/openapi.json", () => {
       expect(answer.status, path).not.toBe(404);
       await answer.body?.cancel();
     }
+  });
+
+  const document = openApiDocument("https://api.topostack.test", "https://topostack.test", "0.0.0");
+  /** Validates a body against a component, resolving `#/components/...` refs inside the document. */
+  const conforms = (component: string, body: unknown) => new Validator({ ...document, $ref: `#/components/schemas/${component}` } as never, "2020-12", false).validate(body);
+
+  it("describes the bodies the routes return", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(elevationPng((column, row) => 1000 + column * 6 + row * 2), { headers: { "content-type": "image/png" } })));
+    const plan = await (await worker.fetch(post("/v1/projects/plan", rainier), env, context)).json();
+    expect(conforms("ProjectPlan", plan).errors).toEqual([]);
+    expect(conforms("ProjectPlan", { plan: {} }).valid).toBe(false);
+    const coverage = await (await worker.fetch(new Request("https://api.topostack.test/v1/coverage?bbox=-78.96,46.45,-78.92,46.48"), env, context)).json();
+    expect(conforms("CoverageResult", coverage).errors).toEqual([]);
+    const invalid = await (await worker.fetch(post("/v1/projects/resolve", { requestVersion: 1 }), env, context)).json();
+    expect(conforms("Error", invalid).errors).toEqual([]);
+  });
+
+  it("lists every status the routes are tested to return", () => {
+    const statuses = (path: string) => Object.keys(Object.values(document.paths[path as keyof typeof document.paths])[0]!.responses);
+    for (const path of ["/v1/projects/resolve", "/v1/projects/plan", "/v1/projects/link"]) expect(statuses(path), path).toEqual(expect.arrayContaining(["200", "400", "413", "415", "422", "429"]));
+    expect(statuses("/v1/projects/plan")).toContain("502");
+    expect(statuses("/v1/coverage")).toEqual(expect.arrayContaining(["200", "400", "429"]));
+    expect(statuses("/v1/geocode")).toEqual(expect.arrayContaining(["200", "400", "429", "502", "503", "504"]));
   });
 });

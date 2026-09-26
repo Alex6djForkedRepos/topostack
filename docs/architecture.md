@@ -19,7 +19,7 @@ Every generated result records a deterministic project fingerprint and source qu
 
 ## Agent surfaces
 
-Assistants reach the same flow without a new geometry path ([design](plans/agent-api.md)). One contract, `ProjectRequestV1` in `@topostack/core/project`, expands onto `DEFAULT_PROJECT` and passes `parseProject`, and its JSON Schema describes every surface:
+Assistants reach the same flow without a new geometry path ([reference](mcp.md), [design](plans/agent-api.md)). One contract, `ProjectRequestV1` in `@topostack/core/project`, expands onto `DEFAULT_PROJECT` and passes `parseProject`, and its JSON Schema describes every surface:
 
 - **REST** (`/v1/projects/*`) and **MCP** (`/mcp`) on the Worker validate requests, estimate the stack from a coarse terrain sample, and mint studio links (`/studio?generate=1#p=1.…`) that generate on open.
 - **The MCP App** (`ui://topostack/terrain-preview.html`, built from `apps/generator/src/mcp-app/`) runs the real loaders and `generateGeometry` in the chat host's iframe.

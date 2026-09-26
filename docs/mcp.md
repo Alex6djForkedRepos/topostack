@@ -21,7 +21,7 @@ This page is for people who change the code.
 | --- | --- |
 | `packages/core/src/project/` | The request contract: `parseProjectRequest`, `expandProjectRequest`, `requestPatch`, `describeProject` (`request.ts`); the JSON Schemas built from the same limits (`schema.ts`); `planFromRelief` (`plan.ts`); and the crop helpers (`bounds.ts`). The Worker imports only the `@topostack/core/project` subpath. |
 | `packages/data-contracts/src/share-link.ts` | The `#p=1.` share-link codec and the 8,000-character limit |
-| `workers/map-api/src/agent/` | Operations that REST and MCP share. `projects.ts` covers resolve, plan, link and body reading. `relief.ts` samples at most four Terrarium tiles. The other files are `coverage.ts`, `links.ts`, `attribution.ts`, and `openapi.ts` (the OpenAPI 3.1 document). |
+| `workers/map-api/src/agent/` | Operations that REST and MCP share. `projects.ts` covers resolve, plan, link and body reading. `relief.ts` samples at most four Terrarium tiles. The other files are `coverage.ts`, `links.ts`, `attribution.ts`, `schemas.ts` (the response JSON Schemas) and `openapi.ts` (the OpenAPI 3.1 document). |
 | `workers/map-api/src/mcp/server.ts` | Transport, method dispatch, server `INSTRUCTIONS` and the server card |
 | `workers/map-api/src/mcp/protocol.ts` | Supported protocol versions, JSON-RPC error codes and message helpers |
 | `workers/map-api/src/mcp/tools.ts` | The five tools, their input and output schemas, and their text summaries |
@@ -82,7 +82,13 @@ Every tool is read-only and idempotent. `readOnly()` in `tools.ts` builds the an
 | `preview_model` | The same as `plan_model`, plus `_meta.ui.resourceUri`, which opens the MCP App |
 | `create_studio_link` | `linkFor`, the same code as `POST /v1/projects/link` |
 
-The tool schemas reuse `PROJECT_REQUEST_SCHEMA` and make `requestVersion` optional; `toolRequest` fills in `1`. REST still requires `requestVersion`.
+The tool schemas reuse `PROJECT_REQUEST_SCHEMA` and make `requestVersion` optional; `toolRequest` fills in `1`. REST still requires `requestVersion`. The output schemas (plan, coverage, project summary, attribution) live in `agent/schemas.ts`, which the OpenAPI document also reads, so a tool result and the matching REST response are described once.
+
+### How a plan is estimated
+
+`estimateRelief` (`agent/relief.ts`) picks the finest zoom from 12 down whose tiles cover the crop in at most four, and reads them through the Worker's own terrain route and caches. Only samples inside the crop count, and only inside the inscribed ellipse for a circle. A sample that would widen the range is dropped as a tile artifact when it differs from the median of the ring two pixels out by more than the larger of 400 m and a 2.5:1 slope over those two pixels; Lake Tahoe's zoom-10 tile holds such patches. When the crop has samples at or below 0 m as well as land, it is coastal: the minimum becomes 0 and the stack is sized from the land. A crop narrower than one sample uses the sample nearest its centre. `planFromRelief` (core) turns the range into the plan.
+
+`planNotes` (`agent/projects.ts`) adds plain sentences, in this order: always, the sampled zoom and that the studio's count is authoritative; relief under 20 m (worded for flat or layered output); a layered stack over 60 sheets; a coastal crop; surveyed lakes in a layered crop with water depth on; a model larger than the laser bed.
 
 Resources: `topostack://guide/making-a-model` (Markdown advice on materials and sizes), `topostack://data/sources` (the dataset manifest), `topostack://schema/project-request-v1`, and the preview. An unknown URI is `-32002`. Prompts: `design_topo_map` and `plan_for_my_laser`. Their arguments are cleaned with `cleanRequestText` and capped at 160 characters before they are placed in the message.
 
@@ -184,7 +190,7 @@ Limits are counted per Cloudflare location (`wrangler.jsonc`). A chat platform c
    - the MCP section of `workers/map-api/README.md`;
    - the `/guides/mcp-server` or `/guides/agent-api` guide, and `/guides/browser-agents` for a WebMCP tool;
    - `/guides/use-with-ai-assistants`, if people will notice the change. A guide edit also bumps its `updated` date in `lib/site/seo.ts`.
-5. A new REST route also needs an entry in `AGENT_ROUTES` and `openApiDocument` (`agent/openapi.ts`). A test checks that the two agree.
+5. A new REST route also needs an entry in `AGENT_ROUTES` and `openApiDocument` (`agent/openapi.ts`). A test checks that the two agree. List every status the route can return in its `responses`, and describe response bodies in `agent/schemas.ts` so the MCP tools and OpenAPI share them.
 6. A WebMCP tool goes in `webMcpTools` (`webmcp-tools.ts`). If it needs a new studio action, extend `WebMcpHost` and `webMcpHost()` in `App.svelte`. Keep downloads and other irreversible actions out. Update the tool count in `e2e/agent-studio.spec.ts`.
 7. `ProjectRequestV1` is versioned. A field that changes what an existing request means needs `requestVersion: 2` and a migration, never a silent reinterpretation.
 8. Add a `changelog/unreleased/` fragment if makers will notice ([changelog.md](changelog.md)).
@@ -194,7 +200,7 @@ Limits are counted per Cloudflare location (`wrangler.jsonc`). A chat platform c
 | File | Covers | Run with |
 | --- | --- | --- |
 | `workers/map-api/test/mcp.test.ts` | The official SDK client against `worker.fetch`: tool listing, schemas and annotations; every tool's structured and text output; `isError` handling; resources, including the preview's CSP and placeholder; prompts; version negotiation, batches, notifications, error codes, `405`, preflight, `429`, and the server card | `npm test -w @topostack/map-api` |
-| `workers/map-api/test/agent-routes.test.ts` | The REST routes, their errors and budgets, and OpenAPI agreement | same |
+| `workers/map-api/test/agent-routes.test.ts` | The REST routes, their errors and budgets, and OpenAPI agreement: the documented paths, real plan, coverage and error bodies validated against the document's schemas, and every status the route tests provoke being listed | same |
 | `packages/core/src/project/*.test.ts` | Request parsing, expansion, schemas and planning | `npm test -w @topostack/core` |
 | `apps/generator/src/lib/studio/webmcp*.test.ts` | Tool definitions and registration lifecycle | `npm run test -w @topostack/generator` |
 | `apps/generator/src/mcp-app/*.test.ts` | The bridge handshake and origin filtering, result decoding, and SVG rendering | same |
@@ -202,3 +208,15 @@ Limits are counted per Cloudflare location (`wrangler.jsonc`). A chat platform c
 | `e2e/agent-studio.spec.ts` | `?generate=1` links, and the WebMCP tools against a stand-in model context (Chromium) | same |
 
 `npm run budget:worker` and `npm run budget:web` guard the Worker bundle, the preview's size, and the rule that WebMCP stays off the studio's startup path.
+
+## Known gaps
+
+Behaviour that is deliberate for now or waiting on a follow-up; clients should not depend on it.
+
+- **Text length.** `parseProjectRequest` truncates text up to four times its limit and rejects only longer strings, while the schema's `maxLength` rejects anything over the limit.
+- **Schema `$id`.** `https://topostack.app/schemas/project-request-v1.json` is an identifier; nothing is served there.
+- **Batches.** `/mcp` accepts JSON-RPC batches for every protocol version, although MCP removed them in 2025-06-18.
+- **Headers.** `/mcp` does not check `Accept`, and accepts requests without `MCP-Protocol-Version`.
+- **Error shape.** A 413 or 415 from `readJsonBody` on `/mcp` uses the REST `{ error }` shape, not JSON-RPC.
+- **Coverage errors.** `/v1/coverage` error paths name request fields (`area.center.lat`), not the query parameters.
+- **Usage.** Agent calls are logged per request (`request_completed`) but record no usage events.
