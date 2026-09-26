@@ -11,8 +11,18 @@ const origin = "https://topostack.app";
 const dist = new URL("../../apps/generator/dist/", import.meta.url);
 const pages = expectedPages();
 const recordedDate = (path) => pages.get(path)?.updated;
-const builtPaths = await readdir(dist, { recursive: true });
-const files = builtPaths.filter((path) => path.endsWith(".html"));
+// Thousands of generated pages each link to shared assets, so membership is
+// checked against Sets and each asset is stat'ed at most once.
+const builtPaths = new Set(await readdir(dist, { recursive: true }));
+// The in-chat preview (mcp-app/) is an MCP resource, never a site page.
+const files = [...builtPaths].filter((path) => path.endsWith(".html") && !path.startsWith("mcp-app/"));
+const htmlFiles = new Set(files);
+const fileChecks = new Map();
+function isBuiltFile(path) {
+  if (!builtPaths.has(path)) return false;
+  if (!fileChecks.has(path)) fileChecks.set(path, stat(new URL(path, dist)).then((entry) => entry.isFile()));
+  return fileChecks.get(path);
+}
 const indexable = [];
 const titles = new Set();
 for (const file of files) {
@@ -42,7 +52,7 @@ for (const file of files) {
   assert.equal(document.querySelector('meta[property="og:image:alt"]').content, image.alt, file + ": og:image:alt");
   assert.equal(document.querySelector('meta[name="twitter:card"]').content, "summary_large_image");
   assert.equal(document.querySelector('meta[property="og:locale"]').content, "en_US", file + ": og:locale");
-  const sharedImage = builtPaths.includes(image.url.slice(1)) && (await stat(new URL(image.url.slice(1), dist))).isFile();
+  const sharedImage = await isBuiltFile(image.url.slice(1));
   assert.ok(sharedImage, file + ": sharing image " + image.url + " is missing from the build");
   const structured = document.querySelector('script[type="application/ld+json"]');
   assert.ok(structured, file + ": structured data");
@@ -65,35 +75,58 @@ for (const file of files) {
   for (const anchor of document.querySelectorAll("a[href]")) {
     const href = anchor.getAttribute("href");
     if (href.startsWith("#") || /^(https?:|mailto:)/.test(href)) continue;
-    const target = new URL(href, origin + path).pathname;
+    const link = new URL(href, origin + path);
+    const target = link.pathname;
+    // The studio opens `?example=<slug>` from its published project file; Crater Lake is the starting project.
+    const example = target === "/studio" ? link.searchParams.get("example") : null;
+    if (example !== null) assert.ok(example === "crater-lake" || builtPaths.has(`examples/${example}.json`), file + ": example link without a project file " + href);
     const expectedFile = target === "/" ? "index.html" : target.slice(1) + ".html";
-    const assetPath = target.slice(1);
-    const assetExists = builtPaths.includes(assetPath) && (await stat(new URL(assetPath, dist))).isFile();
-    assert.ok(files.includes(expectedFile) || assetExists, file + ": broken internal link " + href);
+    assert.ok(htmlFiles.has(expectedFile) || await isBuiltFile(target.slice(1)), file + ": broken internal link " + href);
   }
 }
-const sitemap = new JSDOM(await readFile(new URL("sitemap.xml", dist), "utf8"), { contentType: "application/xml" }).window.document;
-assert.equal(sitemap.documentElement.localName, "urlset");
-const urls = [...sitemap.querySelectorAll("loc")].map((node) => node.textContent).sort();
-assert.deepEqual(urls, indexable.sort(), "Sitemap must list exactly the indexable built pages");
+// sitemap.xml is an index of one sitemap per page group, so Search Console
+// reports indexing per group. Production lists both; other builds list none
+// and publish the child sitemaps empty.
+const SITEMAPS = { "/sitemap-pages.xml": false, "/sitemap-lakes.xml": true };
+const readXml = async (file) => new JSDOM(await readFile(new URL(file, dist), "utf8"), { contentType: "application/xml" }).window.document;
+const sitemapIndex = await readXml("sitemap.xml");
+assert.equal(sitemapIndex.documentElement.localName, "sitemapindex", "sitemap.xml must be a sitemap index");
+const children = new Map([...sitemapIndex.querySelectorAll("sitemap")].map((node) => [node.querySelector("loc")?.textContent, node.querySelector("lastmod")?.textContent]));
+assert.deepEqual([...children.keys()], production ? Object.keys(SITEMAPS).map((path) => origin + path) : [], "Sitemap index must list the child sitemaps in production only");
 // lastmod must be the recorded content date. A build date on every entry is a
 // signal search engines learn to ignore, so it is rejected here.
 const today = new Date().toISOString().slice(0, 10);
-for (const entry of sitemap.querySelectorAll("url")) {
-  const path = entry.querySelector("loc").textContent.slice(origin.length);
-  const lastmod = entry.querySelector("lastmod")?.textContent;
-  assert.ok(lastmod, path + ": sitemap lastmod");
-  assert.equal(lastmod, recordedDate(path), path + ": lastmod must match the recorded page date");
-  assert.ok(lastmod <= today, path + ": lastmod is in the future");
+const urls = [];
+for (const [sitemapPath, lakes] of Object.entries(SITEMAPS)) {
+  const sitemap = await readXml(sitemapPath.slice(1));
+  assert.equal(sitemap.documentElement.localName, "urlset", sitemapPath + ": urlset");
+  const dates = [];
+  for (const entry of sitemap.querySelectorAll("url")) {
+    const url = entry.querySelector("loc").textContent;
+    const path = url.slice(origin.length);
+    const lastmod = entry.querySelector("lastmod")?.textContent;
+    assert.ok(lastmod, path + ": sitemap lastmod");
+    assert.equal(lastmod, recordedDate(path), path + ": lastmod must match the recorded page date");
+    assert.ok(lastmod <= today, path + ": lastmod is in the future");
+    assert.equal(Boolean(pages.get(path)?.lake), lakes, path + ": listed in " + sitemapPath + " but belongs in the " + (lakes ? "pages" : "lakes") + " sitemap");
+    urls.push(url);
+    dates.push(lastmod);
+  }
+  if (production) assert.equal(children.get(origin + sitemapPath), dates.sort().at(-1), sitemapPath + ": index lastmod must be its newest page date");
 }
+assert.equal(new Set(urls).size, urls.length, "No URL may be listed twice across the sitemaps");
+assert.deepEqual(urls.sort(), indexable.sort(), "Sitemaps must list exactly the indexable built pages");
 // The assistant index must describe exactly the pages that are indexable, so
-// it cannot advertise a page that robots and the sitemap exclude.
+// it cannot advertise a page that robots and the sitemap exclude. Individual
+// /lake/ pages are too many to list; llms.txt points to the lakes sitemap.
 const llms = await readFile(new URL("llms.txt", dist), "utf8");
 assert.ok(llms.startsWith("# TopoStack\n"), "llms.txt heading");
 assert.ok(!llms.includes("<html"));
+const lakeSitemap = origin + "/sitemap-lakes.xml";
 const listed = [...llms.matchAll(/\]\((https:\/\/[^)]+)\)/g)].map((match) => match[1]).filter((url) => url.startsWith(origin));
-assert.deepEqual(listed.filter((url) => url !== origin + "/studio").sort(), indexable.toSorted(), "llms.txt must list exactly the indexable pages");
+assert.deepEqual(listed.filter((url) => url !== origin + "/studio" && url !== lakeSitemap).sort(), indexable.filter((url) => !url.startsWith(origin + "/lake/")).toSorted(), "llms.txt must list exactly the indexable pages other than /lake/ pages");
 assert.equal(listed.includes(origin + "/studio"), production, "llms.txt names the studio and says why it is excluded");
+assert.equal(listed.includes(lakeSitemap), production, "llms.txt points to the lakes sitemap");
 const robots = await readFile(new URL("robots.txt", dist), "utf8");
 assert.ok(robots.startsWith("User-agent: *\nAllow: /\n"));
 assert.equal(robots.includes("Sitemap: " + origin + "/sitemap.xml"), production);

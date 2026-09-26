@@ -75,6 +75,18 @@ export default tseslint.config(
     },
   },
   {
+    // The Worker streams data and answers agent requests; it never generates
+    // geometry. Only core's project subpath is available to it, and
+    // scripts/build/check-worker-bundle.mjs checks the bundle as well.
+    files: ["workers/**/*.ts"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        paths: [{ name: "@topostack/core", message: "The Worker may import only @topostack/core/project; the Worker never generates contours." }],
+        patterns: [{ group: ["**/packages/*/src/**", "**/packages/*/src"], message: "Import workspace packages by name (@topostack/core, @topostack/data-contracts/<module>), not by path." }],
+      }],
+    },
+  },
+  {
     // Inside the generator, modules live in src/lib/<layer>/ and are imported
     // as $lib/<layer>/<module>. Relative imports may only point at siblings so
     // a file's layer is visible in every import that reaches it.

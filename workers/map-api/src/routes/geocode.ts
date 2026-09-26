@@ -15,7 +15,7 @@ const EMPTY_GEOCODE_CACHE_SECONDS = 5 * 60;
 // Geoapify dashboard remains the real spend limit.
 export const GEOCODE_GLOBAL_LIMIT_KEY = "geocode-global";
 
-interface GeoapifyResult { lat?: unknown; lon?: unknown; formatted?: unknown; place_id?: unknown; result_type?: unknown }
+interface GeoapifyResult { lat?: unknown; lon?: unknown; formatted?: unknown; place_id?: unknown; result_type?: unknown; rank?: { importance?: unknown } }
 
 export function normalizeGeoapify(payload: unknown): Array<{ place_id: string; display_name: string; lat: number; lon: number; type?: string }> {
   const results = payload && typeof payload === "object" && Array.isArray((payload as { results?: unknown }).results) ? (payload as { results: GeoapifyResult[] }).results : [];
@@ -27,6 +27,32 @@ export function normalizeGeoapify(payload: unknown): Array<{ place_id: string; d
     if (typeof lat !== "number" || !Number.isFinite(lat) || lat < -85.0511 || lat > 85.0511 || typeof lon !== "number" || !Number.isFinite(lon) || lon < -180 || lon > 180 || !label) return [];
     return [{ place_id: String(item.place_id ?? (String(lat) + "," + String(lon) + "," + String(index))), display_name: label, lat, lon, ...(typeof item.result_type === "string" ? { type: item.result_type } : {}) }];
   });
+}
+
+/**
+ * Geoapify's default search favors populated places, so "Mount Rainier" finds
+ * only the town in Maryland and "Grand Canyon" a housing estate in Indonesia.
+ * The route also asks for named features (`type=amenity`, which covers peaks,
+ * lakes and canyons) and orders the union by Geoapify's own `rank.importance`,
+ * which puts the mountain first while Denver the city still beats a Denver
+ * artwork. Ties keep the provider's order; duplicates keep their first copy.
+ */
+export function mergeGeoapify(payloads: unknown[], limit: number): ReturnType<typeof normalizeGeoapify> {
+  const ranked: Array<{ place: ReturnType<typeof normalizeGeoapify>[number]; importance: number; order: number }> = [];
+  const seen = new Set<string>();
+  for (const payload of payloads) {
+    const raw = payload && typeof payload === "object" && Array.isArray((payload as { results?: unknown }).results) ? (payload as { results: GeoapifyResult[] }).results : [];
+    const places = normalizeGeoapify(payload);
+    // normalizeGeoapify drops invalid results, so match each place back to its raw result by id.
+    const importanceById = new Map(raw.map((item, index) => [String(item?.place_id ?? (String(item?.lat) + "," + String(item?.lon) + "," + String(index))), typeof item?.rank?.importance === "number" && Number.isFinite(item.rank.importance) ? item.rank.importance : 0]));
+    for (const place of places) {
+      const duplicate = [place.place_id, `${place.display_name.toLowerCase()}|${place.lat.toFixed(2)}|${place.lon.toFixed(2)}`];
+      if (duplicate.some((key) => seen.has(key))) continue;
+      duplicate.forEach((key) => seen.add(key));
+      ranked.push({ place, importance: importanceById.get(place.place_id) ?? 0, order: ranked.length });
+    }
+  }
+  return ranked.sort((a, b) => b.importance - a.importance || a.order - b.order).slice(0, limit).map(({ place }) => place);
 }
 
 export function geocodeLimit(value: string | null): number {
@@ -46,7 +72,7 @@ export function normalizeGeocodeQuery(query: string): string {
 
 /** `query` must already be normalized by normalizeGeocodeQuery. */
 async function cacheKey(env: Env, query: string, limit: number): Promise<string> {
-  const keyHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${env.GEOCODER_ORIGIN}|geoapify-v1|${query}|${limit}`));
+  const keyHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${env.GEOCODER_ORIGIN}|geoapify-v2|${query}|${limit}`));
   return `geocode/${Array.from(new Uint8Array(keyHash)).map((byte) => byte.toString(16).padStart(2, "0")).join("")}.json`;
 }
 
@@ -82,6 +108,43 @@ async function geocodeHeadResponse(env: Env, key: string): Promise<Response> {
   return new Response(null, { headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "x-topostack-cache": "MISS" } });
 }
 
+/** One Geoapify search, validated and parsed; failures come back as the route's error response. */
+async function searchGeoapify(request: Request, env: Env, apiKey: string, query: string, limit: number, type?: string): Promise<{ payload: unknown } | Response> {
+  const upstreamUrl = new URL("/v1/geocode/search", env.GEOCODER_ORIGIN);
+  upstreamUrl.searchParams.set("text", query);
+  upstreamUrl.searchParams.set("limit", String(limit));
+  upstreamUrl.searchParams.set("format", "json");
+  if (type) upstreamUrl.searchParams.set("type", type);
+  upstreamUrl.searchParams.set("apiKey", apiKey);
+  let upstream: Response;
+  try {
+    upstream = await fetch(upstreamUrl, { headers: { "accept": "application/json" }, signal: upstreamSignal(request) });
+  } catch (error) {
+    return upstreamFailure(error, "Geocoder");
+  }
+  if (!upstream.ok) {
+    await upstream.body?.cancel();
+    return json({ error: "Geocoder unavailable", status: upstream.status }, { status: 502 });
+  }
+  const contentLength = Number(upstream.headers.get("content-length") ?? 0);
+  if (contentLength > MAX_GEOCODER_BYTES) {
+    await upstream.body?.cancel();
+    return json({ error: "Geocoder response too large" }, { status: 502 });
+  }
+  let body: Uint8Array;
+  try { body = await readBounded(upstream.body, MAX_GEOCODER_BYTES); }
+  catch (error) {
+    if (error instanceof BodyTooLargeError) return json({ error: "Geocoder response too large" }, { status: 502 });
+    return upstreamFailure(error, "Geocoder");
+  }
+  let payload: unknown;
+  try { payload = JSON.parse(new TextDecoder().decode(body)); } catch { return json({ error: "Geocoder returned invalid JSON" }, { status: 502 }); }
+  if (!payload || typeof payload !== "object" || !Array.isArray((payload as { results?: unknown }).results)) {
+    return json({ error: "Geocoder returned an unexpected response" }, { status: 502 });
+  }
+  return { payload };
+}
+
 export async function geocodeResponse(request: Request, env: Env, ctx: ExecutionContext, url: URL, options: GeocodeOptions = {}): Promise<Response> {
   const { bypassCache = false, bypassLimits = false } = options;
   const query = normalizeGeocodeQuery(url.searchParams.get("q") ?? "").slice(0, 160).trim();
@@ -110,38 +173,16 @@ export async function geocodeResponse(request: Request, env: Env, ctx: Execution
       return rateLimitExceeded("Place search is busy. Try again shortly.");
     }
   }
-  const upstreamUrl = new URL("/v1/geocode/search", env.GEOCODER_ORIGIN);
-  upstreamUrl.searchParams.set("text", query);
-  upstreamUrl.searchParams.set("limit", String(limit));
-  upstreamUrl.searchParams.set("format", "json");
-  upstreamUrl.searchParams.set("apiKey", apiKey);
-  let upstream: Response;
-  try {
-    upstream = await fetch(upstreamUrl, { headers: { "accept": "application/json" }, signal: upstreamSignal(request) });
-  } catch (error) {
-    return upstreamFailure(error, "Geocoder");
+  const answers = await Promise.all([undefined, "amenity"].map((type) => searchGeoapify(request, env, apiKey, query, limit, type)));
+  const payloads = answers.filter((answer): answer is { payload: unknown } => !(answer instanceof Response));
+  // One failed search still leaves a usable list; only when both fail does the caller see the error.
+  const failures = answers.filter((answer): answer is Response => answer instanceof Response);
+  if (!payloads.length) {
+    await failures[1]?.body?.cancel();
+    return failures[0]!;
   }
-  if (!upstream.ok) {
-    await upstream.body?.cancel();
-    return json({ error: "Geocoder unavailable", status: upstream.status }, { status: 502 });
-  }
-  const contentLength = Number(upstream.headers.get("content-length") ?? 0);
-  if (contentLength > MAX_GEOCODER_BYTES) {
-    await upstream.body?.cancel();
-    return json({ error: "Geocoder response too large" }, { status: 502 });
-  }
-  let body: Uint8Array;
-  try { body = await readBounded(upstream.body, MAX_GEOCODER_BYTES); }
-  catch (error) {
-    if (error instanceof BodyTooLargeError) return json({ error: "Geocoder response too large" }, { status: 502 });
-    return upstreamFailure(error, "Geocoder");
-  }
-  let payload: unknown;
-  try { payload = JSON.parse(new TextDecoder().decode(body)); } catch { return json({ error: "Geocoder returned invalid JSON" }, { status: 502 }); }
-  if (!payload || typeof payload !== "object" || !Array.isArray((payload as { results?: unknown }).results)) {
-    return json({ error: "Geocoder returned an unexpected response" }, { status: 502 });
-  }
-  const normalized = normalizeGeoapify(payload);
+  for (const failure of failures) await failure.body?.cancel();
+  const normalized = mergeGeoapify(payloads.map(({ payload }) => payload), limit);
   const normalizedBody = JSON.stringify(normalized);
   const cacheLabel = bypassCache ? "BYPASS" : "MISS";
   if (normalized.length === 0) return new Response(normalizedBody, { headers: jsonHeaders(EMPTY_GEOCODE_CACHE_SECONDS, cacheLabel) });

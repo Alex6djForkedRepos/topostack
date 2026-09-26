@@ -1,6 +1,6 @@
 # TopoStack map API
 
-The Worker is deliberately a streaming data gateway, not a GIS compute service. Terrain-to-contour processing stays in the portable browser engine.
+The Worker is deliberately a streaming data gateway, not a GIS compute service. Terrain-to-contour processing stays in the portable browser engine. It also answers agent requests (validating a project, estimating its sheets from a coarse terrain sample, minting a studio link), for which it imports only `@topostack/core/project`; an ESLint rule and `npm run budget:worker` keep the contour engine out of its bundle.
 
 ## Provision Cloudflare resources
 
@@ -60,7 +60,7 @@ npx wrangler deploy --env production
 
 The top-level (no `--env`) configuration binds the `-development` buckets so a bare `wrangler deploy` can never write into production storage; those development buckets must exist (see the provisioning commands above). Deployments should always pass an explicit `--env`. The `--env=""` dry-run used by `npm run build` continues to work against the top-level configuration.
 
-Read-only API routes (`GET`, `HEAD`, and their `OPTIONS` preflights) are public and return `Access-Control-Allow-Origin: *` without credential support. This includes terrain, archive ranges, the manifest, and place search. Existing request limits, upstream budgets, bounded archive ranges, and caching remain in force; CORS is not an authentication or spending control. The `/v1/events` write endpoint retains same-origin validation and its origin allowlist, controlled by two vars: `ALLOWED_ORIGINS` (exact-match list) and `ALLOWED_ORIGIN_SUFFIXES` (comma-separated HTTPS host suffixes, default `.atomm.com`). Set `ALLOWED_ORIGIN_SUFFIXES` to an empty string to revoke suffix-based origins without a code change. Place search uses Geoapify through the Worker so the browser never receives the provider key:
+Read-only API routes (`GET`, `HEAD`, and their `OPTIONS` preflights) are public and return `Access-Control-Allow-Origin: *` without credential support. This includes terrain, archive ranges, the manifest, and place search. Existing request limits, upstream budgets, bounded archive ranges, and caching remain in force; CORS is not an authentication or spending control. The `/v1/events` write endpoint retains same-origin validation and its origin allowlist, controlled by two vars: `ALLOWED_ORIGINS` (exact-match list) and `ALLOWED_ORIGIN_SUFFIXES` (comma-separated HTTPS host suffixes, default `.atomm.com`). Set `ALLOWED_ORIGIN_SUFFIXES` to an empty string to revoke suffix-based origins without a code change. Place search uses Geoapify through the Worker so the browser never receives the provider key. Each uncached search makes two provider requests, the default search and one for named features (`type=amenity`, which covers mountains, canyons and lakes), and orders the merged results by Geoapify's `rank.importance`; the default search alone ranks a town called Mount Rainier above the mountain. Cached answers cost nothing, so this doubles provider use only on misses:
 
 ```bash
 npx wrangler secret put GEOCODER_API_KEY --env development
@@ -70,6 +70,35 @@ npx wrangler secret put GEOCODER_API_KEY --env production
 The `/v1/feedback` route emails studio feedback through Cloudflare Email Service and needs the `FEEDBACK_EMAIL_TO` secret plus an onboarded sender domain; see [docs/feedback.md](../../docs/feedback.md#email-delivery).
 
 CI normally synchronizes these secrets from the matching GitHub environment during deployment, so the interactive commands are for recovery or local administration only. Copy `.dev.vars.example` to `.dev.vars` and replace its value for local development. Review Geoapify plan limits and attribution terms before launch.
+
+## Agent API
+
+The routes an AI assistant or a script uses to plan a model and hand it to the studio. They are documented at `/v1/openapi.json` and in the public guides `/guides/agent-api` and `/guides/mcp-server`. [docs/mcp.md](../../docs/mcp.md) is the contributor reference, and the design is in [docs/plans/agent-api.md](../../docs/plans/agent-api.md).
+
+| Route | Purpose |
+| --- | --- |
+| `POST /v1/projects/resolve` | Validate a `ProjectRequestV1` and return the expanded project and its studio link; 422 lists each invalid field |
+| `POST /v1/projects/plan` | Estimate sheets, stack height and scale from at most four low-zoom terrain tiles, read through the terrain route's caches and budgets |
+| `POST /v1/projects/link` | A studio link for a request or a full project (`{ "project": ... }`); 413 past the 8,000-character link limit |
+| `GET /v1/coverage` | Which high-resolution terrain and lake surveys cover `?bbox=` or `?lat=&lon=&widthKm=` |
+| `GET /v1/openapi.json` | The OpenAPI 3.1 document |
+
+### MCP server
+
+`/mcp` is a remote MCP server (Streamable HTTP, stateless, JSON responses; `src/mcp/`). Chat clients such as Claude and ChatGPT add it as a custom connector at `https://topostack.app/mcp`; no sign-in is needed.
+
+- **Tools** (all read-only): `search_places`, `check_coverage`, `plan_model`, `preview_model`, `create_studio_link`. They call the same functions as the REST routes, return structured content that matches each tool's `outputSchema`, and report fixable request problems as tool errors the model can read.
+- **Resources:** `topostack://guide/making-a-model`, `topostack://data/sources`, `topostack://schema/project-request-v1`. **Prompts:** `design_topo_map`, `plan_for_my_laser`.
+- **In-chat preview.** `preview_model` names the MCP App `ui://topostack/terrain-preview.html` in its `_meta.ui.resourceUri`. Reading that resource returns the generator build's `mcp-app/terrain-preview.html` (through the `ASSETS` binding) with this Worker's origin filled in, and a CSP that lets it connect only here. The page generates the model in the chat's iframe, so the Worker still generates nothing. Without a generator build the resource answers an error saying so.
+- **Transport.** Each POST carries one message or a batch; notifications get `202`. There is no session or event stream, so `GET` and `DELETE` answer `405`. Supported protocol versions are listed in `src/mcp/protocol.ts`.
+- **Discovery:** `/.well-known/mcp/server-card.json`, following the draft server-card proposal.
+- **Tests** drive the Worker with the official SDK client (`@modelcontextprotocol/sdk`, a dev dependency only) using the Workers-compatible schema validator. To try it by hand, run `npm run dev` and point the MCP Inspector at `http://localhost:8787/mcp`; the dev script passes `--local-upstream` so links and the preview's CSP name the local Worker rather than the development route. [docs/mcp.md](../../docs/mcp.md#running-it-locally) lists what else a local run needs.
+
+- **Links.** A studio link is `PUBLIC_ORIGIN/studio?generate=1#p=1.<design>`: the design rides in the fragment and the studio generates it on open, so files are always made in the browser. `PUBLIC_ORIGIN` is set per environment; `npm run dev` points it at the local generator.
+- **Budgets.** Chat platforms call from their own servers, so one address stands for many people. The POST routes and `/mcp` are charged to `AGENT_LIMITER` (120 a minute per client) and `AGENT_GLOBAL_LIMITER` (1,200 a minute per colo) instead of the browser's `REQUEST_LIMITER`. A plan's tile fetches that miss the caches also pass the terrain upstream budget.
+- **CORS.** The POST routes have no side effects and take no credentials, so they answer every origin like the read-only data.
+- **Estimates.** Coarse tiles smooth peaks, and lake depth adds sheets only generation can count, so plans are labelled estimates and the studio's count is authoritative.
+- **Attribution.** Every response carries an `attribution` object; anything shown or passed on from it must keep that credit.
 
 ## GitHub deployment mapping
 

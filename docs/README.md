@@ -17,10 +17,14 @@
 - [Lake shoreline smoothing](lake-shoreline-smoothing.md)
 - [Data layer and cache review](data-layer-review.md) — cache ownership, failure behavior, source registration.
 - [Terrain system review and source expansion plan](terrain-expansion-plan.md)
+- [MCP server, in-chat preview and WebMCP](mcp.md) — where the agent code lives, how the server behaves, rate limits, running it locally, and adding a tool. The public references are the site guides `/guides/mcp-server`, `/guides/agent-api` and `/guides/browser-agents`.
+- [Agent API, MCP server, and in-studio agent tools](plans/agent-api.md) — the design: REST, remote MCP with an in-chat preview, WebMCP in the studio, and the server-side generation phase after them.
 - [Roadmap](roadmap.md)
 
 ## Package and tool READMEs
 
+- [Development and operations](development.md): local setup, validation, deployment and releases, the Atomm package, and data provisioning (moved out of the root README).
+- [Contributing](../CONTRIBUTING.md) and the [code of conduct](../CODE_OF_CONDUCT.md).
 - [Generator](../apps/generator/README.md): layers, import rules, studio panels, stylesheet layout.
 - [Core](../packages/core/README.md) and [data contracts](../packages/data-contracts/README.md).
 - [Nest engine](../packages/nest-wasm/README.md): the sparrow WebAssembly build, rebuilding it, and upgrading the solver.
@@ -41,6 +45,7 @@
 - [Changelog and releases](changelog.md) — writing fragments, the automated release commit, tags, and the /changelog page.
 - [Search and discovery operations](seo-operations.md)
 - [Feedback workflow and triage](feedback.md)
+- [Launch kit](launch/README.md): sequencing, per-channel rules and post drafts, creator outreach, honest media captions, UTM scheme and the weekly measurement routine.
 
 Python data builders under `scripts/` use one pinned environment: `scripts/data-build/requirements.txt`.
 

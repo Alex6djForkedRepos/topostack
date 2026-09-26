@@ -11,7 +11,8 @@ CI sets the value explicitly per deployment and verifies generated metadata.
 - Homepage, both guides, Crater Lake example and privacy page: indexable in production.
 - Studio: prerendered metadata/loading shell, client-loaded editor, always noindex.
 - Development and Atomm artifacts: noindex in HTML and static response headers.
-- Sitemap: production pages only; non-production builds emit an empty sitemap.
+- Sitemap: production pages only; non-production builds emit an empty index and
+  empty child sitemaps. See [Sitemaps](#sitemaps).
 - Sitemap `lastmod` comes from each page's recorded `updated` date in `PUBLIC_PAGES`.
 - `www.topostack.app` has no Worker route; a zone redirect rule sends it to the apex.
 - Workers.dev and preview URLs are disabled in Wrangler; custom domains remain.
@@ -38,6 +39,29 @@ does not ship in the homepage bundle; adding a page no longer costs homepage
 JavaScript. Client components that need site constants import `$lib/site/site`,
 not `$lib/site/seo`.
 
+## Sitemaps
+
+`/sitemap.xml` is a sitemap index; robots.txt names only it. It points at two
+prerendered child sitemaps, built by `apps/generator/src/lib/site/sitemap.server.ts`:
+
+| Sitemap | Lists | Entries from |
+| --- | --- | --- |
+| `/sitemap-pages.xml` | Every registered page in `PUBLIC_PAGES` (including the `/lakes` hub) and every published example | `pageSitemapEntries()` |
+| `/sitemap-lakes.xml` | Every generated lake page (`/lakes/<region>…`, later `/lake/<slug>`) | `lakeSitemapEntries()` |
+
+The split exists so Search Console reports submitted and indexed counts per
+sitemap. Each index entry's `lastmod` is the newest content date in that child.
+A new generated lake route adds its entries to `lakeSitemapEntries()` and marks
+its pages `lake: true` in `scripts/verify/seo-pages.mjs`; `verify-seo.mjs`
+fails when a page sits in the wrong child sitemap. Each child sitemap must stay
+under the protocol limits (50,000 URLs, 50 MB uncompressed). The build
+verifier checks every page; the HTTP verifier checks a fixed, evenly spaced
+sample of 20 lake pages (`samplePaths()`) so deploy checks stay fast.
+
+`llms.txt` lists the registered pages, examples and `/lakes/*` region pages,
+and links `/sitemap-lakes.xml` for the complete lake list; individual `/lake/`
+pages are deliberately not listed there.
+
 ## Page dates and sharing cards
 
 Every entry in `PUBLIC_PAGES` records `published` and `updated` ISO dates. They
@@ -62,6 +86,34 @@ tags and the file is fetched over HTTP by the deployment verifier, so a card
 that 404s or is mislabelled fails the deploy rather than rendering as a blank
 preview wherever the page is shared.
 
+Every guide, the `/guides`, `/lakes` and `/examples` hubs, and each lake region
+have their own card, so a link shared on a forum, in chat or on social media
+shows what that page is about. The homepage, `/examples/crater-lake`, the
+changelog and the policy pages keep the default Crater Lake card
+(`social-crater-lake.png`); examples use the card their capture writes.
+
+- Guide and hub cards are declared with `socialCard(name, alt)` in `seo.ts`;
+  `name` is the path without its leading slash, `/` replaced by `-`, and the
+  file is `static/images/cards/<name>.jpg`. Lake pages use
+  `lakeRegionCard(slug)`, shared by the region's county, state and letter-range
+  pages.
+- `scripts/dev/capture-social-cards.mjs` draws them (1200×630 JPEG, quality 85,
+  about 40–110 kB each) with Playwright from local HTML: no dev server or map
+  API. Guide and hub cards reuse pictures already in the repository (studio
+  screenshots, example renders, the Atomm Tips crops and the depth-chart guide
+  captures), cropped but not retouched, with a credit line. Region cards plot
+  each lake in the directory as a dot. The card title and line of text are
+  written for a feed in the script's `PAGE_CARDS` and `REGION_CARDS`; they are
+  shorter than the page titles.
+- The script refuses a declared card it has no recipe for, and a recipe whose
+  page declares no card. `seo.test.ts` checks that each card file exists at
+  1200×630 and under 150 kB, that no two pages share one, and that
+  `static/images/cards/` holds no stray files.
+- Re-run the script after changing a card's page text, its source picture or
+  the lake regions, look at the output, and commit the JPEGs:
+  `node scripts/dev/capture-social-cards.mjs [name ...]`. The Atomm build drops
+  `images/cards/` with the other site-only images.
+
 ## Generated lake depth pages
 
 `/lakes` (registered in `PUBLIC_PAGES`) indexes one page per lake region,
@@ -72,7 +124,8 @@ generated at build time from `static/data/lake-depth-directory.json` by
   rest are listed on the Minnesota page). Ontario, Finland and Norway are split
   into consecutive initial-letter ranges of at most 400 lakes.
 - Every lake appears on exactly one page (`lake-pages.test.ts`). A new directory
-  source must be assigned to a region in `REGIONS`, or the build fails.
+  source must be assigned to a region in `LAKE_REGIONS`, or the build fails.
+  A new region also needs a card in `capture-social-cards.mjs` (see above).
 - Letter-range slugs follow the data, so a large directory change can move a
   lake to a different range URL. Check the sitemap diff after data releases.
 - Lake pages set `csr = false`: they are plain HTML with no hydration script,
@@ -80,8 +133,56 @@ generated at build time from `static/data/lake-depth-directory.json` by
   allows 100). `finalizeStaticHeaders` skips pages whose scripts the fallback
   policy already covers, and JSON-LD is not hashed.
 - Metadata comes from `lakePageSeo()`; the sitemap, `llms.txt` and both SEO
-  verifiers include the generated pages. Usage events from any `/lakes/*` page
-  report the `/lakes` landing.
+  verifiers include the generated pages. Lake pages run no script, so they
+  send no `landing_view`; when a visitor opens the studio from one, the session
+  takes its landing from the same-site referrer and reports `/lakes` (as do
+  per-lake `/lake/*` pages).
+
+### One page per lake
+
+Each page opens with a locator map, drawn at build time as inline SVG (no
+script) by `buildLocator()` in `lake-locator.ts` and `LakeLocator.svelte`. It
+shows at least 400 km, or three times the survey area, around the lake, with
+Natural Earth 1:50m land, lakes and borders. The survey area appears as a box, or
+as a marker when the box would be too small to see. Other directory lakes show as
+dots, thinned to one per 5-unit cell. The map is about 8 KB at the median and
+14 KB at the 95th percentile; the four Great Lakes pages reach about 38 KB.
+`apps/generator/src/lib/site/locator-data.json` (370 KB, server-only) is built
+by `node scripts/build/build-locator-data.mjs` from Natural Earth v5.1.2. Run it
+again when the lake directory reaches a new area, because features outside every
+lake's map window are dropped.
+
+**Depth previews (not published yet).** `node scripts/dev/render-lake-previews.mjs --sample` renders a top-down depth map for each lake page:
+- **Data:** the studio's own terrain and survey data from the map API, via `loadTerrain`, `smoothLakeShorelines` and `carveWaterDepth` at true depth.
+- **Image:** shaded land, the lake floor tinted by depth, contours at a round interval, and a hatch over modelled depths. `apps/generator/src/lib/site/lake-preview/render.ts` draws it.
+- **Scale:** colours, contours and the reported maximum come from the previewed lake's own cells, at the 99.5th-percentile depth. Other water in frame cannot set them.
+- **Refusals:** a lake is not saved when its outline is missing or its survey is unavailable. Whole-Great-Lake frames currently exceed the lake and vector loaders, the same limit the studio hits, so the six Great Lakes wait for that fix.
+- **Frame shape:** the frame is the lake's studio framing, widened along its short side to at most 2:1, so long, narrow lakes such as Champlain show more of their valley instead of becoming a thin strip.
+- **Speed and size:** about 10 s and 25–80 KB per lake.
+- **Next step:** publishing them (R2, a Worker route and the page image) is a separate change.
+
+Named lakes with a surveyed grid, or with contours covering at least
+`PLACE_PAGE_MIN_KM2` (5 km²) of survey area, also get a page of their own at
+`/lake/<slug>` (`buildLakePlaces()` in `lake-places.ts`, rendered by
+`LakePlaceView.svelte`). That was 2,728 lakes in September 2026. Map references,
+unnamed records, "Part of" fragments and Finnish records tagged with an N60 datum
+level stay list-only. Each page shows survey facts, piece sizes and scales at
+three widths, six nearby lakes and an **Open in the studio** link. The JSON-LD
+has a `LakeBodyOfWater` with its survey box. The region list that names a lake
+links to its page, with a small **studio** link beside it. The featured lakes on `/lakes` link to their pages too, and the in-browser search at `/guides/lake-depth-data` adds a **Lake page** link from `/data/lake-pages.json` (lake id → slug, prerendered from the same lock, about 35 KB gzipped, fetched only by that page).
+
+- Slugs are locked in `apps/generator/src/lib/site/lake-slugs.json`, keyed by
+  source (without its version suffix) and survey id. After a lake directory
+  change, run `node scripts/build/lock-lake-slugs.mjs`; it only appends.
+  `lake-places.test.ts` fails until it has run. Colliding new slugs get the
+  survey id appended.
+- The pages carry their region's sharing card and are plain HTML (`csr = false`).
+  A production build takes about 45 s and adds about 19 KB per page. `dist`
+  holds about 5,900 files, well inside the Workers static-asset limit.
+- The pages repeat one template, so watch the indexed count for the lakes
+  sitemap in Search Console. If Google reports most of them as "Crawled –
+  currently not indexed", raise the threshold rather than adding more. Lower it
+  (about 5,300 lakes at 1 km²) only once indexing is healthy.
 
 ## Example projects
 
@@ -90,7 +191,14 @@ generated at build time from `static/data/lake-depth-directory.json` by
 its own route). Pages never state numbers by hand: layer count, elevation range
 and model height come from `static/examples/<slug>.json`, which
 `scripts/dev/capture-examples.mjs` writes after generating the project in the
-real studio. The same file is the download; the studio imports it directly.
+real studio. The same file is the download and what **Open in studio** loads:
+`/studio?example=<slug>` makes the studio fetch `examples/<slug>.json`, open it
+as an undoable change on top of the saved project, drop the parameter from the
+address bar and generate terrain (`startup-restore.ts`). Crater Lake has no file
+and opens the studio's starting project. The link is used instead of a `#p=`
+share link so the committed file stays the only copy of each example and
+`share_link_opened` counts only designs people shared. `verify-seo.mjs` fails a
+build whose pages link to an example with no published project file.
 
 - To add or change an example, edit its entry and re-run the capture for that
   slug. `examples.test.ts` fails when the committed project file no longer
@@ -133,7 +241,7 @@ The endpoint requires same-origin JSON, limits bodies to 1,024 bytes, rejects
 unknown fields/values and uses the existing per-client rate limiter.
 
 Filter Workers Logs for `usage_event` and production, then group by `event`,
-`landing`, `source`, `device`, `output` and `delivery`. No new database,
+`landing`, `source`, `campaign`, `medium`, `device`, `output` and `delivery`. No new database,
 third-party analytics subscription or user identifier is required.
 
 Events:
@@ -150,6 +258,7 @@ Events:
 | export_failed | Fabrication export was blocked or preparation failed |
 | share_link_copied | A design share link was copied to the clipboard |
 | share_link_opened | A valid share link opened a design in the studio |
+| share_link_shared | A design share link was sent through the system share sheet |
 
 Settings-only and assembly-only downloads are excluded from successful
 fabrication counts. Sample previews and automatically updated geometry do not
@@ -161,8 +270,12 @@ Attribution is a fixed category derived from an allowlisted `utm_source` or the
 referrer host. Assistant and answer-engine referrers are grouped as `ai` and
 are matched before the search engines, because `gemini.google.com` is a Google
 host whose visitors did not come from a search result page. Unknown values
-become `other`. Only that category and the public
-landing path are kept in tab session storage, with entry deduplication flags and
+become `other`. Links we publish (README, launch posts, creator walkthroughs)
+can also carry `utm_campaign` (`launch`, `readme`, `newsletter`, `creator`,
+`atomm`) and `utm_medium` (`social`, `forum`, `email`, `video`, `referral`);
+unlisted values become `other` and absent ones `none`, so free text is never
+sent. Events from tabs loaded before this change carry neither field. Only
+those categories and the public landing path are kept in tab session storage, with entry deduplication flags and
 a 30-minute inactivity expiry. No coordinates, project names, raw query strings,
 custom data or stable user IDs are sent. Collection honors DNT and GPC and is
 best effort. It runs only on the production host (or the explicit E2E test build).
@@ -175,14 +288,20 @@ export aggregates regularly if a longer baseline is needed.
 
 Recommended weekly measures: non-brand search impressions/clicks by landing
 page, studio entries, generation success/attempts, and prepared fabrication
-exports, segmented by output and acquisition source. Use Search Console for
+exports, segmented by output and acquisition source, and by campaign and
+medium while a launch is running. Use Search Console for
 search traffic and Cloudflare Web Analytics for visit/device context.
 
 ## Account steps after publishing
 
 1. Open the existing Search Console property, or verify ownership of the production
    domain. DNS verification requires a token from that account; it is not inferable
-   from the codebase. Submit `https://topostack.app/sitemap.xml`.
+   from the codebase. Submit the index, `https://topostack.app/sitemap.xml`;
+   Search Console then reads both child sitemaps. Under Sitemaps, watch the
+   indexed count of each child separately. `sitemap-lakes.xml` is the
+   thin-content early warning: if its indexed share stalls or falls while
+   `sitemap-pages.xml` holds steady, Google is judging the generated lake pages
+   too thin to index, and they need more distinct content before more are added.
 2. Inspect the homepage and new guides, their selected canonicals and index status.
    Check Cloudflare security events if the inspection fetch is blocked.
 3. Verify/submit the sitemap in Bing Webmaster Tools. Import from Search Console
@@ -195,11 +314,9 @@ search traffic and Cloudflare Web Analytics for visit/device context.
 5. Confirm the Cloudflare beacon script and collection request succeed in a fresh
    browser session on the deployed site.
 6. Update the published Atomm listing from `atomm/listing.md`. The immutable slug
-   stays `topographic-map-generator`.
-7. The GitHub description and topics were updated during implementation. As of
-   September 21, 2026 the repository website field still pointed at the legacy
-   `topostack.echofoxtrot.works`; set it to `https://topostack.app`.
-   Its custom social preview can be uploaded through repository settings using
+   is `topostack`.
+7. The GitHub description, topics and website field (`https://topostack.app`)
+   are set. The repository's custom social preview can be uploaded through repository settings using
    the existing studio screenshot. The site itself already references that image.
 
 The MIT license applies to project software. Source-data and dependency licenses

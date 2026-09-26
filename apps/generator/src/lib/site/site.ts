@@ -6,6 +6,8 @@ export const REPOSITORY_URL = "https://github.com/Echo-Foxtrot-Works/topostack";
 export const DOCS_HOME = "/guides";
 export const LAKES_HOME = "/lakes";
 export const EXAMPLES_HOME = "/examples";
+/** The studio link that opens a worked example; the studio reads `examples/<slug>.json` itself. */
+export const exampleStudioPath = (slug: string): string => `/studio?example=${slug}`;
 export const SITE_LOCALE = "en_US";
 
 /** Sharing card. Dimensions are declared so consumers that refuse to fetch the file still lay it out. */
@@ -17,3 +19,12 @@ export const DEFAULT_SOCIAL_IMAGE: SocialImage = {
   height: 630,
   alt: "TopoStack Crater Lake relief with USGS surveyed lake-floor bathymetry and exaggerated depth.",
 };
+
+/**
+ * A page's own 1200×630 card under `static/images/cards/`, drawn by
+ * `scripts/dev/capture-social-cards.mjs`. `name` is the page path without its
+ * leading slash, with `/` replaced by `-`.
+ */
+export function socialCard(name: string, alt: string): SocialImage {
+  return { url: `/images/cards/${name}.jpg`, width: 1200, height: 630, alt };
+}

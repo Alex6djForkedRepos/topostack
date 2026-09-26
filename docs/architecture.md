@@ -9,13 +9,23 @@ ProjectConfigV1 (including authoritative geographic crop bounds) + SourceBundleV
   → 2D preview / three.js preview / SVG fabrication package
 ```
 
-The core package has no Svelte, Atomm, Cloudflare, DOM, or storage imports. Contracts that the browser, the Worker, and the provisioning scripts must share (source catalogs, archive releases, the terrain PNG codec, usage events) live in `@topostack/data-contracts`, which depends on neither the core nor any runtime. Turning a lake depth chart into bathymetry (georeferencing and gridding) lives in `@topostack/chart-trace`, equally runtime-free, so the batch build and a studio worker share it. Workspace packages are imported by name only; ESLint rejects paths into another package's `src/`. The SvelteKit generator is prerendered as a static site, mosaics every elevation/vector tile intersecting the visible crop, and adapts the core to browser Web Workers, IndexedDB, MapLibre, three.js, and the Atomm lifecycle. The Cloudflare Worker streams and caches source data; it does not perform contour generation.
+The core package has no Svelte, Atomm, Cloudflare, DOM, or storage imports. Contracts that the browser, the Worker, and the provisioning scripts must share (source catalogs, archive releases, the terrain PNG codec, usage events) live in `@topostack/data-contracts`, which depends on neither the core nor any runtime. Turning a lake depth chart into bathymetry (georeferencing and gridding) lives in `@topostack/chart-trace`, equally runtime-free, so the batch build and a studio worker share it. Workspace packages are imported by name only; ESLint rejects paths into another package's `src/`. The SvelteKit generator is prerendered as a static site, mosaics every elevation/vector tile intersecting the visible crop, and adapts the core to browser Web Workers, IndexedDB, MapLibre, three.js, and the Atomm lifecycle. The Cloudflare Worker streams and caches source data. It also answers agent requests (validating a project, estimating its sheets from a coarse terrain sample, minting a studio link) through `@topostack/core/project`; it never imports generation or export and never traces contours. See [the agent API plan](plans/agent-api.md).
 
 The UI follows the same Svelte 5 runes, immutable domain-state, and static-adapter patterns as Label Studio. Atomm integration stays behind a small bridge that registers the platform lifecycle once and reads current project state through a getter, avoiding stale component closures.
 
 Layer count is derived, never configured. `planTerrainStack` turns the mapped ground width, the physical cut width, the terrain relief, and the requested vertical exaggeration into a stack height, then divides that by the material thickness. The count is rounded to whole sheets with a two-sheet minimum and no fixed upper limit; the reported exaggeration is refitted to the whole-sheet count, so adding material thickness makes a model coarser rather than shorter and widening the cut makes it taller.
 
 Every generated result records a deterministic project fingerprint and source quality. Before markings are clipped and labels are placed, the geometry flow plans same-coordinate material nests and adds their glue-safe cavities to donor layers. Vector-tile buffers are removed and unambiguous degree-two road pieces are stitched before transportation paths are styled as complete routes. Roads use a continuous centerline by default; the optional outlined major-road style offsets the complete route by the configured spacing and adds matching compact joins at forks. Styled routes are then clipped to the highest exposed material across the stack so bends and contour transitions stay continuous. Fabrication export groups each nest family onto one panel and emits shared donor/child cut lines once. Given a sheet plan, it instead places each family's parts onto stock sheets with a per-part transform ([nesting.md](nesting.md)). Export is rejected when settings changed after generation, the source is synthetic, or any layer is empty.
+
+## Agent surfaces
+
+Assistants reach the same flow without a new geometry path ([reference](mcp.md), [design](plans/agent-api.md)). One contract, `ProjectRequestV1` in `@topostack/core/project`, expands onto `DEFAULT_PROJECT` and passes `parseProject`, and its JSON Schema describes every surface:
+
+- **REST** (`/v1/projects/*`) and **MCP** (`/mcp`) on the Worker validate requests, estimate the stack from a coarse terrain sample, and mint studio links (`/studio?generate=1#p=1.…`) that generate on open.
+- **The MCP App** (`ui://topostack/terrain-preview.html`, built from `apps/generator/src/mcp-app/`) runs the real loaders and `generateGeometry` in the chat host's iframe.
+- **WebMCP** tools in the studio edit the live design through its own update, generate and undo paths.
+
+Files are still produced only in a browser; server-side generation is a later phase in the plan. [mcp.md](mcp.md) covers the code, transport, limits and local testing.
 
 ## Where things live
 
@@ -36,9 +46,10 @@ Every generated result records a deterministic project fingerprint and source qu
 | `annotate/` | Text and symbols: the font catalog and glyph registry (`font-data`), label metrics, drawing and placement, markers, the north arrow, the title |
 | `pipeline/` | Geometry generation: `generate.ts` orchestrates contour tracing, stack planning, material nesting, transportation styling, coordinate grids, validation, and the work-area split; `synthetic-source.ts` builds the deterministic preview source |
 | `export/` | Fabrication output: SVG primitives, panel layout, per-layer/master SVGs, the printable assembly booklet (`assembly-guide.ts`), the flat-engraving SVG, package builders, and the export block policy |
+| `project/` | Reading and describing projects without generating them: `parseProject` for untrusted JSON, the crop bounds, the agent-facing `ProjectRequestV1` and its JSON Schema, and stack plans from a relief sample. Also published alone as `@topostack/core/project` for the Worker |
 | `test-support/` | Fixtures shared by tests only; excluded from the build |
 
-`index.ts` names every public entry point explicitly. Consumers import `@topostack/core`; nothing outside the package may reach into these folders.
+`index.ts` names every public entry point explicitly. Consumers import `@topostack/core` (or the `@topostack/core/project` subpath); nothing outside the package may reach into these folders.
 
 ## Generator layout
 
@@ -62,6 +73,8 @@ The first release supports land terrain between ±85.0511° latitude. Mapzen Ter
 ## Versioning
 
 `ProjectConfigV1`, `SourceBundleV1`, `GeometryIRV1`, and the exported manifest are explicitly versioned. Any incompatible change must introduce a migration rather than silently reinterpret an IndexedDB or exported project. Replacing the stored `layerCount` with `verticalExaggeration` originally moved the fingerprint prefix to `v3-`; projects saved before that load at the default exaggeration and must be regenerated once before export. The current prefix is `v9-`. The earlier `v7-` invalidated geometry generated with the former total-layer or hidden depth-layer caps. The preceding `v6-` removed the total-layer ceiling. The preceding `v5-` invalidated geometry generated before the launch-readiness crop, clipping, and water-scaling fixes.
+
+Usage events (`@topostack/data-contracts/usage`) are not stored, but the Worker validates them strictly, and a tab loaded before a deploy keeps sending the previous shape. New categories may be appended to an existing list; new fields are added only as an optional group that `isUsageEvent` accepts both with and without (as `campaign` and `medium` are); removing a value or field rejects events from open tabs.
 
 ## Launch-readiness invariants
 

@@ -2,6 +2,72 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "0.7.0",
+      "date": "2026-09-26",
+      "entries": [
+        {
+          "type": "feature",
+          "title": "Share a design from your device's share sheet",
+          "body": "On phones, tablets and browsers with a system share sheet, **Project actions → Share design…** sends a link that opens your design to Messages, email or any app. **Copy share link** is still there, and is used automatically where sharing isn't available.",
+          "pr": 120
+        },
+        {
+          "type": "feature",
+          "title": "Open any example in the studio with one click",
+          "body": "Every [example project](/examples) now has an **Open in studio** button that loads its map area and settings and starts generating the terrain, with no file to download and import. **Undo** returns to the project you had open before, and the project file is still there to download.",
+          "pr": 121
+        },
+        {
+          "type": "feature",
+          "title": "A page for every larger surveyed lake",
+          "body": "More than 2,700 lakes now have a page of their own, such as [Crater Lake](/lake/crater-lake-oregon). Each one lists the survey's facts and source, the map scale at 12, 16 and 24 inches, and nearby lakes with depth data, and links straight into the studio. Find them from the [lake depth maps](/lakes) by region.",
+          "pr": 125
+        },
+        {
+          "type": "feature",
+          "title": "Lake pages show where the lake is",
+          "body": "Every lake page now opens with a small map of the lake's position: its survey area on the surrounding land, borders and water, with the other lakes that have depth data around it. See [Crater Lake](/lake/crater-lake-oregon).",
+          "pr": 128
+        },
+        {
+          "type": "feature",
+          "title": "Plan and preview models with Claude, ChatGPT and other AI assistants",
+          "body": "Connect your assistant to `https://topostack.app/mcp` and ask for a model in plain words: it finds the place, estimates the sheets, shows a preview in the chat and gives you a studio link that builds the model when you open it. Browser agents can also edit and generate the design in the studio. See [using TopoStack with AI assistants](/guides/use-with-ai-assistants).",
+          "pr": 136
+        },
+        {
+          "type": "improvement",
+          "title": "Exports credit TopoStack",
+          "body": "Exported SVGs now carry a short \"Made with TopoStack · https://topostack.app\" description, and README.txt ends with the same line, so a shared or sold piece's files point back to where they came from. The description is metadata rather than a path, so it never draws, cuts or engraves anything.",
+          "pr": 119
+        },
+        {
+          "type": "improvement",
+          "title": "Guides for browser agents, the MCP server and the HTTP API",
+          "body": "Three new guides cover what AI assistants and scripts can do with TopoStack. [Use a browser agent in the studio](/guides/browser-agents) lists the tools an agent in your browser tab can use to change and generate your design, and what stays in your hands. The [MCP server reference](/guides/mcp-server) and the [project request and HTTP API reference](/guides/agent-api) describe every tool, request field, error and limit for people building on them. Long commands in guides now scroll inside their box instead of widening the page.",
+          "pr": 140
+        },
+        {
+          "type": "fix",
+          "title": "Lake search and the region index link to lake pages",
+          "body": "Lakes with a page of their own now show a **Lake page** link in the [lake depth data search](/guides/lake-depth-data), and the featured lakes on [lake depth maps by region](/lakes) open their pages instead of going straight to the studio.",
+          "pr": 127
+        },
+        {
+          "type": "fix",
+          "title": "Faster terrain loading in lake country",
+          "body": "Crops dotted with many lakes, such as Abram Lake near Sioux Lookout or the Boundary Waters, spent up to ten seconds matching lake outlines before generating. That step now takes a fraction of a second, so these maps generate about twice as fast.",
+          "pr": 129
+        },
+        {
+          "type": "fix",
+          "title": "Place search finds mountains, canyons and lakes before towns of the same name",
+          "body": "Searching for Mount Rainier or Grand Canyon now puts the mountain and the canyon first instead of a small town or a housing estate that shares the name, while cities such as Denver still come first. This applies to the studio's place search and to AI assistants using TopoStack.",
+          "pr": 139
+        }
+      ]
+    },
+    {
       "version": "0.6.0",
       "date": "2026-09-24",
       "entries": [

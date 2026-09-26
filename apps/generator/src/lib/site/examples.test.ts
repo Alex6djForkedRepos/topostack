@@ -1,7 +1,7 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ALL_EXAMPLES, EXAMPLES, exampleBounds, exampleImage, exampleMeta, examplePageSeo, exampleProject } from "$lib/site/examples";
-import { parseProject } from "$lib/storage/storage";
+import { parseProject } from "@topostack/core";
 
 const staticFile = (path: string) => new URL(`../../../static/${path}`, import.meta.url);
 // The capture script builds every example on this template project.
@@ -26,6 +26,18 @@ describe("example projects", () => {
       const imported = parseProject(file.project);
       expect(imported, example.slug).toMatchObject({ widthMm: example.widthMm, heightMm: example.heightMm, cropShape: example.shape, verticalExaggeration: example.verticalExaggeration, outputMode: "stack" });
       expect(file.project, `${example.slug} project is stale; re-run the capture`).toEqual(exampleProject(template, example));
+    }
+  });
+
+  it("serves only registered project files, each one the studio can open from an example link", () => {
+    const slugs = readdirSync(staticFile("examples")).filter((name) => name.endsWith(".json")).map((name) => name.slice(0, -".json".length));
+    // `/studio?example=<slug>` fetches these files; Crater Lake is the studio's starting project instead.
+    expect(slugs.toSorted()).toEqual(ALL_EXAMPLES.map((example) => example.slug).filter((slug) => slugs.includes(slug)).toSorted());
+    expect(slugs).toEqual(expect.arrayContaining(EXAMPLES.map((example) => example.slug)));
+    expect(slugs).not.toContain("crater-lake");
+    for (const slug of slugs) {
+      expect(slug).toMatch(/^[a-z0-9-]+$/);
+      expect(() => parseProject(JSON.parse(readFileSync(staticFile(`examples/${slug}.json`), "utf8")).project), slug).not.toThrow();
     }
   });
 

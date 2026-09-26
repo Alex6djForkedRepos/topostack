@@ -30,6 +30,9 @@ const budgets = {
   // The sheet-nesting engine (sparrow, WebAssembly). Lazy: fetched only when
   // the maker nests parts, and never on startup (asserted below). 309,153 when set.
   nestEngineWasmGzip: 340_000,
+  // The in-chat preview (MCP App): one self-contained page a chat host loads
+  // when an assistant previews a model. It never loads on the site. 117,290 when set.
+  mcpAppHtmlGzip: 129_000,
 };
 
 // Reported, never enforced: totals across every route, lazy tool and worker
@@ -98,9 +101,18 @@ for (const file of files.filter((file) => /geometry\.worker[^/]*\.js$/.test(file
 // Sheet nesting is loaded on demand; its worker or engine on the startup path is a regression whatever its size.
 const nestOnStartup = [...startupFiles].filter((href) => /nest\.worker|nest_wasm/.test(href));
 if (nestOnStartup.length) throw new Error(`Sheet nesting reached the studio startup path: ${nestOnStartup.join(", ")}`);
+// Browser-agent tools (WebMCP) load only where the browser offers WebMCP.
+const webMcpKeys = Object.keys(manifest).filter((key) => /src\/lib\/studio\/webmcp\.ts$/.test(key));
+if (webMcpKeys.length !== 1) throw new Error(`Expected the WebMCP module as its own chunk in the build manifest, found ${webMcpKeys.length}.`);
+if (startupFiles.has(new URL(manifest[webMcpKeys[0]].file, dist).href)) throw new Error("The WebMCP tools reached the studio startup path.");
 const nestWasm = files.filter((file) => /topostack_nest_wasm[^/]*\.wasm$/.test(file.pathname));
 if (nestWasm.length !== 1) throw new Error(`Expected one nesting engine .wasm in the build, found ${nestWasm.length}.`);
 const nestWorkers = files.filter((file) => /nest\.worker[^/]*\.js$/.test(file.pathname));
+const mcpAppHtml = new URL("mcp-app/terrain-preview.html", dist);
+const mcpAppHtmlBody = await readFile(mcpAppHtml).catch(() => { throw new Error("dist/mcp-app/terrain-preview.html is missing; the generator build should produce it."); });
+// It is served as an MCP resource, never from the site's pages.
+const previewOnSite = [indexHtmlBody, studioHtmlBody].some((html) => html.includes("mcp-app/"));
+if (previewOnSite) throw new Error("A site page references the in-chat preview.");
 
 const report = {
   landingJavaScriptGzip: await gzipTotal(preloads(indexHtmlBody, indexHtml)),
@@ -112,6 +124,7 @@ const report = {
   lakeDirectoryGzip: gzipSync(await readFile(new URL("data/lake-depth-directory.json", dist))).byteLength,
   nestEngineWasmGzip: await gzipTotal(nestWasm),
   nestWorkerJavaScriptGzip: await gzipTotal(nestWorkers),
+  mcpAppHtmlGzip: gzipSync(mcpAppHtmlBody).byteLength,
   totalJavaScriptGzip: javascript.reduce((total, entry) => total + entry.gzip, 0),
   totalCssGzip,
   standaloneCssGzip: totalCssGzip - atommCssGzip,

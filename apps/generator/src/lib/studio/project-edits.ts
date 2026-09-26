@@ -1,4 +1,4 @@
-import { DEFAULT_PLAQUE_SIZE_MM, PLAQUE_MAX_LINE_LENGTH, PLAQUE_MAX_LINES, PLAQUE_MAX_SIZE_MM, PLAQUE_MIN_SIZE_MM, type PlaqueV1, type TextFont, MAP_MARKER_SIZE_MM, MAP_MARKER_MIN_SIZE_MM, MAP_MARKER_MAX_SIZE_MM, MAX_CUSTOM_DATA_NAME_LENGTH, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, NORTH_ARROW_MAX_MAP_FRACTION, NORTH_ARROW_MAX_SIZE_MM, NORTH_ARROW_MIN_SIZE_MM, type CustomLineFeatureV1, type GeoPoint, type MapMarkerV1, type MarkerIconV1, MAX_MARKER_ICONS, type ProjectConfigV1, GRAPHIC_MAX_SIZE_MM, GRAPHIC_MIN_SIZE_MM, MAX_CUSTOM_GRAPHICS, MAX_PLACED_GRAPHICS, type CustomGraphicV1, type PlacedGraphicV1 } from "@topostack/core";
+import { DEFAULT_PLAQUE_SIZE_MM, PLAQUE_MAX_LINE_LENGTH, PLAQUE_MAX_LINES, PLAQUE_MAX_SIZE_MM, PLAQUE_MIN_SIZE_MM, type PlaqueV1, type TextFont, MAP_MARKER_SIZE_MM, MAP_MARKER_MIN_SIZE_MM, MAP_MARKER_MAX_SIZE_MM, MAX_CUSTOM_DATA_NAME_LENGTH, MAX_CUSTOM_DATA_POINTS, MAX_CUSTOM_LINE_POINTS, MAX_CUSTOM_LINES, MAX_MAP_MARKERS, type CustomLineFeatureV1, type GeoPoint, type MapMarkerV1, type MarkerIconV1, MAX_MARKER_ICONS, type ProjectConfigV1, GRAPHIC_MAX_SIZE_MM, GRAPHIC_MIN_SIZE_MM, MAX_CUSTOM_GRAPHICS, MAX_PLACED_GRAPHICS, type CustomGraphicV1, type PlacedGraphicV1 } from "@topostack/core";
 import { clampLongitude, isSupportedCoordinate } from "$lib/domain/coordinates";
 
 /**
@@ -10,10 +10,8 @@ type MarkersPatch = Pick<ProjectConfigV1, "markers">;
 type MarkerIconsPatch = Pick<ProjectConfigV1, "markers" | "markerIcons">;
 type CustomLinesPatch = Pick<ProjectConfigV1, "customLines">;
 
-/** The largest north arrow that fits a map of this size. */
-export function northArrowMaximumMm(widthMm: number, heightMm: number): number {
-  return Math.min(NORTH_ARROW_MAX_SIZE_MM, Math.max(NORTH_ARROW_MIN_SIZE_MM, Math.min(widthMm, heightMm) * NORTH_ARROW_MAX_MAP_FRACTION));
-}
+/** The largest north arrow that fits a map of this size; agent requests clamp with the same rule. */
+export { northArrowMaximumMm } from "@topostack/core";
 
 export function customDataPointCount(project: Pick<ProjectConfigV1, "customLines">): number {
   return project.customLines.reduce((total, line) => total + line.points.length, 0);

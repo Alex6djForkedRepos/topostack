@@ -51,10 +51,15 @@ export function corsHeaders(request: Request, env: Env): Headers {
   const origin = request.headers.get("origin");
   const pathname = new URL(request.url).pathname;
   const isEvent = pathname === "/v1/events" || pathname === "/v1/feedback";
+  // Agent routes take public POSTs with no side effects and no credentials, so
+  // they stay open to every origin like the read-only data.
+  // The MCP endpoint is the same kind of route, and browser-based MCP clients
+  // send its protocol headers.
+  const isAgentPost = pathname.startsWith("/v1/projects/") || pathname === "/mcp";
   const headers = new Headers({
-    "access-control-allow-methods": isEvent ? "POST,OPTIONS" : "GET,HEAD,OPTIONS",
-    "access-control-allow-headers": "range,content-type,if-none-match",
-    "access-control-expose-headers": "content-length,content-range,etag,x-topostack-dataset,x-topostack-cache,x-topostack-imagery-sources,x-topostack-r2-reads",
+    "access-control-allow-methods": isEvent || isAgentPost ? "POST,OPTIONS" : "GET,HEAD,OPTIONS",
+    "access-control-allow-headers": pathname === "/mcp" ? "content-type,accept,authorization,mcp-protocol-version,mcp-session-id,last-event-id" : "range,content-type,if-none-match",
+    "access-control-expose-headers": pathname === "/mcp" ? "mcp-session-id,mcp-protocol-version" : "content-length,content-range,etag,x-topostack-dataset,x-topostack-cache,x-topostack-imagery-sources,x-topostack-r2-reads",
     "access-control-max-age": "86400",
     "vary": "Origin",
   });

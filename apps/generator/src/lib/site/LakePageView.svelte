@@ -31,7 +31,11 @@
 
 {#snippet lakeItem(lake: LakeListing)}
   <li>
-    <a href={lakeStudioLink(base, lake)}>{lake.name}</a>
+    {#if lake.page}
+      <a href={`${base}${lake.page}`}>{lake.name}</a> <a class="studio" href={lakeStudioLink(base, lake)} aria-label={`Open ${lake.name} in the studio`}>studio</a>
+    {:else}
+      <a href={lakeStudioLink(base, lake)}>{lake.name}</a>
+    {/if}
     {#if lake.aliases?.length}<span class="meta">also {lake.aliases.join(", ")}</span>{/if}
     {#if repeated.has(lake.name)}<span class="meta">{coordinates(lake.bounds)}</span>{/if}
     {#if lake.note}<span class="note">{lake.note}</span>{/if}
@@ -40,7 +44,7 @@
 
 <Article title={page.heading} intro={page.intro} trail={page.trail} static>
   <p>{page.about}</p>
-  <p>Each lake name below opens the studio framed to that lake’s survey area and generates its terrain. You can also <a href={`${base}/guides/lake-depth-data`}>search every surveyed lake</a> or <a href={`${base}${LAKES_HOME}`}>browse other regions</a>.</p>
+  <p>Larger lakes link to a page with their survey facts and sizes; the <strong>studio</strong> link beside them, and every other lake name, opens the studio framed to that lake’s survey area and generates its terrain. You can also <a href={`${base}/guides/lake-depth-data`}>search every surveyed lake</a> or <a href={`${base}${LAKES_HOME}`}>browse other regions</a>.</p>
 
   {#if page.children.length}
     <h2>{byCounty ? "Browse by county" : "Browse by name"}</h2>
@@ -66,7 +70,7 @@
 
   <h2>Make a lake map from this data</h2>
   <ol>
-    <li>Open a lake from the list. The studio frames its survey area, turns on <strong>Water depth</strong> and generates the terrain. Widen the frame and regenerate if you want more shoreline.</li>
+    <li>Open a lake in the studio from the list. The studio frames its survey area, turns on <strong>Water depth</strong> and generates the terrain. Widen the frame and regenerate if you want more shoreline.</li>
     <li>Check the warnings above the preview. The studio warns when survey coverage is partial or depths are estimated; <a href={`${base}/guides/how-lake-depths-work`}>how lake depths work</a> explains why.</li>
     <li>Enter your sheet thickness in <strong>Terrain layers</strong>; the studio works out the layer count. If a deep lake needs more sheets than you want, <strong>Fit depth</strong> compresses it while keeping the shoreline. The <a href={`${base}/guides/custom-lake-depth-map`}>custom lake map guide</a> walks through the whole build.</li>
     <li>Turn on <a href={`${base}/guides/water-paint-templates`}>paint templates</a> to spray only the water on each layer, and <a href={`${base}/guides/split-large-maps`}>split the map</a> if it is bigger than your laser bed.</li>
@@ -92,6 +96,7 @@
   .lake-list.detailed li { padding-block: 10px; border-bottom: 1px solid var(--loidolt-border); }
   .meta, .note { color: var(--loidolt-text-muted); font-size: 13px; }
   .meta { margin-left: 6px; }
+  .studio { margin-left: 6px; font-size: 13px; }
   .note { display: block; }
   h3 { font-size: 17px; margin: 24px 0 4px; }
 </style>

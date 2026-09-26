@@ -40,9 +40,14 @@ export * from "./primitives/units.js";
 // `carveWaterDepth` stays public because scripts/verify-lake-outlines.mjs
 // carves a grid in the browser to compare provider outlines.
 export { carveWaterDepth } from "./water/water.js";
+// The lake-page depth previews (apps/generator/src/lib/site/lake-preview) repeat the studio's shoreline smoothing before carving.
+export { smoothLakeShorelines } from "./water/lake-shoreline.js";
 export * from "./water/water-pattern.js";
 export * from "./export/export-policy.js";
 export * from "./pipeline/source-requirements.js";
 export { cropRadiusMm } from "./primitives/crop.js";
 
 export { executeGeometryTask, type GeometryTask, type GeometryBatch, type GeometryTaskResult } from "./pipeline/generation-tasks.js";
+
+// Reading, describing and planning projects; also published alone as `@topostack/core/project`.
+export * from "./project/index.js";

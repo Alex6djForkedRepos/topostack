@@ -33,7 +33,10 @@ export default defineConfig({
             // the bundler splits them per consumer, which costs more in chunk
             // overhead and lost gzip context than it saves. Keep the generation
             // path in one chunk; export/ is only needed once a project is packaged.
-            { name: "core", test: /\/packages\/core\/src\/(?!export\/)|node_modules\/(?:polygon-clipping|d3-contour|clipper-lib)/, priority: 25 },
+            // The project parser serves saved, imported and shared projects, and
+            // the agent request contract only the lazily loaded WebMCP tools, so
+            // they stay with their importers rather than in this startup chunk.
+            { name: "core", test: /\/packages\/core\/src\/(?!export\/|project\/(?:parse|request|schema|plan)\.ts)|node_modules\/(?:polygon-clipping|d3-contour|clipper-lib)/, priority: 25 },
             // Capture shared site dependencies before guides so the homepage
             // never needs the guide content chunk. Split shared JS by actual
             // consumers to avoid loading guide-only navigation on the homepage.

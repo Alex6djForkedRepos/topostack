@@ -1,7 +1,8 @@
 import { buildChartFromImage } from "$lib/domain/chart-build";
 import { reviewFixture } from "$lib/domain/testing/chart-review-fixture";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { CHART_BATHYMETRY_SCHEMA, encodeChartDepths, type UserChartBathymetryV1 } from "@topostack/data-contracts/chart-bathymetry";
+import { DEPTH_CHART_ID_PATTERN } from "@topostack/core";
+import { CHART_BATHYMETRY_SCHEMA, CHART_ID_PATTERN, encodeChartDepths, type UserChartBathymetryV1 } from "@topostack/data-contracts/chart-bathymetry";
 
 const store = vi.hoisted(() => new Map<string, unknown>());
 const failReads = vi.hoisted(() => ({ enabled: false }));
@@ -139,5 +140,13 @@ describe("charts travelling with a project file", () => {
     // A project file cannot fill this browser with charts nothing uses.
     expect(await loadUserChart("other-lake-chart")).toBeUndefined();
     expect(await saveProjectCharts(undefined, config)).toEqual({ saved: 0, skipped: 0 });
+  });
+});
+
+describe("chart ids", () => {
+  it("holds core's chart id pattern to the record contract's", () => {
+    // Core is built on its own and keeps a copy; this is what keeps it honest.
+    expect(DEPTH_CHART_ID_PATTERN.source).toBe(CHART_ID_PATTERN.source);
+    expect(DEPTH_CHART_ID_PATTERN.flags).toBe(CHART_ID_PATTERN.flags);
   });
 });

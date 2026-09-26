@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_PROJECT, DEPTH_CHART_ID_PATTERN } from "@topostack/core";
-import { CHART_ID_PATTERN } from "@topostack/data-contracts/chart-bathymetry";
-import { parseProject } from "$lib/storage/storage";
+import { DEFAULT_PROJECT } from "../types.js";
+import { parseProject } from "./parse.js";
 
 describe("project import validation", () => {
   it("accepts a valid v1 project", () => expect(parseProject(DEFAULT_PROJECT)).toMatchObject({ schemaVersion: 1, widthMm: 300 }));
@@ -63,7 +62,7 @@ describe("project import validation", () => {
     const { customLines: _legacyCustomLines, ...legacyProject } = DEFAULT_PROJECT;
     expect(parseProject(legacyProject).customLines).toEqual([]);
     expect(() => parseProject({ ...DEFAULT_PROJECT, customLines: [{ ...customLines[0], kind: "river" }] })).toThrow(/trail or boundary/i);
-    expect(() => parseProject({ ...DEFAULT_PROJECT, customLines: [{ ...customLines[0], points: [customLines[0].points[0]] }] })).toThrow(/at least two points/i);
+    expect(() => parseProject({ ...DEFAULT_PROJECT, customLines: [{ ...customLines[0], points: [customLines[0]!.points[0]] }] })).toThrow(/at least two points/i);
   });
   it("validates and restores flat engraving settings", () => {
     expect(parseProject({ ...DEFAULT_PROJECT, outputMode: "engraving", engravingContourCount: 24, engravingIndexInterval: 6, showEngravingBorder: false, waterFillPattern: "ripples" })).toMatchObject({
@@ -275,12 +274,6 @@ describe("project import validation", () => {
     // Absent stays absent, so projects saved before charts keep their fingerprint.
     expect("userDepthCharts" in parseProject({ ...DEFAULT_PROJECT })).toBe(false);
     expect("userDepthCharts" in parseProject({ ...DEFAULT_PROJECT, userDepthCharts: { "1": { id: "bad", contentHash: "" } } })).toBe(false);
-  });
-
-  it("holds core's chart id pattern to the record contract's", () => {
-    // Core is built on its own and keeps a copy; this is what keeps it honest.
-    expect(DEPTH_CHART_ID_PATTERN.source).toBe(CHART_ID_PATTERN.source);
-    expect(DEPTH_CHART_ID_PATTERN.flags).toBe(CHART_ID_PATTERN.flags);
   });
 
   it("drops depth overrides that are not usable depths", () => {

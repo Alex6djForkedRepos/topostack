@@ -6,10 +6,16 @@
   "preview_urls": false,
   "compatibility_date": "2026-08-22",
   "compatibility_flags": ["nodejs_compat"],
+  // Core is consumed from source like the generator does; its package entry
+  // points at a dist/ that CI never builds before testing or deploying. Only
+  // the project subpath is aliased: the Worker never generates contours.
+  "alias": { "@topostack/core/project": "../../packages/core/src/project/index.ts" },
   "assets": {
     "directory": "../../apps/generator/dist",
+    // The MCP server reads the in-chat preview page (mcp-app/) through it.
+    "binding": "ASSETS",
     "not_found_handling": "404-page",
-    "run_worker_first": ["/health", "/ready", "/v1", "/v1/*", "/data/lake-outlines/*"]
+    "run_worker_first": ["/health", "/ready", "/v1", "/v1/*", "/data/lake-outlines/*", "/mcp", "/.well-known/mcp/*"]
   },
   "vars": {
     "ENVIRONMENT": "development",
@@ -18,7 +24,10 @@
     "TERRAIN_ORIGIN": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium",
     "GEOCODER_ORIGIN": "https://api.geoapify.com",
     "DATASET_VERSION": "mapzen-terrarium+protomaps-20260905-z12-v1",
-    "FEEDBACK_EMAIL_FROM": "feedback@topostack.app"
+    "FEEDBACK_EMAIL_FROM": "feedback@topostack.app",
+    // Where the studio lives: agent links open it. `npm run dev` overrides it
+    // with the local generator's port.
+    "PUBLIC_ORIGIN": "http://localhost:5273"
   },
   // The top-level configuration is the fallback for a bare `wrangler deploy`
   // and for local tooling (tests, `--env=""` dry-run builds). It must never
@@ -40,7 +49,9 @@
     { "name": "GEOCODE_GLOBAL_LIMITER", "namespace_id": "1007", "simple": { "limit": 300, "period": 60 } },
     { "name": "TERRAIN_GLOBAL_LIMITER", "namespace_id": "1010", "simple": { "limit": 2400, "period": 60 } },
     { "name": "FEEDBACK_LIMITER", "namespace_id": "1013", "simple": { "limit": 3, "period": 60 } },
-    { "name": "FEEDBACK_GLOBAL_LIMITER", "namespace_id": "1016", "simple": { "limit": 30, "period": 60 } }
+    { "name": "FEEDBACK_GLOBAL_LIMITER", "namespace_id": "1016", "simple": { "limit": 30, "period": 60 } },
+    { "name": "AGENT_LIMITER", "namespace_id": "1019", "simple": { "limit": 120, "period": 60 } },
+    { "name": "AGENT_GLOBAL_LIMITER", "namespace_id": "1022", "simple": { "limit": 1200, "period": 60 } }
   ],
   // Feedback is emailed through Cloudflare Email Service. The sender domain
   // must be onboarded in the dashboard (Email Service > Onboard domain); the
@@ -78,7 +89,8 @@
         "TERRAIN_ORIGIN": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium",
         "GEOCODER_ORIGIN": "https://api.geoapify.com",
         "DATASET_VERSION": "mapzen-terrarium+protomaps-20260905-z12-v1",
-        "FEEDBACK_EMAIL_FROM": "feedback@topostack.app"
+        "FEEDBACK_EMAIL_FROM": "feedback@topostack.app",
+        "PUBLIC_ORIGIN": "https://dev.topostack.app"
       },
       "r2_buckets": [
         { "binding": "MAP_CACHE", "bucket_name": "topostack-map-cache-development" },
@@ -91,7 +103,9 @@
         { "name": "GEOCODE_GLOBAL_LIMITER", "namespace_id": "1008", "simple": { "limit": 300, "period": 60 } },
         { "name": "TERRAIN_GLOBAL_LIMITER", "namespace_id": "1011", "simple": { "limit": 2400, "period": 60 } },
         { "name": "FEEDBACK_LIMITER", "namespace_id": "1014", "simple": { "limit": 3, "period": 60 } },
-        { "name": "FEEDBACK_GLOBAL_LIMITER", "namespace_id": "1017", "simple": { "limit": 30, "period": 60 } }
+        { "name": "FEEDBACK_GLOBAL_LIMITER", "namespace_id": "1017", "simple": { "limit": 30, "period": 60 } },
+        { "name": "AGENT_LIMITER", "namespace_id": "1020", "simple": { "limit": 120, "period": 60 } },
+        { "name": "AGENT_GLOBAL_LIMITER", "namespace_id": "1023", "simple": { "limit": 1200, "period": 60 } }
       ],
       "send_email": [{ "name": "FEEDBACK_EMAIL", "remote": true }]
     },
@@ -112,7 +126,8 @@
         "TERRAIN_ORIGIN": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium",
         "GEOCODER_ORIGIN": "https://api.geoapify.com",
         "DATASET_VERSION": "mapzen-terrarium+protomaps-20260905-z12-v1",
-        "FEEDBACK_EMAIL_FROM": "feedback@topostack.app"
+        "FEEDBACK_EMAIL_FROM": "feedback@topostack.app",
+        "PUBLIC_ORIGIN": "https://topostack.app"
       },
       "r2_buckets": [
         { "binding": "MAP_CACHE", "bucket_name": "topostack-map-cache" },
@@ -125,7 +140,9 @@
         { "name": "GEOCODE_GLOBAL_LIMITER", "namespace_id": "1009", "simple": { "limit": 300, "period": 60 } },
         { "name": "TERRAIN_GLOBAL_LIMITER", "namespace_id": "1012", "simple": { "limit": 2400, "period": 60 } },
         { "name": "FEEDBACK_LIMITER", "namespace_id": "1015", "simple": { "limit": 3, "period": 60 } },
-        { "name": "FEEDBACK_GLOBAL_LIMITER", "namespace_id": "1018", "simple": { "limit": 30, "period": 60 } }
+        { "name": "FEEDBACK_GLOBAL_LIMITER", "namespace_id": "1018", "simple": { "limit": 30, "period": 60 } },
+        { "name": "AGENT_LIMITER", "namespace_id": "1021", "simple": { "limit": 120, "period": 60 } },
+        { "name": "AGENT_GLOBAL_LIMITER", "namespace_id": "1024", "simple": { "limit": 1200, "period": 60 } }
       ],
       "send_email": [{ "name": "FEEDBACK_EMAIL", "remote": true }]
     }

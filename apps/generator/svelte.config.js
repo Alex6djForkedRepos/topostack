@@ -16,7 +16,16 @@ const config = {
       "@topostack/core": fileURLToPath(new URL("../../packages/core/src/index.ts", import.meta.url)),
     },
     paths: { relative: true },
-    ...(atommBuild ? { prerender: { crawl: false, entries: ["/", "/studio", "/attribution"], handleUnseenRoutes: "ignore" } } : {}),
+    prerender: {
+      // /v1/ is the map API, served by the Worker next to the static site (lake
+      // depth previews link there). The static build cannot fetch it; any other
+      // failed link still fails the build.
+      handleHttpError: ({ path, message }) => {
+        if (path.startsWith("/v1/")) return;
+        throw new Error(message);
+      },
+      ...(atommBuild ? { crawl: false, entries: ["/", "/studio", "/attribution"], handleUnseenRoutes: "ignore" } : {}),
+    },
   },
 };
 

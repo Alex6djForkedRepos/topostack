@@ -11,8 +11,8 @@ export const DOCS_SECTIONS: readonly { id: string; title: string; summary: strin
   {
     id: "start",
     title: "Get started",
-    summary: "Find your way around the studio and follow a complete first project.",
-    paths: ["/guides/studio-tour", "/examples", "/examples/crater-lake"],
+    summary: "Find your way around the studio, start from an AI assistant, or follow a complete first project.",
+    paths: ["/guides/studio-tour", "/guides/use-with-ai-assistants", "/examples", "/examples/crater-lake"],
   },
   {
     id: "make",
@@ -31,6 +31,12 @@ export const DOCS_SECTIONS: readonly { id: string; title: string; summary: strin
     title: "Lakes and depth",
     summary: "Make a layered lake map, trace a depth chart for an unsurveyed lake, browse lakes with surveyed depth data, and learn how TopoStack builds lake floors.",
     paths: ["/guides/custom-lake-depth-map", "/guides/trace-a-depth-chart", "/guides/how-depth-chart-tracing-works", "/lakes", "/guides/lake-depth-data", "/guides/how-lake-depths-work"],
+  },
+  {
+    id: "agents",
+    title: "AI agents and API",
+    summary: "Drive the studio with a browser agent, and build on TopoStack's MCP server and HTTP API.",
+    paths: ["/guides/browser-agents", "/guides/mcp-server", "/guides/agent-api"],
   },
   {
     id: "help",

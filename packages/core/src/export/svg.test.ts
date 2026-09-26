@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildEngravingPackage, buildFabricationPackage, createSyntheticSource, DEFAULT_PROJECT, engravingToSvg, generateGeometry, layerToSvg, masterToSvg, type ProjectConfigV1 } from "../index.js";
 import { gridSource, realSource } from "../test-support/sources.js";
+import { EXPORT_CREDIT } from "./svg-primitives.js";
 
 describe("SVG export", () => {
   it("exports 1:1 millimeter SVGs with machine operation groups", async () => {
@@ -136,5 +137,29 @@ describe("SVG export", () => {
     const cutPaths = [...cutGroup.matchAll(/<path[^>]* d="([^"]+)"/g)].map((path) => path[1] ?? "");
     expect(cutPaths.length).toBeGreaterThanOrEqual(result.layers.length);
     expect(cutPaths.every((data) => (data.match(/M/g) ?? []).length === 1)).toBe(true);
+  });
+
+  it("credits TopoStack once, as a non-drawing description right after the title", async () => {
+    const result = generateGeometry(DEFAULT_PROJECT, realSource());
+    const engraving = { ...DEFAULT_PROJECT, outputMode: "engraving" as const };
+    const fabrication = buildFabricationPackage(result, DEFAULT_PROJECT);
+    const svgs = [
+      layerToSvg(result, result.layers[0]!),
+      masterToSvg(result),
+      ...await Promise.all(fabrication.files.filter((file) => file.filename.endsWith(".svg")).map((file) => file.blob.text())),
+      engravingToSvg(generateGeometry(engraving, realSource(engraving)), engraving),
+    ];
+    expect(EXPORT_CREDIT).toBe("Made with TopoStack · https://topostack.app");
+    const desc = `<desc>${EXPORT_CREDIT}</desc>`;
+    const count = (svg: string, pattern: RegExp) => svg.match(pattern)?.length ?? 0;
+    for (const svg of svgs) {
+      expect(svg.startsWith('<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" ')).toBe(true);
+      expect(count(svg, /<desc\b/g)).toBe(1);
+      expect(count(svg, /Made with TopoStack/g)).toBe(1);
+      // The credit is a text-only element between the title and the artwork, so the drawn
+      // groups and paths follow it unchanged (the path-count tests above still hold).
+      expect(svg).toMatch(new RegExp(`^[^\\n]*\\n<svg [^>]*><title>[^<]*</title>${desc}<(?:g|path)\\b`));
+      expect(count(svg, /<path\b/g)).toBeGreaterThan(0);
+    }
   });
 });

@@ -4,6 +4,27 @@ User-facing changes to TopoStack, newest first. Also at https://topostack.app/ch
 
 Generated from `changelog/releases.json` by `npm run changelog:prepare`; do not edit by hand. See [docs/changelog.md](docs/changelog.md).
 
+## 0.7.0 (2026-09-26)
+
+### New
+
+- **Share a design from your device's share sheet**: On phones, tablets and browsers with a system share sheet, **Project actions → Share design…** sends a link that opens your design to Messages, email or any app. **Copy share link** is still there, and is used automatically where sharing isn't available. ([#120](https://github.com/Echo-Foxtrot-Works/topostack/pull/120))
+- **Open any example in the studio with one click**: Every [example project](https://topostack.app/examples) now has an **Open in studio** button that loads its map area and settings and starts generating the terrain, with no file to download and import. **Undo** returns to the project you had open before, and the project file is still there to download. ([#121](https://github.com/Echo-Foxtrot-Works/topostack/pull/121))
+- **A page for every larger surveyed lake**: More than 2,700 lakes now have a page of their own, such as [Crater Lake](https://topostack.app/lake/crater-lake-oregon). Each one lists the survey's facts and source, the map scale at 12, 16 and 24 inches, and nearby lakes with depth data, and links straight into the studio. Find them from the [lake depth maps](https://topostack.app/lakes) by region. ([#125](https://github.com/Echo-Foxtrot-Works/topostack/pull/125))
+- **Lake pages show where the lake is**: Every lake page now opens with a small map of the lake's position: its survey area on the surrounding land, borders and water, with the other lakes that have depth data around it. See [Crater Lake](https://topostack.app/lake/crater-lake-oregon). ([#128](https://github.com/Echo-Foxtrot-Works/topostack/pull/128))
+- **Plan and preview models with Claude, ChatGPT and other AI assistants**: Connect your assistant to `https://topostack.app/mcp` and ask for a model in plain words: it finds the place, estimates the sheets, shows a preview in the chat and gives you a studio link that builds the model when you open it. Browser agents can also edit and generate the design in the studio. See [using TopoStack with AI assistants](https://topostack.app/guides/use-with-ai-assistants). ([#136](https://github.com/Echo-Foxtrot-Works/topostack/pull/136))
+
+### Improved
+
+- **Exports credit TopoStack**: Exported SVGs now carry a short "Made with TopoStack · https://topostack.app" description, and README.txt ends with the same line, so a shared or sold piece's files point back to where they came from. The description is metadata rather than a path, so it never draws, cuts or engraves anything. ([#119](https://github.com/Echo-Foxtrot-Works/topostack/pull/119))
+- **Guides for browser agents, the MCP server and the HTTP API**: Three new guides cover what AI assistants and scripts can do with TopoStack. [Use a browser agent in the studio](https://topostack.app/guides/browser-agents) lists the tools an agent in your browser tab can use to change and generate your design, and what stays in your hands. The [MCP server reference](https://topostack.app/guides/mcp-server) and the [project request and HTTP API reference](https://topostack.app/guides/agent-api) describe every tool, request field, error and limit for people building on them. Long commands in guides now scroll inside their box instead of widening the page. ([#140](https://github.com/Echo-Foxtrot-Works/topostack/pull/140))
+
+### Fixed
+
+- **Lake search and the region index link to lake pages**: Lakes with a page of their own now show a **Lake page** link in the [lake depth data search](https://topostack.app/guides/lake-depth-data), and the featured lakes on [lake depth maps by region](https://topostack.app/lakes) open their pages instead of going straight to the studio. ([#127](https://github.com/Echo-Foxtrot-Works/topostack/pull/127))
+- **Faster terrain loading in lake country**: Crops dotted with many lakes, such as Abram Lake near Sioux Lookout or the Boundary Waters, spent up to ten seconds matching lake outlines before generating. That step now takes a fraction of a second, so these maps generate about twice as fast. ([#129](https://github.com/Echo-Foxtrot-Works/topostack/pull/129))
+- **Place search finds mountains, canyons and lakes before towns of the same name**: Searching for Mount Rainier or Grand Canyon now puts the mountain and the canyon first instead of a small town or a housing estate that shares the name, while cities such as Denver still come first. This applies to the studio's place search and to AI assistants using TopoStack. ([#139](https://github.com/Echo-Foxtrot-Works/topostack/pull/139))
+
 ## 0.6.0 (2026-09-24)
 
 ### New

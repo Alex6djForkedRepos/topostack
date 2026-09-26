@@ -1,19 +1,22 @@
 <script lang="ts">
   import { onMount, untrack, setContext } from "svelte";
+  import { base } from "$app/paths";
   import { Download } from "@lucide/svelte";
   import { AppShell, Brand, Button, ContextBar, Sidebar, Topbar, Workspace } from "@loidolt/theme-svelte";
   import { sourceRequirements, DEFAULT_PROJECT, planSeamGrid, displayElevation, displayLength, elevationUnit, generateGeometry, labelPathData, lengthUnit, MAX_PROJECT_NAME_LENGTH, millimetersFromDisplay, planTerrainStack, projectFingerprint, validateProject, type GeometryIRV1, type LineStyleV1, type OperationPath, type ProjectConfigV1, type SourceBundleV1 } from "@topostack/core";
-  import { assembleWater, boundsForProject, loadLakeAreas, loadSurveyedLakeDepths, loadTerrain, loadVectorMarkings, type PlaceResult } from "$lib/domain/data-provider";
+  import { assembleWater, boundsForProject, loadLakeAreas, loadSurveyedLakeDepths, loadTerrain, loadVectorMarkings, searchPlaces, type PlaceResult } from "$lib/domain/data-provider";
   import { applySurveyProvenance } from "$lib/domain/bathymetry";
   import { resolveLakeOutlines } from "$lib/domain/lake-outlines";
   import { CustomDataActions } from "$lib/studio/customdata/custom-data-actions.svelte";
   import { theme } from "$lib/site/theme";
   import { trackUsage } from "$lib/site/usage";
   import { createSamplePreviewSource } from "$lib/domain/sample-preview";
-  import { exportBlockReason } from "@topostack/core";
-  import { loadProject, parseProject, saveProject, saveProjectUnloadCopy } from "$lib/storage/storage";
+  import { exportBlockReason, parseProject } from "@topostack/core";
+  import { loadProject, saveProject, saveProjectUnloadCopy } from "$lib/storage/storage";
   import { AutomaticNesting } from "$lib/atomm/automatic-nesting";
   import { connectAtomm } from "$lib/atomm/atomm-bridge";
+  import type { ModelContextLike } from "$lib/studio/webmcp";
+  import type { WebMcpHost } from "$lib/studio/webmcp-tools";
   import type { DownloadOption } from "$lib/studio/native-export";
   import { downloadProject as downloadWithNotice, ExportNotice } from "$lib/studio/export-notice";
   import { SheetNesting } from "$lib/studio/sheet-nesting.svelte";
@@ -494,6 +497,19 @@
         const { replaceState } = await import("$app/navigation");
         const url = new URL(window.location.href);
         url.hash = "";
+        url.searchParams.delete("generate");
+        replaceState(url, {});
+      },
+      loadExample: async (slug) => {
+        const response = await fetch(`${base}/examples/${slug}.json`);
+        if (response.status === 404) return undefined;
+        if (!response.ok) throw new Error(`Example request failed with status ${response.status}.`);
+        return response.json();
+      },
+      consumeExampleLink: async () => {
+        const { replaceState } = await import("$app/navigation");
+        const url = new URL(window.location.href);
+        url.searchParams.delete("example");
         replaceState(url, {});
       },
       isCancelled: () => cancelled,
@@ -518,6 +534,12 @@
         replaceSourceProject(next, createProjectPreviewSource(next));
         trackUsage("share_link_opened", next.outputMode);
       },
+      openExample: (next, previous) => {
+        invalidatePendingPreview();
+        projectHistory.push(previous);
+        dismissedWarnings = [];
+        replaceSourceProject(next, createProjectPreviewSource(next));
+      },
       setStatus: (message) => { status = message; },
     }).then(({ autosave }) => {
       // Autosave must start even when restoring failed, or later edits are lost,
@@ -525,7 +547,14 @@
       if (!cancelled && autosave) booted = true;
       if (!cancelled) loadRealTerrain();
     });
-    return () => { cancelled = true; disconnectAtomm(); exportNotice.dispose(); sheetNesting.dispose(); automaticNesting.dispose(); generationAbort?.abort(); pipeline.dispose(); };
+    // Browser agents (WebMCP) get the studio's own tools. Detected inline so
+    // browsers without it never load the module; the Atomm embed never offers them.
+    let disconnectWebMcp = () => {};
+    const agentContext = (document as unknown as { modelContext?: ModelContextLike }).modelContext ?? (navigator as unknown as { modelContext?: ModelContextLike }).modelContext;
+    if (!embeddedInPlatform && import.meta.env.VITE_SITE_ENV !== "atomm" && typeof agentContext?.registerTool === "function") {
+      void import("$lib/studio/webmcp").then(({ connectWebMcp }) => { if (!cancelled) disconnectWebMcp = connectWebMcp(agentContext, webMcpHost()); });
+    }
+    return () => { cancelled = true; disconnectAtomm(); disconnectWebMcp(); exportNotice.dispose(); sheetNesting.dispose(); automaticNesting.dispose(); generationAbort?.abort(); pipeline.dispose(); };
   });
 
   $effect(() => {
@@ -802,6 +831,39 @@
     return refreshPreview(updatesCustomData ? "customData" : "fabrication", delayMs);
   }
 
+  const MAP_DETAIL_KEYS = new Set<string>(["showWater", "showWaterDepth", "showRoads", "showTrails", "showTransportationLabels", "showBoundaries", "showCoordinateGrid", "showElevationLabels", "showNorthArrow", "showScaleBar"]);
+
+  /** An agent's settings change, applied the way the matching controls apply it. */
+  function applyAgentPatch(patch: Partial<ProjectConfigV1>): Promise<void> {
+    if (patch.outputMode && patch.outputMode !== project.outputMode) mode = patch.outputMode === "engraving" ? "engraving" : threeUnavailable ? "2d" : "3d";
+    const keys = Object.keys(patch);
+    if (keys.every((key) => key === "name")) { updateProject(patch); return Promise.resolve(); }
+    if (keys.every((key) => key === "name" || MAP_DETAIL_KEYS.has(key))) return updateMapDetails(patch);
+    return updateFabrication(patch);
+  }
+
+  /** The live studio as the WebMCP tools see it; getters, so no tool reads a stale closure. */
+  function webMcpHost(): WebMcpHost {
+    return {
+      project: () => project,
+      geometry: () => geometry,
+      generationState: () => generationState,
+      status: () => status,
+      exportBlockedBy: () => exportBlockedBy,
+      searchPlaces: (query) => searchPlaces(query),
+      setLocation: (location, name) => {
+        invalidatePendingPreview();
+        projectHistory.push(project);
+        project = { ...project, ...(name ? { name } : {}), location };
+        if (!followMapArea()) status = "Map area changed · regenerate terrain data";
+      },
+      applyPatch: applyAgentPatch,
+      generate: () => generate(),
+      undo,
+      openExport: () => { exportOpen = true; },
+    };
+  }
+
   /** An `automatic` run is the embed loading terrain on its own: it keeps the current view and skips the progress toasts. */
   async function generate({ automatic = false }: { automatic?: boolean } = {}): Promise<void> {
     // A chart saved again since a lake took it (a project imported with a newer
@@ -911,14 +973,35 @@
     catch (error) { reportImportError(error instanceof Error ? error.message : "Could not import this project."); }
   }
 
+  async function shareLink(): Promise<string> {
+    const { shareLinkFor } = await import("$lib/studio/share-link");
+    return shareLinkFor(project, new URL("/studio", window.location.href).toString());
+  }
+
   async function copyShareLink(): Promise<void> {
     try {
-      const { shareLinkFor } = await import("$lib/studio/share-link");
-      await navigator.clipboard.writeText(shareLinkFor(project, new URL("/studio", window.location.href).toString()));
+      await navigator.clipboard.writeText(await shareLink());
       status = "Share link copied · anyone with it can open this design";
       trackUsage("share_link_copied", project.outputMode);
     } catch (error) {
       status = error instanceof Error && error.name !== "NotAllowedError" ? error.message : "Could not copy the share link. Check clipboard permissions and try again.";
+    }
+  }
+
+  /** Hands the link to the system share sheet; browsers without one, and share failures, copy it instead. */
+  async function shareDesign(): Promise<void> {
+    let url: string;
+    try { url = await shareLink(); } catch (error) { status = error instanceof Error ? error.message : "Could not create the share link."; return; }
+    const data = { title: `${project.name.trim() || "Topographic map"} · TopoStack`, text: "A topographic map design made with TopoStack", url };
+    if (typeof navigator.share !== "function" || navigator.canShare?.(data) === false) return copyShareLink();
+    try {
+      await navigator.share(data);
+      status = "Design shared · anyone with the link can open it";
+      trackUsage("share_link_shared", project.outputMode);
+    } catch (error) {
+      // Closing the share sheet is not a failure.
+      if (error instanceof Error && error.name === "AbortError") return;
+      await copyShareLink();
     }
   }
 
@@ -1033,7 +1116,7 @@
     saveChartToLibrary: (record) => customData.saveChartToLibrary(record),
     useChartForLake: (key, reference) => customData.useChartForLake(key, reference),
     clearDepthChart: (key) => customData.clearDepthChart(key),
-    importMarkerIcon: (file, markerId) => customData.importMarkerIcon(file, markerId), importGraphic: (file) => customData.importGraphic(file), choosePlace, startPlacement, placeGraphic, placeGraphics, commitPlacement, cancelPlacement, undo, redo, importProject, copyShareLink, importCustomData, generate, cancelGeneration, toggleSection, setAllSections, sectionSummary, navigateChoice, dismissPreviewWarning, previewMarkingPath, trailPatternDash, getFeedbackContext,
+    importMarkerIcon: (file, markerId) => customData.importMarkerIcon(file, markerId), importGraphic: (file) => customData.importGraphic(file), choosePlace, startPlacement, placeGraphic, placeGraphics, commitPlacement, cancelPlacement, undo, redo, importProject, copyShareLink, shareDesign, importCustomData, generate, cancelGeneration, toggleSection, setAllSections, sectionSummary, navigateChoice, dismissPreviewWarning, previewMarkingPath, trailPatternDash, getFeedbackContext,
   });
 </script>
 

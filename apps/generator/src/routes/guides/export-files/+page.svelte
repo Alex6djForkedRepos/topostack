@@ -74,6 +74,7 @@
 
   <h2>Credits</h2>
   <p><code>ATTRIBUTION.txt</code> lists the credits and licenses of the terrain, map, lake outline and survey sources used, and the terrain imagery sources reported by the provider. Keep it with the artwork when you share or sell a piece. <a href={`${base}/attribution`}>Sources and attribution</a> describes every source TopoStack can use.</p>
+  <p>Every SVG also carries a short “Made with TopoStack” credit in its <code>&lt;desc&gt;</code> description, and README.txt ends with the same line. The description is file metadata: it is not a path, so it never draws, cuts or engraves.</p>
 
   <h2>Next steps</h2>
   <p>Follow the <a href={`${base}/guides/laser-cut-topographic-map`}>layered map guide</a> or the <a href={`${base}/guides/topographic-map-engraving`}>engraving guide</a>, or see <a href={`${base}/guides/troubleshooting`}>troubleshooting</a> if export is blocked.</p>

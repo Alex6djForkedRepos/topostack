@@ -14,6 +14,7 @@
   const image = $derived(seo?.image ?? DEFAULT_SOCIAL_IMAGE);
   const imageUrl = $derived(SITE_ORIGIN + image.url);
   const article = $derived(seo?.article);
+  const place = $derived(seo?.place);
   const schema = $derived(JSON.stringify({
     "@context": "https://schema.org",
     "@graph": [
@@ -33,6 +34,15 @@
         isPartOf: { "@id": SITE_ORIGIN + "/#website" },
         author: { "@id": SITE_ORIGIN + "/#organization" },
         publisher: { "@id": SITE_ORIGIN + "/#organization" },
+      }] : []),
+      ...(place ? [{
+        "@type": "LakeBodyOfWater",
+        "@id": canonical + "#lake",
+        name: place.name,
+        ...(place.alternateName ? { alternateName: place.alternateName } : {}),
+        geo: { "@type": "GeoShape", box: place.box },
+        containedInPlace: { "@type": "Place", name: place.containedIn },
+        subjectOf: { "@type": "WebPage", "@id": canonical, url: canonical, name: title },
       }] : []),
       ...(seo?.breadcrumbs.length ? [{ "@type": "BreadcrumbList", itemListElement: seo.breadcrumbs.map((crumb, index) => ({ "@type": "ListItem", position: index + 1, ...crumb })) }] : []),
     ],
