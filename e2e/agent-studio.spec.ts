@@ -43,7 +43,9 @@ test("offers the studio's tools to a browser agent through WebMCP", async ({ pag
     (window as unknown as { agentTools: Map<string, { execute: (input: unknown) => Promise<unknown> }> }).agentTools.get(tool)!.execute(args), [name, input] as const) as Promise<ToolResult>;
 
   await page.goto("/studio");
-  await expect.poll(() => page.evaluate(() => (window as unknown as { agentTools: Map<string, unknown> }).agentTools.size)).toBe(7);
+  // The tools register once the studio has mounted and loaded its WebMCP chunk, which waits behind
+  // startup work; on a busy CI runner that takes longer than the default five seconds.
+  await expect.poll(() => page.evaluate(() => (window as unknown as { agentTools: Map<string, unknown> }).agentTools.size), { timeout: 30_000 }).toBe(7);
 
   const before = await call("topostack_get_design");
   expect(before.structuredContent).toMatchObject({ design: { output: "layered", materialThicknessMm: DEFAULT_PROJECT.materialThicknessMm } });
